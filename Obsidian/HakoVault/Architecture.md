@@ -116,8 +116,8 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 - Песочница ограничивает доступ к файловой системе и сети: новые возможности
   (запись в выбранные файлы, входящие соединения и т. п.) требуют включения
   соответствующих capability в настройках таргета. Исходящие соединения включены.
-- Вход в Minecraft требует Client ID Azure, одобренного Mojang; сейчас `MicrosoftAuth.clientID`
-  пуст, а Client ID пользователя ещё не одобрен — см. [[Auth/MicrosoftAuth]].
+- Вход в Minecraft требует Client ID Azure, одобренного Mojang; Client ID проекта задан в
+  `MicrosoftAuth.clientID`, заявка на одобрение подана, но ещё не одобрена — см. [[Auth/MicrosoftAuth]].
 - Интерфейс рассчитан на светлую тему и белый фон: `ContentView` принудительно задаёт `.light`.
 - Тестовых таргетов нет; проверка изменений сейчас ограничена сборкой и ручным запуском.
 

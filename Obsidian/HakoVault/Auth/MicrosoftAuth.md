@@ -19,7 +19,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `MicrosoftAuth.clientID` | Client ID приложения Azure (Entra ID). Сейчас пустая строка — значение вставляет пользователь. Пустое значение → `MicrosoftAuthError.missingClientID` |
+| `MicrosoftAuth.clientID` | Client ID приложения Azure (Entra ID) проекта, задан в коде. Это публичный идентификатор, не секрет: он и так попадает в бинарник приложения. Пустое значение → `MicrosoftAuthError.missingClientID` |
 | `requestDeviceCode() async throws -> DeviceCode` | POST `login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`, `scope=XboxLive.signin offline_access`. Возвращает `userCode`, `deviceCode`, `verificationUri`, `expiresIn`, `interval` |
 | `waitForToken(_:) async throws -> MicrosoftToken` | Опрос `/consumers/oauth2/v2.0/token` (`grant_type=urn:ietf:params:oauth:grant-type:device_code`) каждые `interval` секунд до `expiresIn`. `authorization_pending` — ждать, `slow_down` — +5 с, `authorization_declined` → `.declined`, `expired_token` или дедлайн → `.codeExpired`. Отмена задачи прерывает опрос (`CancellationError` из `Task.sleep`) |
 | `signInToMinecraft(with:) async throws -> MinecraftSession` | Xbox Live → XSTS → Minecraft → профиль (см. поток ниже). Возвращает UUID, ник, токен Minecraft и момент его истечения |
@@ -52,7 +52,9 @@ Parent: [[Index]]
 - Приложение Azure должно поддерживать личные аккаунты Microsoft и иметь включённые
   public client flows (device code flow не использует секрет клиента).
 - Mojang пропускает в Minecraft API только одобренные Client ID (заявка: aka.ms/mce-reviewappid).
-  Со слов пользователя, Client ID проекта пока не одобрен — шаг 3 вернёт 403 (`.appNotApproved`).
+  Заявка на одобрение Client ID проекта подана и пока не одобрена: вход в Microsoft и Xbox Live
+  проходит, а шаг 3 возвращает 403 (`.appNotApproved`). После одобрения код менять не нужно.
+- Device code flow не использует секрет клиента; секреты приложения Azure в репозиторий не добавляются.
 - Исходящие соединения в песочнице разрешены настройкой `ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES`
   (entitlement `com.apple.security.network.client`).
 - Обновление токена Minecraft по refresh token не реализовано: токены только сохраняются
