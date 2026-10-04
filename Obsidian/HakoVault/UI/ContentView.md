@@ -5,7 +5,8 @@ Parent: [[Index]]
 ## Назначение
 
 Корневое представление главного окна: фон [[UI/Screens#SakuraBackground|SakuraBackground]]
-и текущий экран поверх него. Задаёт минимальный размер контента и светлую тему.
+и текущий экран поверх него. Выбирает экран по наличию сохранённого аккаунта,
+задаёт минимальный размер контента и светлую тему.
 
 ## Источники
 
@@ -18,7 +19,23 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `ContentView()` | Без параметров. Показывает `WelcomeView`; кнопка «Начать» пока ничего не делает |
+| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой, включающей `Account`: в приложении — `HakoApp.sharedModelContainer`, в `#Preview` — `.modelContainer(for: Account.self, inMemory: true)` |
+
+## Выбор экрана
+
+Состояние «вошёл / не вошёл» выводится из SwiftData (`@Query private var accounts: [Account]`),
+отдельного флага нет. «Первый запуск» означает отсутствие аккаунта.
+
+| Условие | Экран |
+|---------|-------|
+| `accounts.first != nil` | `HomeView(account:)` |
+| аккаунта нет, `isSigningIn == true` | `LoginView(onBack:)` — «Назад» сбрасывает `isSigningIn` |
+| аккаунта нет, `isSigningIn == false` | `WelcomeView(onStart:)` — «Начать» ставит `isSigningIn` |
+
+`.onChange(of: accounts.isEmpty)` сбрасывает `isSigningIn`, поэтому после выхода снова
+показывается приветствие, а не экран входа. Смена экрана — `.transition(.blurReplace)`
+с анимацией `.smooth` по `isSigningIn` и `accounts.isEmpty`.
+Подробности экранов — [[UI/Screens]].
 
 ## Окно
 

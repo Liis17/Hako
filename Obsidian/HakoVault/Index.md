@@ -2,7 +2,8 @@
 
 Hako — нативный macOS-лаунчер Minecraft на SwiftUI и SwiftData (Xcode 27, macOS 27.0+)
 с авторизацией через Microsoft и интеграцией Modrinth и CurseForge.
-Эта функциональность пока не реализована: есть окно с экраном приветствия.
+Сейчас реализованы приветствие, вход в Microsoft по коду и выход; запуск игры,
+Modrinth и CurseForge пока не реализованы.
 
 ## Архитектура
 
@@ -12,7 +13,13 @@ Hako — нативный macOS-лаунчер Minecraft на SwiftUI и SwiftDa
 
 | Заметка | Назначение |
 |---------|------------|
-| [[Data/Persistence]] | SwiftData: схема, модель `Item`, общий `ModelContainer` |
+| [[Data/Persistence]] | SwiftData: модель `Account`, общий `ModelContainer`; токены в Keychain |
+
+## Auth
+
+| Заметка | Назначение |
+|---------|------------|
+| [[Auth/MicrosoftAuth]] | Вход через Microsoft device code flow, цепочка Xbox Live → Minecraft, ошибки |
 
 ## UI
 

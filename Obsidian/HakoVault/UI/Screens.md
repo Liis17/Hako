@@ -15,6 +15,8 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/Theme.swift` | `Color.sakuraDeep`, `Color.shu`, `Color(hex:)`, `Text.heroTitle()`, `JapaneseCaption`, `HankoSeal`, `View.reveal(_:order:)` | Общие цвета, типографика, декоративные элементы, анимация появления |
 | `macos/Hako/Hako/Views/SakuraBackground.swift` | `SakuraBackground` | Фон окна |
 | `macos/Hako/Hako/Views/WelcomeView.swift` | `WelcomeView` | Экран приветствия |
+| `macos/Hako/Hako/Views/LoginView.swift` | `LoginView` | Вход в Microsoft по коду |
+| `macos/Hako/Hako/Views/HomeView.swift` | `HomeView` | Экран вошедшего пользователя |
 
 ## Стиль
 
@@ -23,7 +25,9 @@ Parent: [[Index]]
   tracking 8, цвет `sakuraDeep` (#E0607E). Текст через `Text(verbatim:)` — не локализуется.
 - `HankoSeal` — красная печать (#D9433B, `Color.shu`) с иероглифом 箱 (Hiragino Mincho ProN W6),
   повёрнута на −4°. «Хако» по-японски — «коробка».
-- Основная кнопка — `.buttonStyle(.glassProminent)`, `.tint(.sakuraDeep)`, `.controlSize(.extraLarge)`.
+- Основная кнопка — `.buttonStyle(.glassProminent)`, `.tint(.sakuraDeep)`, `.controlSize(.extraLarge)`;
+  второстепенные — `.buttonStyle(.glass)`. Ошибки — цвет `Color.shu`.
+- Экраны выровнены по левому краю с горизонтальным отступом 96 pt.
 - `reveal(_:order:)` — поочерёдное появление: opacity + сдвиг на 16 pt, задержка 0.08 с × `order`.
   При Reduce Motion сдвига нет, остаётся только fade.
 
@@ -40,4 +44,29 @@ Parent: [[Index]]
 `WelcomeView(onStart: () -> Void)` — печать 箱, подпись «ようこそ», заголовок
 «Добро пожаловать в Hako», подзаголовок «Лаунчер Minecraft для macOS», кнопка «Начать»
 (`.keyboardShortcut(.defaultAction)` — срабатывает по Return) вызывает `onStart`.
-Элементы выровнены по левому краю с отступом 96 pt и появляются через `reveal`.
+Элементы появляются через `reveal`.
+
+## LoginView
+
+`LoginView(onBack: () -> Void)` — кнопка «Назад», подпись «サインイン», заголовок «Вход в Microsoft»,
+подсказка «Откройте microsoft.com/link и введите код.» и блок по фазе входа:
+
+| Фаза | Содержимое |
+|------|------------|
+| `requestingCode` | «Получаем код…» со спиннером |
+| `waiting(DeviceCode)` | Код моноширинным 56 pt в стеклянной карточке (`glassEffect`), кнопки «Открыть microsoft.com/link» (`openURL(verificationUri)`, Return) и «Скопировать код» (`NSPasteboard`, после нажатия — «Скопировано»), статус «Ждём подтверждения…» |
+| `signingIn` | «Входим в Minecraft…» |
+| `failed(String)` | Текст ошибки и «Попробовать снова» (увеличивает `attempt`) |
+
+Вход выполняет `signIn()` в `.task(id: attempt)`: SwiftUI отменяет задачу, когда экран исчезает
+(«Назад»), и перезапускает при смене `attempt`. Ошибки после отмены не показываются.
+Шаги входа — [[Auth/MicrosoftAuth]]; при успехе токены сохраняются в `TokenKeychain`,
+затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]) — [[UI/ContentView]]
+сам переключается на `HomeView`.
+
+## HomeView
+
+`HomeView(account: Account)` — печать 箱, подпись «おかえり», заголовок «Привет, {ник}»
+и кнопка «Выйти». Выход: `TokenKeychain.delete(for: uuid)`, `modelContext.delete(account)`,
+`modelContext.save()`; [[UI/ContentView]] возвращает приветствие. Остальной функциональности
+главного окна пока нет.
