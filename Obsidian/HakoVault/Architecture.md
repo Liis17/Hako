@@ -10,9 +10,9 @@ Hako — нативное macOS-приложение с единственным
 Назначение (со слов пользователя): лаунчер Minecraft с авторизацией через Microsoft
 и интеграцией каталогов Modrinth и CurseForge.
 
-Текущее состояние: ни одна из этих функций не реализована. Код совпадает со стандартным
-шаблоном Xcode App на SwiftUI + SwiftData: окно со списком записей `Item`, которые можно
-добавлять и удалять. Сетевого взаимодействия, сторонних зависимостей (Swift Package Manager,
+Текущее состояние: ни одна из этих функций не реализована. Есть окно с экраном приветствия
+(см. [[UI/Screens]]); SwiftData-контейнер и модель `Item` остались от шаблона Xcode.
+Сетевого взаимодействия, сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) и тестовых таргетов нет. Данные хранятся локально через SwiftData.
 
 ## Стек
@@ -39,7 +39,8 @@ CocoaPods, Carthage не используются) и тестовых тарг�
   `ModelContainer` и единственную сцену `WindowGroup` с `ContentView`.
   Устройство контейнера описано в [[Data/Persistence]].
 - [[Data/Persistence]] — схема SwiftData, модель `Item`, контейнер хранилища.
-- [[UI/ContentView]] — главное окно: список записей и детальная панель.
+- [[UI/ContentView]] — корень главного окна и настройки окна.
+- [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
 
 ## Основные потоки
 
@@ -50,16 +51,10 @@ CocoaPods, Carthage не используются) и тестовых тарг�
    Ошибка создания контейнера завершает приложение через `fatalError`.
 2. `WindowGroup { ContentView() }` получает контейнер через
    `.modelContainer(sharedModelContainer)`, который помещает `modelContext` в окружение окна.
+3. Окно открывается в 1280×720 без восстановления прошлого размера; `ContentView`
+   показывает экран приветствия поверх фона с сакурой. Настройки окна — в [[UI/ContentView]].
 
-Источники: `macos/Hako/Hako/HakoApp.swift`.
-
-### Работа с записями
-
-`ContentView` читает записи через `@Query`, добавляет `Item(timestamp: Date())`
-через `modelContext.insert` и удаляет через `modelContext.delete`. Явного `save()` нет —
-изменения сохраняет автосохранение главного контекста SwiftData.
-
-Источники: `macos/Hako/Hako/ContentView.swift`, `macos/Hako/Hako/Item.swift`.
+Источники: `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/ContentView.swift`.
 
 ## Конфигурация сборки
 

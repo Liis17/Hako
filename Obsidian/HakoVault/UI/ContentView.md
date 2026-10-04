@@ -4,36 +4,36 @@ Parent: [[Index]]
 
 ## Назначение
 
-Корневое представление главного окна: двухколоночный `NavigationSplitView`
-со списком записей `Item` в боковой панели и детальной панелью.
+Корневое представление главного окна: фон [[UI/Screens#SakuraBackground|SakuraBackground]]
+и текущий экран поверх него. Задаёт минимальный размер контента и светлую тему.
 
 ## Источники
 
 | Файл | Значимый символ | Роль |
 |------|-----------------|------|
-| `macos/Hako/Hako/ContentView.swift` | `ContentView` | Отображение, добавление и удаление записей |
+| `macos/Hako/Hako/ContentView.swift` | `ContentView` | Корень окна |
+| `macos/Hako/Hako/HakoApp.swift` | `HakoApp.body` | Сцена окна и её настройки |
 
 ## Публичные контракты
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `ContentView()` | Без параметров. Требует в окружении `modelContainer`, схема которого включает `Item`: в приложении — `HakoApp.sharedModelContainer`, в `#Preview` — `.modelContainer(for: Item.self, inMemory: true)` |
+| `ContentView()` | Без параметров. Показывает `WelcomeView`; кнопка «Начать» пока ничего не делает |
 
-## Поведение
+## Окно
 
-- Боковая панель: `List` с `ForEach(items)`; каждая строка — `NavigationLink` с `timestamp`
-  в формате `Date.FormatStyle(date: .numeric, time: .standard)`. Ширина колонки — `min: 180, ideal: 200`.
-- Детальная панель: «Item at …» для выбранной записи, иначе «Select an item».
-- Тулбар: кнопка «Add Item» (`systemImage: "plus"`) вызывает `addItem()` — вставку `Item(timestamp: Date())`.
-- `.onDelete(perform: deleteItems)` удаляет записи по индексам результата `@Query`.
-- Вставка и удаление выполняются внутри `withAnimation`.
+Настройки сцены `WindowGroup` в `HakoApp.body`:
 
-## Зависимости и взаимодействия
-
-- Использует [[Data/Persistence]] — `@Query private var items: [Item]` и `@Environment(\.modelContext)`.
-- Создаётся в `HakoApp.body` как содержимое `WindowGroup`.
+| Модификатор | Эффект |
+|-------------|--------|
+| `.defaultSize(width: 1280, height: 720)` | Начальный размер окна |
+| `.restorationBehavior(.disabled)` | Размер и положение не восстанавливаются — каждый запуск открывается в 1280×720 |
+| `.windowResizability(.contentMinSize)` + `ContentView.frame(minWidth: 960, minHeight: 540)` | Окно растягивается, минимум 960×540 |
+| `.windowStyle(.hiddenTitleBar)` | Заголовок скрыт, контент уходит под него, кнопки окна остаются |
+| `.windowBackgroundDragBehavior(.enabled)` | Окно перетаскивается за фон |
 
 ## Ограничения и важные детали
 
-- `@Query` объявлен без `sort` — порядок записей явно не задан.
-- Строки интерфейса — английские литералы; файла String Catalog в проекте пока нет.
+- `.preferredColorScheme(.light)`: интерфейс рассчитан на белый фон; в тёмной теме
+  системные цвета текста стали бы светлыми на белом.
+- Строки интерфейса — русские литералы; файла String Catalog в проекте нет.

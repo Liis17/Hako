@@ -28,5 +28,10 @@ struct HakoApp: App {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
+        .defaultSize(width: 1280, height: 720)
+        .windowResizability(.contentMinSize)
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
+        .restorationBehavior(.disabled)
     }
 }
