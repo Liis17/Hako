@@ -16,11 +16,35 @@ struct DeviceCode: Decodable {
 struct MicrosoftToken: Decodable {
     let accessToken: String
     let refreshToken: String
+    let idToken: String?
+
+    /// Email из `id_token`. Подпись не проверяется: токен получен напрямую от Microsoft по TLS
+    /// и используется только для отображения.
+    var email: String? {
+        guard let payload = idToken?.split(separator: ".").dropFirst().first else { return nil }
+        var base64 = payload.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        guard let data = Data(base64Encoded: base64),
+              let claims = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return (claims["email"] ?? claims["preferred_username"]) as? String
+    }
+}
+
+struct XboxProfile {
+    let xuid: String
+    let gamertag: String
+    let avatarURL: URL?
+}
+
+struct MinecraftProfile {
+    let uuid: String
+    let name: String
+    let skinURL: URL?
 }
 
 struct MinecraftSession {
-    let uuid: String
-    let name: String
+    let profile: MinecraftProfile
     let accessToken: String
     let expiration: Date
 }
@@ -65,8 +89,8 @@ enum MicrosoftAuthError: LocalizedError {
     }
 }
 
-/// Вход в Minecraft через Microsoft device code flow:
-/// код для microsoft.com/link → токен Microsoft → Xbox Live → XSTS → Minecraft → профиль.
+/// Вход через Microsoft device code flow: код для microsoft.com/link → токен Microsoft → Xbox Live →
+/// профиль Xbox (XSTS `http://xboxlive.com`) и, если доступен, Minecraft (XSTS `rp://api.minecraftservices.com/`).
 enum MicrosoftAuth {
     /// Client ID приложения Azure (Entra ID) с включёнными public client flows.
     static let clientID = "5ca0e2a1-52ce-4ba5-afab-da8048e7b124"
@@ -83,7 +107,7 @@ enum MicrosoftAuth {
         guard !clientID.isEmpty else { throw MicrosoftAuthError.missingClientID }
         let (data, status) = try await send(formRequest(oauthURL.appending(path: "devicecode"), [
             "client_id": clientID,
-            "scope": "XboxLive.signin offline_access",
+            "scope": "XboxLive.signin openid profile email offline_access",
         ]))
         guard status == 200 else { throw oauthError(data, status: status) }
         return try decoder.decode(DeviceCode.self, from: data)
@@ -119,8 +143,40 @@ enum MicrosoftAuth {
         throw MicrosoftAuthError.codeExpired
     }
 
-    static func signInToMinecraft(with token: MicrosoftToken) async throws -> MinecraftSession {
-        let xboxLive = try await xboxToken(URL(string: "https://user.auth.xboxlive.com/user/authenticate")!, [
+    /// Новый токен Microsoft по refresh token — без повторного ввода кода.
+    static func refresh(_ refreshToken: String) async throws -> MicrosoftToken {
+        let (data, status) = try await send(formRequest(oauthURL.appending(path: "token"), [
+            "grant_type": "refresh_token",
+            "client_id": clientID,
+            "refresh_token": refreshToken,
+            "scope": "XboxLive.signin offline_access",
+        ]))
+        guard status == 200 else { throw oauthError(data, status: status) }
+        return try decoder.decode(MicrosoftToken.self, from: data)
+    }
+
+    /// Профиль Xbox и, если доступна, сессия Minecraft. Любая ошибка на шаге Minecraft
+    /// (Client ID не одобрен, нет игры, сбой) не прерывает вход: аккаунт остаётся только Microsoft.
+    static func signIn(with token: MicrosoftToken) async throws -> (XboxProfile, MinecraftSession?) {
+        let userToken = try await xboxUserToken(token)
+        let xbox = try await xboxProfile(userToken)
+        let minecraft = try? await minecraftSession(userToken)
+        try Task.checkCancellation()
+        return (xbox, minecraft)
+    }
+
+    /// Подключает Minecraft к сохранённому аккаунту по refresh token. Возвращает и новый токен
+    /// Microsoft: Microsoft выдаёт новый refresh token, его нужно сохранить вместо старого.
+    static func connectMinecraft(refreshToken: String) async throws -> (MicrosoftToken, MinecraftSession) {
+        let token = try await refresh(refreshToken)
+        let session = try await minecraftSession(xboxUserToken(token))
+        return (token, session)
+    }
+
+    // MARK: - Xbox Live и Minecraft
+
+    private static func xboxUserToken(_ token: MicrosoftToken) async throws -> XboxToken {
+        try await xboxToken(URL(string: "https://user.auth.xboxlive.com/user/authenticate")!, [
             "Properties": [
                 "AuthMethod": "RPS",
                 "SiteName": "user.auth.xboxlive.com",
@@ -129,14 +185,43 @@ enum MicrosoftAuth {
             "RelyingParty": "http://auth.xboxlive.com",
             "TokenType": "JWT",
         ])
-        let xsts = try await xboxToken(URL(string: "https://xsts.auth.xboxlive.com/xsts/authorize")!, [
+    }
+
+    private static func xstsToken(_ userToken: XboxToken, relyingParty: String) async throws -> XboxToken {
+        try await xboxToken(URL(string: "https://xsts.auth.xboxlive.com/xsts/authorize")!, [
             "Properties": [
                 "SandboxId": "RETAIL",
-                "UserTokens": [xboxLive.token],
+                "UserTokens": [userToken.token],
             ],
-            "RelyingParty": "rp://api.minecraftservices.com/",
+            "RelyingParty": relyingParty,
             "TokenType": "JWT",
         ])
+    }
+
+    private static func xboxProfile(_ userToken: XboxToken) async throws -> XboxProfile {
+        let xsts = try await xstsToken(userToken, relyingParty: "http://xboxlive.com")
+        let claims = xsts.displayClaims.xui.first ?? [:]
+        return XboxProfile(
+            xuid: claims["xid"] ?? "",
+            gamertag: claims["gtg"] ?? "",
+            // Аватар необязателен: без него показываются инициалы.
+            avatarURL: try? await xboxAvatar(xsts)
+        )
+    }
+
+    private static func xboxAvatar(_ xsts: XboxToken) async throws -> URL? {
+        var request = URLRequest(url: URL(string: "https://profile.xboxlive.com/users/me/profile/settings?settings=GameDisplayPicRaw")!)
+        request.setValue("XBL3.0 x=\(xsts.userHash);\(xsts.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("3", forHTTPHeaderField: "x-xbl-contract-version")
+        let (data, status) = try await send(request)
+        guard status == 200 else { throw MicrosoftAuthError.unexpectedResponse(status: status) }
+        let settings = try decoder.decode(XboxProfileSettings.self, from: data)
+        let picture = settings.profileUsers.first?.settings.first { $0.id == "GameDisplayPicRaw" }
+        return picture.flatMap { URL(string: $0.value) }
+    }
+
+    private static func minecraftSession(_ userToken: XboxToken) async throws -> MinecraftSession {
+        let xsts = try await xstsToken(userToken, relyingParty: "rp://api.minecraftservices.com/")
 
         let (loginData, loginStatus) = try await send(jsonRequest(
             URL(string: "https://api.minecraftservices.com/authentication/login_with_xbox")!,
@@ -151,11 +236,12 @@ enum MicrosoftAuth {
         let (profileData, profileStatus) = try await send(profileRequest)
         if profileStatus == 404 { throw MicrosoftAuthError.noMinecraft }
         guard profileStatus == 200 else { throw MicrosoftAuthError.unexpectedResponse(status: profileStatus) }
-        let profile = try decoder.decode(MinecraftProfile.self, from: profileData)
+        let profile = try decoder.decode(MinecraftProfileResponse.self, from: profileData)
+        let skins = profile.skins ?? []
+        let skin = skins.first { $0.state == "ACTIVE" } ?? skins.first
 
         return MinecraftSession(
-            uuid: profile.id,
-            name: profile.name,
+            profile: MinecraftProfile(uuid: profile.id, name: profile.name, skinURL: skin?.secureURL),
             accessToken: login.accessToken,
             expiration: .now.addingTimeInterval(TimeInterval(login.expiresIn))
         )
@@ -240,7 +326,33 @@ private struct MinecraftLogin: Decodable {
     let expiresIn: Int
 }
 
-private struct MinecraftProfile: Decodable {
+private struct MinecraftProfileResponse: Decodable {
+    struct Skin: Decodable {
+        let url: URL
+        let state: String
+
+        /// textures.minecraft.net отдаёт ссылки http; App Transport Security пропускает только https.
+        var secureURL: URL? {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.scheme = "https"
+            return components?.url
+        }
+    }
+
     let id: String
     let name: String
+    let skins: [Skin]?
+}
+
+private struct XboxProfileSettings: Decodable {
+    struct User: Decodable {
+        let settings: [Setting]
+    }
+
+    struct Setting: Decodable {
+        let id: String
+        let value: String
+    }
+
+    let profileUsers: [User]
 }

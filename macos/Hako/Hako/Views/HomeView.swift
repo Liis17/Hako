@@ -22,7 +22,7 @@ struct HomeView: View {
                 .padding(.top, 40)
                 .reveal(isVisible, order: 1)
 
-            Text("Привет, \(account.name)")
+            Text("Привет, \(account.minecraftName ?? account.gamertag)")
                 .heroTitle()
                 .padding(.top, 12)
                 .reveal(isVisible, order: 2)
@@ -39,7 +39,7 @@ struct HomeView: View {
     }
 
     private func signOut() {
-        TokenKeychain.delete(for: account.uuid)
+        TokenKeychain.delete(for: account.xuid)
         modelContext.delete(account)
         try? modelContext.save()
     }
@@ -47,7 +47,7 @@ struct HomeView: View {
 
 #Preview {
     let container = try! ModelContainer(for: Account.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    let account = Account(uuid: "preview", name: "Steve")
+    let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: nil)
     container.mainContext.insert(account)
 
     return HomeView(account: account)

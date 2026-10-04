@@ -11,7 +11,7 @@ Hako — нативное macOS-приложение с единственным
 и интеграцией каталогов Modrinth и CurseForge.
 
 Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
-с получением профиля Minecraft и выход. Главное окно после входа показывает только ник и кнопку «Выйти».
+с получением профиля Xbox и, если доступен, профиля Minecraft, и выход. Главное окно после входа показывает только ник и кнопку «Выйти».
 Запуск игры, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) и тестовых таргетов нет.
 
@@ -65,9 +65,9 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 1. «Начать» на приветствии открывает `LoginView`.
 2. `LoginView.signIn()` запрашивает код (`MicrosoftAuth.requestDeviceCode`) и показывает его;
    пользователь вводит код на microsoft.com/link.
-3. `MicrosoftAuth.waitForToken` опрашивает Microsoft до подтверждения,
-   `signInToMinecraft` проходит Xbox Live → XSTS → Minecraft → профиль ([[Auth/MicrosoftAuth]]).
-4. Токены сохраняются в Keychain, затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]).
+3. `MicrosoftAuth.waitForToken` опрашивает Microsoft до подтверждения, `signIn` получает профиль Xbox
+   и пробует Minecraft ([[Auth/MicrosoftAuth]]). Недоступный Minecraft не прерывает вход.
+4. Токены сохраняются в Keychain под XUID, затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]).
 5. `@Query` в `ContentView` видит аккаунт и переключает окно на `HomeView`.
 
 Источники: `macos/Hako/Hako/Views/LoginView.swift`, `macos/Hako/Hako/Auth/MicrosoftAuth.swift`.

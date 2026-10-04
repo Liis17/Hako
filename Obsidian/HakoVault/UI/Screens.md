@@ -56,18 +56,18 @@ Minecraft is a trademark of Microsoft.» (`.caption`, `.tertiary`). Элемен
 |------|------------|
 | `requestingCode` | «Получаем код…» со спиннером |
 | `waiting(DeviceCode)` | Код моноширинным 56 pt в стеклянной карточке (`glassEffect`), кнопки «Открыть microsoft.com/link» (`openURL(verificationUri)`, Return) и «Скопировать код» (`NSPasteboard`, после нажатия — «Скопировано»), статус «Ждём подтверждения…» |
-| `signingIn` | «Входим в Minecraft…» |
+| `signingIn` | «Входим в Xbox Live и Minecraft…» |
 | `failed(String)` | Текст ошибки и «Попробовать снова» (увеличивает `attempt`) |
 
 Вход выполняет `signIn()` в `.task(id: attempt)`: SwiftUI отменяет задачу, когда экран исчезает
 («Назад»), и перезапускает при смене `attempt`. Ошибки после отмены не показываются.
-Шаги входа — [[Auth/MicrosoftAuth]]; при успехе токены сохраняются в `TokenKeychain`,
-затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]) — [[UI/ContentView]]
+Шаги входа — [[Auth/MicrosoftAuth]]; если Minecraft недоступен, вход завершается только с аккаунтом
+Microsoft. При успехе токены сохраняются в `TokenKeychain`, затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]) — [[UI/ContentView]]
 сам переключается на `HomeView`.
 
 ## HomeView
 
 `HomeView(account: Account)` — печать 箱, подпись «おかえり», заголовок «Привет, {ник}»
-и кнопка «Выйти». Выход: `TokenKeychain.delete(for: uuid)`, `modelContext.delete(account)`,
+(ник Minecraft, иначе gamertag) и кнопка «Выйти». Выход: `TokenKeychain.delete(for: xuid)`, `modelContext.delete(account)`,
 `modelContext.save()`; [[UI/ContentView]] возвращает приветствие. Остальной функциональности
 главного окна пока нет.

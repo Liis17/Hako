@@ -92,7 +92,7 @@ struct LoginView: View {
                 status("Ждём подтверждения…")
             }
         case .signingIn:
-            status("Входим в Minecraft…")
+            status("Входим в Xbox Live и Minecraft…")
         case .failed(let message):
             VStack(alignment: .leading, spacing: 20) {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -127,16 +127,20 @@ struct LoginView: View {
             phase = .waiting(code)
             let token = try await MicrosoftAuth.waitForToken(code)
             phase = .signingIn
-            let session = try await MicrosoftAuth.signInToMinecraft(with: token)
+            let (xbox, minecraft) = try await MicrosoftAuth.signIn(with: token)
             try TokenKeychain.save(
                 AccountTokens(
                     microsoftRefreshToken: token.refreshToken,
-                    minecraftAccessToken: session.accessToken,
-                    minecraftTokenExpiration: session.expiration
+                    minecraftAccessToken: minecraft?.accessToken,
+                    minecraftTokenExpiration: minecraft?.expiration
                 ),
-                for: session.uuid
+                for: xbox.xuid
             )
-            modelContext.insert(Account(uuid: session.uuid, name: session.name))
+            let account = Account(xbox: xbox, email: token.email)
+            if let minecraft {
+                account.connect(minecraft.profile)
+            }
+            modelContext.insert(account)
             try modelContext.save()
         } catch {
             // Отмена — экран закрыт кнопкой «Назад»; показывать нечего.

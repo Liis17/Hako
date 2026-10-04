@@ -6,14 +6,29 @@
 import Foundation
 import SwiftData
 
-/// Профиль Minecraft вошедшего пользователя. Токены хранятся отдельно в `TokenKeychain`.
+/// Вошедший пользователь: аккаунт Microsoft (профиль Xbox) и, если подключён, профиль Minecraft.
+/// Токены хранятся отдельно в `TokenKeychain` под ключом `xuid`.
 @Model
 final class Account {
-    @Attribute(.unique) var uuid: String
-    var name: String
+    @Attribute(.unique) var xuid: String = ""
+    var gamertag: String = ""
+    var email: String?
+    var xboxAvatarURL: URL?
 
-    init(uuid: String, name: String) {
-        self.uuid = uuid
-        self.name = name
+    var minecraftUUID: String?
+    var minecraftName: String?
+    var minecraftSkinURL: URL?
+
+    init(xbox: XboxProfile, email: String?) {
+        xuid = xbox.xuid
+        gamertag = xbox.gamertag
+        self.email = email
+        xboxAvatarURL = xbox.avatarURL
+    }
+
+    func connect(_ minecraft: MinecraftProfile) {
+        minecraftUUID = minecraft.uuid
+        minecraftName = minecraft.name
+        minecraftSkinURL = minecraft.skinURL
     }
 }
