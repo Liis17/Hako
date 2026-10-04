@@ -44,7 +44,8 @@ Parent: [[Index]]
 `WelcomeView(onStart: () -> Void)` — печать 箱, подпись «ようこそ», заголовок
 «Добро пожаловать в Hako», подзаголовок «Лаунчер Minecraft для macOS», кнопка «Начать»
 (`.keyboardShortcut(.defaultAction)` — срабатывает по Return) вызывает `onStart`.
-Элементы появляются через `reveal`.
+В правом нижнем углу — дисклеймер «Hako is not affiliated with or endorsed by Mojang or Microsoft.
+Minecraft is a trademark of Microsoft.» (`.caption`, `.tertiary`). Элементы появляются через `reveal`.
 
 ## LoginView
 

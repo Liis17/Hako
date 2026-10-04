@@ -44,6 +44,14 @@ struct WelcomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .padding(.horizontal, 96)
+        .overlay(alignment: .bottomTrailing) {
+            Text("Hako is not affiliated with or endorsed by Mojang or Microsoft. Minecraft is a trademark of Microsoft.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.trailing, 24)
+                .padding(.bottom, 20)
+                .reveal(isVisible, order: 5)
+        }
         .onAppear { isVisible = true }
     }
 }
