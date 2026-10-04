@@ -69,7 +69,7 @@ enum MicrosoftAuthError: LocalizedError {
 /// код для microsoft.com/link → токен Microsoft → Xbox Live → XSTS → Minecraft → профиль.
 enum MicrosoftAuth {
     /// Client ID приложения Azure (Entra ID) с включёнными public client flows.
-    static let clientID = ""
+    static let clientID = "5ca0e2a1-52ce-4ba5-afab-da8048e7b124"
 
     private static let oauthURL = URL(string: "https://login.microsoftonline.com/consumers/oauth2/v2.0")!
 
