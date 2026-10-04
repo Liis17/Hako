@@ -28,7 +28,7 @@ Parent: [[Index]]
 
 | Условие | Экран |
 |---------|-------|
-| `accounts.first != nil` | `HomeView(account:)` |
+| `accounts.first != nil` | `LauncherView(account:)` — см. [[UI/Launcher]] |
 | аккаунта нет, `isSigningIn == true` | `LoginView(onBack:)` — «Назад» сбрасывает `isSigningIn` |
 | аккаунта нет, `isSigningIn == false` | `WelcomeView(onStart:)` — «Начать» ставит `isSigningIn` |
 

@@ -18,7 +18,7 @@ struct ContentView: View {
             SakuraBackground()
 
             if let account = accounts.first {
-                HomeView(account: account)
+                LauncherView(account: account)
                     .transition(.blurReplace)
             } else if isSigningIn {
                 LoginView(onBack: { isSigningIn = false })

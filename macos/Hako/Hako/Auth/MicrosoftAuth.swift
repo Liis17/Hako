@@ -165,12 +165,9 @@ enum MicrosoftAuth {
         return (xbox, minecraft)
     }
 
-    /// Подключает Minecraft к сохранённому аккаунту по refresh token. Возвращает и новый токен
-    /// Microsoft: Microsoft выдаёт новый refresh token, его нужно сохранить вместо старого.
-    static func connectMinecraft(refreshToken: String) async throws -> (MicrosoftToken, MinecraftSession) {
-        let token = try await refresh(refreshToken)
-        let session = try await minecraftSession(xboxUserToken(token))
-        return (token, session)
+    /// Только Minecraft — для подключения к уже сохранённому аккаунту после `refresh`.
+    static func signInToMinecraft(with token: MicrosoftToken) async throws -> MinecraftSession {
+        try await minecraftSession(xboxUserToken(token))
     }
 
     // MARK: - Xbox Live и Minecraft

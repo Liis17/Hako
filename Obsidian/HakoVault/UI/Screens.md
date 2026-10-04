@@ -16,7 +16,6 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/SakuraBackground.swift` | `SakuraBackground` | Фон окна |
 | `macos/Hako/Hako/Views/WelcomeView.swift` | `WelcomeView` | Экран приветствия |
 | `macos/Hako/Hako/Views/LoginView.swift` | `LoginView` | Вход в Microsoft по коду |
-| `macos/Hako/Hako/Views/HomeView.swift` | `HomeView` | Экран вошедшего пользователя |
 
 ## Стиль
 
@@ -63,11 +62,8 @@ Minecraft is a trademark of Microsoft.» (`.caption`, `.tertiary`). Элемен
 («Назад»), и перезапускает при смене `attempt`. Ошибки после отмены не показываются.
 Шаги входа — [[Auth/MicrosoftAuth]]; если Minecraft недоступен, вход завершается только с аккаунтом
 Microsoft. При успехе токены сохраняются в `TokenKeychain`, затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]) — [[UI/ContentView]]
-сам переключается на `HomeView`.
+сам переключается на главную страницу [[UI/Launcher]].
 
-## HomeView
+## Главная страница
 
-`HomeView(account: Account)` — печать 箱, подпись «おかえり», заголовок «Привет, {ник}»
-(ник Minecraft, иначе gamertag) и кнопка «Выйти». Выход: `TokenKeychain.delete(for: xuid)`, `modelContext.delete(account)`,
-`modelContext.save()`; [[UI/ContentView]] возвращает приветствие. Остальной функциональности
-главного окна пока нет.
+После входа показывается главная страница лаунчера — см. [[UI/Launcher]].

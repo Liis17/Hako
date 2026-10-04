@@ -16,6 +16,7 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 |------|-----------------|------|
 | `macos/Hako/Hako/Auth/MicrosoftAuth.swift` | `MicrosoftAuth`, `MicrosoftAuthError`, `DeviceCode`, `MicrosoftToken`, `XboxProfile`, `MinecraftProfile`, `MinecraftSession` | Сетевые запросы цепочки входа и ошибки |
 | `macos/Hako/Hako/Views/LoginView.swift` | `LoginView.signIn()` | Оркестрация входа и сохранение результата |
+| `macos/Hako/Hako/Views/Launcher/LauncherView.swift` | `LauncherView.connectMinecraftIfNeeded()` | Автоподключение Minecraft по refresh token |
 
 ## Публичные контракты
 
@@ -27,7 +28,7 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 | `MicrosoftToken.email` | `email` или `preferred_username` из payload `id_token` (base64url JWT, подпись не проверяется — только для отображения). `nil`, если `id_token` нет |
 | `refresh(_:) async throws -> MicrosoftToken` | `grant_type=refresh_token`, `scope=XboxLive.signin offline_access`. Ответ содержит новый refresh token |
 | `signIn(with:) async throws -> (XboxProfile, MinecraftSession?)` | Xbox Live → профиль Xbox → Minecraft. Ошибки Xbox прерывают вход; **любая** ошибка шага Minecraft даёт `nil`. После шага Minecraft проверяет отмену задачи |
-| `connectMinecraft(refreshToken:) async throws -> (MicrosoftToken, MinecraftSession)` | `refresh` → Xbox Live → Minecraft. Возвращает новый токен Microsoft, чтобы вызывающий сохранил новый refresh token |
+| `signInToMinecraft(with:) async throws -> MinecraftSession` | Xbox Live → Minecraft для уже сохранённого аккаунта; вызывается после `refresh` из автоподключения ([[UI/Launcher#Автоподключение Minecraft]]) |
 
 ## Поток
 
@@ -57,7 +58,8 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 | `.unexpectedResponse(status:)` | Прочие HTTP-статусы |
 
 Сетевые ошибки `URLSession` показываются как есть (системное локализованное описание).
-При входе ошибки шага Minecraft не показываются — `signIn` их поглощает.
+При входе ошибки шага Minecraft не показываются — `signIn` их поглощает; ошибку автоподключения
+показывает вкладка профиля.
 
 ## Ограничения и важные детали
 

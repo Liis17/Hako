@@ -1,7 +1,7 @@
 # Hako
 
 Нативный macOS-лаунчер Minecraft на SwiftUI и SwiftData (Xcode 27, macOS 27.0+)
-с авторизацией через Microsoft и интеграцией Modrinth и CurseForge. Пока реализованы приветствие, вход в Microsoft и выход.
+с авторизацией через Microsoft и интеграцией Modrinth и CurseForge. Пока реализованы приветствие, вход в Microsoft, главная страница с вкладками и выход.
 Проект Xcode: `macos/Hako/Hako.xcodeproj`, исходники: `macos/Hako/Hako/`.
 
 <!-- obsidian:start -->
@@ -18,6 +18,7 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 | `Obsidian/HakoVault/Auth/MicrosoftAuth.md` | Вход через Microsoft device code flow и Minecraft |
 | `Obsidian/HakoVault/UI/ContentView.md` | Корень окна, настройки окна, выбор экрана |
 | `Obsidian/HakoVault/UI/Screens.md` | Экраны и общий стиль |
+| `Obsidian/HakoVault/UI/Launcher.md` | Главная страница: рейл вкладок, профиль, автоподключение Minecraft |
 
 ### Чтение памяти
 

@@ -49,6 +49,7 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `HakoApp.sharedModelContainer: ModelContainer` | Схема `[Account]`, хранение на диске (`isStoredInMemoryOnly: false`) в стандартном расположении SwiftData — URL явно не задан. Создаётся при инициализации `HakoApp`; при ошибке вызывается `fatalError` |
 | `.modelContainer(sharedModelContainer)` на `WindowGroup` | Помещает главный контекст контейнера (`modelContext`) в окружение всех представлений окна |
 | `TokenKeychain.save(_:for:) throws` | Удаляет прежнюю запись для XUID и добавляет новую; при ошибке `SecItemAdd` бросает `KeychainError` |
+| `TokenKeychain.load(for:) -> AccountTokens?` | Запись для XUID; `nil`, если записи нет или JSON не читается |
 | `TokenKeychain.delete(for:)` | Удаляет запись для XUID; результат `SecItemDelete` не проверяется |
 
 ## Зависимости и взаимодействия
@@ -56,7 +57,9 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 - [[UI/ContentView]] читает аккаунты через `@Query`.
 - `LoginView.signIn()` после успешного [[Auth/MicrosoftAuth]] сохраняет токены
   (`TokenKeychain.save`), затем вставляет `Account` (с Minecraft, если он доступен) и вызывает `modelContext.save()`.
-- `HomeView.signOut()` вызывает `TokenKeychain.delete`, удаляет `Account` и сохраняет контекст.
+- `LauncherView.connectMinecraftIfNeeded()` читает токены, сохраняет обновлённый refresh token и,
+  при успехе, токен Minecraft, затем `account.connect(_:)` и `modelContext.save()` ([[UI/Launcher]]).
+- `ProfileView.signOut()` вызывает `TokenKeychain.delete`, удаляет `Account` и сохраняет контекст.
 
 ## Ограничения и важные детали
 

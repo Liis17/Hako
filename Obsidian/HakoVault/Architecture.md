@@ -11,7 +11,8 @@ Hako — нативное macOS-приложение с единственным
 и интеграцией каталогов Modrinth и CurseForge.
 
 Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
-с получением профиля Xbox и, если доступен, профиля Minecraft, и выход. Главное окно после входа показывает только ник и кнопку «Выйти».
+с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
+(сборки и настройки — заглушки, профиль с аккаунтами Xbox и Java) и выход.
 Запуск игры, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) и тестовых таргетов нет.
 
@@ -44,6 +45,7 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и цепочку Xbox Live → Minecraft.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
+- [[UI/Launcher]] — главная страница: рейл вкладок, профиль, аватары, автоподключение Minecraft.
 
 ## Основные потоки
 
@@ -55,7 +57,8 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 2. `WindowGroup { ContentView() }` получает контейнер через
    `.modelContainer(sharedModelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. `ContentView`
-   показывает поверх фона с сакурой `HomeView`, если в SwiftData есть `Account`, иначе приветствие.
+   показывает поверх фона с сакурой `LauncherView`, если в SwiftData есть `Account`, иначе приветствие.
+4. `LauncherView` при появлении пробует подключить Minecraft, если он ещё не подключён ([[UI/Launcher]]).
    Настройки окна и выбор экрана — в [[UI/ContentView]].
 
 Источники: `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/ContentView.swift`.
@@ -68,16 +71,16 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 3. `MicrosoftAuth.waitForToken` опрашивает Microsoft до подтверждения, `signIn` получает профиль Xbox
    и пробует Minecraft ([[Auth/MicrosoftAuth]]). Недоступный Minecraft не прерывает вход.
 4. Токены сохраняются в Keychain под XUID, затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]).
-5. `@Query` в `ContentView` видит аккаунт и переключает окно на `HomeView`.
+5. `@Query` в `ContentView` видит аккаунт и переключает окно на `LauncherView`.
 
 Источники: `macos/Hako/Hako/Views/LoginView.swift`, `macos/Hako/Hako/Auth/MicrosoftAuth.swift`.
 
 ### Выход
 
-`HomeView.signOut()` удаляет запись токенов из Keychain и `Account` из SwiftData, сохраняет контекст;
-`ContentView` возвращает приветствие.
+`ProfileView.signOut()` (вкладка «Профиль») удаляет запись токенов из Keychain и `Account` из SwiftData,
+сохраняет контекст; `ContentView` возвращает приветствие.
 
-Источники: `macos/Hako/Hako/Views/HomeView.swift`, `macos/Hako/Hako/Auth/TokenKeychain.swift`.
+Источники: `macos/Hako/Hako/Views/Launcher/ProfileView.swift`, `macos/Hako/Hako/Auth/TokenKeychain.swift`.
 
 ## Конфигурация сборки
 
@@ -125,7 +128,10 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 
 - SwiftUI + SwiftData, App Sandbox и текущие настройки сборки получены из шаблона Xcode
   при создании проекта. Причины выбора и дальнейшие архитектурные планы не задокументированы.
-- Вход по коду через microsoft.com/link, ник Minecraft как имя пользователя, токены в Keychain
+- Вход как Microsoft, если Minecraft недоступен; в профиле две строки (Xbox: gamertag, аватар, email;
+  Java: голова персонажа, ник); аватар в рейле — голова Minecraft, иначе аватар Xbox; узкий рейл
+  из иконок; сборки пока заглушка; автоподключение Minecraft при запуске — решения пользователя.
+- Вход по коду через microsoft.com/link, токены в Keychain
   и профиль в SwiftData, окно 1280×720 (растягиваемое, минимум 960×540), русский интерфейс
   с японскими акцентами — решения пользователя.
 - Обычная связка ключей вместо Data Protection Keychain — из-за отсутствия `application-identifier`

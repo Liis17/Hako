@@ -34,6 +34,16 @@ enum TokenKeychain {
         guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 
+    static func load(for xuid: String) -> AccountTokens? {
+        var query = baseQuery(for: xuid)
+        query[kSecReturnData as String] = true
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data
+        else { return nil }
+        return try? JSONDecoder().decode(AccountTokens.self, from: data)
+    }
+
     static func delete(for xuid: String) {
         SecItemDelete(baseQuery(for: xuid) as CFDictionary)
     }
