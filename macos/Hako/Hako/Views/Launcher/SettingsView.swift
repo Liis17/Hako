@@ -339,6 +339,7 @@ private struct SettingsCard<Content: View>: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.sakuraDeep.opacity(0.1), in: .rect(cornerRadius: 22))
         .background(.regularMaterial, in: .rect(cornerRadius: 22))
         .overlay {
             RoundedRectangle(cornerRadius: 22)
