@@ -85,11 +85,29 @@ struct InstanceCreationView: View {
                         Picker("Загрузчик", selection: .constant("vanilla")) { Text("Vanilla — без загрузчика").tag("vanilla") }.disabled(true)
                         Text("Сейчас доступны только ванильные сборки.").font(.caption).foregroundStyle(.secondary)
                     }
-                    DisclosureGroup("Дополнительные настройки", isExpanded: $advanced) {
-                        InstanceParametersEditor(usesGlobal: $draft.usesGlobalParameters, parameters: $draft.parameters, isValid: $parametersValid).padding(.top, 16)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button {
+                            withAnimation { advanced.toggle() }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: advanced ? "chevron.down" : "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                Text("Дополнительные настройки")
+                                Spacer(minLength: 0)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if advanced {
+                            InstanceParametersEditor(usesGlobal: $draft.usesGlobalParameters, parameters: $draft.parameters, isValid: $parametersValid)
+                                .padding(.top, 16)
+                        }
                     }
                     if let saveError { Text(saveError).foregroundStyle(Color.shu).font(.callout) }
-                }.padding(.horizontal, 2).padding(.bottom, 4)
+                }.padding(.horizontal, 2).padding(.top, 6).padding(.bottom, 4)
             }
             HStack {
                 Text("Java и файлы игры загрузятся в фоне.").font(.caption).foregroundStyle(.secondary)
