@@ -18,6 +18,7 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 | `Obsidian/HakoVault/Architecture.md` | Архитектура, конфигурация сборки, основные потоки и ограничения |
 | `Obsidian/HakoVault/Data/Persistence.md` | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; токены, параметры и папки сборок |
 | `Obsidian/HakoVault/Minecraft/Installation.md` | Официальный каталог Mojang, совместимость, независимая установка Minecraft и Java |
+| `Obsidian/HakoVault/Minecraft/Launching.md` | Аргументы запуска, память, offline-сессии и процессы игры |
 | `Obsidian/HakoVault/Auth/MicrosoftAuth.md` | Вход через Microsoft device code flow и Minecraft |
 | `Obsidian/HakoVault/UI/ContentView.md` | Корень окна, настройки окна, выбор экрана |
 | `Obsidian/HakoVault/UI/Screens.md` | Экраны и общий стиль |

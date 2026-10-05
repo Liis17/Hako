@@ -12,6 +12,7 @@ import SwiftUI
 struct ContentView: View {
     @Query private var accounts: [Account]
     @State private var isSigningIn = false
+    @Environment(MinecraftSessionCoordinator.self) private var sessions
 
     var body: some View {
         ZStack {
@@ -31,7 +32,8 @@ struct ContentView: View {
         .animation(.smooth, value: isSigningIn)
         .animation(.smooth, value: accounts.isEmpty)
         // После входа и после выхода следующий экран без аккаунта — приветствие.
-        .onChange(of: accounts.isEmpty) { isSigningIn = false }
+        .onChange(of: accounts.isEmpty) { isSigningIn = false; if accounts.isEmpty { sessions.signOut() } }
+        .task(id: accounts.first?.xuid) { if let account = accounts.first { await sessions.monitor(account) } }
         .frame(minWidth: 960, minHeight: 540)
         .preferredColorScheme(.light)
     }
@@ -42,5 +44,6 @@ struct ContentView: View {
     return ContentView()
         .modelContainer(container)
         .environment(InstallationCoordinator(context: container.mainContext))
+        .environment(MinecraftSessionCoordinator(context: container.mainContext))
         .frame(width: 1280, height: 720)
 }

@@ -12,6 +12,7 @@ struct ProfileView: View {
     let minecraftStatus: MinecraftStatus
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(MinecraftSessionCoordinator.self) private var sessions
     @State private var isConfirmingSignOut = false
 
     var body: some View {
@@ -39,7 +40,7 @@ struct ProfileView: View {
 
                 AccountRow(
                     title: account.minecraftName ?? "Minecraft не подключён",
-                    subtitle: account.minecraftName == nil ? minecraftStatusText : nil,
+                    subtitle: minecraftSubtitle,
                     badge: "Java Edition"
                 ) {
                     if let skinURL = account.minecraftSkinURL {
@@ -52,6 +53,11 @@ struct ProfileView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(.quaternary, in: .rect(cornerRadius: 10))
                     }
+                }
+
+                if sessions.identity(for: account) == nil || minecraftSubtitle != nil {
+                    Button("Повторить подключение Minecraft") { Task { await sessions.connect(account, force: true) } }
+                        .buttonStyle(.glass).disabled(isConnecting)
                 }
 
                 Button("Выйти") { isConfirmingSignOut = true }
@@ -77,7 +83,14 @@ struct ProfileView: View {
         }
     }
 
+    private var isConnecting: Bool { if case .connecting = minecraftStatus { true } else { false } }
+    private var minecraftSubtitle: String? {
+        if case .idle = minecraftStatus { return account.minecraftName == nil ? minecraftStatusText : nil }
+        return minecraftStatusText
+    }
+
     private func signOut() {
+        sessions.signOut()
         TokenKeychain.delete(for: account.xuid)
         modelContext.delete(account)
         try? modelContext.save()

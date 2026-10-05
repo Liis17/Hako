@@ -44,12 +44,14 @@ CocoaPods, Carthage не используются) нет.
 ## Компоненты
 
 - `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: создаёт общий
-  `ModelContainer`, один `InstallationCoordinator` на приложение и сцену `WindowGroup` с `ContentView`.
+  `ModelContainer`, общие `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator`
+  и сцену `WindowGroup` с `ContentView`.
   Устройство контейнера описано в [[Data/Persistence]].
 - [[Data/Persistence]] — схема SwiftData `Account` и `GameInstance`, контейнер хранилища, токены в Keychain,
   глобальные параметры игры и независимые папки сборок.
 - [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
-- [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и цепочку Xbox Live → Minecraft.
+- [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и общий сервис действительной Minecraft-сессии.
+- [[Minecraft/Launching]] — построение аргументов, проверка Java, процессы и восстановление игр.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
 - [[UI/Launcher]] — главная страница: рейл вкладок, профиль, аватары, автоподключение Minecraft.
@@ -67,7 +69,8 @@ CocoaPods, Carthage не используются) нет.
    `.modelContainer(sharedModelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. `ContentView`
    показывает поверх фона с сакурой `LauncherView`, если в SwiftData есть `Account`, иначе приветствие.
-4. `LauncherView` при появлении пробует подключить Minecraft, если он ещё не подключён ([[UI/Launcher]]).
+4. `ContentView` наблюдает срок Minecraft-токена через `MinecraftSessionCoordinator.monitor` ([[Auth/MicrosoftAuth]]).
+   `GameLaunchCoordinator.start` восстанавливает работающие игры до запуска очереди установки.
    Общий координатор из окружения восстанавливает очередь независимо от аккаунта; сохранённая пауза остаётся паузой.
    Настройки окна и выбор экрана — в [[UI/ContentView]].
 

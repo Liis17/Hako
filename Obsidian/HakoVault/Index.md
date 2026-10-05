@@ -19,6 +19,7 @@ Hako — нативный macOS-лаунчер Minecraft на SwiftUI и SwiftDa
 ## Minecraft
 
 - [[Minecraft/Installation|Установка Minecraft и Java]] — официальные API, совместимость, файлы и очередь
+- [[Minecraft/Launching|Запуск Minecraft]] — аргументы, Java, offline-сессия, процессы и восстановление
 
 ## Auth
 

@@ -16,7 +16,7 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 |------|-----------------|------|
 | `macos/Hako/Hako/Auth/MicrosoftAuth.swift` | `MicrosoftAuth`, `MicrosoftAuthError`, `DeviceCode`, `MicrosoftToken`, `XboxProfile`, `MinecraftProfile`, `MinecraftSession` | Сетевые запросы цепочки входа и ошибки |
 | `macos/Hako/Hako/Views/LoginView.swift` | `LoginView.signIn()` | Оркестрация входа и сохранение результата |
-| `macos/Hako/Hako/Views/Launcher/LauncherView.swift` | `LauncherView.connectMinecraftIfNeeded()` | Автоподключение Minecraft по refresh token |
+| `macos/Hako/Hako/Auth/MinecraftSessionCoordinator.swift` | `MinecraftSessionCoordinator.connect` | Общая сессия, refresh token, срок действия и повтор подключения |
 
 ## Публичные контракты
 
@@ -29,7 +29,7 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 | `MinecraftProfile` | `uuid`, `name`, `skinURL?`, `skinVariant: MinecraftSkinVariant?`; вариант используется для ширины рук в 3D-превью |
 | `refresh(_:) async throws -> MicrosoftToken` | `grant_type=refresh_token`, `scope=XboxLive.signin offline_access`. Ответ содержит новый refresh token |
 | `signIn(with:) async throws -> (XboxProfile, MinecraftSession?)` | Xbox Live → профиль Xbox → Minecraft. Ошибки Xbox прерывают вход; **любая** ошибка шага Minecraft даёт `nil`. После шага Minecraft проверяет отмену задачи |
-| `signInToMinecraft(with:) async throws -> MinecraftSession` | Xbox Live → Minecraft для уже сохранённого аккаунта; вызывается после `refresh` из автоподключения ([[UI/Launcher#Автоподключение Minecraft]]) |
+| `signInToMinecraft(with:) async throws -> MinecraftSession` | Xbox Live → Minecraft для уже сохранённого аккаунта; вызывается после `refresh` из `MinecraftSessionCoordinator` |
 
 ## Поток
 
@@ -79,3 +79,18 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
   (entitlement `com.apple.security.network.client`).
 - Код модуля изолирован на главном акторе (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`);
   сетевые вызовы — асинхронные `URLSession.shared.data(for:)`.
+
+## Общая Minecraft-сессия
+
+`MinecraftSessionCoordinator` — @MainActor @Observable сервис на приложение; `ContentView` вызывает
+`monitor` для текущего аккаунта. `identity(for:)` возвращает сессию только до срока истечения токена
+и при наличии Minecraft UUID/ника. Microsoft/Xbox-профиль без Minecraft-токена запуск не разрешает.
+`connect` повторно использует действительный токен; за 60 секунд до истечения обновляет его через
+существующую цепочку auth. Параллельные запросы одного XUID объединены в одну задачу.
+Обновлённый Microsoft refresh token сохраняется до запроса Minecraft, даже если тот неуспешен.
+
+Проверка срока выполняется каждые 30 секунд. После ошибки auth фоновый цикл не повторяет сетевые
+запросы бесконечно; явный `connect(force: true)` из профиля повторяет подключение.
+Выход отменяет задачи и удаляет кэш сессий; проверка отмены не позволяет завершившемуся запросу
+восстановить удалённый аккаунт. Старые поколения задач не освобождают слот нового подключения.
+Токены остаются только в Keychain и памяти; сервис не пишет их в журнал.

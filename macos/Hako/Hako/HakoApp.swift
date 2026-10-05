@@ -12,6 +12,8 @@ import SwiftData
 struct HakoApp: App {
     let sharedModelContainer: ModelContainer
     @State private var installations: InstallationCoordinator
+    @State private var sessions: MinecraftSessionCoordinator
+    @State private var games: GameLaunchCoordinator
 
     init() {
         let schema = Schema([
@@ -23,7 +25,11 @@ struct HakoApp: App {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             try LaunchSettingsMigration.run(context: container.mainContext)
             sharedModelContainer = container
-            _installations = State(initialValue: InstallationCoordinator(context: container.mainContext))
+            let installations = InstallationCoordinator(context: container.mainContext)
+            let sessions = MinecraftSessionCoordinator(context: container.mainContext)
+            _installations = State(initialValue: installations)
+            _sessions = State(initialValue: sessions)
+            _games = State(initialValue: GameLaunchCoordinator(store: installations.store, sessions: sessions))
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -33,7 +39,9 @@ struct HakoApp: App {
         WindowGroup {
             ContentView()
                 .environment(installations)
-                .task { installations.start() }
+                .environment(sessions)
+                .environment(games)
+                .task { games.start(); installations.start() }
         }
         .modelContainer(sharedModelContainer)
         .defaultSize(width: 1280, height: 720)

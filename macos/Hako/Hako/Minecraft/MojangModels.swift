@@ -45,6 +45,10 @@ nonisolated struct MinecraftVersionManifest: Decodable, Sendable {
     let assetIndex: AssetIndexReference?
     let assets: String?
     let logging: [String: MinecraftLogging]?
+    let mainClass: String?
+    let arguments: [String: [MinecraftArgument]]?
+    let minecraftArguments: String?
+    let type: String?
 
     var java: JavaRequirement { javaVersion ?? JavaRequirement(component: "jre-legacy", majorVersion: 8) }
     var legacyTexturepacks: Bool { assets == "pre-1.6" || assetIndex?.id == "pre-1.6" }
@@ -57,6 +61,28 @@ nonisolated struct JavaRequirement: Decodable, Sendable {
 
 nonisolated struct MinecraftLogging: Decodable, Sendable {
     let file: MojangDownload
+    let argument: String?
+}
+
+nonisolated struct MinecraftArgument: Decodable, Sendable {
+    let rules: [MinecraftRule]?
+    let values: [String]
+    private enum CodingKeys: String, CodingKey { case rules, value }
+
+    init(from decoder: Decoder) throws {
+        if let string = try? decoder.singleValueContainer().decode(String.self) { rules = nil; values = [string]; return }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        rules = try container.decodeIfPresent([MinecraftRule].self, forKey: .rules)
+        if let strings = try? container.decode([String].self, forKey: .value) { values = strings }
+        else { values = [try container.decode(String.self, forKey: .value)] }
+    }
+
+    func allowed(on platform: MinecraftPlatform, features: [String: Bool]) -> Bool {
+        guard let rules, !rules.isEmpty else { return true }
+        var allowed = false
+        for rule in rules where rule.matches(platform, features: features) { allowed = rule.action == "allow" }
+        return allowed
+    }
 }
 
 nonisolated struct AssetIndexReference: Decodable, Sendable {
@@ -75,22 +101,31 @@ nonisolated struct MinecraftAssetIndex: Decodable, Sendable {
 }
 
 nonisolated struct MinecraftRule: Decodable, Sendable {
-    struct OS: Decodable, Sendable { let name: String?; let arch: String?; let version: String? }
+    struct OS: Decodable, Sendable {
+        struct VersionRange: Decodable, Sendable { let min: String?; let max: String? }
+        let name: String?; let arch: String?; let version: String?; let versionRange: VersionRange?
+    }
     let action: String
     let os: OS?
     let features: [String: Bool]?
 
-    func matches(_ platform: MinecraftPlatform) -> Bool {
+    func matches(_ platform: MinecraftPlatform, features enabled: [String: Bool] = [:]) -> Bool {
         if let name = os?.name, name != "osx" { return false }
         if let arch = os?.arch {
             let alias = platform == .appleSilicon ? "aarch64" : "amd64"
-            if arch != alias && platform.architecture.range(of: arch, options: .regularExpression) == nil { return false }
+            if arch != alias && platform.architecture.range(of: "^(?:\(arch))$", options: .regularExpression) == nil { return false }
         }
         if let version = os?.version {
             let os = ProcessInfo.processInfo.operatingSystemVersion
             if "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)".range(of: version, options: .regularExpression) == nil { return false }
         }
-        return !(features ?? [:]).values.contains(true)
+        if let range = os?.versionRange {
+            let os = ProcessInfo.processInfo.operatingSystemVersion
+            let current = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+            if let minimum = range.min, current.compare(minimum, options: .numeric) == .orderedAscending { return false }
+            if let maximum = range.max, current.compare(maximum, options: .numeric) == .orderedDescending { return false }
+        }
+        return (features ?? [:]).allSatisfy { enabled[$0.key, default: false] == $0.value }
     }
 }
 

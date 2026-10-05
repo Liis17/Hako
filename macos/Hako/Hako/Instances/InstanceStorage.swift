@@ -65,6 +65,7 @@ nonisolated struct InstanceStorage: Sendable {
     let context: ModelContext
     let storage: InstanceStorage
     private let persist: () throws -> Void
+    var launchBusy: Set<UUID> = []
 
     init(context: ModelContext, storage: InstanceStorage = .init(), persist: (() throws -> Void)? = nil) {
         self.context = context
@@ -112,8 +113,8 @@ nonisolated struct InstanceStorage: Sendable {
         let name = try InstanceName.validated(draft.name)
         let folder = try validateName(name, excluding: instance)
         let oldFolder = instance.folderName
-        guard folder == oldFolder || (instance.state != .installing && instance.state != .queued) else {
-            throw InstanceFileError.message("Остановите загрузку перед переименованием сборки.")
+        guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id)) else {
+            throw InstanceFileError.message("Остановите загрузку и закройте игру перед переименованием сборки.")
         }
         let original = try storage.directory(oldFolder)
         let destination = try storage.directory(folder)

@@ -38,6 +38,7 @@ import SwiftData
     }
 
     func enqueue(_ instance: GameInstance) throws {
+        guard !store.launchBusy.contains(instance.id) else { throw InstanceFileError.message("Закройте Minecraft перед повторной установкой сборки.") }
         guard activeID != instance.id else { return }
         let oldState = instance.state
         let oldPause = instance.pauseRequested

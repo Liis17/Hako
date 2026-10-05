@@ -105,9 +105,9 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 - [[UI/ContentView]] читает аккаунты через `@Query`.
 - `LoginView.signIn()` после успешного [[Auth/MicrosoftAuth]] сохраняет токены
   (`TokenKeychain.save`), затем вставляет `Account` (с Minecraft, если он доступен) и вызывает `modelContext.save()`.
-- `LauncherView.connectMinecraftIfNeeded()` читает токены, сохраняет обновлённый refresh token и,
+- `MinecraftSessionCoordinator.connect` читает токены, сохраняет обновлённый refresh token и,
   при успехе, токен Minecraft, затем `account.connect(_:)` и `modelContext.save()` ([[UI/Launcher]]).
-- `ProfileView.signOut()` вызывает `TokenKeychain.delete`, удаляет `Account` и сохраняет контекст.
+- `ProfileView.signOut()` отменяет общую Minecraft-сессию, вызывает `TokenKeychain.delete`, удаляет `Account` и сохраняет контекст.
 
 ## Ограничения и важные детали
 
