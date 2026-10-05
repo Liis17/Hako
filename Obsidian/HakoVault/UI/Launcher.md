@@ -60,7 +60,8 @@ Parent: [[Index]]
   «Minecraft не подключён» и текст по `MinecraftStatus` (`idle` — недоступен для аккаунта,
   `connecting` — «Подключаем Minecraft…», `failed` — сообщение ошибки).
 
-«Выйти»: `TokenKeychain.delete(for: xuid)`, `modelContext.delete(account)`, `modelContext.save()`;
+«Выйти» сначала показывает подтверждение (`alert` «Выйти из аккаунта?», «Выйти» / «Отмена»),
+защита от случайного выхода. После подтверждения: `TokenKeychain.delete(for: xuid)`, `modelContext.delete(account)`, `modelContext.save()`;
 [[UI/ContentView]] возвращает приветствие.
 
 ## Настройки

@@ -12,6 +12,7 @@ struct ProfileView: View {
     let minecraftStatus: MinecraftStatus
 
     @Environment(\.modelContext) private var modelContext
+    @State private var isConfirmingSignOut = false
 
     var body: some View {
         LauncherPage(caption: "プロフィール", title: "Профиль") {
@@ -38,10 +39,16 @@ struct ProfileView: View {
                     }
                 }
 
-                Button("Выйти", action: signOut)
+                Button("Выйти") { isConfirmingSignOut = true }
                     .buttonStyle(.glass)
                     .controlSize(.extraLarge)
                     .padding(.top, 20)
+                    .alert("Выйти из аккаунта?", isPresented: $isConfirmingSignOut) {
+                        Button("Выйти", role: .destructive, action: signOut)
+                        Button("Отмена", role: .cancel) {}
+                    } message: {
+                        Text("Данные входа будут удалены с этого Mac. Чтобы вернуться, понадобится снова войти по коду.")
+                    }
             }
             .frame(maxWidth: 600, alignment: .leading)
         }
