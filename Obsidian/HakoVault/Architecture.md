@@ -12,7 +12,7 @@ Hako — нативное macOS-приложение с единственным
 
 Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
 с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
-(сборки — заглушка, глобальные настройки игры, профиль с аккаунтами Xbox и Java) и выход.
+(сборки — заглушка, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java) и выход.
 Запуск игры, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) и тестовых таргетов нет.
 
@@ -98,7 +98,7 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 - Info.plist генерируется (`GENERATE_INFOPLIST_FILE = YES`); ключи задаются через
   `INFOPLIST_KEY_*` в настройках таргета.
 - `macos/Hako/Hako/PrivacyInfo.xcprivacy` включён в ресурсы приложения и объявляет использование
-  `UserDefaults` для собственных настроек (причина `CA92.1`).
+  `UserDefaults` для собственных настроек (`CA92.1`) и API ёмкости диска для отображения места (`85F4.1`).
 - Конкурентность: `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`,
   `SWIFT_APPROACHABLE_CONCURRENCY = YES` — код модуля по умолчанию изолирован на главном акторе.
 - Подпись автоматическая (`CODE_SIGN_STYLE = Automatic`), команда `DEVELOPMENT_TEAM = 9Y935NYUP9`.

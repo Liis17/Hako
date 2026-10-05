@@ -33,17 +33,16 @@ struct SettingsView: View {
                         case .game:
                             GameSettingsView()
                         case .storage:
-                            Text("Информация о хранилище появится позже.")
-                                .foregroundStyle(.secondary)
+                            StorageSettingsView()
                         case .about:
-                            Text("Информация о приложении появится позже.")
-                                .foregroundStyle(.secondary)
+                            AboutSettingsView()
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 2)
                     .padding(.bottom, 32)
                 }
+                .id(section)
             }
             .frame(maxWidth: 800, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -175,6 +174,154 @@ private struct WindowDimensionField: View {
             if GameLaunchDefaults.windowDimension(from: text) != newValue {
                 text = String(newValue)
             }
+        }
+    }
+}
+
+private struct DiskSpace {
+    let volumeName: String
+    let total: Int
+    let free: Int
+
+    var used: Int { total - free }
+    var fractionUsed: Double { Double(used) / Double(total) }
+
+    static func load(from url: URL = FileManager.default.homeDirectoryForCurrentUser) throws -> DiskSpace {
+        let values = try url.resourceValues(forKeys: [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey])
+        guard let total = values.volumeTotalCapacity, total > 0,
+              let free = values.volumeAvailableCapacity, free >= 0 else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        return DiskSpace(volumeName: values.volumeName ?? "Диск с данными Hako", total: total, free: min(free, total))
+    }
+}
+
+private struct StorageSettingsView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var diskSpace: Result<DiskSpace, Error>?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            SettingsCard(title: "Место на диске", systemImage: "internaldrive") {
+                switch diskSpace {
+                case .success(let space):
+                    Text(space.volumeName)
+                        .foregroundStyle(.secondary)
+                    ProgressView(value: space.fractionUsed)
+                        .tint(.sakuraDeep)
+                        .accessibilityLabel("Занято на диске")
+                        .accessibilityValue("\(formatBytes(space.used)) из \(formatBytes(space.total))")
+                    HStack(alignment: .top) {
+                        diskAmount("Занято", bytes: space.used)
+                        Spacer()
+                        diskAmount("Свободно", bytes: space.free)
+                        Spacer()
+                        diskAmount("Всего", bytes: space.total)
+                    }
+                case .failure:
+                    Text("Не удалось получить данные")
+                        .foregroundStyle(.secondary)
+                case nil:
+                    ProgressView("Получаем информацию о диске…")
+                }
+            }
+
+            SettingsCard(title: "Кеш", systemImage: "tray") {
+                HStack {
+                    Text("Объём кеша игры")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("0 Б")
+                        .fontWeight(.medium)
+                }
+                ProgressView(value: 0)
+                    .tint(.sakuraDeep)
+                    .accessibilityLabel("Размер кеша игры")
+                    .accessibilityValue("0 Б")
+                Text("Кеш игры пока не создан.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            SettingsCard(title: "Сборки Minecraft", systemImage: "shippingbox") {
+                HStack {
+                    Text("Занимают на диске")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("0 Б")
+                        .fontWeight(.medium)
+                }
+                ProgressView(value: 0)
+                    .tint(.sakuraDeep)
+                    .accessibilityLabel("Размер сборок Minecraft")
+                    .accessibilityValue("0 Б")
+                Text("Сборок пока нет.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .task { refreshDiskSpace() }
+        .onChange(of: scenePhase) { _, newValue in
+            if newValue == .active { refreshDiskSpace() }
+        }
+    }
+
+    private func refreshDiskSpace() {
+        diskSpace = Result { try DiskSpace.load() }
+    }
+
+    private func diskAmount(_ title: LocalizedStringKey, bytes: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(formatBytes(bytes))
+                .fontWeight(.medium)
+        }
+    }
+
+    private func formatBytes(_ bytes: Int) -> String {
+        Int64(bytes).formatted(.byteCount(style: .file).locale(Locale(identifier: "ru_RU")))
+    }
+}
+
+private struct AboutSettingsView: View {
+    private var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    }
+
+    private var buildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+    }
+
+    var body: some View {
+        SettingsCard(title: "Hako", systemImage: "info.circle") {
+            HStack(spacing: 20) {
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 88, height: 88)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Лаунчер Minecraft для macOS")
+                        .font(.title3)
+                    Text("Версия \(version) · сборка \(buildNumber)")
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+
+            Link(destination: URL(string: "https://github.com/Liis17/Hako")!) {
+                Label("Hako на GitHub", systemImage: "arrow.up.right")
+            }
+            .buttonStyle(.glass)
+            .controlSize(.large)
+
+            Text("Hako is not affiliated with or endorsed by Mojang or Microsoft. Minecraft is a trademark of Microsoft.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
         }
     }
 }

@@ -15,7 +15,7 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/Launcher/LauncherView.swift` | `LauncherView`, `LauncherTab`, `MinecraftStatus` | Каркас страницы, выбор вкладки, автоподключение Minecraft |
 | `macos/Hako/Hako/Views/Launcher/LauncherRail.swift` | `LauncherRail` | Рейл вкладок |
 | `macos/Hako/Hako/Views/Launcher/LauncherPages.swift` | `LauncherPage`, `InstancesView` | Каркас вкладки и заглушка сборок |
-| `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Разделы настроек и глобальные параметры игры |
+| `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Глобальные параметры игры, место на диске и сведения о приложении |
 | `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView` | Вкладка профиля и выход |
 | `macos/Hako/Hako/Views/Avatars.swift` | `AccountAvatar`, `XboxAvatar`, `MinecraftHead` | Аватары аккаунтов |
 
@@ -50,7 +50,7 @@ Parent: [[Index]]
 | Вкладка | Подпись | Содержимое |
 |---------|---------|------------|
 | `InstancesView` | パック | «Сборки» и текст-заглушка: сборок пока нет, модели данных для них нет |
-| `SettingsView` | 設定 | Разделы «Игра», «Хранилище», «О приложении»; глобальные настройки игры |
+| `SettingsView` | 設定 | Разделы «Игра», «Хранилище», «О приложении» |
 | `ProfileView` | プロフィール | «Профиль»: строка Xbox, строка Java Edition, кнопка «Выйти» |
 
 `ProfileView(account:minecraftStatus:)` — две стеклянные строки (ширина до 600 pt):
@@ -68,7 +68,7 @@ Parent: [[Index]]
 
 `SettingsView` использует `LauncherPage`; под заголовком — сегментированный переключатель
 «Игра», «Хранилище», «О приложении» и прокручиваемое содержимое. Начальный раздел — «Игра».
-«Хранилище» и «О приложении» пока содержат заглушки.
+При смене раздела прокрутка сбрасывается к началу.
 
 Параметры игры сгруппированы в стеклянные карточки «Java», «Minecraft», «Окно»:
 путь к Java, аргументы Java и Minecraft, полноэкранный режим, ширина и высота окна.
@@ -84,6 +84,21 @@ Java не запускается, security-scoped bookmark не создаётс
 неверный ввод помечается сообщением и не заменяет последнее сохранённое значение.
 В полноэкранном режиме поля отключены, сохранённые размеры остаются прежними.
 Превью использует отдельный `UserDefaults` suite `com.Launcher.Hako.settings.preview`.
+
+«Хранилище» показывает ёмкость, занятый и свободный объём тома с данными приложения:
+`FileManager.default.homeDirectoryForCurrentUser` → `URL.resourceValues` с
+`volumeNameKey`, `volumeTotalCapacityKey`, `volumeAvailableCapacityKey`.
+Данные читаются при открытии раздела и переходе `scenePhase` в `.active`.
+Занятое место — разность общей ёмкости и свободного места, полоса заполнения — его доля
+в общей ёмкости. Объёмы форматируются по-русски в единицах байтов.
+Во время чтения — индикатор, при ошибке — «Не удалось получить данные».
+Кеш игры и сборки — заглушки по `0 Б` с пустыми полосами и сообщениями об отсутствии данных;
+файлы не сканируются и не удаляются, сборки не создаются.
+
+«О приложении»: текущая иконка из `NSApplication.shared.applicationIconImage`, название Hako,
+описание, версия из `CFBundleShortVersionString`, номер сборки из `CFBundleVersion`, ссылка
+на `https://github.com/Liis17/Hako` и та же оговорка о Mojang/Microsoft, что на приветствии.
+Отсутствующие значения версии и номера отображаются как `—`; ссылка открывается системным браузером.
 
 ## Автоподключение Minecraft
 
