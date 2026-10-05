@@ -10,14 +10,23 @@ struct InstancePlayControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
+                if compact {
+                    Label(instance.state.title, systemImage: instance.state == .ready ? "checkmark.circle" : instance.state == .failed ? "exclamationmark.circle" : "clock")
+                        .font(.callout).foregroundStyle(instance.state == .failed ? Color.shu : .secondary)
+                    Spacer(minLength: 8)
+                }
                 Button("Играть", systemImage: "play.fill") { games.launch(instance, account: account) }
                     .buttonStyle(.glassProminent).tint(.sakuraDeep).controlSize(compact ? .regular : .large)
                     .disabled(games.disabledReason(instance, account: account) != nil)
                     .accessibilityLabel("Играть в \(instance.name)")
-                if instance.offlineMode {
+                if instance.offlineMode && !compact {
                     Label(instance.offlineUsername, systemImage: "wifi.slash").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         .help("Offline-mode: \(instance.offlineUsername)")
                 }
+            }
+            if instance.offlineMode && compact {
+                Label(instance.offlineUsername, systemImage: "wifi.slash").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .help("Offline-mode: \(instance.offlineUsername)").frame(maxWidth: .infinity, alignment: .trailing)
             }
             switch games.states[instance.id] {
             case .preparing:

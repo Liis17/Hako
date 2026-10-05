@@ -50,6 +50,15 @@ actor MojangClient {
         return data
     }
 
+    func manifest(_ download: MojangDownload, installedAt url: URL) async throws -> MinecraftVersionManifest {
+        let bytes: Data
+        if FileManager.default.fileExists(atPath: url.path) {
+            bytes = try Data(contentsOf: url)
+            try MojangIntegrity.check(bytes, download: download)
+        } else { bytes = try await data(for: download) }
+        return try JSONDecoder().decode(MinecraftVersionManifest.self, from: bytes)
+    }
+
     func prepare(_ version: MinecraftVersion, platform: MinecraftPlatform = .current) async throws -> PreparedInstallation {
         let key = "\(platform.rawValue):\(version.sha1)"
         if let cached = prepared[key] { return cached }

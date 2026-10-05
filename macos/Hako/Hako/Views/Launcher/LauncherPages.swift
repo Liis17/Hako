@@ -77,9 +77,6 @@ struct InstancesView: View {
                                             if let progress = installations.progress[instance.id], instance.state == .installing || instance.state == .paused {
                                                 ProgressView(value: progress.fraction).tint(.sakuraDeep)
                                                 Text(progress.stage).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                            } else {
-                                                Label(instance.state.title, systemImage: instance.state == .ready ? "checkmark.circle" : instance.state == .failed ? "exclamationmark.circle" : "clock")
-                                                    .font(.callout).foregroundStyle(instance.state == .failed ? Color.shu : .secondary)
                                             }
                                         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                                     }.buttonStyle(.plain).accessibilityLabel("Открыть сборку \(instance.name)")

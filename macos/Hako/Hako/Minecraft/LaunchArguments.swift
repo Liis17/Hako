@@ -1,6 +1,13 @@
 import Foundation
 
 nonisolated enum LaunchArguments {
+    static func format(_ arguments: [String]) -> String {
+        arguments.map { argument in
+            if !argument.isEmpty && !argument.contains(where: { $0.isWhitespace || $0 == "\"" || $0 == "'" || $0 == "\\" }) { return argument }
+            return "\"" + argument.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        }.joined(separator: " ")
+    }
+
     static func parse(_ text: String) throws -> [String] {
         var result: [String] = [], value = ""
         var quote: Character?, escaped = false, started = false

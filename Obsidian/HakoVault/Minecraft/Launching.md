@@ -15,6 +15,8 @@ Parent: [[Index]]
 не выполняет авторизацию, запуск и сетевые запросы. Читает современные `arguments` с OS/arch/features,
 `default-user-jvm`, legacy `minecraftArguments`, `mainClass` и logging. Обязательные JVM/game аргументы
 сохраняются во всех режимах. Mojang добавляет `default-user-jvm`, global/custom — пользовательские строки.
+`argumentTemplates` формирует те же группы до подстановки аккаунта и путей; настройки показывают
+их через `LaunchArguments.format`, сохраняя кавычки, правила версии и фактический предел heap.
 Classpath содержит клиент и разрешённые библиотеки; legacy native classifiers извлечены установщиком
 и в classpath не попадают. Virtual/map-to-resources assets получают соответствующие пути.
 Аргументы идентификации, каталогов и окна задаются лаунчером; дублирующие пользовательские game-флаги

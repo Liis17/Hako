@@ -105,6 +105,7 @@ struct InstanceIconPicker: View {
 struct InstanceParametersEditor: View {
     @Binding var draft: InstanceDraft
     @Binding var isValid: Bool
+    var manifest: MinecraftVersionManifest?
     @AppStorage(GameLaunchDefaults.Key.javaArguments) private var globalJava = ""
     @AppStorage(GameLaunchDefaults.Key.minecraftArguments) private var globalMinecraft = ""
     @AppStorage(GameLaunchDefaults.Key.javaPath) private var globalJavaPath = ""
@@ -112,13 +113,23 @@ struct InstanceParametersEditor: View {
     @State private var width: String
     @State private var height: String
 
-    init(draft: Binding<InstanceDraft>, isValid: Binding<Bool>) {
-        _draft = draft; _isValid = isValid
+    init(draft: Binding<InstanceDraft>, isValid: Binding<Bool>, manifest: MinecraftVersionManifest? = nil) {
+        _draft = draft; _isValid = isValid; self.manifest = manifest
         _width = State(initialValue: String(draft.wrappedValue.parameters.windowWidth))
         _height = State(initialValue: String(draft.wrappedValue.parameters.windowHeight))
     }
 
     private var usesGlobal: Bool { draft.argumentSource == .global }
+    private var globalJavaArguments: String {
+        guard let arguments = try? LaunchArguments.parse(globalJava) else { return globalJava }
+        return LaunchArguments.format(LaunchArguments.applyingMemory(arguments, maximumMiB: JavaMemoryPolicy.current.normalize(globalMemory)))
+    }
+    private var mojangArguments: (java: String, minecraft: String) {
+        var parameters = draft.parameters
+        parameters.maximumMemoryMiB = JavaMemoryPolicy.current.normalize(parameters.maximumMemoryMiB)
+        guard let manifest, let arguments = try? MinecraftLaunchPlan.argumentTemplates(manifest: manifest, source: .mojang, parameters: parameters) else { return ("", "") }
+        return (LaunchArguments.format(arguments.java), LaunchArguments.format(arguments.minecraft))
+    }
     private func source(_ source: LaunchArgumentSource) -> Binding<Bool> {
         Binding(get: { draft.argumentSource == source }, set: { enabled in
             if enabled { draft.argumentSource = source }
@@ -142,10 +153,11 @@ struct InstanceParametersEditor: View {
                 }
             } else if draft.argumentSource == .mojang {
                 Text("Используются обязательные и рекомендуемые аргументы из описания версии Mojang.").font(.caption).foregroundStyle(.secondary)
+                Text("Пути и значения аккаунта в ${…} будут подставлены при запуске.").font(.caption).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 16) {
-                parameterField("Аргументы Java", text: usesGlobal ? .constant(globalJava) : draft.argumentSource == .mojang ? .constant("") : $draft.parameters.javaArguments)
-                parameterField("Аргументы Minecraft", text: usesGlobal ? .constant(globalMinecraft) : draft.argumentSource == .mojang ? .constant("") : $draft.parameters.minecraftArguments)
+                parameterField("Аргументы Java", text: usesGlobal ? .constant(globalJavaArguments) : draft.argumentSource == .mojang ? .constant(mojangArguments.java) : $draft.parameters.javaArguments)
+                parameterField("Аргументы Minecraft", text: usesGlobal ? .constant(globalMinecraft) : draft.argumentSource == .mojang ? .constant(mojangArguments.minecraft) : $draft.parameters.minecraftArguments)
             }.disabled(draft.argumentSource != .custom)
             JavaMemorySlider(value: usesGlobal ? .constant(JavaMemoryPolicy.current.normalize(globalMemory)) : $draft.parameters.maximumMemoryMiB, inherited: usesGlobal)
             Text("Значения -Xmx и MaxHeapSize в аргументах заменяются лимитом ползунка при запуске.").font(.caption).foregroundStyle(.secondary)

@@ -34,7 +34,7 @@ nonisolated struct MinecraftLaunchPlan: Sendable {
         let libraries = try MinecraftCompatibility.libraries(manifest, platform: platform)
         var classpath = try libraries.filter { $0.extractionExcludes == nil }.map { try InstanceStorage.containedURL("libraries/\($0.path)", in: game).path }
         classpath.append(try InstanceStorage.containedURL("versions/\(manifest.id)/\(manifest.id).jar", in: game).path)
-        let substitutions = [
+        var substitutions = [
             "auth_player_name": identity.name, "auth_uuid": identity.uuid, "auth_access_token": identity.accessToken,
             "auth_session": identity.accessToken == "0" ? "0" : "token:\(identity.accessToken):\(identity.uuid)",
             "auth_xuid": identity.xuid, "user_type": identity.userType, "user_properties": "{}", "profile_properties": "{}",
@@ -46,6 +46,14 @@ nonisolated struct MinecraftLaunchPlan: Sendable {
             "launcher_name": "Hako", "launcher_version": launcherVersion,
             "resolution_width": String(parameters.windowWidth), "resolution_height": String(parameters.windowHeight)
         ]
+        if let logging = manifest.logging?["client"], logging.argument != nil {
+            substitutions["logging_configuration"] = try InstanceStorage.containedURL("assets/log_configs/\(logging.file.id ?? logging.file.url.lastPathComponent)", in: game).path
+        }
+        let templates = try argumentTemplates(manifest: manifest, source: source, parameters: parameters, platform: platform)
+        return Self(executable: executable, arguments: try (templates.java + [mainClass] + templates.minecraft).map { try substitute($0, values: substitutions) }, workingDirectory: game)
+    }
+
+    static func argumentTemplates(manifest: MinecraftVersionManifest, source: LaunchArgumentSource, parameters: InstanceParameters, platform: MinecraftPlatform = .current) throws -> (java: [String], minecraft: [String]) {
         let features = ["has_custom_resolution": !parameters.fullscreen, "is_demo_user": false]
         func group(_ name: String) -> [String] {
             (manifest.arguments?[name] ?? []).filter { $0.allowed(on: platform, features: features) }.flatMap(\.values)
@@ -53,9 +61,8 @@ nonisolated struct MinecraftLaunchPlan: Sendable {
         var jvm = source == .mojang ? group("default-user-jvm") : try LaunchArguments.parse(parameters.javaArguments)
         if manifest.arguments != nil { jvm += group("jvm") }
         else { jvm += ["-XstartOnFirstThread", "-Djava.library.path=${natives_directory}", "-cp", "${classpath}"] }
-        if let logging = manifest.logging?["client"], let argument = logging.argument {
-            let path = try InstanceStorage.containedURL("assets/log_configs/\(logging.file.id ?? logging.file.url.lastPathComponent)", in: game).path
-            jvm.append(argument.replacingOccurrences(of: "${path}", with: path))
+        if let argument = manifest.logging?["client"]?.argument {
+            jvm.append(argument.replacingOccurrences(of: "${path}", with: "${logging_configuration}"))
         }
         jvm = LaunchArguments.applyingMemory(jvm, maximumMiB: parameters.maximumMemoryMiB)
         var gameArguments = manifest.arguments != nil ? group("game") : try LaunchArguments.parse(manifest.minecraftArguments ?? "")
@@ -67,7 +74,8 @@ nonisolated struct MinecraftLaunchPlan: Sendable {
             throw InstanceFileError.message("Параметр \(argument.components(separatedBy: "=")[0]) задаётся отдельной настройкой или лаунчером.")
         }
         gameArguments += extra
-        return Self(executable: executable, arguments: try (jvm + [mainClass] + gameArguments).map { try substitute($0, values: substitutions) }, workingDirectory: game)
+        gameArguments = gameArguments.map { $0.replacingOccurrences(of: "${resolution_width}", with: String(parameters.windowWidth)).replacingOccurrences(of: "${resolution_height}", with: String(parameters.windowHeight)) }
+        return (jvm, gameArguments)
     }
 
     private static func substitute(_ text: String, values: [String: String]) throws -> String {

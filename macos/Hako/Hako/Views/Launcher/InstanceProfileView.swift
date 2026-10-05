@@ -76,6 +76,8 @@ private struct InstanceSettingsView: View {
     @State private var parametersValid = true
     @State private var error: String?
     @State private var saved = false
+    @State private var manifest: MinecraftVersionManifest?
+    @State private var manifestError: String?
 
     init(instance: GameInstance) { self.instance = instance; _draft = State(initialValue: InstanceDraft(instance: instance)) }
     private var renameBlocked: Bool { instance.state == .installing || instance.state == .queued || installations.contentBusy.contains(instance.id) || installations.store.launchBusy.contains(instance.id) }
@@ -100,7 +102,13 @@ private struct InstanceSettingsView: View {
             }.instanceSurface()
             VStack(alignment: .leading, spacing: 18) {
                 Text("Параметры запуска").font(.title3.weight(.semibold))
-                InstanceParametersEditor(draft: $draft, isValid: $parametersValid)
+                InstanceParametersEditor(draft: $draft, isValid: $parametersValid, manifest: manifest)
+                if draft.argumentSource == .mojang && manifest == nil {
+                    if let manifestError {
+                        Text(manifestError).font(.caption).foregroundStyle(Color.shu)
+                        Button("Повторить загрузку параметров") { Task { await loadManifest() } }.buttonStyle(.glass)
+                    } else { ProgressView("Загружаем параметры Mojang…").font(.caption) }
+                }
             }.instanceSurface()
             HStack {
                 Button("Сохранить настройки") {
@@ -123,6 +131,19 @@ private struct InstanceSettingsView: View {
         .onChange(of: draft.offlineMode) { saved = false }
         .onChange(of: draft.offlineUsername) { saved = false }
         .onChange(of: draft.parameters) { saved = false }
+        .task(id: draft.argumentSource) { if draft.argumentSource == .mojang && manifest == nil { await loadManifest() } }
+    }
+
+    private func loadManifest() async {
+        manifestError = nil
+        do {
+            guard let url = URL(string: instance.metadataURL) else { throw MojangError.invalid("Не удалось прочитать ссылку описания версии.") }
+            let local = try InstanceStorage.containedURL("minecraft/versions/\(instance.versionID)/\(instance.versionID).json", in: installations.store.storage.directory(instance.folderName))
+            let result = try await installations.client.manifest(.init(url: url, sha1: instance.metadataSHA1), installedAt: local)
+            guard !Task.isCancelled else { return }
+            guard result.id == instance.versionID else { throw MojangError.invalid("Описание версии не соответствует сборке.") }
+            manifest = result
+        } catch { if !Task.isCancelled { manifestError = error.localizedDescription } }
     }
 }
 

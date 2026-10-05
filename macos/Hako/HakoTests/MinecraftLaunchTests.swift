@@ -30,6 +30,25 @@ import Testing
         #expect(!arguments.contains(where: { $0.contains("${") }))
     }
 
+    @Test func argumentPreviewSharesLaunchRulesMemoryAndWindowWithoutSessionValues() throws {
+        var parameters = InstanceParameters(); parameters.maximumMemoryMiB = 1024; parameters.windowWidth = 960; parameters.windowHeight = 540
+        let modern = try MinecraftLaunchPlan.argumentTemplates(manifest: manifest("26.3"), source: .mojang, parameters: parameters, platform: .appleSilicon)
+        #expect(modern.java.contains("-XX:+UseZGC") && modern.java.contains("-Xms1024M") && modern.java.contains("-Xmx1024M"))
+        #expect(modern.minecraft.contains("${auth_access_token}") && modern.minecraft.contains("${game_directory}"))
+        #expect(modern.minecraft[try #require(modern.minecraft.firstIndex(of: "--width")) + 1] == "960")
+        #expect(!modern.minecraft.contains("--demo") && !modern.minecraft.contains("--quickPlayPath"))
+        #expect(try LaunchArguments.parse(LaunchArguments.format(modern.java)) == modern.java)
+        parameters.fullscreen = true
+        let legacy = try MinecraftLaunchPlan.argumentTemplates(manifest: manifest("1.6.4"), source: .mojang, parameters: parameters, platform: .intel)
+        #expect(legacy.java.contains("-XstartOnFirstThread") && legacy.java.contains("-Xmx1024M") && !legacy.java.contains("-XX:+UseZGC"))
+        #expect(legacy.minecraft.contains("--fullscreen") && !legacy.minecraft.contains("--width"))
+    }
+
+    @Test func argumentFormattingPreservesQuotedValues() throws {
+        let arguments = ["-Dos.name=Mac OS X", "-Dquote=\"value\"", "a\\b", "it's", "", "--version", "26.3"]
+        #expect(try LaunchArguments.parse(LaunchArguments.format(arguments)) == arguments)
+    }
+
     @Test func customArgumentsKeepMandatoryLaunchStructureAndWindowWins() throws {
         var parameters = InstanceParameters(); parameters.javaArguments = "-Dmessage='hello world' -Xmx8G"; parameters.minecraftArguments = "--server localhost"; parameters.fullscreen = true; parameters.maximumMemoryMiB = 2048
         let custom = try plan("1.19", source: .custom, parameters: parameters).arguments
@@ -176,8 +195,9 @@ import Testing
         try Data("#!/bin/sh\necho $$ > '\(pidFile.path)'\ntrap '' TERM\nwhile :; do :; done\n".utf8).write(to: java)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: java.path)
         let started = ContinuousClock.now
-        await #expect(throws: InstanceFileError.self) { try await JavaLaunchValidation.validate(java, minimumMajor: 8, timeout: .seconds(1)) }
-        #expect(ContinuousClock.now - started < .seconds(3))
+        // Учитываем задержку запуска shell при параллельном прогоне, чтобы проверить уже работающий процесс.
+        await #expect(throws: InstanceFileError.self) { try await JavaLaunchValidation.validate(java, minimumMajor: 8, timeout: .seconds(3)) }
+        #expect(ContinuousClock.now - started < .seconds(5))
         let pid = try #require(Int32(String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
         #expect(kill(pid, 0) == -1 && errno == ESRCH)
     }
