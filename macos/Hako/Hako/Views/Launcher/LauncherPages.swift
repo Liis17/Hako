@@ -42,14 +42,3 @@ struct InstancesView: View {
         }
     }
 }
-
-/// Настройки пока не реализованы — только заглушка.
-struct SettingsView: View {
-    var body: some View {
-        LauncherPage(caption: "設定", title: "Настройки") {
-            Text("Настройки появятся позже.")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-        }
-    }
-}

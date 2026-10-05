@@ -12,7 +12,7 @@ Hako — нативное macOS-приложение с единственным
 
 Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
 с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
-(сборки и настройки — заглушки, профиль с аккаунтами Xbox и Java) и выход.
+(сборки — заглушка, глобальные настройки игры, профиль с аккаунтами Xbox и Java) и выход.
 Запуск игры, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) и тестовых таргетов нет.
 
@@ -23,6 +23,7 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 | Swift, режим языка 5.0 | Язык приложения | `macos/Hako/Hako.xcodeproj/project.pbxproj` (`SWIFT_VERSION`) |
 | SwiftUI | UI и жизненный цикл приложения (`@main` `App`) | `macos/Hako/Hako/HakoApp.swift` |
 | SwiftData | Профиль вошедшего пользователя | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Account.swift` |
+| UserDefaults / `@AppStorage` | Глобальные параметры игры | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
 | URLSession | HTTP-запросы к Microsoft, Xbox Live и Minecraft | `macos/Hako/Hako/Auth/MicrosoftAuth.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
@@ -42,7 +43,8 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 - `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: создаёт общий
   `ModelContainer` и единственную сцену `WindowGroup` с `ContentView`.
   Устройство контейнера описано в [[Data/Persistence]].
-- [[Data/Persistence]] — схема SwiftData, модель `Account`, контейнер хранилища, токены в Keychain.
+- [[Data/Persistence]] — схема SwiftData, модель `Account`, контейнер хранилища, токены в Keychain,
+  глобальные параметры игры и снимок `GameLaunchDefaults` для будущего создания сборок.
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и цепочку Xbox Live → Minecraft.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
@@ -95,6 +97,8 @@ CocoaPods, Carthage не используются) и тестовых тарг�
   `application-identifier` (важно для Keychain — см. [[Data/Persistence]]).
 - Info.plist генерируется (`GENERATE_INFOPLIST_FILE = YES`); ключи задаются через
   `INFOPLIST_KEY_*` в настройках таргета.
+- `macos/Hako/Hako/PrivacyInfo.xcprivacy` включён в ресурсы приложения и объявляет использование
+  `UserDefaults` для собственных настроек (причина `CA92.1`).
 - Конкурентность: `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`,
   `SWIFT_APPROACHABLE_CONCURRENCY = YES` — код модуля по умолчанию изолирован на главном акторе.
 - Подпись автоматическая (`CODE_SIGN_STYLE = Automatic`), команда `DEVELOPMENT_TEAM = 9Y935NYUP9`.
@@ -137,6 +141,9 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
   с японскими акцентами — решения пользователя.
 - Обычная связка ключей вместо Data Protection Keychain — из-за отсутствия `application-identifier`
   (см. [[Data/Persistence]]).
+- Глобальные параметры игры сохраняются автоматически и задают значения для новых сборок.
+  Новая сборка должна получать копию параметров на момент создания — решение пользователя;
+  изменения глобальных значений не должны менять существующие сборки.
 
 ## Добавление компонента
 
