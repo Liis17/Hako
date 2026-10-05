@@ -8,7 +8,10 @@ import SwiftUI
 /// Узкая стеклянная лента вкладок: сборки сверху, настройки и профиль снизу.
 struct LauncherRail: View {
     let account: Account
+    let instances: [GameInstance]
     @Binding var selection: LauncherTab
+    let onCreate: () -> Void
+    @Environment(InstallationCoordinator.self) private var installations
 
     var body: some View {
         VStack(spacing: 10) {
@@ -19,16 +22,33 @@ struct LauncherRail: View {
             Divider()
                 .frame(width: 28)
 
-            // Создание сборок появится позже.
-            Button {} label: {
+            if !instances.isEmpty {
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(instances) { instance in
+                            Button { selection = .instance(instance.id) } label: {
+                                InstanceIcon(symbol: instance.iconSymbol, url: try? InstanceStorage.containedURL("icon.png", in: installations.store.storage.directory(instance.folderName)))
+                                    .frame(width: 40, height: 40).id(instance.iconRevision)
+                                    .padding(3)
+                                    .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(selection == .instance(instance.id) ? Color.sakuraDeep : .clear, lineWidth: 2.5) }
+                            }
+                            .buttonStyle(.plain).help(instance.name).accessibilityLabel("Открыть сборку \(instance.name)")
+                        }
+                    }.padding(.horizontal, 3)
+                }
+                .scrollIndicators(.hidden)
+                .frame(maxHeight: CGFloat(instances.count * 56))
+            }
+
+            Button(action: onCreate) {
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.sakuraDeep)
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .disabled(true)
-            .help("Новая сборка — скоро")
+            .help("Новая сборка")
+            .accessibilityLabel("Новая сборка")
 
             Spacer()
 

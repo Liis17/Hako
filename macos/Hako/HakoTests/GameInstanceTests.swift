@@ -138,4 +138,22 @@ import Testing
         try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("escape"), withDestinationURL: root.deletingLastPathComponent())
         #expect(throws: InstanceFileError.self) { try InstanceStorage.containedURL("escape/file", in: root) }
     }
+
+    @Test func instanceDirectoryCannotAliasAnotherInstance() throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        let first = try store.create(draft("First"), versionID: "v", metadataURL: "url", metadataSHA1: "hash")
+        _ = try store.create(draft("Second"), versionID: "v", metadataURL: "url", metadataSHA1: "hash")
+        let second = root.appendingPathComponent("Second")
+        try FileManager.default.removeItem(at: root.appendingPathComponent("First"))
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("First"), withDestinationURL: second)
+        #expect(throws: InstanceFileError.self) { try store.storage.directory("First") }
+        first.state = .paused
+        var edit = InstanceDraft(instance: first); edit.name = "Renamed"
+        #expect(throws: InstanceFileError.self) { try store.update(first, with: edit) }
+        #expect(FileManager.default.fileExists(atPath: second.path))
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("Renamed").path))
+    }
 }

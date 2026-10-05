@@ -10,22 +10,29 @@ import SwiftData
 
 @main
 struct HakoApp: App {
-    var sharedModelContainer: ModelContainer = {
+    let sharedModelContainer: ModelContainer
+    @State private var installations: InstallationCoordinator
+
+    init() {
         let schema = Schema([
             Account.self,
             GameInstance.self,
         ])
         do {
             let modelConfiguration = ModelConfiguration(schema: schema, url: try AppDataLocation.storeURL())
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            sharedModelContainer = container
+            _installations = State(initialValue: InstallationCoordinator(context: container.mainContext))
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(installations)
+                .task { installations.start() }
         }
         .modelContainer(sharedModelContainer)
         .defaultSize(width: 1280, height: 720)

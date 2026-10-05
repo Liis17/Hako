@@ -48,6 +48,7 @@ nonisolated enum InstallationState: String, Codable, Sendable {
     var windowWidth = 1280
     var windowHeight = 720
     var installationState = InstallationState.queued.rawValue
+    var pauseRequested = false
     var installationError: String?
     var javaMajorVersion = 0
     var javaExecutable = "jre.bundle/Contents/Home/bin/java"

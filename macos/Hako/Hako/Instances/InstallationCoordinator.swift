@@ -9,10 +9,11 @@ import SwiftData
     private let installer: MinecraftInstaller
     private var activeID: UUID?
     private var activeTask: Task<Void, Never>?
-    private var userPaused: Set<UUID> = []
     private var started = false
     var progress: [UUID: InstallationProgress] = [:]
     var queueError: String?
+    var contentBusy: Set<UUID> = []
+    private var lastProgressUpdate = Date.distantPast
 
     init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), installer: MinecraftInstaller? = nil) {
         store = InstanceStore(context: context, storage: storage)
@@ -24,7 +25,10 @@ import SwiftData
         guard !started else { return }
         started = true
         do {
-            for instance in try store.context.fetch(FetchDescriptor<GameInstance>()) where instance.state == .installing { instance.state = .queued }
+            for instance in try store.context.fetch(FetchDescriptor<GameInstance>()) {
+                if instance.pauseRequested { instance.state = .paused }
+                else if instance.state == .installing { instance.state = .queued }
+            }
             try store.context.save()
             pump()
         } catch {
@@ -35,23 +39,37 @@ import SwiftData
 
     func enqueue(_ instance: GameInstance) throws {
         guard activeID != instance.id else { return }
-        userPaused.remove(instance.id)
+        let oldState = instance.state
+        let oldPause = instance.pauseRequested
+        let oldError = instance.installationError
+        instance.pauseRequested = false
         instance.state = .queued
         instance.installationError = nil
-        try store.context.save()
+        do { try store.context.save() }
+        catch {
+            instance.state = oldState; instance.pauseRequested = oldPause; instance.installationError = oldError
+            throw error
+        }
         pump()
     }
 
-    func scheduleQueuedInstallations() { pump() }
+    func scheduleQueuedInstallations() {
+        if started { pump() } else { start() }
+    }
 
     func pause(_ instance: GameInstance) throws {
+        let oldState = instance.state
+        let oldPause = instance.pauseRequested
+        instance.pauseRequested = true
+        if activeID != instance.id { instance.state = .paused }
+        do { try store.context.save() }
+        catch { instance.state = oldState; instance.pauseRequested = oldPause; throw error }
         if activeID == instance.id {
-            userPaused.insert(instance.id)
             progress[instance.id]?.stage = "Останавливаем загрузку…"
             activeTask?.cancel()
         } else {
-            instance.state = .paused
-            try store.context.save()
+            progress[instance.id]?.stage = InstallationState.paused.title
+            pump()
         }
     }
 
@@ -59,51 +77,61 @@ import SwiftData
         guard activeTask == nil else { return }
         do {
             let instances = try store.context.fetch(FetchDescriptor<GameInstance>(sortBy: [SortDescriptor(\.createdAt)]))
-            guard let instance = instances.first(where: { $0.state == .queued }) else { return }
-            guard let url = URL(string: instance.metadataURL) else {
-                instance.state = .failed
-                instance.installationError = "Не удалось прочитать описание версии."
-                try store.context.save()
-                pump()
-                return
-            }
-            let version = MinecraftVersion(id: instance.versionID, type: "release", url: url, sha1: instance.metadataSHA1)
-            let root = try store.storage.directory(instance.folderName)
-            let id = instance.id
-            activeID = instance.id
-            instance.state = .installing
-            try store.context.save()
-            activeTask = Task { [self] in
-                defer {
-                    activeID = nil
-                    activeTask = nil
-                    pump()
-                }
+            queueError = nil
+            for instance in instances where instance.state == .queued {
+                let root: URL
+                let version: MinecraftVersion
                 do {
-                    let result = try await installer.install(version, at: root) { [weak self] value in
-                        await self?.setProgress(value, id: id)
+                    guard let url = URL(string: instance.metadataURL), url.scheme == "https" else {
+                        throw InstanceFileError.message("Не удалось прочитать описание версии.")
                     }
-                    try Task.checkCancellation()
-                    instance.javaMajorVersion = result.javaMajorVersion
-                    instance.javaExecutable = result.javaExecutable
-                    instance.legacyTexturepacks = result.legacyTexturepacks
-                    instance.state = .ready
-                    instance.installationError = nil
-                    progress.removeValue(forKey: instance.id)
+                    version = MinecraftVersion(id: instance.versionID, type: "release", url: url, sha1: instance.metadataSHA1)
+                    root = try store.storage.directory(instance.folderName)
                 } catch {
-                    if userPaused.remove(instance.id) != nil {
-                        instance.state = .paused
+                    instance.state = .failed
+                    instance.installationError = error.localizedDescription
+                    try store.context.save()
+                    continue
+                }
+                let id = instance.id
+                instance.state = .installing
+                do { try store.context.save() }
+                catch { instance.state = .queued; throw error }
+                activeID = instance.id
+                activeTask = Task { [self] in
+                    defer {
+                        activeID = nil
+                        activeTask = nil
+                        pump()
+                    }
+                    do {
+                        let result = try await installer.install(version, at: root) { [weak self] value in
+                            await self?.setProgress(value, id: id)
+                        }
+                        try Task.checkCancellation()
+                        instance.javaMajorVersion = result.javaMajorVersion
+                        instance.javaExecutable = result.javaExecutable
+                        instance.legacyTexturepacks = result.legacyTexturepacks
+                        instance.state = .ready
                         instance.installationError = nil
-                    } else {
+                        progress.removeValue(forKey: instance.id)
+                    } catch {
+                        if instance.pauseRequested {
+                            instance.state = .paused
+                            instance.installationError = nil
+                        } else {
+                            instance.state = .failed
+                            instance.installationError = error.localizedDescription
+                        }
+                        progress[instance.id]?.stage = instance.state.title
+                    }
+                    do { try store.context.save() }
+                    catch {
                         instance.state = .failed
-                        instance.installationError = error.localizedDescription
+                        instance.installationError = "Не удалось сохранить состояние сборки: \(error.localizedDescription)"
                     }
                 }
-                do { try store.context.save() }
-                catch {
-                    instance.state = .failed
-                    instance.installationError = "Не удалось сохранить состояние сборки: \(error.localizedDescription)"
-                }
+                return
             }
         } catch {
             activeID = nil
@@ -111,5 +139,9 @@ import SwiftData
         }
     }
 
-    private func setProgress(_ value: InstallationProgress, id: UUID) { progress[id] = value }
+    private func setProgress(_ value: InstallationProgress, id: UUID) {
+        if let previous = progress[id], previous.stage == value.stage, value.fraction - previous.fraction < 0.002, Date().timeIntervalSince(lastProgressUpdate) < 0.15 { return }
+        progress[id] = value
+        lastProgressUpdate = Date()
+    }
 }

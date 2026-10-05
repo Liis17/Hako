@@ -54,6 +54,26 @@ import Testing
         await #expect(throws: URLError.self) { try await MojangClient(session: session).prepare(version) }
     }
 
+    @Test func preflightChoosesOfficialLegacyAndModernJavaForIntel() async throws {
+        let session = session()
+        defer { session.invalidateAndCancel() }
+        var responses: [URL: MojangTestProtocol.Response] = [MojangClient.runtimeURL: .init(data: try fixture("java-runtimes"))]
+        var versions: [(MinecraftVersion, Int)] = []
+        for (id, major) in [("1.6.4", 8), ("1.18.2", 17), ("26.3", 25)] {
+            let data = try fixture(id)
+            let url = URL(string: "https://fixtures.test/\(id)")!
+            responses[url] = .init(data: data)
+            versions.append((MinecraftVersion(id: id, type: "release", url: url, sha1: sha(data)), major))
+        }
+        MojangTestProtocol.prepare(responses)
+        let client = MojangClient(session: session)
+        for (version, major) in versions {
+            let prepared = try await client.prepare(version, platform: .intel)
+            #expect(prepared.manifest.java.majorVersion == major)
+            #expect(prepared.runtime.majorVersion == major)
+        }
+    }
+
     @Test func integrityRejectsWrongHashAndSize() throws {
         let data = Data("abc".utf8)
         let reference = MojangDownload(url: URL(string: "https://fixtures.test/file")!, sha1: "a9993e364706816aba3e25717850c26c9cd0d89d", size: 3)
@@ -150,12 +170,53 @@ import Testing
         #expect(active.state == .installing)
         #expect(paused.state == .paused)
         try coordinator.pause(active)
+        // Намерение уже на диске, даже пока отменённая задача ещё не завершилась.
+        let saved = try #require(ModelContext(container).fetch(FetchDescriptor<GameInstance>()).first { $0.id == active.id })
+        #expect(saved.pauseRequested)
         for _ in 0..<200 where active.state == .installing { try await Task.sleep(for: .milliseconds(10)) }
         #expect(active.state == .paused)
+        #expect(coordinator.progress[active.id]?.stage == nil || coordinator.progress[active.id]?.stage == InstallationState.paused.title)
         try coordinator.enqueue(active)
         for _ in 0..<300 where active.state == .installing || active.state == .queued { try await Task.sleep(for: .milliseconds(10)) }
         #expect(active.state == .ready)
         #expect(paused.state == .paused)
+    }
+
+    @Test func relaunchRestoresPauseRequestedBeforeCancellationFinished() throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try ModelContainer(for: GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let coordinator = InstallationCoordinator(context: container.mainContext, storage: .init(root: root))
+        var draft = InstanceDraft(); draft.name = "Stopping"
+        let instance = try coordinator.store.create(draft, versionID: "v", metadataURL: "https://fixtures.test/version", metadataSHA1: "hash")
+        instance.state = .installing
+        instance.pauseRequested = true
+        try container.mainContext.save()
+        coordinator.start()
+        #expect(instance.state == .paused)
+    }
+
+    @Test func invalidInstancePathDoesNotBlockFollowingInstallations() async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = session()
+        defer { session.invalidateAndCancel() }
+        let (version, responses) = try miniature()
+        MojangTestProtocol.prepare(responses)
+        let container = try ModelContainer(for: GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let client = MojangClient(session: session)
+        let coordinator = InstallationCoordinator(context: container.mainContext, storage: .init(root: root), client: client, installer: MinecraftInstaller(client: client, session: session))
+        var draft = InstanceDraft(); draft.name = "Invalid"
+        let invalid = try coordinator.store.create(draft, versionID: version.id, metadataURL: version.url.absoluteString, metadataSHA1: version.sha1)
+        invalid.folderName = "../outside"
+        draft.name = "Valid"
+        let valid = try coordinator.store.create(draft, versionID: version.id, metadataURL: version.url.absoluteString, metadataSHA1: version.sha1)
+        try container.mainContext.save()
+        coordinator.start()
+        #expect(invalid.state == .failed)
+        for _ in 0..<300 where valid.state == .installing || valid.state == .queued { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(valid.state == .ready)
+        #expect(coordinator.queueError == nil)
     }
 
     @Test func liveInstallationWhenRequested() async throws {

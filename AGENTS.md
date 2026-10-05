@@ -2,7 +2,8 @@
 
 Нативный macOS-лаунчер Minecraft на SwiftUI и SwiftData (Xcode 27, macOS 27.0+)
 с авторизацией через Microsoft и интеграцией Modrinth и CurseForge. Пока реализованы приветствие, вход в Microsoft, главная страница с вкладками и выход.
-Готовы глобальные настройки игры, сведения о месте на диске и раздел «О приложении».
+Готовы глобальные настройки игры, сведения о месте на диске и раздел «О приложении»,
+создание и фоновая установка ванильных сборок с независимой Java, профили сборок и локальные текстурпаки.
 Проект Xcode: `macos/Hako/Hako.xcodeproj`, исходники: `macos/Hako/Hako/`.
 
 <!-- obsidian:start -->
@@ -15,11 +16,12 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 |------|------------|
 | `Obsidian/HakoVault/Index.md` | Навигация по базе знаний |
 | `Obsidian/HakoVault/Architecture.md` | Архитектура, конфигурация сборки, основные потоки и ограничения |
-| `Obsidian/HakoVault/Data/Persistence.md` | SwiftData: модель `Account`, общий `ModelContainer`; токены в Keychain; параметры игры в UserDefaults |
+| `Obsidian/HakoVault/Data/Persistence.md` | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; токены, параметры и папки сборок |
+| `Obsidian/HakoVault/Minecraft/Installation.md` | Официальный каталог Mojang, совместимость, независимая установка Minecraft и Java |
 | `Obsidian/HakoVault/Auth/MicrosoftAuth.md` | Вход через Microsoft device code flow и Minecraft |
 | `Obsidian/HakoVault/UI/ContentView.md` | Корень окна, настройки окна, выбор экрана |
 | `Obsidian/HakoVault/UI/Screens.md` | Экраны и общий стиль |
-| `Obsidian/HakoVault/UI/Launcher.md` | Главная страница: рейл вкладок, настройки, профиль, автоподключение Minecraft |
+| `Obsidian/HakoVault/UI/Launcher.md` | Главная страница: рейл, создание и профили сборок, текстурпаки, настройки и аккаунт |
 
 ### Чтение памяти
 

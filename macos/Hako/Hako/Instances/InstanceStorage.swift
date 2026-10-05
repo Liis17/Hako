@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import Darwin
 
 /// Все игровые файлы принадлежат одной сборке; корень можно заменить в тестах.
 nonisolated struct InstanceStorage: Sendable {
@@ -10,7 +11,14 @@ nonisolated struct InstanceStorage: Sendable {
     }
 
     func directory(_ folder: String) throws -> URL {
-        try Self.containedURL(folder, in: root)
+        guard !folder.contains("/") else { throw InstanceFileError.message("Недопустимая папка сборки.") }
+        let target = try Self.containedURL(folder, in: root)
+        do {
+            if try root.appendingPathComponent(folder).resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true {
+                throw InstanceFileError.message("Папка сборки не может быть символической ссылкой.")
+            }
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile { }
+        return target
     }
 
     static func containedURL(_ path: String, in root: URL) throws -> URL {
@@ -79,7 +87,7 @@ nonisolated struct InstanceStorage: Sendable {
         let folder = try validateName(name)
         let url = try storage.directory(folder)
         try FileManager.default.createDirectory(at: storage.root, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
+        guard mkdir(url.path, 0o755) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
         let instance = GameInstance(name: name, folderName: folder, versionID: versionID, metadataURL: metadataURL, metadataSHA1: metadataSHA1)
         instance.javaMajorVersion = javaMajorVersion
         instance.legacyTexturepacks = legacyTexturepacks
@@ -107,6 +115,7 @@ nonisolated struct InstanceStorage: Sendable {
         }
         let original = try storage.directory(oldFolder)
         let destination = try storage.directory(folder)
+        _ = try InstanceStorage.containedURL("icon.png", in: original)
         let icon = original.appendingPathComponent("icon.png")
         let oldIcon = FileManager.default.fileExists(atPath: icon.path) ? try Data(contentsOf: icon) : nil
         var moved = false

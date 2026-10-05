@@ -19,7 +19,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой, включающей `Account`: в приложении — `HakoApp.sharedModelContainer`, в `#Preview` — `.modelContainer(for: Account.self, inMemory: true)` |
+| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance]` и `InstallationCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координатор |
 
 ## Выбор экрана
 

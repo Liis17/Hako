@@ -6,8 +6,9 @@
 import SwiftData
 import SwiftUI
 
-enum LauncherTab {
+enum LauncherTab: Hashable {
     case instances
+    case instance(UUID)
     case settings
     case profile
 }
@@ -24,18 +25,25 @@ struct LauncherView: View {
     let account: Account
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(InstallationCoordinator.self) private var installations
+    @Query(sort: \GameInstance.createdAt) private var instances: [GameInstance]
     @State private var tab = LauncherTab.instances
     @State private var minecraftStatus = MinecraftStatus.idle
+    @State private var creatingInstance = false
 
     var body: some View {
         HStack(spacing: 0) {
-            LauncherRail(account: account, selection: $tab)
+            LauncherRail(account: account, instances: instances, selection: $tab, onCreate: { creatingInstance = true })
                 .padding(12)
 
             Group {
                 switch tab {
                 case .instances:
-                    InstancesView()
+                    InstancesView(instances: instances, onCreate: { creatingInstance = true }, onOpen: { tab = .instance($0.id) })
+                case .instance(let id):
+                    if let instance = instances.first(where: { $0.id == id }) {
+                        InstanceProfileView(instance: instance, onBack: { tab = .instances })
+                    }
                 case .settings:
                     SettingsView()
                 case .profile:
@@ -49,6 +57,10 @@ struct LauncherView: View {
         }
         .animation(.smooth, value: tab)
         .task { await connectMinecraftIfNeeded() }
+        .sheet(isPresented: $creatingInstance) {
+            InstanceCreationView(onCreated: { tab = .instances })
+                .environment(installations)
+        }
     }
 
     /// При открытии лаунчера тихо пробует подключить Minecraft по сохранённому refresh token.
@@ -77,12 +89,13 @@ struct LauncherView: View {
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Account.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container = try! ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: "steve@example.com")
     container.mainContext.insert(account)
 
     return LauncherView(account: account)
         .modelContainer(container)
+        .environment(InstallationCoordinator(context: container.mainContext))
         .background { SakuraBackground() }
         .frame(width: 1280, height: 720)
 }

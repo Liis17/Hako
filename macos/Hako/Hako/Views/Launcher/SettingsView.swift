@@ -5,6 +5,7 @@
 
 import AppKit
 import SwiftUI
+import SwiftData
 
 private enum SettingsSection {
     case game
@@ -59,7 +60,7 @@ private struct GameSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Настройки по умолчанию для новых сборок. Изменения сохраняются автоматически.")
+            Text("Параметры для сборок с включённым использованием глобальных настроек. Изменения сохраняются автоматически.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -198,7 +199,11 @@ private struct DiskSpace {
 
 private struct StorageSettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(InstallationCoordinator.self) private var installations
+    @Query private var instances: [GameInstance]
     @State private var diskSpace: Result<DiskSpace, Error>?
+    @State private var instanceBytes: Int64?
+    @State private var storageError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -248,22 +253,28 @@ private struct StorageSettingsView: View {
                     Text("Занимают на диске")
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("0 Б")
+                    Text(instanceBytes.map { $0.formatted(.byteCount(style: .file)) } ?? "—")
                         .fontWeight(.medium)
                 }
-                ProgressView(value: 0)
-                    .tint(.sakuraDeep)
-                    .accessibilityLabel("Размер сборок Minecraft")
-                    .accessibilityValue("0 Б")
-                Text("Сборок пока нет.")
+                Text(storageError ?? (instances.isEmpty ? "Сборок пока нет." : "\(instances.count) сборок · ~/.hako"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
-        .task { refreshDiskSpace() }
+        .task { refreshDiskSpace(); await refreshInstanceSize() }
+        .onChange(of: instances.map { "\($0.folderName):\($0.installationState)" }) { Task { await refreshInstanceSize() } }
+        .onChange(of: installations.contentBusy) { Task { await refreshInstanceSize() } }
         .onChange(of: scenePhase) { _, newValue in
-            if newValue == .active { refreshDiskSpace() }
+            if newValue == .active { refreshDiskSpace(); Task { await refreshInstanceSize() } }
         }
+    }
+
+    private func refreshInstanceSize() async {
+        let storage = installations.store.storage
+        do {
+            let bytes = try await Task.detached(priority: .utility) { try storage.allocatedSize() }.value
+            instanceBytes = bytes; storageError = nil
+        } catch { storageError = "Не удалось получить размер сборок." }
     }
 
     private func refreshDiskSpace() {
@@ -349,7 +360,10 @@ private struct SettingsCard<Content: View>: View {
 }
 
 #Preview {
-    SettingsView()
+    let container = try! ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    return SettingsView()
+        .modelContainer(container)
+        .environment(InstallationCoordinator(context: container.mainContext))
         .defaultAppStorage(UserDefaults(suiteName: "com.Launcher.Hako.settings.preview")!)
         .padding(.horizontal, 56)
         .padding(.top, 40)

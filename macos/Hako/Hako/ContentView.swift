@@ -38,7 +38,9 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: Account.self, inMemory: true)
+    let container = try! ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    return ContentView()
+        .modelContainer(container)
+        .environment(InstallationCoordinator(context: container.mainContext))
         .frame(width: 1280, height: 720)
 }

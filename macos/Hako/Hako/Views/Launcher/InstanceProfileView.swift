@@ -1,0 +1,208 @@
+import AppKit
+import SwiftUI
+import UniformTypeIdentifiers
+
+private enum InstanceSection: String, CaseIterable, Identifiable {
+    case mods = "Моды", packs = "Текстурпаки", settings = "Настройки"
+    var id: Self { self }
+}
+
+struct InstanceProfileView: View {
+    let instance: GameInstance
+    let onBack: () -> Void
+    @Environment(InstallationCoordinator.self) private var installations
+    @State private var section = InstanceSection.mods
+    @State private var actionError: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Button("Все сборки", systemImage: "chevron.left", action: onBack).buttonStyle(.plain).foregroundStyle(.secondary)
+            HStack(spacing: 20) {
+                InstanceIcon(symbol: instance.iconSymbol, url: try? InstanceStorage.containedURL("icon.png", in: installations.store.storage.directory(instance.folderName)))
+                    .frame(width: 76, height: 76).id(instance.iconRevision)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(instance.name).font(.system(size: 44, weight: .heavy)).tracking(-1).lineLimit(2).minimumScaleFactor(0.55)
+                    Text("Minecraft \(instance.versionID) · Vanilla · Java \(instance.javaMajorVersion)").foregroundStyle(.secondary)
+                }
+            }
+            if instance.state != .ready { installationPanel }
+            Picker("Раздел сборки", selection: $section) {
+                ForEach(InstanceSection.allCases) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 600)
+            ScrollView {
+                Group {
+                    switch section {
+                    case .mods: InstanceFilesView(instance: instance, mods: true)
+                    case .packs: InstanceFilesView(instance: instance, mods: false)
+                    case .settings: InstanceSettingsView(instance: instance)
+                    }
+                }.frame(maxWidth: 800, alignment: .leading).padding(2).padding(.bottom, 32)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }.id(section)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .alert("Не удалось выполнить действие", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) { Button("ОК", role: .cancel) {} } message: { Text(actionError ?? "") }
+    }
+
+    private var installationPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(instance.state.title).font(.headline)
+                Spacer()
+                if instance.state == .installing || instance.state == .queued {
+                    Button("Остановить") { do { try installations.pause(instance) } catch { actionError = error.localizedDescription } }.buttonStyle(.glass)
+                } else {
+                    Button(instance.state == .paused ? "Продолжить" : "Повторить") {
+                        do { try installations.enqueue(instance) } catch { actionError = error.localizedDescription }
+                    }.buttonStyle(.glass)
+                }
+            }
+            if let progress = installations.progress[instance.id] {
+                ProgressView(value: progress.fraction).tint(.sakuraDeep)
+                HStack { Text(progress.stage); Spacer(); if progress.totalBytes > 0 { Text("\(Int(progress.fraction * 100))%") } }.font(.caption).foregroundStyle(.secondary)
+            } else if instance.state == .queued { Text("Загрузка начнётся, когда завершится предыдущая сборка.").font(.callout).foregroundStyle(.secondary) }
+            if let error = instance.installationError { Text(error).font(.callout).foregroundStyle(Color.shu).textSelection(.enabled) }
+        }.instanceSurface()
+    }
+}
+
+private struct InstanceSettingsView: View {
+    let instance: GameInstance
+    @Environment(InstallationCoordinator.self) private var installations
+    @State private var draft: InstanceDraft
+    @State private var parametersValid = true
+    @State private var error: String?
+    @State private var saved = false
+
+    init(instance: GameInstance) { self.instance = instance; _draft = State(initialValue: InstanceDraft(instance: instance)) }
+    private var renameBlocked: Bool { instance.state == .installing || instance.state == .queued || installations.contentBusy.contains(instance.id) }
+    private var nameError: String? {
+        do { _ = try installations.store.validateName(draft.name, excluding: instance); return nil }
+        catch { return error.localizedDescription }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Профиль сборки").font(.title3.weight(.semibold))
+                InstanceIconPicker(draft: $draft, existingIcon: try? InstanceStorage.containedURL("icon.png", in: installations.store.storage.directory(instance.folderName)))
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack { Text("Название").font(.callout.weight(.medium)); Spacer(); Text("\(draft.name.count)/60").font(.caption).foregroundStyle(.secondary) }
+                    TextField("Название сборки", text: $draft.name).textFieldStyle(.roundedBorder).disabled(renameBlocked)
+                    if renameBlocked { Text("Переименование доступно после остановки загрузки и завершения операций с файлами.").font(.caption).foregroundStyle(.secondary) }
+                    if let nameError { Text(nameError).font(.caption).foregroundStyle(Color.shu) }
+                }
+                Text("Minecraft \(instance.versionID) · Vanilla").foregroundStyle(.secondary)
+                Text("Папка: ~/.hako/\(instance.folderName)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            }.instanceSurface()
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Параметры запуска").font(.title3.weight(.semibold))
+                InstanceParametersEditor(usesGlobal: $draft.usesGlobalParameters, parameters: $draft.parameters, isValid: $parametersValid)
+            }.instanceSurface()
+            HStack {
+                Button("Сохранить настройки") {
+                    do {
+                        if renameBlocked && draft.name != instance.name { throw InstanceFileError.message("Дождитесь завершения операций с файлами перед переименованием.") }
+                        try installations.store.update(instance, with: draft)
+                        draft = InstanceDraft(instance: instance); error = nil; saved = true
+                    } catch { self.error = error.localizedDescription; saved = false }
+                }.buttonStyle(.glassProminent).tint(.sakuraDeep).disabled(nameError != nil || !parametersValid)
+                if saved { Label("Сохранено", systemImage: "checkmark").font(.callout).foregroundStyle(.secondary) }
+            }
+            if let error { Text(error).font(.callout).foregroundStyle(Color.shu) }
+        }.onChange(of: draft.name) { saved = false }
+        .onChange(of: draft.iconSymbol) { saved = false }
+        .onChange(of: draft.iconData) { saved = false }
+        .onChange(of: draft.usesGlobalParameters) { saved = false }
+        .onChange(of: draft.parameters) { saved = false }
+    }
+}
+
+private struct InstanceFilesView: View {
+    let instance: GameInstance
+    let mods: Bool
+    @Environment(InstallationCoordinator.self) private var installations
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var content = InstanceContent()
+    @State private var items: [InstanceContentItem] = []
+    @State private var error: String?
+    @State private var importing = false
+    @State private var pendingImports: [URL] = []
+    @State private var replacement: URL?
+    @State private var deleting: InstanceContentItem?
+
+    private var busy: Bool { installations.contentBusy.contains(instance.id) }
+    private func folder() throws -> URL {
+        try InstanceStorage.containedURL("minecraft/\(mods ? "mods" : instance.legacyTexturepacks ? "texturepacks" : "resourcepacks")", in: installations.store.storage.directory(instance.folderName))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text(mods ? "Моды" : "Текстурпаки").font(.title3.weight(.semibold))
+                Spacer()
+                Button("Открыть папку", systemImage: "folder") {
+                    do { let folder = try folder(); try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true); NSWorkspace.shared.open(folder) }
+                    catch { self.error = error.localizedDescription }
+                }.buttonStyle(.glass)
+                if !mods { Button("Добавить…", systemImage: "plus") { importing = true }.buttonStyle(.glass).disabled(busy) }
+            }
+            if mods { Text("Vanilla не поддерживает моды. Установка загрузчиков появится позже.").font(.callout).foregroundStyle(.secondary) }
+            if busy { ProgressView("Копируем текстурпак…") }
+            if let error { Text(error).font(.callout).foregroundStyle(Color.shu) }
+            if items.isEmpty {
+                Text(mods ? "В папке сборки нет модов." : "Текстурпаков пока нет. Добавьте ZIP-файл или папку с компьютера.")
+                    .foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
+            } else {
+                ForEach(items) { item in
+                    HStack(spacing: 12) {
+                        Image(systemName: mods ? "puzzlepiece.extension" : item.isDirectory ? "folder" : "doc.zipper").foregroundStyle(Color.sakuraDeep)
+                        Text(item.name).lineLimit(2).textSelection(.enabled)
+                        Spacer()
+                        if !mods { Button { deleting = item } label: { Image(systemName: "trash") }.buttonStyle(.plain).help("Удалить текстурпак").disabled(busy) }
+                    }.padding(14).background(.white.opacity(0.45), in: .rect(cornerRadius: 12))
+                }
+            }
+        }.instanceSurface()
+        .task(id: instance.folderName) { await reload() }
+        .onChange(of: instance.state) { Task { await reload() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await reload() } } }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.zip, .folder], allowsMultipleSelection: true) { result in
+            do { pendingImports = try result.get(); Task { await importNext() } }
+            catch { self.error = error.localizedDescription }
+        }
+        .alert("Заменить текстурпак?", isPresented: Binding(get: { replacement != nil }, set: { if !$0 { replacement = nil } }), presenting: replacement) { source in
+            Button("Отмена", role: .cancel) { replacement = nil; Task { await importNext() } }
+            Button("Заменить", role: .destructive) { replacement = nil; Task { await importOne(source, replace: true); await importNext() } }
+        } message: { source in Text("Текстурпак \(source.lastPathComponent) уже существует в сборке.") }
+        .alert("Удалить текстурпак?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { item in
+            Button("Отмена", role: .cancel) { deleting = nil }
+            Button("Удалить", role: .destructive) {
+                deleting = nil
+                Task {
+                    installations.contentBusy.insert(instance.id)
+                    defer { installations.contentBusy.remove(instance.id) }
+                    do { try await content.trash(item, in: folder()); await reload() }
+                    catch { self.error = error.localizedDescription }
+                }
+            }
+        } message: { _ in Text("Текстурпак будет перемещён в корзину.") }
+    }
+
+    private func reload() async {
+        do { let result = try await content.list(at: folder(), mods: mods); if !Task.isCancelled { items = result; error = nil } }
+        catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+    }
+    private func importNext() async {
+        while !pendingImports.isEmpty && replacement == nil {
+            let source = pendingImports.removeFirst()
+            await importOne(source, replace: false)
+        }
+    }
+    private func importOne(_ source: URL, replace: Bool) async {
+        installations.contentBusy.insert(instance.id)
+        defer { installations.contentBusy.remove(instance.id) }
+        do { try await content.importPack(from: source, into: folder(), replace: replace); await reload() }
+        catch PackImportError.exists { replacement = source }
+        catch { self.error = error.localizedDescription }
+    }
+}

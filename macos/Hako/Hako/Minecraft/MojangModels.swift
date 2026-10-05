@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 nonisolated enum MinecraftPlatform: String, Sendable {
     case intel, appleSilicon
@@ -7,7 +8,9 @@ nonisolated enum MinecraftPlatform: String, Sendable {
         #if arch(arm64)
         .appleSilicon
         #else
-        .intel
+        var translated: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        return sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0) == 0 && translated == 1 ? .appleSilicon : .intel
         #endif
     }
     var runtimeKey: String { self == .appleSilicon ? "mac-os-arm64" : "mac-os" }
@@ -129,8 +132,8 @@ nonisolated struct JavaRuntimePackage: Decodable, Sendable {
 
     var majorVersion: Int? {
         let parts = version.name.split(separator: ".")
-        if parts.first == "1", parts.count > 1 { return Int(parts[1]) }
-        return parts.first.flatMap { Int($0) }
+        if parts.first == "1", parts.count > 1 { return Int(parts[1].prefix(while: \.isNumber)) }
+        return Int(version.name.prefix(while: \.isNumber))
     }
 }
 
