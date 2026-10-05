@@ -47,6 +47,7 @@ CocoaPods, Carthage не используются) нет.
   Устройство контейнера описано в [[Data/Persistence]].
 - [[Data/Persistence]] — схема SwiftData, модель `Account`, контейнер хранилища, токены в Keychain,
   глобальные параметры игры и снимок `GameLaunchDefaults` для будущего создания сборок.
+- [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и цепочку Xbox Live → Minecraft.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.

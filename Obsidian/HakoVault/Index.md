@@ -15,6 +15,10 @@ Hako — нативный macOS-лаунчер Minecraft на SwiftUI и SwiftDa
 |---------|------------|
 | [[Data/Persistence]] | SwiftData: модель `Account`, общий `ModelContainer`; токены в Keychain; параметры игры в UserDefaults |
 
+## Minecraft
+
+- [[Minecraft/Installation|Установка Minecraft и Java]] — официальные API, совместимость, файлы и очередь
+
 ## Auth
 
 | Заметка | Назначение |

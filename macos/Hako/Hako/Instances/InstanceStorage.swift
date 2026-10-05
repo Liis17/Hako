@@ -74,13 +74,15 @@ nonisolated struct InstanceStorage: Sendable {
         return folder
     }
 
-    func create(_ draft: InstanceDraft, versionID: String, metadataURL: String, metadataSHA1: String) throws -> GameInstance {
+    func create(_ draft: InstanceDraft, versionID: String, metadataURL: String, metadataSHA1: String, javaMajorVersion: Int = 0, legacyTexturepacks: Bool = false) throws -> GameInstance {
         let name = try InstanceName.validated(draft.name)
         let folder = try validateName(name)
         let url = try storage.directory(folder)
         try FileManager.default.createDirectory(at: storage.root, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
         let instance = GameInstance(name: name, folderName: folder, versionID: versionID, metadataURL: metadataURL, metadataSHA1: metadataSHA1)
+        instance.javaMajorVersion = javaMajorVersion
+        instance.legacyTexturepacks = legacyTexturepacks
         do {
             try FileManager.default.createDirectory(at: url.appendingPathComponent("java"), withIntermediateDirectories: false)
             try FileManager.default.createDirectory(at: url.appendingPathComponent("minecraft"), withIntermediateDirectories: false)
