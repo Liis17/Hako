@@ -40,9 +40,10 @@ Parent: [[Index]]
 
 ## WelcomeView
 
-`WelcomeView(onStart: () -> Void)` — печать 箱, подпись «ようこそ», заголовок
+`WelcomeView(onStart:onContinueWithoutAccount:)` — печать 箱, подпись «ようこそ», заголовок
 «Добро пожаловать в Hako», подзаголовок «Лаунчер Minecraft для macOS», кнопка «Начать»
 (`.keyboardShortcut(.defaultAction)` — срабатывает по Return) вызывает `onStart`.
+Рядом «Продолжить без аккаунта» вызывает `onContinueWithoutAccount` и открывает гостевой лаунчер.
 В правом нижнем углу — дисклеймер «Hako is not affiliated with or endorsed by Mojang or Microsoft.
 Minecraft is a trademark of Microsoft.» (`.caption`, `.tertiary`). Элементы появляются через `reveal`.
 
@@ -66,4 +67,4 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 
 ## Главная страница
 
-После входа показывается главная страница лаунчера — см. [[UI/Launcher]].
+После входа или выбора «Продолжить без аккаунта» показывается главная страница лаунчера — см. [[UI/Launcher]].

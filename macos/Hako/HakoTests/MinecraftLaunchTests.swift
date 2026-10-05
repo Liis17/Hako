@@ -167,6 +167,20 @@ import Testing
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: java.path)
         await #expect(throws: InstanceFileError.self) { try await JavaLaunchValidation.validate(java, minimumMajor: 8) }
     }
+
+    @Test func javaProbeTimeoutStopsExecutableIgnoringTermination() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let java = root.appendingPathComponent("java"), pidFile = root.appendingPathComponent("pid")
+        try Data("#!/bin/sh\necho $$ > '\(pidFile.path)'\ntrap '' TERM\nwhile :; do :; done\n".utf8).write(to: java)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: java.path)
+        let started = ContinuousClock.now
+        await #expect(throws: InstanceFileError.self) { try await JavaLaunchValidation.validate(java, minimumMajor: 8, timeout: .seconds(1)) }
+        #expect(ContinuousClock.now - started < .seconds(3))
+        let pid = try #require(Int32(String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
+        #expect(kill(pid, 0) == -1 && errno == ESRCH)
+    }
 }
 
 private actor LaunchProbe { var count = 0; func add(_ identity: MinecraftLaunchIdentity) { count += 1 } }

@@ -14,7 +14,8 @@ Hako — нативное macOS-приложение: таргет `Hako` (bundl
 с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
 (карточки и профили сборок, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java и анимированным 3D-скином) и выход.
 Создание ванильной сборки запускает независимую установку Java и Minecraft из официальных API Mojang в фоне.
-Запуск игры, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
+Установленные сборки запускаются онлайн или в offline-mode; гостевой вход открывает лаунчер без аккаунта.
+Загрузчики модов, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) нет.
 
 ## Стек
@@ -36,7 +37,7 @@ CocoaPods, Carthage не используются) нет.
 |------|------------|
 | `macos/Hako/Hako.xcodeproj` | Проект Xcode: таргет и схема `Hako`, конфигурации `Debug` и `Release` |
 | `macos/Hako/Hako/` | Исходники и ресурсы приложения |
-| `macos/Hako/HakoTests/` | Swift Testing: скины, хранение сборок, метаданные Mojang, очередь, установщик и импорт текстурпаков |
+| `macos/Hako/HakoTests/` | Swift Testing: скины, хранение и миграция сборок, метаданные Mojang, установка, параметры и процессы запуска, сессии и импорт текстурпаков |
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
 | `Obsidian/HakoVault/` | Эта база знаний |
@@ -68,7 +69,8 @@ CocoaPods, Carthage не используются) нет.
 2. `WindowGroup { ContentView() }` получает контейнер через
    `.modelContainer(sharedModelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. `ContentView`
-   показывает поверх фона с сакурой `LauncherView`, если в SwiftData есть `Account`, иначе приветствие.
+   показывает поверх фона с сакурой `LauncherView`, если в SwiftData есть `Account` либо выбран гостевой вход,
+   иначе приветствие. Гостевой выбор действует до закрытия Hako; сборки сохраняются независимо.
 4. `ContentView` наблюдает срок Minecraft-токена через `MinecraftSessionCoordinator.monitor` ([[Auth/MicrosoftAuth]]).
    `GameLaunchCoordinator.start` восстанавливает работающие игры до запуска очереди установки.
    Общий координатор из окружения восстанавливает очередь независимо от аккаунта; сохранённая пауза остаётся паузой.
@@ -78,7 +80,8 @@ CocoaPods, Carthage не используются) нет.
 
 ### Вход
 
-1. «Начать» на приветствии открывает `LoginView`.
+1. «Начать» на приветствии открывает `LoginView`; «Продолжить без аккаунта» открывает гостевой лаунчер.
+   Из профиля гостя также доступен Microsoft-вход: отмена возвращает в лаунчер.
 2. `LoginView.signIn()` запрашивает код (`MicrosoftAuth.requestDeviceCode`) и показывает его;
    пользователь вводит код на microsoft.com/link.
 3. `MicrosoftAuth.waitForToken` опрашивает Microsoft до подтверждения, `signIn` получает профиль Xbox
@@ -92,6 +95,7 @@ CocoaPods, Carthage не используются) нет.
 
 `ProfileView.signOut()` (вкладка «Профиль») удаляет запись токенов из Keychain и `Account` из SwiftData,
 сохраняет контекст; `ContentView` возвращает приветствие. `GameInstance`, файлы сборок и очередь установки сохраняются.
+Работающие игры продолжаются независимо от выхода из аккаунта и закрытия Hako.
 
 Источники: `macos/Hako/Hako/Views/Launcher/ProfileView.swift`, `macos/Hako/Hako/Auth/TokenKeychain.swift`.
 

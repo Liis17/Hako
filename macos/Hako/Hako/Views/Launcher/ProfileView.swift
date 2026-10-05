@@ -97,6 +97,20 @@ struct ProfileView: View {
     }
 }
 
+struct GuestProfileView: View {
+    let onSignIn: () -> Void
+    var body: some View {
+        LauncherPage(caption: "プロフィール", title: "Профиль") {
+            VStack(alignment: .leading, spacing: 20) {
+                Label("Вы продолжили без аккаунта", systemImage: "person.crop.circle").font(.title3.weight(.semibold))
+                Text("Для онлайн-запуска подключите аккаунт Microsoft с Minecraft: Java Edition. Offline-mode включается отдельно в настройках каждой сборки.")
+                    .foregroundStyle(.secondary)
+                Button("Войти в Microsoft", action: onSignIn).buttonStyle(.glassProminent).tint(.sakuraDeep).controlSize(.large)
+            }.frame(maxWidth: 600, alignment: .leading).instanceSurface()
+        }
+    }
+}
+
 private struct AccountRow<Avatar: View>: View {
     let title: String
     let subtitle: String?

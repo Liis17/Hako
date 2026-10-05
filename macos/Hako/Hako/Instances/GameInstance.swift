@@ -125,10 +125,6 @@ struct InstanceDraft {
     var iconSymbol = "shippingbox.fill"
     var iconData: Data?
     var argumentSource = LaunchArgumentSource.mojang
-    var usesGlobalParameters: Bool {
-        get { argumentSource == .global }
-        set { if newValue { argumentSource = .global } else if argumentSource == .global { argumentSource = .custom } }
-    }
     var offlineMode = false
     var offlineUsername = "Player"
     var parameters = InstanceParameters(defaults: .load())

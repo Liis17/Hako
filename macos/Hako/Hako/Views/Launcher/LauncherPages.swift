@@ -34,6 +34,7 @@ struct LauncherPage<Content: View>: View {
 
 struct InstancesView: View {
     let instances: [GameInstance]
+    var account: Account?
     let onCreate: () -> Void
     let onOpen: (GameInstance) -> Void
     @Environment(InstallationCoordinator.self) private var installations
@@ -62,25 +63,28 @@ struct InstancesView: View {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 20)], spacing: 20) {
                             ForEach(instances) { instance in
-                                Button { onOpen(instance) } label: {
-                                    VStack(alignment: .leading, spacing: 16) {
-                                        HStack(spacing: 14) {
-                                            InstanceIcon(symbol: instance.iconSymbol, url: try? InstanceStorage.containedURL("icon.png", in: installations.store.storage.directory(instance.folderName)))
-                                                .frame(width: 56, height: 56).id(instance.iconRevision)
-                                            VStack(alignment: .leading, spacing: 5) {
-                                                Text(instance.name).font(.title3.weight(.semibold)).lineLimit(2).foregroundStyle(.primary)
-                                                Text("\(instance.versionID) · Vanilla").font(.callout).foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 16) {
+                                    Button { onOpen(instance) } label: {
+                                        VStack(alignment: .leading, spacing: 16) {
+                                            HStack(spacing: 14) {
+                                                InstanceIcon(symbol: instance.iconSymbol, url: try? InstanceStorage.containedURL("icon.png", in: installations.store.storage.directory(instance.folderName)))
+                                                    .frame(width: 56, height: 56).id(instance.iconRevision)
+                                                VStack(alignment: .leading, spacing: 5) {
+                                                    Text(instance.name).font(.title3.weight(.semibold)).lineLimit(2).foregroundStyle(.primary)
+                                                    Text("\(instance.versionID) · Vanilla").font(.callout).foregroundStyle(.secondary)
+                                                }
                                             }
-                                        }
-                                        if let progress = installations.progress[instance.id], instance.state == .installing || instance.state == .paused {
-                                            ProgressView(value: progress.fraction).tint(.sakuraDeep)
-                                            Text(progress.stage).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                        } else {
-                                            Label(instance.state.title, systemImage: instance.state == .ready ? "checkmark.circle" : instance.state == .failed ? "exclamationmark.circle" : "clock")
-                                                .font(.callout).foregroundStyle(instance.state == .failed ? Color.shu : .secondary)
-                                        }
-                                    }.frame(maxWidth: .infinity, alignment: .leading).instanceSurface()
-                                }.buttonStyle(.plain).accessibilityLabel("Открыть сборку \(instance.name)")
+                                            if let progress = installations.progress[instance.id], instance.state == .installing || instance.state == .paused {
+                                                ProgressView(value: progress.fraction).tint(.sakuraDeep)
+                                                Text(progress.stage).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                            } else {
+                                                Label(instance.state.title, systemImage: instance.state == .ready ? "checkmark.circle" : instance.state == .failed ? "exclamationmark.circle" : "clock")
+                                                    .font(.callout).foregroundStyle(instance.state == .failed ? Color.shu : .secondary)
+                                            }
+                                        }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+                                    }.buttonStyle(.plain).accessibilityLabel("Открыть сборку \(instance.name)")
+                                    InstancePlayControls(instance: instance, account: account, compact: true)
+                                }.frame(maxWidth: .infinity, alignment: .leading).instanceSurface()
                             }
                         }.padding(2).padding(.bottom, 32)
                     }

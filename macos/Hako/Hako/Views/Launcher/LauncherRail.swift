@@ -7,7 +7,7 @@ import SwiftUI
 
 /// Узкая стеклянная лента вкладок: сборки сверху, настройки и профиль снизу.
 struct LauncherRail: View {
-    let account: Account
+    let account: Account?
     let instances: [GameInstance]
     @Binding var selection: LauncherTab
     let onCreate: () -> Void
@@ -57,7 +57,10 @@ struct LauncherRail: View {
             }
 
             Button { selection = .profile } label: {
-                AccountAvatar(account: account)
+                Group {
+                    if let account { AccountAvatar(account: account) }
+                    else { Image(systemName: "person.crop.circle").font(.system(size: 28)).foregroundStyle(Color.sakuraDeep) }
+                }
                     .frame(width: 40, height: 40)
                     .clipShape(.rect(cornerRadius: 10))
                     .padding(3)

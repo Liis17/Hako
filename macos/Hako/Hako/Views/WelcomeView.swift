@@ -8,6 +8,7 @@ import SwiftUI
 /// Экран приветствия, который видит пользователь без сохранённого аккаунта.
 struct WelcomeView: View {
     let onStart: () -> Void
+    var onContinueWithoutAccount: () -> Void = {}
 
     @State private var isVisible = false
 
@@ -31,14 +32,16 @@ struct WelcomeView: View {
                 .padding(.top, 16)
                 .reveal(isVisible, order: 3)
 
-            Button(action: onStart) {
-                Text("Начать")
-                    .padding(.horizontal, 12)
+            HStack(spacing: 18) {
+                Button(action: onStart) {
+                    Text("Начать").padding(.horizontal, 12)
+                }
+                .buttonStyle(.glassProminent).tint(.sakuraDeep)
+                .keyboardShortcut(.defaultAction)
+                Button("Продолжить без аккаунта", action: onContinueWithoutAccount)
+                    .buttonStyle(.glass)
             }
-            .buttonStyle(.glassProminent)
-            .tint(.sakuraDeep)
             .controlSize(.extraLarge)
-            .keyboardShortcut(.defaultAction)
             .padding(.top, 48)
             .reveal(isVisible, order: 4)
         }

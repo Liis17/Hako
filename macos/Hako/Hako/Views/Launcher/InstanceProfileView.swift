@@ -9,6 +9,7 @@ private enum InstanceSection: String, CaseIterable, Identifiable {
 
 struct InstanceProfileView: View {
     let instance: GameInstance
+    var account: Account?
     let onBack: () -> Void
     @Environment(InstallationCoordinator.self) private var installations
     @State private var section = InstanceSection.mods
@@ -24,6 +25,8 @@ struct InstanceProfileView: View {
                     Text(instance.name).font(.system(size: 44, weight: .heavy)).tracking(-1).lineLimit(2).minimumScaleFactor(0.55)
                     Text("Minecraft \(instance.versionID) · Vanilla · Java \(instance.javaMajorVersion)").foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 12)
+                InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .leading)
             }
             if instance.state != .ready { installationPanel }
             Picker("Раздел сборки", selection: $section) {
@@ -68,13 +71,14 @@ struct InstanceProfileView: View {
 private struct InstanceSettingsView: View {
     let instance: GameInstance
     @Environment(InstallationCoordinator.self) private var installations
+    @Environment(GameLaunchCoordinator.self) private var games
     @State private var draft: InstanceDraft
     @State private var parametersValid = true
     @State private var error: String?
     @State private var saved = false
 
     init(instance: GameInstance) { self.instance = instance; _draft = State(initialValue: InstanceDraft(instance: instance)) }
-    private var renameBlocked: Bool { instance.state == .installing || instance.state == .queued || installations.contentBusy.contains(instance.id) }
+    private var renameBlocked: Bool { instance.state == .installing || instance.state == .queued || installations.contentBusy.contains(instance.id) || installations.store.launchBusy.contains(instance.id) }
     private var nameError: String? {
         do { _ = try installations.store.validateName(draft.name, excluding: instance); return nil }
         catch { return error.localizedDescription }
@@ -88,7 +92,7 @@ private struct InstanceSettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack { Text("Название").font(.callout.weight(.medium)); Spacer(); Text("\(draft.name.count)/60").font(.caption).foregroundStyle(.secondary) }
                     TextField("Название сборки", text: $draft.name).textFieldStyle(.roundedBorder).disabled(renameBlocked)
-                    if renameBlocked { Text("Переименование доступно после остановки загрузки и завершения операций с файлами.").font(.caption).foregroundStyle(.secondary) }
+                    if renameBlocked { Text("Переименование доступно после остановки загрузки, закрытия игры и завершения операций с файлами.").font(.caption).foregroundStyle(.secondary) }
                     if let nameError { Text(nameError).font(.caption).foregroundStyle(Color.shu) }
                 }
                 Text("Minecraft \(instance.versionID) · Vanilla").foregroundStyle(.secondary)
@@ -107,6 +111,9 @@ private struct InstanceSettingsView: View {
                     } catch { self.error = error.localizedDescription; saved = false }
                 }.buttonStyle(.glassProminent).tint(.sakuraDeep).disabled(nameError != nil || !parametersValid)
                 if saved { Label("Сохранено", systemImage: "checkmark").font(.callout).foregroundStyle(.secondary) }
+            }
+            if games.states[instance.id] == .running || games.states[instance.id] == .preparing {
+                Text("Изменения параметров применятся при следующем запуске игры.").font(.caption).foregroundStyle(.secondary)
             }
             if let error { Text(error).font(.callout).foregroundStyle(Color.shu) }
         }.onChange(of: draft.name) { saved = false }

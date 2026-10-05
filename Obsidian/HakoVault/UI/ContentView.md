@@ -5,7 +5,7 @@ Parent: [[Index]]
 ## Назначение
 
 Корневое представление главного окна: фон [[UI/Screens#SakuraBackground|SakuraBackground]]
-и текущий экран поверх него. Выбирает экран по наличию сохранённого аккаунта,
+и текущий экран поверх него. Выбирает экран по наличию сохранённого аккаунта и гостевому входу,
 задаёт минимальный размер контента и светлую тему.
 
 ## Источники
@@ -19,22 +19,23 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance]` и `InstallationCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координатор |
+| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance]`, `InstallationCoordinator`, `MinecraftSessionCoordinator` и `GameLaunchCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координаторы |
 
 ## Выбор экрана
 
 Состояние «вошёл / не вошёл» выводится из SwiftData (`@Query private var accounts: [Account]`),
-отдельного флага нет. «Первый запуск» означает отсутствие аккаунта.
+Гостевой выбор хранится отдельно в `isGuestLauncher` и не сохраняется между запусками.
 
 | Условие | Экран |
 |---------|-------|
-| `accounts.first != nil` | `LauncherView(account:)` — см. [[UI/Launcher]] |
-| аккаунта нет, `isSigningIn == true` | `LoginView(onBack:)` — «Назад» сбрасывает `isSigningIn` |
-| аккаунта нет, `isSigningIn == false` | `WelcomeView(onStart:)` — «Начать» ставит `isSigningIn` |
+| `isSigningIn == true` | `LoginView(onBack:)` — «Назад» сбрасывает `isSigningIn`; гостевой выбор сохраняется |
+| вход не открыт, есть аккаунт либо `isGuestLauncher == true` | `LauncherView(account:onSignIn:)` с необязательным аккаунтом — см. [[UI/Launcher]] |
+| вход не открыт, нет аккаунта и гостевого выбора | `WelcomeView(onStart:onContinueWithoutAccount:)` — «Начать» открывает вход, «Продолжить без аккаунта» выбирает гостевой лаунчер |
 
-`.onChange(of: accounts.isEmpty)` сбрасывает `isSigningIn`, поэтому после выхода снова
-показывается приветствие, а не экран входа. Смена экрана — `.transition(.blurReplace)`
-с анимацией `.smooth` по `isSigningIn` и `accounts.isEmpty`.
+`.onChange(of: accounts.isEmpty)` сбрасывает `isSigningIn`: успешный вход возвращает в лаунчер.
+После выхода очищаются гостевой выбор и сервис сессий, показывается приветствие.
+Смена экрана — `.transition(.blurReplace)` с анимацией `.smooth` по состояниям входа, аккаунта и гостя.
+`.task(id: accounts.first?.xuid)` наблюдает и обновляет Minecraft-сессию через общий сервис.
 Подробности экранов — [[UI/Screens]].
 
 ## Окно

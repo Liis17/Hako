@@ -4,23 +4,24 @@ Parent: [[Index]]
 
 ## Назначение
 
-Главная страница лаунчера для вошедшего пользователя: узкий стеклянный рейл вкладок слева
-и содержимое выбранной вкладки справа. При открытии тихо пробует подключить Minecraft
-к аккаунту Microsoft. Показывается [[UI/ContentView]], когда в SwiftData есть `Account`.
+Главная страница лаунчера для пользователя с аккаунтом или гостя: узкий стеклянный рейл вкладок слева
+и содержимое выбранной вкладки справа. Общий сервис обновляет Minecraft-сессию при наличии аккаунта.
+Показывается [[UI/ContentView]] после входа либо выбора «Продолжить без аккаунта».
 
 ## Источники
 
 | Файл | Значимый символ | Роль |
 |------|-----------------|------|
-| `macos/Hako/Hako/Views/Launcher/LauncherView.swift` | `LauncherView`, `LauncherTab`, `MinecraftStatus` | Каркас страницы, выбор вкладки, автоподключение Minecraft |
+| `macos/Hako/Hako/Views/Launcher/LauncherView.swift` | `LauncherView`, `LauncherTab` | Каркас страницы и выбор вкладки |
 | `macos/Hako/Hako/Views/Launcher/LauncherRail.swift` | `LauncherRail` | Рейл вкладок |
 | `macos/Hako/Hako/Views/Launcher/LauncherPages.swift` | `LauncherPage`, `InstancesView` | Каркас вкладки и карточки сборок |
 | `macos/Hako/Hako/Views/Launcher/InstanceCreationView.swift` | `InstanceCreationView`, `CreationDismissGuard` | Каталог, проверка совместимости, форма и защита отмены |
 | `macos/Hako/Hako/Views/Launcher/InstanceProfileView.swift` | `InstanceProfileView` | Моды, текстурпаки и редактирование профиля |
+| `macos/Hako/Hako/Views/Launcher/InstancePlayControls.swift` | `InstancePlayControls` | Общие кнопка запуска, причина недоступности, состояние и доступ к журналу |
 | `macos/Hako/Hako/Views/Launcher/InstanceComponents.swift` | `InstanceIconPicker`, `InstanceParametersEditor` | Общие поля создания и редактирования |
 | `macos/Hako/Hako/Instances/InstanceContent.swift` | `InstanceContent` | Локальные списки, независимый импорт и корзина |
 | `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Глобальные параметры игры, место на диске и сведения о приложении |
-| `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView` | Вкладка профиля и выход |
+| `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView`, `GuestProfileView` | Профиль аккаунта, повтор подключения Minecraft, выход и предложение входа гостю |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView` | Анимированная модель скина справа в профиле |
 | `macos/Hako/Hako/Views/Avatars.swift` | `AccountAvatar`, `XboxAvatar`, `MinecraftHead` | Аватары аккаунтов |
 
@@ -28,7 +29,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `LauncherView(account: Account)` | Требует SwiftData со схемой `[Account, GameInstance]` и `InstallationCoordinator` в окружении. Начальная вкладка — `.instances` |
+| `LauncherView(account: Account?, onSignIn:)` | Требует SwiftData со схемой `[Account, GameInstance]`, `InstallationCoordinator`, `MinecraftSessionCoordinator` и `GameLaunchCoordinator` в окружении. Начальная вкладка — `.instances`; `onSignIn` открывает вход из гостевого профиля |
 | `LauncherPage(caption:title:content:)` | Японская подпись, `heroTitle`, содержимое; выравнивание по верхнему левому краю, появление через `reveal` |
 | `AccountAvatar(account:)` | Голова Minecraft, если известен `minecraftSkinURL`, иначе `XboxAvatar` |
 | `XboxAvatar(url:name:)` | `AsyncImage`; пока картинки нет или она не загрузилась — первая буква `name` на градиенте `sakuraDeep` |
@@ -43,7 +44,8 @@ Parent: [[Index]]
 
 1. «Сборки» (`shippingbox.fill`) → `.instances`.
 2. Разделитель, прокручиваемый список иконок `GameInstance` и кнопка «+» → форма новой сборки.
-3. Внизу «Настройки» (`gearshape.fill`) → `.settings` и аватар аккаунта (`AccountAvatar` 40 pt) → `.profile`.
+3. Внизу «Настройки» (`gearshape.fill`) → `.settings` и аватар аккаунта (`AccountAvatar` 40 pt)
+   либо иконка гостя (`person.crop.circle`) → `.profile`.
 
 Выбранная иконка — белая на `sakuraDeep`, при наведении — лёгкая подсветка; у выбранного аватара
 обводка `sakuraDeep`. Иконки сборок открывают `.instance(UUID)`; настройки и аккаунт закреплены снизу. Подписи вкладок — в подсказках (`.help`) и `accessibilityLabel`.
@@ -58,6 +60,7 @@ Parent: [[Index]]
 | `InstanceProfileView` | — | Профиль выбранной сборки: установка, моды, текстурпаки и настройки |
 | `SettingsView` | 設定 | Разделы «Игра», «Хранилище», «О приложении» |
 | `ProfileView` | プロフィール | «Профиль»: строки Xbox и Java Edition, кнопка «Выйти», 3D-скин справа |
+| `GuestProfileView` | プロフィール | Пояснение о гостевом режиме и кнопка Microsoft-входа |
 
 `ProfileView(account:minecraftStatus:)` — две колонки: слева заголовок, две стеклянные строки
 (ширина 400–600 pt) и выход; справа [[UI/MinecraftSkin|3D-скин]] на прозрачном фоне.
@@ -69,6 +72,7 @@ Parent: [[Index]]
 - Java Edition: `MinecraftHead` и ник Minecraft; если Minecraft не подключён — иконка-заглушка,
   «Minecraft не подключён» и текст по `MinecraftStatus` (`idle` — недоступен для аккаунта,
   `connecting` — «Подключаем Minecraft…», `failed` — сообщение ошибки).
+  `MinecraftStatus` определён в `Auth/MinecraftSessionCoordinator.swift`; сохранённый ник сам по себе не подтверждает сессию.
 
 3D-превью использует UUID, URL и вариант скина из `Account`. До загрузки и при ошибке
 показывает классического Стива; реальные статус подключения и аватары строк остаются источником
@@ -107,13 +111,21 @@ Sheet не закрывается кликом снаружи (`interactiveDismi
 выбирается вкладка сборок и запускается общая очередь. Ошибка сохранения остаётся в форме.
 
 Карточка показывает иконку, имя, Minecraft, Vanilla и состояние/прогресс установки.
-Она и соответствующая иконка рейла выбирают один профиль через UUID; установка продолжается
-при смене страницы. Остановка, продолжение и повтор доступны в профиле.
+Кнопка с основными сведениями открывает профиль через UUID, «Играть» — отдельная соседняя кнопка;
+вложенных `Button` нет. Иконка рейла открывает тот же профиль. Установка продолжается при смене страницы.
+Остановка, продолжение и повтор установки доступны в профиле.
+
+`InstancePlayControls` всегда показывает «Играть» и поясняет её недоступность: установка не готова,
+запуск подготавливается, игра сборки уже работает либо отсутствует действительная Minecraft-сессия.
+Microsoft/Xbox-вход сам по себе не разрешает онлайн-запуск. Явный offline-mode использует сохранённый ник,
+показанный рядом с кнопкой, и не требует аккаунта. Ошибка показывает сообщение и ссылку на локальный журнал,
+когда он существует. Запуск и восстановление процесса описаны в [[Minecraft/Launching]].
 
 ## Профиль сборки
 
 `InstanceProfileView` показывает заголовок, состояние установки и разделы «Моды», «Текстурпаки»,
-«Настройки». UUID выбирает профиль независимо от переименования папки.
+«Настройки». Рядом с основными сведениями расположены те же `InstancePlayControls`.
+UUID выбирает профиль независимо от переименования папки.
 
 - Моды — просмотр локальных JAR в `minecraft/mods`, открытие папки в Finder и пояснение,
   что Vanilla их не поддерживает.
@@ -124,7 +136,8 @@ Sheet не закрывается кликом снаружи (`interactiveDismi
   подтверждения использует `FileManager.trashItem`. Возврат в приложение обновляет локальный список.
 - Настройки — собственный черновик имени, иконки и параметров с кнопкой сохранения.
   Minecraft и Vanilla показаны как сведения. Переименование недоступно для очереди/установки
-  и во время импорта/удаления; после остановки `InstanceStore.update` перемещает папку без загрузки.
+  и во время импорта/удаления, подготовки/работы игры; после остановки `InstanceStore.update` перемещает папку без загрузки.
+  При редактировании работающей игры пояснение указывает, что изменения применятся при следующем запуске.
 
 ## Настройки
 
@@ -140,7 +153,9 @@ Sheet не закрывается кликом снаружи (`interactiveDismi
 
 Путь вводится вручную или выбирается через `NSOpenPanel`: один файл, папки выбирать нельзя,
 пакеты JDK открываются как папки. Отмена не меняет путь. Сохраняется строка пути;
-Java не запускается, security-scoped bookmark не создаётся.
+Java проверяется только при подготовке запуска, security-scoped bookmark не создаётся.
+Под полем объясняется, что непустой путь переопределяет Java сборок в глобальном режиме;
+в остальных режимах применяется управляемая Java сборки.
 Аргументы сохраняются как введённый текст; ползунок памяти переопределяет максимальный heap при подготовке запуска.
 
 Размеры окна — положительные целые числа в пикселях. Поле хранит черновик строки;

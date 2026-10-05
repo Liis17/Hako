@@ -15,7 +15,8 @@ enum LauncherTab: Hashable {
 
 /// Главная страница лаунчера: рейл вкладок слева и содержимое выбранной вкладки.
 struct LauncherView: View {
-    let account: Account
+    let account: Account?
+    var onSignIn: () -> Void = {}
 
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(MinecraftSessionCoordinator.self) private var sessions
@@ -31,15 +32,16 @@ struct LauncherView: View {
             Group {
                 switch tab {
                 case .instances:
-                    InstancesView(instances: instances, onCreate: { creatingInstance = true }, onOpen: { tab = .instance($0.id) })
+                    InstancesView(instances: instances, account: account, onCreate: { creatingInstance = true }, onOpen: { tab = .instance($0.id) })
                 case .instance(let id):
                     if let instance = instances.first(where: { $0.id == id }) {
-                        InstanceProfileView(instance: instance, onBack: { tab = .instances })
+                        InstanceProfileView(instance: instance, account: account, onBack: { tab = .instances })
                     }
                 case .settings:
                     SettingsView()
                 case .profile:
-                    ProfileView(account: account, minecraftStatus: sessions.statuses[account.xuid] ?? .idle)
+                    if let account { ProfileView(account: account, minecraftStatus: sessions.statuses[account.xuid] ?? .idle) }
+                    else { GuestProfileView(onSignIn: onSignIn) }
                 }
             }
             .id(tab)
@@ -59,12 +61,15 @@ struct LauncherView: View {
 #Preview {
     let container = try! ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: "steve@example.com")
+    let installations = InstallationCoordinator(context: container.mainContext)
+    let sessions = MinecraftSessionCoordinator(context: container.mainContext)
     container.mainContext.insert(account)
 
     return LauncherView(account: account)
         .modelContainer(container)
-        .environment(InstallationCoordinator(context: container.mainContext))
-        .environment(MinecraftSessionCoordinator(context: container.mainContext))
+        .environment(installations)
+        .environment(sessions)
+        .environment(GameLaunchCoordinator(store: installations.store, sessions: sessions))
         .background { SakuraBackground() }
         .frame(width: 1280, height: 720)
 }
