@@ -6,13 +6,16 @@ Parent: [[Index]]
 
 Локальное хранение данных приложения: аккаунт вошедшего пользователя (Microsoft/Xbox и, если подключён,
 Minecraft) — в SwiftData, его токены — в связке ключей (Keychain), глобальные параметры игры —
-в `UserDefaults`. Наличие записи `Account` определяет, вошёл ли пользователь (см. [[UI/ContentView]]).
+в `UserDefaults`. Профили сборок `GameInstance` — в том же SwiftData-store, независимые файлы — в `~/.hako/{folderName}/`. Наличие записи `Account` определяет, вошёл ли пользователь (см. [[UI/ContentView]]).
 
 ## Источники
 
 | Файл | Значимый символ | Роль |
 |------|-----------------|------|
 | `macos/Hako/Hako/HakoApp.swift` | `HakoApp.sharedModelContainer` | Схема, конфигурация и создание контейнера; подключение к сцене |
+| `macos/Hako/Hako/Instances/GameInstance.swift` | `GameInstance`, `InstanceParameters`, `InstanceDraft` | Профиль сборки, параметры и черновик формы |
+| `macos/Hako/Hako/Instances/InstanceStorage.swift` | `InstanceStorage`, `InstanceStore` | Файловые пути, создание и транзакционное редактирование |
+| `macos/Hako/Hako/AppDataLocation.swift` | `AppDataLocation.storeURL` | Сохранение прежнего store и перенос глобальных параметров |
 | `macos/Hako/Hako/Account.swift` | `Account` | Аккаунт Microsoft/Xbox и профиль Minecraft |
 | `macos/Hako/Hako/Auth/TokenKeychain.swift` | `TokenKeychain`, `AccountTokens`, `KeychainError` | Токены аккаунта в Keychain |
 | `macos/Hako/Hako/GameLaunchDefaults.swift` | `GameLaunchDefaults` | Ключи, значения по умолчанию и снимок параметров игры |
@@ -66,15 +69,15 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 `GameLaunchDefaults.standard` — единый набор значений по умолчанию для формы и чтения.
 `GameLaunchDefaults.load(from: UserDefaults = .standard)` возвращает снимок всех шести полей
 как тип-значение с неизменяемыми свойствами. Отсутствующие значения заменяются стандартными;
-неположительные размеры — стандартными размерами окна. Будущее создание сборки должно копировать
-снимок, чтобы последующие изменения глобальных параметров не меняли существующие сборки.
-Модель сборок и потребитель снимка пока не реализованы.
+неположительные размеры — стандартными размерами окна. `GameInstance.effectiveParameters(from:)` читает
+актуальные аргументы и настройки окна, пока `usesGlobalParameters` включён; иначе возвращает
+собственные значения сборки. Пользовательский путь к Java не отменяет загрузку управляемой Java в сборку.
 
 ## Публичные контракты
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `HakoApp.sharedModelContainer: ModelContainer` | Схема `[Account]`, хранение на диске (`isStoredInMemoryOnly: false`) в стандартном расположении SwiftData — URL явно не задан. Создаётся при инициализации `HakoApp`; при ошибке вызывается `fatalError` |
+| `HakoApp.sharedModelContainer: ModelContainer` | Схема `[Account, GameInstance]`, хранение на диске по явному URL из `AppDataLocation.storeURL()`. Создаётся при инициализации `HakoApp`; при ошибке вызывается `fatalError` |
 | `.modelContainer(sharedModelContainer)` на `WindowGroup` | Помещает главный контекст контейнера (`modelContext`) в окружение всех представлений окна |
 | `TokenKeychain.save(_:for:) throws` | Удаляет прежнюю запись для XUID и добавляет новую; при ошибке `SecItemAdd` бросает `KeychainError` |
 | `TokenKeychain.load(for:) -> AccountTokens?` | Запись для XUID; `nil`, если записи нет или JSON не читается |
@@ -101,7 +104,22 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
   приведёт к ошибке создания контейнера и падению при запуске через `fatalError`.
 - Новую модель нужно добавить в `Schema([...])` в `HakoApp` и в контейнеры превью
   представлений, которые её используют (`.modelContainer(for:inMemory: true)` в `#Preview`).
-- Приложение работает в App Sandbox, поэтому файлы хранилища находятся в контейнере
-  приложения `com.Launcher.Hako`, а не в общем `~/Library/Application Support`.
-  Неподписанная сборка (`CODE_SIGNING_ALLOWED=NO`) запускается без песочницы и пишет хранилище
-  в `~/Library/Application Support`.
+- App Sandbox отключён: игровые файлы пишутся в настоящий `~/.hako` без выбора папки.
+  SwiftData сохраняет прежний URL: приоритет — store в `Library/Containers/com.Launcher.Hako/Data/Library/Application Support`,
+  затем прежний несандбоксированный `Library/Application Support/default.store`; для новой установки —
+  `Library/Application Support/Hako/default.store`. Старые глобальные параметры импортируются один раз.
+
+## Сборки
+
+`GameInstance` хранит UUID, имя, имя папки, дату создания, ID/URL/SHA-1 версии, выбор иконки,
+флаг глобальных параметров, собственные аргументы и размеры, состояние установки и ошибку.
+Связи с `Account` нет: выход удаляет только аккаунт и токены.
+Состояния — `queued`, `installing`, `paused`, `ready`, `failed`.
+
+Имя: 1–60 латинских букв, цифр и пробелов, пробелы по краям удаляются; в папке пробелы заменены на `_`.
+Коллизии проверяются по модели и файловой системе без учёта регистра. Существующие папки не используются
+для новой сборки. `InstanceStore.create` создаёт `java/`, `minecraft/` и при необходимости `icon.png`,
+затем сохраняет модель. Ошибка удаляет только созданную им папку.
+`InstanceStore.update` переносит папку при переименовании, сохраняет UUID и относительные пути,
+откатывает папку и иконку при ошибке сохранения. Переименование блокируется для установки и очереди.
+`InstanceStorage.containedURL` запрещает traversal и выход через симлинки.

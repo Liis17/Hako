@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D447525EB183A535C5D667B2 /* Hako/AppDataLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF560E1908E666AD15802B46 /* Hako/AppDataLocation.swift */; };
+		F6D5560D00A2FE27B58DD1D5 /* Hako/GameLaunchDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6FE82857DF991B2EEBB00A /* Hako/GameLaunchDefaults.swift */; };
+		D491978AF7318A6470038C86 /* Hako/Instances/InstanceStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0DB743DC3141178C7C3DF0 /* Hako/Instances/InstanceStorage.swift */; };
+		532E7356524829C76834ADE8 /* Hako/Instances/GameInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8D8E1428996CD5856D89FE /* Hako/Instances/GameInstance.swift */; };
 		117748F9D15649E2A666DFE0 /* Hako/Resources/Steve.png in Resources */ = {isa = PBXBuildFile; fileRef = 8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */; };
 		3969B149243F465D924013E7 /* Hako/Minecraft/MinecraftSkin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A91ADF86C64DC8A53E1991 /* Hako/Minecraft/MinecraftSkin.swift */; };
 		52A0AEB1BB084D53B5F5BA60 /* Hako/Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D928C9849034172A43769FB /* Hako/Account.swift */; };
@@ -15,6 +19,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CF560E1908E666AD15802B46 /* Hako/AppDataLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/AppDataLocation.swift; sourceTree = SOURCE_ROOT; };
+		2F6FE82857DF991B2EEBB00A /* Hako/GameLaunchDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/GameLaunchDefaults.swift; sourceTree = SOURCE_ROOT; };
+		AA0DB743DC3141178C7C3DF0 /* Hako/Instances/InstanceStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceStorage.swift; sourceTree = SOURCE_ROOT; };
+		9D8D8E1428996CD5856D89FE /* Hako/Instances/GameInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/GameInstance.swift; sourceTree = SOURCE_ROOT; };
 		233ED7D73072CD6700E6B7EC /* Hako.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hako.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D928C9849034172A43769FB /* Hako/Account.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Account.swift; sourceTree = SOURCE_ROOT; };
 		33A91ADF86C64DC8A53E1991 /* Hako/Minecraft/MinecraftSkin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftSkin.swift; sourceTree = SOURCE_ROOT; };
@@ -78,6 +86,10 @@
 				7807B1C2156845C09A8285F3 /* Hako/Auth/MicrosoftAuth.swift */,
 				2D928C9849034172A43769FB /* Hako/Account.swift */,
 				8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */,
+				9D8D8E1428996CD5856D89FE /* Hako/Instances/GameInstance.swift */,
+				AA0DB743DC3141178C7C3DF0 /* Hako/Instances/InstanceStorage.swift */,
+				2F6FE82857DF991B2EEBB00A /* Hako/GameLaunchDefaults.swift */,
+				CF560E1908E666AD15802B46 /* Hako/AppDataLocation.swift */,
 			);
 			name = "Skin Test Sources";
 			sourceTree = "<group>";
@@ -179,6 +191,10 @@
 		8F1FCCEB115745ABA0EF12F5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				532E7356524829C76834ADE8 /* Hako/Instances/GameInstance.swift in Sources */,
+				D491978AF7318A6470038C86 /* Hako/Instances/InstanceStorage.swift in Sources */,
+				F6D5560D00A2FE27B58DD1D5 /* Hako/GameLaunchDefaults.swift in Sources */,
+				D447525EB183A535C5D667B2 /* Hako/AppDataLocation.swift in Sources */,
 				3969B149243F465D924013E7 /* Hako/Minecraft/MinecraftSkin.swift in Sources */,
 				7BA304A44DF04915B9044970 /* Hako/Minecraft/MinecraftSkinLoader.swift in Sources */,
 				AC77148AC01F44EABDE88576 /* Hako/Auth/MicrosoftAuth.swift in Sources */,
@@ -335,7 +351,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Y935NYUP9;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
@@ -368,7 +384,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Y935NYUP9;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;

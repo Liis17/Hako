@@ -58,7 +58,7 @@ CocoaPods, Carthage не используются) нет.
 ### Запуск
 
 1. При инициализации `HakoApp` вычисляется `sharedModelContainer`:
-   `Schema([Account.self])` + `ModelConfiguration(isStoredInMemoryOnly: false)` → `ModelContainer`.
+   `Schema([Account.self, GameInstance.self])` + `ModelConfiguration(isStoredInMemoryOnly: false)` → `ModelContainer`.
    Ошибка создания контейнера завершает приложение через `fatalError`.
 2. `WindowGroup { ContentView() }` получает контейнер через
    `.modelContainer(sharedModelContainer)`, который помещает `modelContext` в окружение окна.
@@ -92,7 +92,7 @@ CocoaPods, Carthage не используются) нет.
 
 Настройки таргета `Hako` одинаковы для `Debug` и `Release`:
 
-- App Sandbox (`ENABLE_APP_SANDBOX = YES`), Hardened Runtime (`ENABLE_HARDENED_RUNTIME = YES`),
+- App Sandbox отключён (`ENABLE_APP_SANDBOX = NO`), Hardened Runtime (`ENABLE_HARDENED_RUNTIME = YES`),
   доступ только на чтение к файлам, выбранным пользователем (`ENABLE_USER_SELECTED_FILES = readonly`),
   исходящие сетевые соединения (`ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES` →
   `com.apple.security.network.client`). Отдельного `.entitlements`-файла нет.
@@ -132,9 +132,8 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
   `macos/Hako/Hako/` автоматически входит в таргет. Любой файл, положенный в эту папку,
   попадает в сборку; правка `project.pbxproj` для добавления исходников не нужна.
 - Новые `@Model`-типы регистрируются в схеме контейнера — см. [[Data/Persistence]].
-- Песочница ограничивает доступ к файловой системе и сети: новые возможности
-  (запись в выбранные файлы, входящие соединения и т. п.) требуют включения
-  соответствующих capability в настройках таргета. Исходящие соединения включены.
+- `AppDataLocation` сохраняет прежнее расположение SwiftData при отключении Sandbox. Игровые файлы
+  каждой сборки находятся в настоящем `~/.hako/{имя}/java` и `minecraft`; общих бинарных файлов нет.
 - Вход в Minecraft требует Client ID Azure, одобренного Mojang; Client ID проекта задан в
   `MicrosoftAuth.clientID`, заявка на одобрение подана, но ещё не одобрена — см. [[Auth/MicrosoftAuth]].
 - Интерфейс рассчитан на светлую тему и белый фон: `ContentView` принудительно задаёт `.light`.
@@ -155,9 +154,9 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
   Стив при недоступном Minecraft или загрузке — решения пользователя ([[UI/MinecraftSkin]]).
 - Обычная связка ключей вместо Data Protection Keychain — из-за отсутствия `application-identifier`
   (см. [[Data/Persistence]]).
-- Глобальные параметры игры сохраняются автоматически и задают значения для новых сборок.
-  Новая сборка должна получать копию параметров на момент создания — решение пользователя;
-  изменения глобальных значений не должны менять существующие сборки.
+- Сборка с `usesGlobalParameters` использует актуальные глобальные аргументы и настройки окна;
+  без флага хранит собственные значения. Независимые файлы сборок, путь `~/.hako`, отключение Sandbox
+  и сохранение сборок при выходе — решения пользователя.
 
 ## Добавление компонента
 

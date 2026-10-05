@@ -5,8 +5,8 @@
 
 import Foundation
 
-/// Снимок глобальных параметров, который новая сборка копирует при создании.
-struct GameLaunchDefaults {
+/// Текущие глобальные параметры; сборка может использовать их или собственные значения.
+nonisolated struct GameLaunchDefaults: Sendable {
     let javaPath: String
     let javaArguments: String
     let minecraftArguments: String
