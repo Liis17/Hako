@@ -33,7 +33,8 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 |------|------------|
 | `macos/Hako/Hako.xcodeproj` | Проект Xcode: таргет и схема `Hako`, конфигурации `Debug` и `Release` |
 | `macos/Hako/Hako/` | Исходники и ресурсы приложения |
-| `macos/Hako/Hako/Assets.xcassets` | `AppIcon` (слоты без изображений), `AccentColor` (цвет не задан) |
+| `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
+| `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
 | `Obsidian/HakoVault/` | Эта база знаний |
 
 ## Компоненты
