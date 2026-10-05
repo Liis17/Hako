@@ -34,9 +34,14 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `minecraftUUID` | `String?` | UUID профиля Minecraft без дефисов; `nil` — Minecraft не подключён |
 | `minecraftName` | `String?` | Ник Minecraft |
 | `minecraftSkinURL` | `URL?` | https-ссылка на текстуру скина |
+| `minecraftSkinVariant` | `String?` | `CLASSIC` или `SLIM`; `nil` у аккаунта без Minecraft или записи без метаданных |
 
 Связей и индексов нет. Приложение рассчитано на один аккаунт: UI берёт `accounts.first`.
 Значения по умолчанию у обязательных полей нужны для лёгкой миграции SwiftData.
+Добавление необязательного `minecraftSkinVariant` поддерживает автоматическую лёгкую миграцию
+с сохранением аккаунта. `Account.connect(_:)` сохраняет `MinecraftProfile.skinVariant.rawValue`;
+для записи с `nil` 3D-превью получает вариант через публичный профиль по UUID ([[UI/MinecraftSkin]]),
+не изменяя запись или токены.
 
 ### Токены
 

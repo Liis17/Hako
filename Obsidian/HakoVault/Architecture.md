@@ -4,17 +4,17 @@ Parent: [[Index]]
 
 ## Назначение и границы
 
-Hako — нативное macOS-приложение с единственным таргетом `Hako`
-(bundle ID `com.Launcher.Hako`).
+Hako — нативное macOS-приложение: таргет `Hako` (bundle ID `com.Launcher.Hako`)
+и отдельный таргет Swift Testing `HakoTests`.
 
 Назначение (со слов пользователя): лаунчер Minecraft с авторизацией через Microsoft
 и интеграцией каталогов Modrinth и CurseForge.
 
 Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
 с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
-(сборки — заглушка, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java) и выход.
+(сборки — заглушка, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java и анимированным 3D-скином) и выход.
 Запуск игры, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
-CocoaPods, Carthage не используются) и тестовых таргетов нет.
+CocoaPods, Carthage не используются) нет.
 
 ## Стек
 
@@ -22,6 +22,7 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 |------------|------|----------|
 | Swift, режим языка 5.0 | Язык приложения | `macos/Hako/Hako.xcodeproj/project.pbxproj` (`SWIFT_VERSION`) |
 | SwiftUI | UI и жизненный цикл приложения (`@main` `App`) | `macos/Hako/Hako/HakoApp.swift` |
+| RealityKit / `RealityView` | Нативное 3D-превью скина | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift`, `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` |
 | SwiftData | Профиль вошедшего пользователя | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Account.swift` |
 | UserDefaults / `@AppStorage` | Глобальные параметры игры | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
@@ -34,6 +35,7 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 |------|------------|
 | `macos/Hako/Hako.xcodeproj` | Проект Xcode: таргет и схема `Hako`, конфигурации `Debug` и `Release` |
 | `macos/Hako/Hako/` | Исходники и ресурсы приложения |
+| `macos/Hako/HakoTests/` | Swift Testing: текстуры, сетевой загрузчик и метаданные профиля |
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
 | `Obsidian/HakoVault/` | Эта база знаний |
@@ -49,6 +51,7 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
 - [[UI/Launcher]] — главная страница: рейл вкладок, профиль, аватары, автоподключение Minecraft.
+- [[UI/MinecraftSkin]] — модель скина, ходьба, вращение, загрузка и резервный Стив.
 
 ## Основные потоки
 
@@ -112,7 +115,15 @@ CocoaPods, Carthage не используются) и тестовых тарг�
 xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug build CODE_SIGNING_ALLOWED=NO
 ```
 
-Схема `Hako` создаётся Xcode автоматически: общих `.xcscheme` в репозитории нет,
+Общая схема `Hako` хранится в `macos/Hako/Hako.xcodeproj/xcshareddata/xcschemes/Hako.xcscheme`.
+Она собирает приложение и запускает `HakoTests`. Тестовый таргет без приложения-хоста: компилирует
+те же исходники скина, `MicrosoftAuth` и `Account`, использует собственную копию `Steve.png`
+и подменённые HTTP-ответы; главное окно и вход в Microsoft не запускаются.
+
+```sh
+xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
+```
+
 `xcuserdata/` исключён в `.gitignore`.
 
 ## Ограничения и инварианты
@@ -127,7 +138,8 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 - Вход в Minecraft требует Client ID Azure, одобренного Mojang; Client ID проекта задан в
   `MicrosoftAuth.clientID`, заявка на одобрение подана, но ещё не одобрена — см. [[Auth/MicrosoftAuth]].
 - Интерфейс рассчитан на светлую тему и белый фон: `ContentView` принудительно задаёт `.light`.
-- Тестовых таргетов нет; проверка изменений сейчас ограничена сборкой и ручным запуском.
+- `HakoTests` проверяет формат текстур, зеркалирование 64×32, слои, загрузку, кэш, ошибки, отмену
+  и сохранение варианта активного скина. Компоновка и рендер проверяются в нативном окне.
 
 ## Решения и основания
 
@@ -139,6 +151,8 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 - Вход по коду через microsoft.com/link, токены в Keychain
   и профиль в SwiftData, окно 1280×720 (растягиваемое, минимум 960×540), русский интерфейс
   с японскими акцентами — решения пользователя.
+- Анимированный скин справа в профиле, ходьба на месте и вращение мышью; встроенный классический
+  Стив при недоступном Minecraft или загрузке — решения пользователя ([[UI/MinecraftSkin]]).
 - Обычная связка ключей вместо Data Protection Keychain — из-за отсутствия `application-identifier`
   (см. [[Data/Persistence]]).
 - Глобальные параметры игры сохраняются автоматически и задают значения для новых сборок.

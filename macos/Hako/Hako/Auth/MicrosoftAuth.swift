@@ -41,6 +41,7 @@ struct MinecraftProfile {
     let uuid: String
     let name: String
     let skinURL: URL?
+    var skinVariant: MinecraftSkinVariant? = nil
 }
 
 struct MinecraftSession {
@@ -234,11 +235,8 @@ enum MicrosoftAuth {
         if profileStatus == 404 { throw MicrosoftAuthError.noMinecraft }
         guard profileStatus == 200 else { throw MicrosoftAuthError.unexpectedResponse(status: profileStatus) }
         let profile = try decoder.decode(MinecraftProfileResponse.self, from: profileData)
-        let skins = profile.skins ?? []
-        let skin = skins.first { $0.state == "ACTIVE" } ?? skins.first
-
         return MinecraftSession(
-            profile: MinecraftProfile(uuid: profile.id, name: profile.name, skinURL: skin?.secureURL),
+            profile: profile.minecraftProfile,
             accessToken: login.accessToken,
             expiration: .now.addingTimeInterval(TimeInterval(login.expiresIn))
         )
@@ -323,10 +321,11 @@ private struct MinecraftLogin: Decodable {
     let expiresIn: Int
 }
 
-private struct MinecraftProfileResponse: Decodable {
+struct MinecraftProfileResponse: Decodable {
     struct Skin: Decodable {
         let url: URL
         let state: String
+        let variant: String?
 
         /// textures.minecraft.net отдаёт ссылки http; App Transport Security пропускает только https.
         var secureURL: URL? {
@@ -339,6 +338,14 @@ private struct MinecraftProfileResponse: Decodable {
     let id: String
     let name: String
     let skins: [Skin]?
+
+    var minecraftProfile: MinecraftProfile {
+        let skin = skins?.first { $0.state == "ACTIVE" } ?? skins?.first
+        return MinecraftProfile(
+            uuid: id, name: name, skinURL: skin?.secureURL,
+            skinVariant: skin?.variant.flatMap { MinecraftSkinVariant(rawValue: $0.uppercased()) }
+        )
+    }
 }
 
 private struct XboxProfileSettings: Decodable {

@@ -18,6 +18,7 @@ final class Account {
     var minecraftUUID: String?
     var minecraftName: String?
     var minecraftSkinURL: URL?
+    var minecraftSkinVariant: String?
 
     init(xbox: XboxProfile, email: String?) {
         xuid = xbox.xuid
@@ -30,5 +31,6 @@ final class Account {
         minecraftUUID = minecraft.uuid
         minecraftName = minecraft.name
         minecraftSkinURL = minecraft.skinURL
+        minecraftSkinVariant = minecraft.skinVariant?.rawValue
     }
 }

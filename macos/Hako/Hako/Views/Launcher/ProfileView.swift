@@ -15,6 +15,21 @@ struct ProfileView: View {
     @State private var isConfirmingSignOut = false
 
     var body: some View {
+        HStack(alignment: .top, spacing: 32) {
+            accountDetails
+                .frame(minWidth: 400, maxWidth: 600)
+
+            MinecraftSkinView(source: MinecraftSkinSource(
+                uuid: account.minecraftUUID,
+                skinURL: account.minecraftSkinURL,
+                variant: account.minecraftSkinVariant.flatMap(MinecraftSkinVariant.init(rawValue:))
+            ))
+            .frame(minWidth: 240, maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, 16)
+        }
+    }
+
+    private var accountDetails: some View {
         LauncherPage(caption: "プロフィール", title: "Профиль") {
             VStack(alignment: .leading, spacing: 12) {
                 AccountRow(title: account.gamertag, subtitle: account.email, badge: "Xbox") {

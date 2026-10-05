@@ -17,6 +17,7 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/Launcher/LauncherPages.swift` | `LauncherPage`, `InstancesView` | Каркас вкладки и заглушка сборок |
 | `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Глобальные параметры игры, место на диске и сведения о приложении |
 | `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView` | Вкладка профиля и выход |
+| `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView` | Анимированная модель скина справа в профиле |
 | `macos/Hako/Hako/Views/Avatars.swift` | `AccountAvatar`, `XboxAvatar`, `MinecraftHead` | Аватары аккаунтов |
 
 ## Публичные контракты
@@ -51,14 +52,22 @@ Parent: [[Index]]
 |---------|---------|------------|
 | `InstancesView` | パック | «Сборки» и текст-заглушка: сборок пока нет, модели данных для них нет |
 | `SettingsView` | 設定 | Разделы «Игра», «Хранилище», «О приложении» |
-| `ProfileView` | プロフィール | «Профиль»: строка Xbox, строка Java Edition, кнопка «Выйти» |
+| `ProfileView` | プロフィール | «Профиль»: строки Xbox и Java Edition, кнопка «Выйти», 3D-скин справа |
 
-`ProfileView(account:minecraftStatus:)` — две стеклянные строки (ширина до 600 pt):
+`ProfileView(account:minecraftStatus:)` — две колонки: слева заголовок, две стеклянные строки
+(ширина 400–600 pt) и выход; справа [[UI/MinecraftSkin|3D-скин]] на прозрачном фоне.
+Колонки разделены 32 pt, область модели — от 240 pt, компоновка поддерживает минимум окна 960×540.
+
+Строки аккаунтов:
 
 - Xbox: круглый `XboxAvatar`, gamertag, email (если есть), метка «Xbox».
 - Java Edition: `MinecraftHead` и ник Minecraft; если Minecraft не подключён — иконка-заглушка,
   «Minecraft не подключён» и текст по `MinecraftStatus` (`idle` — недоступен для аккаунта,
   `connecting` — «Подключаем Minecraft…», `failed` — сообщение ошибки).
+
+3D-превью использует UUID, URL и вариант скина из `Account`. До загрузки и при ошибке
+показывает классического Стива; реальные статус подключения и аватары строк остаются источником
+информации об аккаунтах. Детали формата, кэша и анимации — [[UI/MinecraftSkin]].
 
 «Выйти» сначала показывает подтверждение (`alert` «Выйти из аккаунта?», «Выйти» / «Отмена»),
 защита от случайного выхода. После подтверждения: `TokenKeychain.delete(for: xuid)`, `modelContext.delete(account)`, `modelContext.save()`;

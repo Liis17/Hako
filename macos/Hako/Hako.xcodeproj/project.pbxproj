@@ -6,8 +6,22 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		117748F9D15649E2A666DFE0 /* Hako/Resources/Steve.png in Resources */ = {isa = PBXBuildFile; fileRef = 8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */; };
+		3969B149243F465D924013E7 /* Hako/Minecraft/MinecraftSkin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A91ADF86C64DC8A53E1991 /* Hako/Minecraft/MinecraftSkin.swift */; };
+		52A0AEB1BB084D53B5F5BA60 /* Hako/Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D928C9849034172A43769FB /* Hako/Account.swift */; };
+		7BA304A44DF04915B9044970 /* Hako/Minecraft/MinecraftSkinLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A92821607F654453A3700F99 /* Hako/Minecraft/MinecraftSkinLoader.swift */; };
+		AC77148AC01F44EABDE88576 /* Hako/Auth/MicrosoftAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7807B1C2156845C09A8285F3 /* Hako/Auth/MicrosoftAuth.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		233ED7D73072CD6700E6B7EC /* Hako.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hako.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2D928C9849034172A43769FB /* Hako/Account.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Account.swift; sourceTree = SOURCE_ROOT; };
+		33A91ADF86C64DC8A53E1991 /* Hako/Minecraft/MinecraftSkin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftSkin.swift; sourceTree = SOURCE_ROOT; };
+		7807B1C2156845C09A8285F3 /* Hako/Auth/MicrosoftAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/MicrosoftAuth.swift; sourceTree = SOURCE_ROOT; };
+		7F342BAABE3B426BA85DB9C5 /* HakoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = HakoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Hako/Resources/Steve.png; sourceTree = SOURCE_ROOT; };
+		A92821607F654453A3700F99 /* Hako/Minecraft/MinecraftSkinLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftSkinLoader.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +30,20 @@
 			path = Hako;
 			sourceTree = "<group>";
 		};
+		BF55C192E7034A1EA2164A18 /* HakoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HakoTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		233ED7D43072CD6700E6B7EC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		A9E98347CF7349E4B352B712 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -31,6 +55,8 @@
 			isa = PBXGroup;
 			children = (
 				233ED7D93072CD6700E6B7EC /* Hako */,
+				BF55C192E7034A1EA2164A18 /* HakoTests */,
+				90AD16F7D5E045B89C203407 /* Skin Test Sources */,
 				233ED7D83072CD6700E6B7EC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -39,8 +65,21 @@
 			isa = PBXGroup;
 			children = (
 				233ED7D73072CD6700E6B7EC /* Hako.app */,
+				7F342BAABE3B426BA85DB9C5 /* HakoTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		90AD16F7D5E045B89C203407 /* Skin Test Sources */ = {
+			isa = PBXGroup;
+			children = (
+				33A91ADF86C64DC8A53E1991 /* Hako/Minecraft/MinecraftSkin.swift */,
+				A92821607F654453A3700F99 /* Hako/Minecraft/MinecraftSkinLoader.swift */,
+				7807B1C2156845C09A8285F3 /* Hako/Auth/MicrosoftAuth.swift */,
+				2D928C9849034172A43769FB /* Hako/Account.swift */,
+				8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */,
+			);
+			name = "Skin Test Sources";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -63,6 +102,24 @@
 			productName = Hako;
 			productReference = 233ED7D73072CD6700E6B7EC /* Hako.app */;
 			productType = "com.apple.product-type.application";
+		};
+		83DE326D86874E518CFFB3AF /* HakoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 51AF7B726DFD467F82A9F68D /* Build configuration list for PBXNativeTarget "HakoTests" */;
+			buildPhases = (
+				8F1FCCEB115745ABA0EF12F5 /* Sources */,
+				A9E98347CF7349E4B352B712 /* Frameworks */,
+				0D1BF699807E489EAC458790 /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				BF55C192E7034A1EA2164A18 /* HakoTests */,
+			);
+			name = HakoTests;
+			productName = HakoTests;
+			productReference = 7F342BAABE3B426BA85DB9C5 /* HakoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -94,11 +151,18 @@
 			projectRoot = "";
 			targets = (
 				233ED7D63072CD6700E6B7EC /* Hako */,
+				83DE326D86874E518CFFB3AF /* HakoTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		0D1BF699807E489EAC458790 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				117748F9D15649E2A666DFE0 /* Hako/Resources/Steve.png in Resources */,
+			);
+		};
 		233ED7D53072CD6700E6B7EC /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
@@ -112,9 +176,36 @@
 			files = (
 			);
 		};
+		8F1FCCEB115745ABA0EF12F5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				3969B149243F465D924013E7 /* Hako/Minecraft/MinecraftSkin.swift in Sources */,
+				7BA304A44DF04915B9044970 /* Hako/Minecraft/MinecraftSkinLoader.swift in Sources */,
+				AC77148AC01F44EABDE88576 /* Hako/Auth/MicrosoftAuth.swift in Sources */,
+				52A0AEB1BB084D53B5F5BA60 /* Hako/Account.swift in Sources */,
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		095730BA64A64C35BB69DB40 /* Debug configuration for PBXNativeTarget "HakoTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.Launcher.HakoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 		233ED7E23072CD6800E6B7EC /* Debug configuration for PBXProject "Hako" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -301,6 +392,24 @@
 			};
 			name = Release;
 		};
+		8210802D714E493E9C3E4AAD /* Release configuration for PBXNativeTarget "HakoTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.Launcher.HakoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -317,6 +426,14 @@
 			buildConfigurations = (
 				233ED7E53072CD6800E6B7EC /* Debug configuration for PBXNativeTarget "Hako" */,
 				233ED7E63072CD6800E6B7EC /* Release configuration for PBXNativeTarget "Hako" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		51AF7B726DFD467F82A9F68D /* Build configuration list for PBXNativeTarget "HakoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				095730BA64A64C35BB69DB40 /* Debug configuration for PBXNativeTarget "HakoTests" */,
+				8210802D714E493E9C3E4AAD /* Release configuration for PBXNativeTarget "HakoTests" */,
 			);
 			defaultConfigurationName = Release;
 		};

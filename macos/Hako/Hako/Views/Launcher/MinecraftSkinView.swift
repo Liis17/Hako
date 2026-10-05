@@ -8,6 +8,8 @@ import SwiftUI
 
 /// Персонаж в полный рост на прозрачном фоне: ходьба на месте и осмотр мышью.
 struct MinecraftSkinView: View {
+    var source = MinecraftSkinSource(uuid: nil, skinURL: nil, variant: nil)
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var scene = MinecraftSkinScene()
@@ -53,9 +55,15 @@ struct MinecraftSkinView: View {
             .accessibilityAdjustableAction { direction in
                 rotation.x += direction == .increment ? 15 : -15
             }
-            .task {
-                do { try await scene.display(MinecraftSkin.steve()) }
-                catch { /* Встроенная текстура проверяется при сборке и в тестах. */ }
+            .task(id: source) {
+                do {
+                    try await scene.display(MinecraftSkin.steve())
+                    if let skin = try await MinecraftSkinLoader.shared.load(source) {
+                        try await scene.display(skin)
+                    }
+                } catch {
+                    // Ошибка загрузки сохраняет встроенного Стива; отменённая задача не меняет сцену.
+                }
             }
             .onDisappear {
                 subscription?.cancel()

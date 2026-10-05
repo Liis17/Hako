@@ -91,8 +91,8 @@ struct MinecraftSkin {
         self.variant = legacy ? .classic : variant
     }
 
-    static func steve() throws -> MinecraftSkin {
-        guard let url = Bundle.main.url(forResource: "Steve", withExtension: "png")
+    static func steve(bundle: Bundle = .main) throws -> MinecraftSkin {
+        guard let url = bundle.url(forResource: "Steve", withExtension: "png")
         else { throw DecodingError.invalidTexture }
         return try MinecraftSkin(data: Data(contentsOf: url), variant: .classic)
     }

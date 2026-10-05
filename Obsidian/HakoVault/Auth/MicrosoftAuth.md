@@ -26,6 +26,7 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 | `requestDeviceCode() async throws -> DeviceCode` | POST `login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`, `scope=XboxLive.signin openid profile email offline_access`. Возвращает `userCode`, `deviceCode`, `verificationUri`, `expiresIn`, `interval` |
 | `waitForToken(_:) async throws -> MicrosoftToken` | Опрос `/consumers/oauth2/v2.0/token` (`grant_type=urn:ietf:params:oauth:grant-type:device_code`) каждые `interval` секунд до `expiresIn`. `authorization_pending` — ждать, `slow_down` — +5 с, `authorization_declined` → `.declined`, `expired_token` или дедлайн → `.codeExpired`. Отмена задачи прерывает опрос (`CancellationError` из `Task.sleep`) |
 | `MicrosoftToken.email` | `email` или `preferred_username` из payload `id_token` (base64url JWT, подпись не проверяется — только для отображения). `nil`, если `id_token` нет |
+| `MinecraftProfile` | `uuid`, `name`, `skinURL?`, `skinVariant: MinecraftSkinVariant?`; вариант используется для ширины рук в 3D-превью |
 | `refresh(_:) async throws -> MicrosoftToken` | `grant_type=refresh_token`, `scope=XboxLive.signin offline_access`. Ответ содержит новый refresh token |
 | `signIn(with:) async throws -> (XboxProfile, MinecraftSession?)` | Xbox Live → профиль Xbox → Minecraft. Ошибки Xbox прерывают вход; **любая** ошибка шага Minecraft даёт `nil`. После шага Minecraft проверяет отмену задачи |
 | `signInToMinecraft(with:) async throws -> MinecraftSession` | Xbox Live → Minecraft для уже сохранённого аккаунта; вызывается после `refresh` из автоподключения ([[UI/Launcher#Автоподключение Minecraft]]) |
@@ -41,7 +42,10 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
    `api.minecraftservices.com/authentication/login_with_xbox` (`identityToken: XBL3.0 x=<uhs>;<xsts>`) →
    GET `/minecraft/profile` с `Bearer` → `id` (UUID без дефисов), `name`, `skins`.
    Скин — `ACTIVE` из `skins` (иначе первый); ссылку textures.minecraft.net переводят на https,
-   потому что App Transport Security не пропускает http.
+   потому что App Transport Security не пропускает http. `MinecraftProfileResponse.minecraftProfile`
+   также разбирает `variant` активного скина (`CLASSIC` / `SLIM`); отсутствующее или неизвестное
+   значение даёт `nil`, не прерывая вход. Вариант сохраняется через `Account.connect(_:)`
+   ([[Data/Persistence]]).
 
 ## Ошибки
 
