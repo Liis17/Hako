@@ -61,7 +61,8 @@ CocoaPods, Carthage не используются) нет.
 
 1. При инициализации `HakoApp` вычисляется `sharedModelContainer`:
    `Schema([Account.self, GameInstance.self])` + `ModelConfiguration(schema:url:)` с URL из `AppDataLocation` → `ModelContainer`.
-   Ошибка создания контейнера завершает приложение через `fatalError`.
+   `LaunchSettingsMigration.run` сохраняет прежние режимы аргументов, фиксирует окна и переносит предел heap в ползунки.
+   Ошибка создания контейнера или миграции завершает приложение через `fatalError`.
 2. `WindowGroup { ContentView() }` получает контейнер через
    `.modelContainer(sharedModelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. `ContentView`

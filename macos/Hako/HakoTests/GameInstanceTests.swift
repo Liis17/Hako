@@ -85,12 +85,13 @@ import Testing
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let instance = GameInstance(name: "Pack", folderName: "Pack", versionID: "v", metadataURL: "url", metadataSHA1: "hash")
+        instance.argumentSource = .global
         defaults.set("-Xmx2G", forKey: GameLaunchDefaults.Key.javaArguments)
         #expect(instance.effectiveParameters(from: defaults).javaArguments == "-Xmx2G")
         defaults.set("-Xmx4G", forKey: GameLaunchDefaults.Key.javaArguments)
         #expect(instance.effectiveParameters(from: defaults).javaArguments == "-Xmx4G")
         instance.parameters = instance.effectiveParameters(from: defaults)
-        instance.usesGlobalParameters = false
+        instance.argumentSource = .custom
         defaults.set("-Xmx8G", forKey: GameLaunchDefaults.Key.javaArguments)
         #expect(instance.effectiveParameters(from: defaults).javaArguments == "-Xmx4G")
     }

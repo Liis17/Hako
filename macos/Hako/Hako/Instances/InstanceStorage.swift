@@ -83,6 +83,7 @@ nonisolated struct InstanceStorage: Sendable {
     }
 
     func create(_ draft: InstanceDraft, versionID: String, metadataURL: String, metadataSHA1: String, javaMajorVersion: Int = 0, legacyTexturepacks: Bool = false) throws -> GameInstance {
+        try validateOffline(draft)
         let name = try InstanceName.validated(draft.name)
         let folder = try validateName(name)
         let url = try storage.directory(folder)
@@ -107,6 +108,7 @@ nonisolated struct InstanceStorage: Sendable {
     }
 
     func update(_ instance: GameInstance, with draft: InstanceDraft) throws {
+        try validateOffline(draft)
         let name = try InstanceName.validated(draft.name)
         let folder = try validateName(name, excluding: instance)
         let oldFolder = instance.folderName
@@ -145,8 +147,14 @@ nonisolated struct InstanceStorage: Sendable {
 
     private func apply(_ draft: InstanceDraft, to instance: GameInstance) {
         instance.iconSymbol = draft.iconSymbol
-        instance.usesGlobalParameters = draft.usesGlobalParameters
+        instance.argumentSource = draft.argumentSource
+        instance.offlineMode = draft.offlineMode
+        instance.offlineUsername = draft.offlineUsername
         instance.parameters = draft.parameters
+    }
+
+    private func validateOffline(_ draft: InstanceDraft) throws {
+        guard !draft.offlineMode || OfflineUsername.isValid(draft.offlineUsername) else { throw InstanceFileError.message("Ник: от 3 до 16 латинских букв, цифр или _.") }
     }
 
     private func moveDirectory(_ from: URL, to: URL) throws {

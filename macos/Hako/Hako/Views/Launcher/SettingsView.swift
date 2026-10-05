@@ -57,10 +57,11 @@ private struct GameSettingsView: View {
     @AppStorage(GameLaunchDefaults.Key.fullscreen) private var fullscreen = GameLaunchDefaults.standard.fullscreen
     @AppStorage(GameLaunchDefaults.Key.windowWidth) private var windowWidth = GameLaunchDefaults.standard.windowWidth
     @AppStorage(GameLaunchDefaults.Key.windowHeight) private var windowHeight = GameLaunchDefaults.standard.windowHeight
+    @AppStorage(GameLaunchDefaults.Key.maximumMemoryMiB) private var maximumMemoryMiB = JavaMemoryPolicy.current.initialMiB
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Параметры для сборок с включённым использованием глобальных настроек. Изменения сохраняются автоматически.")
+            Text("Аргументы, память и путь Java для сборок с глобальными параметрами. Настройки окна служат начальными только при создании сборки. Изменения сохраняются автоматически.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -77,6 +78,8 @@ private struct GameSettingsView: View {
                         Button("Выбрать…", action: chooseJava)
                             .buttonStyle(.glass)
                     }
+                    Text("Если путь задан, сборки с глобальными параметрами используют эту Java вместо рекомендуемой Java внутри сборки.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -88,6 +91,8 @@ private struct GameSettingsView: View {
                         .lineLimit(2...4)
                         .accessibilityLabel("Аргументы запуска Java")
                 }
+                JavaMemorySlider(value: $maximumMemoryMiB)
+                Text("-Xmx и MaxHeapSize из аргументов заменяются лимитом ползунка при запуске.").font(.caption).foregroundStyle(.secondary)
             }
 
             SettingsCard(title: "Minecraft", systemImage: "cube") {

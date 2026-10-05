@@ -21,6 +21,7 @@ struct HakoApp: App {
         do {
             let modelConfiguration = ModelConfiguration(schema: schema, url: try AppDataLocation.storeURL())
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            try LaunchSettingsMigration.run(context: container.mainContext)
             sharedModelContainer = container
             _installations = State(initialValue: InstallationCoordinator(context: container.mainContext))
         } catch {

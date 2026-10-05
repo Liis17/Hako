@@ -103,66 +103,83 @@ struct InstanceIconPicker: View {
 }
 
 struct InstanceParametersEditor: View {
-    @Binding var usesGlobal: Bool
-    @Binding var parameters: InstanceParameters
+    @Binding var draft: InstanceDraft
     @Binding var isValid: Bool
     @AppStorage(GameLaunchDefaults.Key.javaArguments) private var globalJava = ""
     @AppStorage(GameLaunchDefaults.Key.minecraftArguments) private var globalMinecraft = ""
-    @AppStorage(GameLaunchDefaults.Key.fullscreen) private var globalFullscreen = false
-    @AppStorage(GameLaunchDefaults.Key.windowWidth) private var globalWidth = 1280
-    @AppStorage(GameLaunchDefaults.Key.windowHeight) private var globalHeight = 720
+    @AppStorage(GameLaunchDefaults.Key.javaPath) private var globalJavaPath = ""
+    @AppStorage(GameLaunchDefaults.Key.maximumMemoryMiB) private var globalMemory = JavaMemoryPolicy.current.initialMiB
     @State private var width: String
     @State private var height: String
 
-    init(usesGlobal: Binding<Bool>, parameters: Binding<InstanceParameters>, isValid: Binding<Bool>) {
-        _usesGlobal = usesGlobal; _parameters = parameters; _isValid = isValid
-        _width = State(initialValue: String(parameters.wrappedValue.windowWidth))
-        _height = State(initialValue: String(parameters.wrappedValue.windowHeight))
+    init(draft: Binding<InstanceDraft>, isValid: Binding<Bool>) {
+        _draft = draft; _isValid = isValid
+        _width = State(initialValue: String(draft.wrappedValue.parameters.windowWidth))
+        _height = State(initialValue: String(draft.wrappedValue.parameters.windowHeight))
     }
 
-    private var global: InstanceParameters {
-        var value = InstanceParameters()
-        value.javaArguments = globalJava; value.minecraftArguments = globalMinecraft
-        value.fullscreen = globalFullscreen
-        value.windowWidth = globalWidth > 0 ? globalWidth : 1280
-        value.windowHeight = globalHeight > 0 ? globalHeight : 720
-        return value
+    private var usesGlobal: Bool { draft.argumentSource == .global }
+    private func source(_ source: LaunchArgumentSource) -> Binding<Bool> {
+        Binding(get: { draft.argumentSource == source }, set: { enabled in
+            if enabled { draft.argumentSource = source }
+            else if draft.argumentSource == source { draft.argumentSource = .custom }
+        })
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Toggle("Использовать глобальные параметры", isOn: $usesGlobal).tint(.sakuraDeep)
-            VStack(alignment: .leading, spacing: 16) {
-                parameterField("Аргументы Java", text: usesGlobal ? .constant(global.javaArguments) : $parameters.javaArguments)
-                parameterField("Аргументы Minecraft", text: usesGlobal ? .constant(global.minecraftArguments) : $parameters.minecraftArguments)
-                Picker("Режим отображения", selection: usesGlobal ? .constant(global.fullscreen) : $parameters.fullscreen) {
-                    Text("Оконный").tag(false)
-                    Text("Полноэкранный").tag(true)
-                }.pickerStyle(.segmented)
-                HStack(spacing: 18) {
-                    dimension("Ширина", text: usesGlobal ? .constant(String(global.windowWidth)) : $width)
-                    dimension("Высота", text: usesGlobal ? .constant(String(global.windowHeight)) : $height)
-                }.disabled(usesGlobal ? global.fullscreen : parameters.fullscreen)
-                if !isValid { Text("Введите целые размеры окна больше 0.").font(.caption).foregroundStyle(Color.shu) }
-            }.disabled(usesGlobal)
-            if usesGlobal { Text("Применяются текущие параметры из настроек лаунчера.").font(.caption).foregroundStyle(.secondary) }
-        }
-        .onChange(of: usesGlobal) { old, new in
-            if old && !new {
-                parameters = global
-                width = String(global.windowWidth); height = String(global.windowHeight)
+            HStack(alignment: .top, spacing: 20) {
+                Toggle("Использовать глобальные параметры", isOn: source(.global))
+                Toggle("Использовать параметры Mojang", isOn: source(.mojang))
+            }.tint(.sakuraDeep)
+            if usesGlobal {
+                Text("Аргументы и память наследуются из текущих настроек лаунчера.").font(.caption).foregroundStyle(.secondary)
+                if globalJava.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && globalMinecraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    warning("Глобальные аргументы не заданы. Рекомендуется использовать параметры Mojang.")
+                }
+                if !globalJavaPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    warning("Эта сборка использует пользовательскую Java из глобальных настроек. Это может привести к проблемам в игре.")
+                }
+            } else if draft.argumentSource == .mojang {
+                Text("Используются обязательные и рекомендуемые аргументы из описания версии Mojang.").font(.caption).foregroundStyle(.secondary)
             }
-            validate()
+            VStack(alignment: .leading, spacing: 16) {
+                parameterField("Аргументы Java", text: usesGlobal ? .constant(globalJava) : draft.argumentSource == .mojang ? .constant("") : $draft.parameters.javaArguments)
+                parameterField("Аргументы Minecraft", text: usesGlobal ? .constant(globalMinecraft) : draft.argumentSource == .mojang ? .constant("") : $draft.parameters.minecraftArguments)
+            }.disabled(draft.argumentSource != .custom)
+            JavaMemorySlider(value: usesGlobal ? .constant(JavaMemoryPolicy.current.normalize(globalMemory)) : $draft.parameters.maximumMemoryMiB, inherited: usesGlobal)
+            Text("Значения -Xmx и MaxHeapSize в аргументах заменяются лимитом ползунка при запуске.").font(.caption).foregroundStyle(.secondary)
+            Divider()
+            Picker("Режим отображения", selection: $draft.parameters.fullscreen) {
+                Text("Оконный").tag(false)
+                Text("Полноэкранный").tag(true)
+            }.pickerStyle(.segmented)
+            HStack(spacing: 18) { dimension("Ширина", text: $width); dimension("Высота", text: $height) }.disabled(draft.parameters.fullscreen)
+            if !draft.parameters.fullscreen && (GameLaunchDefaults.windowDimension(from: width) == nil || GameLaunchDefaults.windowDimension(from: height) == nil) {
+                Text("Введите целые размеры окна больше 0.").font(.caption).foregroundStyle(Color.shu)
+            }
+            Divider()
+            HStack(spacing: 20) {
+                Toggle("offline-mode", isOn: $draft.offlineMode).tint(.sakuraDeep)
+                if draft.offlineMode { TextField("Имя в игре", text: $draft.offlineUsername).textFieldStyle(.roundedBorder).accessibilityLabel("Имя в offline-mode") }
+            }
+            if draft.offlineMode {
+                warning("Offline-mode не рекомендуется. Часть серверов может быть недоступна. Рекомендуется вход с аккаунтом Minecraft.")
+                if !OfflineUsername.isValid(draft.offlineUsername) { Text("Ник: от 3 до 16 латинских букв, цифр или _.").font(.caption).foregroundStyle(Color.shu) }
+            }
         }
-        .onChange(of: width) { _, new in if let value = GameLaunchDefaults.windowDimension(from: new) { parameters.windowWidth = value }; validate() }
-        .onChange(of: height) { _, new in if let value = GameLaunchDefaults.windowDimension(from: new) { parameters.windowHeight = value }; validate() }
-        .onChange(of: parameters.fullscreen) { validate() }
+        .onChange(of: width) { _, new in if let value = GameLaunchDefaults.windowDimension(from: new) { draft.parameters.windowWidth = value }; validate() }
+        .onChange(of: height) { _, new in if let value = GameLaunchDefaults.windowDimension(from: new) { draft.parameters.windowHeight = value }; validate() }
+        .onChange(of: draft.parameters) { validate() }
+        .onChange(of: draft.offlineMode) { validate() }
+        .onChange(of: draft.offlineUsername) { validate() }
         .onAppear { validate() }
     }
 
     private func validate() {
-        isValid = usesGlobal || parameters.fullscreen || (GameLaunchDefaults.windowDimension(from: width) != nil && GameLaunchDefaults.windowDimension(from: height) != nil)
+        isValid = (draft.parameters.fullscreen || (GameLaunchDefaults.windowDimension(from: width) != nil && GameLaunchDefaults.windowDimension(from: height) != nil)) && (!draft.offlineMode || OfflineUsername.isValid(draft.offlineUsername))
     }
+    private func warning(_ text: String) -> some View { Label(text, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(Color.shu).fixedSize(horizontal: false, vertical: true) }
     private func parameterField(_ title: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.callout.weight(.medium))

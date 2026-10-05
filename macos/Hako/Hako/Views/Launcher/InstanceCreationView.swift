@@ -102,7 +102,7 @@ struct InstanceCreationView: View {
                         .buttonStyle(.plain)
 
                         if advanced {
-                            InstanceParametersEditor(usesGlobal: $draft.usesGlobalParameters, parameters: $draft.parameters, isValid: $parametersValid)
+                            InstanceParametersEditor(draft: $draft, isValid: $parametersValid)
                                 .padding(.top, 16)
                         }
                     }

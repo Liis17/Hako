@@ -96,7 +96,7 @@ private struct InstanceSettingsView: View {
             }.instanceSurface()
             VStack(alignment: .leading, spacing: 18) {
                 Text("Параметры запуска").font(.title3.weight(.semibold))
-                InstanceParametersEditor(usesGlobal: $draft.usesGlobalParameters, parameters: $draft.parameters, isValid: $parametersValid)
+                InstanceParametersEditor(draft: $draft, isValid: $parametersValid)
             }.instanceSurface()
             HStack {
                 Button("Сохранить настройки") {
@@ -112,7 +112,9 @@ private struct InstanceSettingsView: View {
         }.onChange(of: draft.name) { saved = false }
         .onChange(of: draft.iconSymbol) { saved = false }
         .onChange(of: draft.iconData) { saved = false }
-        .onChange(of: draft.usesGlobalParameters) { saved = false }
+        .onChange(of: draft.argumentSource) { saved = false }
+        .onChange(of: draft.offlineMode) { saved = false }
+        .onChange(of: draft.offlineUsername) { saved = false }
         .onChange(of: draft.parameters) { saved = false }
     }
 }

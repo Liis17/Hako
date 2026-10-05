@@ -1,12 +1,17 @@
 import Foundation
 import SwiftData
 
+nonisolated enum LaunchArgumentSource: String, Codable, Sendable, CaseIterable {
+    case global, mojang, custom
+}
+
 nonisolated struct InstanceParameters: Codable, Equatable, Sendable {
     var javaArguments = ""
     var minecraftArguments = ""
     var fullscreen = false
     var windowWidth = 1280
     var windowHeight = 720
+    var maximumMemoryMiB = JavaMemoryPolicy.current.initialMiB
 
     init(defaults: GameLaunchDefaults = .standard) {
         javaArguments = defaults.javaArguments
@@ -14,6 +19,7 @@ nonisolated struct InstanceParameters: Codable, Equatable, Sendable {
         fullscreen = defaults.fullscreen
         windowWidth = defaults.windowWidth
         windowHeight = defaults.windowHeight
+        maximumMemoryMiB = defaults.maximumMemoryMiB
     }
 }
 
@@ -42,6 +48,10 @@ nonisolated enum InstallationState: String, Codable, Sendable {
     var iconSymbol = "shippingbox.fill"
     var iconRevision = UUID()
     var usesGlobalParameters = true
+    var argumentSourceRaw: String?
+    var offlineMode = false
+    var offlineUsername = "Player"
+    var maximumMemoryMiB = 0
     var javaArguments = ""
     var minecraftArguments = ""
     var fullscreen = false
@@ -60,6 +70,13 @@ nonisolated enum InstallationState: String, Codable, Sendable {
         self.versionID = versionID
         self.metadataURL = metadataURL
         self.metadataSHA1 = metadataSHA1
+        argumentSourceRaw = LaunchArgumentSource.mojang.rawValue
+        maximumMemoryMiB = JavaMemoryPolicy.current.initialMiB
+    }
+
+    var argumentSource: LaunchArgumentSource {
+        get { argumentSourceRaw.flatMap(LaunchArgumentSource.init(rawValue:)) ?? (usesGlobalParameters ? .global : .custom) }
+        set { argumentSourceRaw = newValue.rawValue; usesGlobalParameters = newValue == .global }
     }
 
     var state: InstallationState {
@@ -75,6 +92,7 @@ nonisolated enum InstallationState: String, Codable, Sendable {
             value.fullscreen = fullscreen
             value.windowWidth = windowWidth
             value.windowHeight = windowHeight
+            value.maximumMemoryMiB = maximumMemoryMiB
             return value
         }
         set {
@@ -83,11 +101,22 @@ nonisolated enum InstallationState: String, Codable, Sendable {
             fullscreen = newValue.fullscreen
             windowWidth = newValue.windowWidth
             windowHeight = newValue.windowHeight
+            maximumMemoryMiB = newValue.maximumMemoryMiB
         }
     }
 
     func effectiveParameters(from defaults: UserDefaults = .standard) -> InstanceParameters {
-        usesGlobalParameters ? InstanceParameters(defaults: .load(from: defaults)) : parameters
+        var value = parameters
+        if argumentSource == .global {
+            let global = GameLaunchDefaults.load(from: defaults)
+            value.javaArguments = global.javaArguments
+            value.minecraftArguments = global.minecraftArguments
+            value.maximumMemoryMiB = global.maximumMemoryMiB
+        } else if argumentSource == .mojang {
+            value.javaArguments = ""; value.minecraftArguments = ""
+        }
+        value.maximumMemoryMiB = JavaMemoryPolicy.current.normalize(value.maximumMemoryMiB)
+        return value
     }
 }
 
@@ -95,7 +124,13 @@ struct InstanceDraft {
     var name = ""
     var iconSymbol = "shippingbox.fill"
     var iconData: Data?
-    var usesGlobalParameters = true
+    var argumentSource = LaunchArgumentSource.mojang
+    var usesGlobalParameters: Bool {
+        get { argumentSource == .global }
+        set { if newValue { argumentSource = .global } else if argumentSource == .global { argumentSource = .custom } }
+    }
+    var offlineMode = false
+    var offlineUsername = "Player"
     var parameters = InstanceParameters(defaults: .load())
 
     init() {}
@@ -103,8 +138,40 @@ struct InstanceDraft {
     init(instance: GameInstance) {
         name = instance.name
         iconSymbol = instance.iconSymbol
-        usesGlobalParameters = instance.usesGlobalParameters
+        argumentSource = instance.argumentSource
+        offlineMode = instance.offlineMode
+        offlineUsername = instance.offlineUsername
         parameters = instance.parameters
+    }
+}
+
+nonisolated enum OfflineUsername {
+    static func isValid(_ name: String) -> Bool {
+        (3...16).contains(name.count) && name.unicodeScalars.allSatisfy {
+            (65...90).contains($0.value) || (97...122).contains($0.value) || (48...57).contains($0.value) || $0.value == 95
+        }
+    }
+}
+
+enum LaunchSettingsMigration {
+    static func run(context: ModelContext, defaults: UserDefaults = .standard, memory: JavaMemoryPolicy = .current) throws {
+        if defaults.object(forKey: GameLaunchDefaults.Key.maximumMemoryMiB) == nil {
+            let previous = LaunchArguments.maximumHeapMiB(in: defaults.string(forKey: GameLaunchDefaults.Key.javaArguments) ?? "")
+            defaults.set(memory.normalize(previous ?? memory.initialMiB), forKey: GameLaunchDefaults.Key.maximumMemoryMiB)
+        }
+        let global = GameLaunchDefaults.load(from: defaults)
+        do {
+            for instance in try context.fetch(FetchDescriptor<GameInstance>()) where instance.argumentSourceRaw == nil {
+                if instance.usesGlobalParameters {
+                    instance.fullscreen = global.fullscreen
+                    instance.windowWidth = global.windowWidth; instance.windowHeight = global.windowHeight
+                }
+                let arguments = instance.usesGlobalParameters ? global.javaArguments : instance.javaArguments
+                instance.maximumMemoryMiB = memory.normalize(LaunchArguments.maximumHeapMiB(in: arguments) ?? memory.initialMiB)
+                instance.argumentSource = instance.usesGlobalParameters ? .global : .custom
+            }
+            try context.save()
+        } catch { context.rollback(); throw error }
     }
 }
 
