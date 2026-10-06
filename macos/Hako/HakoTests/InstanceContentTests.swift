@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CryptoKit
 
 struct InstanceContentTests {
     private func temporary() throws -> URL {
@@ -74,5 +75,92 @@ struct InstanceContentTests {
         await #expect(throws: InstanceFileError.self) { try await InstanceContent().importPack(from: source, into: target) }
         #expect(!FileManager.default.fileExists(atPath: target.path))
         #expect(try Data(contentsOf: source.appendingPathComponent("marker")) == Data("unchanged".utf8))
+    }
+
+    @Test func jarImportPreservesDisabledStateAndRejectsOtherTypes() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("Local.JAR"), folder = root.appendingPathComponent("Instance/minecraft/mods")
+        try Data("old".utf8).write(to: source)
+        let content = InstanceContent()
+        try await content.importItem(from: source, into: folder, mods: true)
+        let item = try #require(await content.list(at: folder, mods: true).first)
+        #expect(item.source == .local)
+        try await content.setEnabled(item, in: folder, enabled: false)
+        let disabled = try #require(await content.list(at: folder, mods: true).first)
+        #expect(!disabled.enabled)
+        #expect(disabled.logicalName == "Local.JAR")
+        try Data("new".utf8).write(to: source)
+        await #expect(throws: PackImportError.self) { try await content.importItem(from: source, into: folder, mods: true) }
+        try await content.importItem(from: source, into: folder, mods: true, replace: true)
+        #expect(try Data(contentsOf: disabled.url) == Data("new".utf8))
+        #expect(try await content.list(at: folder, mods: true).count == 1)
+        let zip = root.appendingPathComponent("wrong.zip"); try Data().write(to: zip)
+        await #expect(throws: InstanceFileError.self) { try await content.importItem(from: zip, into: folder, mods: true) }
+        await #expect(throws: InstanceFileError.self) { try await content.importItem(from: root, into: folder, mods: true) }
+    }
+
+    private func descriptor(_ data: Data, filename: String = "api.jar", version: String = "old") -> FabricAPIDescriptor {
+        .init(projectID: "P7dR8mSH", versionID: version, version: version, channel: "release", filename: filename, url: URL(string: "https://fixtures.test/\(filename)")!, size: Int64(data.count), sha1: Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined(), sha512: FabricClient.hash(data))
+    }
+
+    @Test func provenanceSurvivesToggleRenameAndDisabledUpdateButNotLocalReplacement() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let cache = root.appendingPathComponent("cached.jar"), folder = root.appendingPathComponent("Instance/minecraft/mods")
+        let content = InstanceContent(), bytes = Data("old".utf8), next = Data("new".utf8)
+        try bytes.write(to: cache)
+        try await content.provisionAPI(descriptor(bytes), from: cache, in: folder)
+        let item = try #require(await content.list(at: folder, mods: true).first)
+        #expect(item.source == .modrinth)
+        try await content.setEnabled(item, in: folder, enabled: false)
+        let renamed = root.appendingPathComponent("Renamed")
+        try FileManager.default.moveItem(at: root.appendingPathComponent("Instance"), to: renamed)
+        let movedFolder = renamed.appendingPathComponent("minecraft/mods")
+        let disabled = try #require(await content.list(at: movedFolder, mods: true).first)
+        #expect(disabled.source == .modrinth)
+        try next.write(to: cache)
+        try await content.updateAPI(disabled, to: descriptor(next, filename: "new-api.jar", version: "new"), from: cache, in: movedFolder)
+        let updated = try #require(await content.list(at: movedFolder, mods: true).first)
+        #expect(!updated.enabled && updated.source == .modrinth)
+        #expect(updated.name == "new-api.jar.disabled")
+        #expect(updated.origin?.versionID == "new")
+        #expect(!FileManager.default.fileExists(atPath: disabled.url.path))
+        let local = root.appendingPathComponent("new-api.jar"); try next.write(to: local)
+        try await content.importItem(from: local, into: movedFolder, mods: true, replace: true)
+        #expect(try await content.list(at: movedFolder, mods: true).first?.source == .local)
+        #expect(try await content.apiWasProvisioned(in: movedFolder))
+    }
+
+    @Test func externalChangesAndBrokenRegistryDisableRemoteUpdatesWithoutLosingFiles() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let cache = root.appendingPathComponent("cached.jar"), folder = root.appendingPathComponent("Instance/minecraft/mods")
+        let content = InstanceContent(), bytes = Data("old".utf8)
+        try bytes.write(to: cache); try await content.provisionAPI(descriptor(bytes), from: cache, in: folder)
+        let item = try #require(await content.list(at: folder, mods: true).first)
+        try Data("changed".utf8).write(to: item.url)
+        #expect(try await content.list(at: folder, mods: true).first?.source == .local)
+        await #expect(throws: InstanceFileError.self) { try await content.updateAPI(item, to: descriptor(bytes), from: cache, in: folder) }
+        try bytes.write(to: item.url)
+        let registry = folder.deletingLastPathComponent().appendingPathComponent(".hako-mods.json")
+        try Data("broken".utf8).write(to: registry)
+        await #expect(throws: DecodingError.self) { try await content.list(at: folder, mods: true) }
+        #expect(try await content.list(at: folder, mods: true, readOrigins: false).first?.source == .local)
+        await #expect(throws: DecodingError.self) { try await content.updateAPI(item, to: descriptor(bytes), from: cache, in: folder) }
+        #expect(try Data(contentsOf: item.url) == bytes)
+        #expect(try Data(contentsOf: registry) == Data("broken".utf8))
+    }
+
+    @Test func toggleDoesNotOverwriteOppositeStateAndImportRejectsDestinationLinks() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("minecraft/mods")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let active = folder.appendingPathComponent("mod.jar"), disabled = folder.appendingPathComponent("mod.jar.disabled")
+        try Data("active".utf8).write(to: active); try Data("disabled".utf8).write(to: disabled)
+        let content = InstanceContent()
+        await #expect(throws: PackImportError.self) { try await content.setEnabled(.init(url: active, isDirectory: false), in: folder, enabled: false) }
+        #expect(try Data(contentsOf: disabled) == Data("disabled".utf8))
+        let source = root.appendingPathComponent("link.jar"); try Data("source".utf8).write(to: source)
+        try FileManager.default.createSymbolicLink(at: folder.appendingPathComponent("link.jar"), withDestinationURL: active)
+        await #expect(throws: InstanceFileError.self) { try await content.importItem(from: source, into: folder, mods: true, replace: true) }
+        #expect(try Data(contentsOf: active) == Data("active".utf8))
     }
 }

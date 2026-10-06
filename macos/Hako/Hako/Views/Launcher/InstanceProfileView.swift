@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private enum InstanceSection: String, CaseIterable, Identifiable {
-    case mods = "Моды", packs = "Текстурпаки", settings = "Настройки"
+    case mods = "Моды", packs = "Ресурспаки", settings = "Настройки"
     var id: Self { self }
 }
 
@@ -33,6 +33,7 @@ struct InstanceProfileView: View {
         self.instance = instance
         self.account = account
         self.onBack = onBack
+        _section = State(initialValue: instance.modLoader == .fabric ? .mods : .packs)
         _nameDraft = State(initialValue: instance.name)
     }
 
@@ -45,7 +46,7 @@ struct InstanceProfileView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(instance.name).font(.system(size: 44, weight: .heavy)).tracking(-1).lineLimit(2).minimumScaleFactor(0.55)
                     HStack(spacing: 8) {
-                        Text("Minecraft \(instance.versionID) · Vanilla · Java \(instance.javaMajorVersion)")
+                        Text("Minecraft \(instance.versionID) · \(instance.loaderTitle) · Java \(instance.javaMajorVersion)")
                             .lineLimit(1).truncationMode(.tail).foregroundStyle(.secondary)
                         Label("В игре: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
                             .font(.callout).foregroundStyle(.secondary).fixedSize()
@@ -58,9 +59,9 @@ struct InstanceProfileView: View {
             Picker("Раздел сборки", selection: Binding(get: { section }, set: requestSectionChange)) {
                 ForEach(InstanceSection.allCases) { item in
                     Text(item.rawValue).tag(item)
-                        .disabled(item == .mods)
-                        .selectionDisabled(item == .mods)
-                        .help(item == .mods ? "Моды доступны только для сборок с выбранным модлоадером." : "")
+                        .disabled(item == .mods && instance.modLoader != .fabric)
+                        .selectionDisabled(item == .mods && instance.modLoader != .fabric)
+                        .help(item == .mods && instance.modLoader != .fabric ? "Моды доступны только для сборок с выбранным модлоадером." : "")
                 }
             }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 600)
             ScrollView {
@@ -194,7 +195,7 @@ private struct InstanceSettingsView: View {
                         .buttonStyle(.glass)
                         .disabled(renameBlocked || nameDraft == instance.name || nameError != nil)
                 }
-                Text("Minecraft \(instance.versionID) · Vanilla").foregroundStyle(.secondary)
+                Text("Minecraft \(instance.versionID) · \(instance.loaderTitle)").foregroundStyle(.secondary)
                 Text("Папка: ~/.hako/\(instance.folderName)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }.instanceSurface()
             VStack(alignment: .leading, spacing: 18) {
@@ -253,89 +254,97 @@ private struct InstanceSettingsView: View {
 private struct InstanceFilesView: View {
     let instance: GameInstance
     let mods: Bool
-    @Environment(InstallationCoordinator.self) private var installations
+    @Environment(InstanceContentController.self) private var content
     @Environment(\.scenePhase) private var scenePhase
-    @State private var content = InstanceContent()
-    @State private var items: [InstanceContentItem] = []
-    @State private var error: String?
     @State private var importing = false
-    @State private var pendingImports: [URL] = []
-    @State private var replacement: URL?
-    @State private var deleting: InstanceContentItem?
+    @State private var dropTargeted = false
 
-    private var busy: Bool { installations.contentBusy.contains(instance.id) }
-    private func folder() throws -> URL {
-        try InstanceStorage.containedURL("minecraft/\(mods ? "mods" : instance.legacyTexturepacks ? "texturepacks" : "resourcepacks")", in: installations.store.storage.directory(instance.folderName))
-    }
+    private var items: [InstanceContentItem] { (mods ? content.mods : content.packs)[instance.id] ?? [] }
+    private var disabledReason: String? { content.disabledReason(instance, mods: mods) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text(mods ? "Моды" : "Текстурпаки").font(.title3.weight(.semibold))
+                Text(mods ? "Моды" : "Ресурспаки").font(.title3.weight(.semibold))
                 Spacer()
                 Button("Открыть папку", systemImage: "folder") {
-                    do { let folder = try folder(); try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true); NSWorkspace.shared.open(folder) }
-                    catch { self.error = error.localizedDescription }
+                    do {
+                        let folder = try content.folder(instance, mods: mods)
+                        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        NSWorkspace.shared.open(folder)
+                    } catch { content.errors[instance.id] = error.localizedDescription }
                 }.buttonStyle(.glass)
-                if !mods { Button("Добавить…", systemImage: "plus") { importing = true }.buttonStyle(.glass).disabled(busy) }
+                Button("Добавить…", systemImage: "plus") { importing = true }.buttonStyle(.glass).disabled(disabledReason != nil)
             }
-            if mods { Text("Vanilla не поддерживает моды. Установка загрузчиков появится позже.").font(.callout).foregroundStyle(.secondary) }
-            if busy { ProgressView("Копируем текстурпак…") }
-            if let error { Text(error).font(.callout).foregroundStyle(Color.shu) }
+            VStack(spacing: 8) {
+                Image(systemName: "square.and.arrow.down").font(.title2).foregroundStyle(Color.sakuraDeep)
+                Text(mods ? "Перетащите JAR-файлы модов" : "Перетащите ZIP-архивы ресурспаков").font(.callout.weight(.medium))
+                Text(mods ? "Файлы будут скопированы в эту сборку." : "Также можно добавить папку ресурспака через кнопку «Добавить».")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity).padding(22)
+            .background(dropTargeted ? Color.sakuraDeep.opacity(0.12) : .white.opacity(0.25), in: .rect(cornerRadius: 14))
+            .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(dropTargeted ? Color.sakuraDeep : .secondary.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])) }
+            .opacity(disabledReason == nil ? 1 : 0.6)
+            .onDrop(of: [UTType.fileURL.identifier], isTargeted: $dropTargeted, perform: receiveDrop)
+            if let reason = disabledReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
+            if content.installations.contentBusy.contains(instance.id) { ProgressView("Обрабатываем файлы…").font(.callout) }
+            if let error = content.errors[instance.id] { Text(error).font(.callout).foregroundStyle(Color.shu) }
             if items.isEmpty {
-                Text(mods ? "В папке сборки нет модов." : "Текстурпаков пока нет. Добавьте ZIP-файл или папку с компьютера.")
-                    .foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 24)
-            } else {
-                ForEach(items) { item in
-                    HStack(spacing: 12) {
-                        Image(systemName: mods ? "puzzlepiece.extension" : item.isDirectory ? "folder" : "doc.zipper").foregroundStyle(Color.sakuraDeep)
-                        Text(item.name).lineLimit(2).textSelection(.enabled)
-                        Spacer()
-                        if !mods { Button { deleting = item } label: { Image(systemName: "trash") }.buttonStyle(.plain).help("Удалить текстурпак").disabled(busy) }
-                    }.padding(14).background(.white.opacity(0.45), in: .rect(cornerRadius: 12))
-                }
+                Text(mods ? "В сборке пока нет модов." : "Ресурспаков пока нет.").foregroundStyle(.secondary).padding(.vertical, 16)
             }
-        }.instanceSurface()
-        .task(id: instance.folderName) { await reload() }
-        .onChange(of: instance.state) { Task { await reload() } }
-        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await reload() } } }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.zip, .folder], allowsMultipleSelection: true) { result in
-            do { pendingImports = try result.get(); Task { await importNext() } }
-            catch { self.error = error.localizedDescription }
+            ForEach(items) { item in
+                HStack(spacing: 12) {
+                    if mods {
+                        Toggle("Активность \(item.logicalName)", isOn: Binding(get: { item.enabled }, set: { content.setEnabled(item, in: instance, enabled: $0) }))
+                            .toggleStyle(.switch).labelsHidden().disabled(disabledReason != nil)
+                    } else { Image(systemName: item.isDirectory ? "folder" : "doc.zipper").foregroundStyle(Color.sakuraDeep) }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.logicalName).lineLimit(2).textSelection(.enabled).foregroundStyle(item.enabled ? .primary : .secondary)
+                        if mods {
+                            HStack(spacing: 8) {
+                                Label(item.source.title, systemImage: item.source.symbol).font(.caption).padding(.horizontal, 7).padding(.vertical, 3)
+                                    .background(.white.opacity(0.6), in: Capsule())
+                                if let api = item.origin?.api { Text(api.version).font(.caption).foregroundStyle(.secondary) }
+                                if item.source == .local { Text("Обновляется вручную").font(.caption).foregroundStyle(.secondary) }
+                                if !item.enabled { Text("Отключён").font(.caption).foregroundStyle(.secondary) }
+                            }
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    Menu {
+                        Button("Показать в Finder", systemImage: "folder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+                        if let origin = item.origin { Button("Открыть страницу на \(origin.source.title)", systemImage: "arrow.up.right.square") { NSWorkspace.shared.open(origin.pageURL) } }
+                        Divider()
+                        Button("Удалить", systemImage: "trash", role: .destructive) { content.delete(item, in: instance, mods: mods) }.disabled(disabledReason != nil)
+                    } label: { Image(systemName: "ellipsis").frame(width: 24, height: 24) }.menuStyle(.borderlessButton).fixedSize().help("Действия с файлом")
+                }.padding(14).background(.white.opacity(0.45), in: .rect(cornerRadius: 12))
+            }
         }
-        .alert("Заменить текстурпак?", isPresented: Binding(get: { replacement != nil }, set: { if !$0 { replacement = nil } }), presenting: replacement) { source in
-            Button("Отмена", role: .cancel) { replacement = nil; Task { await importNext() } }
-            Button("Заменить", role: .destructive) { replacement = nil; Task { await importOne(source, replace: true); await importNext() } }
-        } message: { source in Text("Текстурпак \(source.lastPathComponent) уже существует в сборке.") }
-        .alert("Удалить текстурпак?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { item in
-            Button("Отмена", role: .cancel) { deleting = nil }
-            Button("Удалить", role: .destructive) {
-                deleting = nil
-                Task {
-                    installations.contentBusy.insert(instance.id)
-                    defer { installations.contentBusy.remove(instance.id) }
-                    do { try await content.trash(item, in: folder()); await reload() }
-                    catch { self.error = error.localizedDescription }
-                }
-            }
-        } message: { _ in Text("Текстурпак будет перемещён в корзину.") }
+        .instanceSurface()
+        .task(id: "\(instance.folderName):\(instance.state.rawValue)") { await content.reload(instance, mods: mods) }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await content.reload(instance, mods: mods) } } }
+        .fileImporter(isPresented: $importing, allowedContentTypes: mods ? [UTType(filenameExtension: "jar") ?? .data] : [.zip, .folder], allowsMultipleSelection: true) { result in
+            do { content.importFiles(try result.get(), into: instance, mods: mods) }
+            catch { content.errors[instance.id] = error.localizedDescription }
+        }
     }
 
-    private func reload() async {
-        do { let result = try await content.list(at: folder(), mods: mods); if !Task.isCancelled { items = result; error = nil } }
-        catch { if !Task.isCancelled { self.error = error.localizedDescription } }
-    }
-    private func importNext() async {
-        while !pendingImports.isEmpty && replacement == nil {
-            let source = pendingImports.removeFirst()
-            await importOne(source, replace: false)
+    private func receiveDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard disabledReason == nil else { return false }
+        Task {
+            var urls: [URL] = []
+            for provider in providers {
+                let url: URL? = await withCheckedContinuation { continuation in
+                    provider.loadObject(ofClass: NSURL.self) { item, _ in
+                        continuation.resume(returning: (item as? NSURL).map { $0 as URL })
+                    }
+                }
+                if let url { urls.append(url) }
+            }
+            if urls.isEmpty { content.errors[instance.id] = "Не удалось прочитать перетаскиваемые файлы." }
+            else { content.importFiles(urls, into: instance, mods: mods) }
         }
-    }
-    private func importOne(_ source: URL, replace: Bool) async {
-        installations.contentBusy.insert(instance.id)
-        defer { installations.contentBusy.remove(instance.id) }
-        do { try await content.importPack(from: source, into: folder(), replace: replace); await reload() }
-        catch PackImportError.exists { replacement = source }
-        catch { self.error = error.localizedDescription }
+        return true
     }
 }

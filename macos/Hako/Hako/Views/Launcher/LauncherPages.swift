@@ -72,7 +72,7 @@ struct InstancesView: View {
                                                     .frame(width: 56, height: 56).id(instance.iconRevision)
                                                 VStack(alignment: .leading, spacing: 5) {
                                                     Text(instance.name).font(.title3.weight(.semibold)).lineLimit(2).foregroundStyle(.primary)
-                                                    Text("\(instance.versionID) · Vanilla").font(.callout).foregroundStyle(.secondary)
+                                                    Text("\(instance.versionID) · \(instance.loaderTitle)").font(.callout).foregroundStyle(.secondary)
                                                 }
                                             }
                                             if let progress = installations.progress[instance.id], instance.state == .installing || instance.state == .paused {

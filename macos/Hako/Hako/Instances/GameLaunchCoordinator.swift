@@ -65,6 +65,7 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
     }
 
     func disabledReason(_ instance: GameInstance, account: Account?) -> String? {
+        if store.contentBusy.contains(instance.id) { return "Дождитесь завершения операций с файлами сборки." }
         if instance.state != .ready { return "Дождитесь завершения установки сборки." }
         if states[instance.id] == .preparing { return "Подготавливаем запуск…" }
         if states[instance.id] == .running { return "Эта сборка уже запущена." }

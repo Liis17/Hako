@@ -13,6 +13,7 @@ struct HakoApp: App {
     @NSApplicationDelegateAdaptor(HakoApplicationDelegate.self) private var appDelegate
     let sharedModelContainer: ModelContainer
     @State private var installations: InstallationCoordinator
+    @State private var content: InstanceContentController
     @State private var sessions: MinecraftSessionCoordinator
     @State private var games: GameLaunchCoordinator
     @State private var playtime: PlaytimeCoordinator
@@ -29,6 +30,7 @@ struct HakoApp: App {
             let sessions = MinecraftSessionCoordinator(context: container.mainContext)
             let playtime = try PlaytimeCoordinator(context: container.mainContext)
             _installations = State(initialValue: installations)
+            _content = State(initialValue: InstanceContentController(installations: installations))
             _sessions = State(initialValue: sessions)
             _games = State(initialValue: GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime))
             _playtime = State(initialValue: playtime)
@@ -41,6 +43,7 @@ struct HakoApp: App {
         WindowGroup {
             ContentView()
                 .environment(installations)
+                .environment(content)
                 .environment(sessions)
                 .environment(games)
                 .environment(playtime)

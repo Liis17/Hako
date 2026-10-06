@@ -14,7 +14,10 @@ import SwiftData
     private var started = false
     var progress: [UUID: InstallationProgress] = [:]
     var queueError: String?
-    var contentBusy: Set<UUID> = []
+    var contentBusy: Set<UUID> {
+        get { store.contentBusy }
+        set { store.contentBusy = newValue }
+    }
     private var lastProgressUpdate = Date.distantPast
 
     init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), fabricClient: FabricClient = .init(), content: InstanceContent = .init(), installer: MinecraftInstaller? = nil) {
@@ -42,6 +45,7 @@ import SwiftData
     }
 
     func enqueue(_ instance: GameInstance) throws {
+        guard !contentBusy.contains(instance.id) else { throw InstanceFileError.message("Дождитесь завершения операций с файлами сборки.") }
         guard !store.launchBusy.contains(instance.id) else { throw InstanceFileError.message("Закройте Minecraft перед повторной установкой сборки.") }
         guard activeID != instance.id else { return }
         let oldState = instance.state
@@ -84,6 +88,7 @@ import SwiftData
             let instances = try store.context.fetch(FetchDescriptor<GameInstance>(sortBy: [SortDescriptor(\.createdAt)]))
             queueError = nil
             for instance in instances where instance.state == .queued {
+                if contentBusy.contains(instance.id) { continue }
                 let root: URL
                 let version: MinecraftVersion
                 let fabric: FabricConfiguration?

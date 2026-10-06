@@ -19,6 +19,7 @@ struct LauncherView: View {
     var onSignIn: () -> Void = {}
 
     @Environment(InstallationCoordinator.self) private var installations
+    @Environment(InstanceContentController.self) private var content
     @Environment(MinecraftSessionCoordinator.self) private var sessions
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Query(sort: \GameInstance.createdAt) private var instances: [GameInstance]
@@ -58,6 +59,18 @@ struct LauncherView: View {
         .sheet(isPresented: $creatingInstance) {
             InstanceCreationView(onCreated: { requestTab(.instances) })
                 .environment(installations)
+        }
+        .sheet(item: Binding(get: { content.confirmation }, set: { _ in })) { confirmation in
+            VStack(alignment: .leading, spacing: 20) {
+                Text(confirmation.title).font(.title2.bold())
+                Text(confirmation.message).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Отмена") { content.resolveConfirmation(accepted: false) }.buttonStyle(.glass).keyboardShortcut(.cancelAction)
+                    Button(confirmation.action, role: confirmation.destructive ? .destructive : nil) { content.resolveConfirmation(accepted: true) }
+                        .buttonStyle(.glassProminent).tint(.sakuraDeep).keyboardShortcut(.defaultAction)
+                }
+            }.padding(28).frame(width: 460).interactiveDismissDisabled()
         }
         .alert(navigationError == nil ? "Переименовать сборку?" : "Не удалось переименовать сборку", isPresented: renamePromptPresented) {
             if navigationError != nil {
@@ -158,6 +171,7 @@ struct LauncherView: View {
         .modelContainer(container)
         .environment(InstanceRenameExitCoordinator())
         .environment(installations)
+        .environment(InstanceContentController(installations: installations))
         .environment(sessions)
         .environment(playtime)
         .environment(GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime))

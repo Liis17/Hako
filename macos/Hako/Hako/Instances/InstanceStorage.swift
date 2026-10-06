@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Darwin
+import Observation
 
 /// Все игровые файлы принадлежат одной сборке; корень можно заменить в тестах.
 nonisolated struct InstanceStorage: Sendable {
@@ -61,11 +62,12 @@ nonisolated struct InstanceStorage: Sendable {
     }
 }
 
-@MainActor final class InstanceStore {
+@MainActor @Observable final class InstanceStore {
     let context: ModelContext
     let storage: InstanceStorage
     private let persist: () throws -> Void
     var launchBusy: Set<UUID> = []
+    var contentBusy: Set<UUID> = []
 
     init(context: ModelContext, storage: InstanceStorage = .init(), persist: (() throws -> Void)? = nil) {
         self.context = context
@@ -118,7 +120,7 @@ nonisolated struct InstanceStorage: Sendable {
         let name = try InstanceName.validated(draft.name)
         let folder = try validateName(name, excluding: instance)
         let oldFolder = instance.folderName
-        guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id)) else {
+        guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id) && !contentBusy.contains(instance.id)) else {
             throw InstanceFileError.message("Остановите загрузку и закройте игру перед переименованием сборки.")
         }
         let original = try storage.directory(oldFolder)
@@ -178,7 +180,7 @@ nonisolated struct InstanceStorage: Sendable {
         let name = try InstanceName.validated(input)
         let folder = try validateName(name, excluding: instance)
         let oldFolder = instance.folderName
-        guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id)) else {
+        guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id) && !contentBusy.contains(instance.id)) else {
             throw InstanceFileError.message("Остановите загрузку и закройте игру перед переименованием сборки.")
         }
 
