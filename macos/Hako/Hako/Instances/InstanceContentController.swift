@@ -116,12 +116,12 @@ import Observation
         if !started { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
     }
 
-    func setEnabled(_ item: InstanceContentItem, in instance: GameInstance, enabled: Bool) {
-        perform(instance, mods: true) { [self] folder in
+    func setEnabled(_ item: InstanceContentItem, in instance: GameInstance, enabled: Bool, mods: Bool = true) {
+        perform(instance, mods: mods) { [self] folder in
             if !enabled && item.origin?.projectID == FabricAPIDescriptor.project {
                 guard await confirm(.init(title: "Отключить Fabric API?", message: "Моды, зависящие от Fabric API, могут больше не давать игре запуститься.", action: "Отключить", destructive: false)) else { return }
             }
-            try await installations.content.setEnabled(item, in: folder, enabled: enabled)
+            try await installations.content.setEnabled(item, in: folder, enabled: enabled, mods: mods)
         }
     }
 

@@ -29,9 +29,10 @@ nonisolated struct InstanceContentItem: Identifiable, Sendable {
     let isDirectory: Bool
     var origin: ModOrigin? = nil
     var modificationDate: Date? = nil
+    var disabledPack = false
     var id: URL { url }
     var name: String { url.lastPathComponent }
-    var enabled: Bool { !name.lowercased().hasSuffix(".jar.disabled") }
+    var enabled: Bool { !disabledPack && !name.lowercased().hasSuffix(".jar.disabled") }
     var logicalName: String { Self.logicalName(name) }
     var source: ModSource { origin?.source ?? .local }
     static func logicalName(_ name: String) -> String { name.lowercased().hasSuffix(".jar.disabled") ? String(name.dropLast(9)) : name }
@@ -83,9 +84,13 @@ actor InstanceContent {
 
     func apiWasProvisioned(in folder: URL) throws -> Bool { try registry(at: folder).apiProvisioned }
     func list(at folder: URL, mods: Bool, readOrigins: Bool = true) throws -> [InstanceContentItem] {
-        guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
         let origins = mods && readOrigins ? try registry(at: folder).files : [:]
-        return try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey, .contentModificationDateKey], options: .skipsHiddenFiles).compactMap { url in
+        let disabledFolder = mods ? nil : try disabledPacksFolder(folder)
+        let folders = [folder] + (disabledFolder.map { [$0] } ?? [])
+        let urls = try folders.flatMap { directory in
+            FileManager.default.fileExists(atPath: directory.path) ? try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey, .contentModificationDateKey], options: .skipsHiddenFiles) : []
+        }
+        return try urls.compactMap { url in
             let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey, .contentModificationDateKey])
             guard values.isSymbolicLink != true else { return nil }
             let directory = values.isDirectory == true
@@ -93,8 +98,26 @@ actor InstanceContent {
             guard mods ? (values.isRegularFile == true && name.lowercased().hasSuffix(".jar")) : (directory || (values.isRegularFile == true && url.pathExtension.lowercased() == "zip")) else { return nil }
             var origin = origins[name.lowercased()]
             if let known = origin, try FabricClient.hashFile(url) != known.sha512.lowercased() { origin = nil }
-            return InstanceContentItem(url: url, isDirectory: directory, origin: origin, modificationDate: values.contentModificationDate)
+            return InstanceContentItem(url: url, isDirectory: directory, origin: origin, modificationDate: values.contentModificationDate, disabledPack: !mods && url.deletingLastPathComponent().standardizedFileURL.path == disabledFolder?.standardizedFileURL.path)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    private func disabledPacksFolder(_ folder: URL) throws -> URL {
+        let name = ".hako-disabled-\(folder.lastPathComponent)"
+        let raw = folder.deletingLastPathComponent().appendingPathComponent(name)
+        guard (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message("Папка отключённых паков не может быть ссылкой.") }
+        return try InstanceStorage.containedURL(name, in: folder.deletingLastPathComponent())
+    }
+
+    func packIconData(_ item: InstanceContentItem) async throws -> Data? {
+        let values = try item.url.resourceValues(forKeys: [.isSymbolicLinkKey])
+        guard values.isSymbolicLink != true else { return nil }
+        if !item.isDirectory { return try await FabricClient.archiveEntry("pack.png", in: item.url, limit: 4_194_304) }
+        let raw = item.url.appendingPathComponent("pack.png")
+        guard FileManager.default.fileExists(atPath: raw.path) else { return nil }
+        let imageValues = try raw.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey])
+        guard imageValues.isSymbolicLink != true, imageValues.isRegularFile == true, (imageValues.fileSize ?? 0) <= 4_194_304 else { return nil }
+        return try Data(contentsOf: InstanceStorage.containedURL("pack.png", in: item.url))
     }
 
     func modIconData(_ item: InstanceContentItem) async throws -> Data? {
@@ -118,7 +141,11 @@ actor InstanceContent {
     }
 
     private func existing(_ name: String, in folder: URL, mods: Bool) throws -> URL? {
-        let matches = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil).filter {
+        let folders = mods ? [folder] : [folder, try disabledPacksFolder(folder)]
+        let files = try folders.flatMap { directory in
+            FileManager.default.fileExists(atPath: directory.path) ? try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) : []
+        }
+        let matches = files.filter {
             (mods ? InstanceContentItem.logicalName($0.lastPathComponent) : $0.lastPathComponent).lowercased() == name.lowercased()
         }
         guard matches.count <= 1 else { throw InstanceFileError.message("Найдено несколько файлов \(name). Уберите дубликаты в папке сборки.") }
@@ -152,7 +179,8 @@ actor InstanceContent {
         let existing = try existing(source.lastPathComponent, in: folder, mods: mods)
         if existing != nil && !replace { throw PackImportError.exists(source.lastPathComponent) }
         let disabled = mods && existing?.lastPathComponent.lowercased().hasSuffix(".jar.disabled") == true
-        let destination = try InstanceStorage.containedURL(source.lastPathComponent + (disabled ? ".disabled" : ""), in: folder)
+        let destinationFolder = !mods && existing != nil ? existing!.deletingLastPathComponent() : folder
+        let destination = try InstanceStorage.containedURL(source.lastPathComponent + (disabled ? ".disabled" : ""), in: destinationFolder)
         let staged = folder.appendingPathComponent(".import-\(UUID().uuidString)")
         let backup = folder.appendingPathComponent(".replace-\(UUID().uuidString)")
         defer { try? manager.removeItem(at: staged) }
@@ -172,19 +200,23 @@ actor InstanceContent {
         if existing != nil { try manager.removeItem(at: backup) }
     }
 
-    func setEnabled(_ item: InstanceContentItem, in folder: URL, enabled: Bool) throws {
+    func setEnabled(_ item: InstanceContentItem, in folder: URL, enabled: Bool, mods: Bool = true) throws {
         let source = try checkedFile(item, in: folder)
-        let name = item.logicalName + (enabled ? "" : ".disabled")
-        guard name != item.name else { return }
-        let target = try InstanceStorage.containedURL(name, in: folder)
-        let collision = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil).contains { $0.lastPathComponent.lowercased() == name.lowercased() }
+        guard enabled != item.enabled else { return }
+        let name = mods ? item.logicalName + (enabled ? "" : ".disabled") : item.name
+        let targetFolder = mods || enabled ? folder : try disabledPacksFolder(folder)
+        try FileManager.default.createDirectory(at: targetFolder, withIntermediateDirectories: true)
+        let target = try InstanceStorage.containedURL(name, in: targetFolder)
+        let collision = try FileManager.default.contentsOfDirectory(at: targetFolder, includingPropertiesForKeys: nil).contains { $0.lastPathComponent.lowercased() == name.lowercased() }
         guard !collision else { throw PackImportError.exists(name) }
         try FileManager.default.moveItem(at: source, to: target)
     }
 
     private func checkedFile(_ item: InstanceContentItem, in folder: URL) throws -> URL {
-        let target = try InstanceStorage.containedURL(item.name, in: folder)
-        let raw = folder.appendingPathComponent(item.name)
+        let parent = item.disabledPack ? try disabledPacksFolder(folder) : folder
+        guard item.url.deletingLastPathComponent().standardizedFileURL.path == parent.standardizedFileURL.path else { throw InstanceFileError.message("Файл не принадлежит папке сборки.") }
+        let target = try InstanceStorage.containedURL(item.name, in: parent)
+        let raw = parent.appendingPathComponent(item.name)
         guard (try raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message("Файл содержимого не может быть ссылкой.") }
         return target
     }

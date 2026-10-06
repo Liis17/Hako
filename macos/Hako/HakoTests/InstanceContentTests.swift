@@ -29,6 +29,45 @@ struct InstanceContentTests {
         await #expect(throws: MojangError.self) { try await FabricClient.archiveEntry("../small.png", in: archive, limit: 1024) }
     }
 
+    @Test(arguments: [false, true]) func packsKeepIconsAndDisabledStateThroughReplacement(zipped: Bool) async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pack = root.appendingPathComponent("Pack")
+        try FileManager.default.createDirectory(at: pack, withIntermediateDirectories: true)
+        let icon = Data("pack icon".utf8)
+        try icon.write(to: pack.appendingPathComponent("pack.png"))
+        try Data("{}".utf8).write(to: pack.appendingPathComponent("pack.mcmeta"))
+        let source: URL
+        if zipped {
+            source = root.appendingPathComponent("Pack.zip")
+            let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+            process.currentDirectoryURL = pack; process.arguments = ["-q", source.path, "pack.png", "pack.mcmeta"]
+            try process.run(); process.waitUntilExit()
+            #expect(process.terminationStatus == 0)
+        } else { source = pack }
+        let folder = root.appendingPathComponent("minecraft/resourcepacks"), content = InstanceContent()
+        try await content.importPack(from: source, into: folder)
+        let active = try #require(await content.list(at: folder, mods: false).first)
+        #expect(try await content.packIconData(active) == icon)
+        try await content.setEnabled(active, in: folder, enabled: false, mods: false)
+        #expect(!FileManager.default.fileExists(atPath: active.url.path))
+        let disabled = try #require(await InstanceContent().list(at: folder, mods: false).first)
+        #expect(!disabled.enabled)
+        #expect(try await content.packIconData(disabled) == icon)
+        await #expect(throws: PackImportError.self) { try await content.importPack(from: source, into: folder) }
+        try await content.importPack(from: source, into: folder, replace: true)
+        let replaced = try #require(await content.list(at: folder, mods: false).first)
+        #expect(!replaced.enabled)
+        #expect(replaced.url == disabled.url)
+        try FileManager.default.copyItem(at: source, to: active.url)
+        await #expect(throws: PackImportError.self) { try await content.setEnabled(replaced, in: folder, enabled: true, mods: false) }
+        try FileManager.default.removeItem(at: active.url)
+        try await content.setEnabled(replaced, in: folder, enabled: true, mods: false)
+        let restored = try #require(await content.list(at: folder, mods: false).first)
+        #expect(restored.enabled && restored.url == active.url)
+        #expect(try await content.packIconData(restored) == icon)
+    }
+
     @Test func importsAreIndependentAndReplacementRequiresConsent() async throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }

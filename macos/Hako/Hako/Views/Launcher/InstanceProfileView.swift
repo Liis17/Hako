@@ -308,9 +308,7 @@ private struct InstanceFilesView: View {
             }
             ForEach(items) { item in
                 HStack(spacing: 12) {
-                    if mods {
-                        InstanceModIcon(item: item)
-                    } else { Image(systemName: item.isDirectory ? "folder" : "doc.zipper").foregroundStyle(Color.sakuraDeep) }
+                    InstanceFileIcon(item: item, mods: mods)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(item.logicalName).lineLimit(2).textSelection(.enabled).foregroundStyle(item.enabled ? .primary : .secondary)
                         if mods {
@@ -328,10 +326,8 @@ private struct InstanceFilesView: View {
                         Button("Обновить", systemImage: "arrow.down.circle") { content.update(item, in: instance) }
                             .buttonStyle(.glass).help("Fabric API \(update.version)").disabled(disabledReason != nil)
                     }
-                    if mods {
-                        Toggle("Активность \(item.logicalName)", isOn: Binding(get: { item.enabled }, set: { content.setEnabled(item, in: instance, enabled: $0) }))
-                            .toggleStyle(.switch).labelsHidden().disabled(disabledReason != nil)
-                    }
+                    Toggle("Активность \(item.logicalName)", isOn: Binding(get: { item.enabled }, set: { content.setEnabled(item, in: instance, enabled: $0, mods: mods) }))
+                        .toggleStyle(.switch).labelsHidden().disabled(disabledReason != nil)
                     Menu {
                         Button("Показать в Finder", systemImage: "folder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
                         if let origin = item.origin { Button("Открыть страницу на \(origin.source.title)", systemImage: "arrow.up.right.square") { NSWorkspace.shared.open(origin.pageURL) } }
@@ -372,15 +368,16 @@ private struct InstanceFilesView: View {
     }
 }
 
-private struct InstanceModIcon: View {
+private struct InstanceFileIcon: View {
     let item: InstanceContentItem
+    let mods: Bool
     @Environment(InstanceContentController.self) private var content
     @State private var image: NSImage?
 
     var body: some View {
         Group {
             if let image { Image(nsImage: image).resizable().scaledToFit() }
-            else { Image(systemName: "puzzlepiece.extension.fill").font(.title2).foregroundStyle(Color.sakuraDeep) }
+            else { Image(systemName: mods ? "puzzlepiece.extension.fill" : "photo.fill").font(.title2).foregroundStyle(Color.sakuraDeep) }
         }
         .frame(width: 40, height: 40)
         .background(.white.opacity(0.35), in: .rect(cornerRadius: 8))
@@ -389,7 +386,8 @@ private struct InstanceModIcon: View {
         .accessibilityHidden(true)
         .task(id: "\(item.url.path):\(item.modificationDate?.timeIntervalSince1970 ?? 0)") {
             image = nil
-            if let data = try? await content.installations.content.modIconData(item), !Task.isCancelled { image = NSImage(data: data) }
+            let data = try? await (mods ? content.installations.content.modIconData(item) : content.installations.content.packIconData(item))
+            if let data, !Task.isCancelled { image = NSImage(data: data) }
         }
     }
 }
