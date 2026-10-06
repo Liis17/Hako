@@ -63,6 +63,21 @@ nonisolated enum InstallationState: String, Codable, Sendable {
     var javaMajorVersion = 0
     var javaExecutable = "jre.bundle/Contents/Home/bin/java"
     var legacyTexturepacks = false
+    var modLoaderRaw = "vanilla"
+    var fabricConfigurationData: Data?
+    var fabricProfileSHA1: String?
+
+    var modLoader: ModLoader { ModLoader(rawValue: modLoaderRaw) ?? .vanilla }
+    var loaderTitle: String {
+        guard modLoader == .fabric else { return modLoaderRaw == "vanilla" ? "Vanilla" : modLoaderRaw }
+        return "Fabric \((try? fabricConfiguration())?.loaderVersion ?? "")"
+    }
+    func fabricConfiguration() throws -> FabricConfiguration? {
+        guard let loader = ModLoader(rawValue: modLoaderRaw) else { throw InstanceFileError.message("Неизвестный загрузчик модов: \(modLoaderRaw).") }
+        guard loader == .fabric else { return nil }
+        guard let fabricConfigurationData else { throw InstanceFileError.message("Конфигурация Fabric отсутствует. Повторите установку сборки.") }
+        return try JSONDecoder().decode(FabricConfiguration.self, from: fabricConfigurationData)
+    }
 
     init(name: String, folderName: String, versionID: String, metadataURL: String, metadataSHA1: String) {
         self.name = name
@@ -121,6 +136,8 @@ nonisolated enum InstallationState: String, Codable, Sendable {
 }
 
 struct InstanceDraft {
+    var modLoader = ModLoader.vanilla
+    var fabricConfiguration: FabricConfiguration?
     var name = ""
     var iconSymbol = "shippingbox.fill"
     var iconData: Data?
@@ -132,6 +149,8 @@ struct InstanceDraft {
     init() {}
 
     init(instance: GameInstance) {
+        modLoader = instance.modLoader
+        fabricConfiguration = try? instance.fabricConfiguration()
         name = instance.name
         iconSymbol = instance.iconSymbol
         argumentSource = instance.argumentSource

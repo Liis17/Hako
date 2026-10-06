@@ -91,6 +91,8 @@ import Testing
             try old.mainContext.save()
         }
         let updated = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(url: url))
+        let migratedInstances = try updated.mainContext.fetch(FetchDescriptor<GameInstance>())
+        #expect(migratedInstances.allSatisfy { $0.modLoader == .vanilla && $0.fabricConfigurationData == nil })
         let preserved = try #require(updated.mainContext.fetch(FetchDescriptor<GameInstance>()).first)
         #expect(preserved.id == id && preserved.folderName == "Preserved" && preserved.argumentSourceRaw == nil)
         try LaunchSettingsMigration.run(context: updated.mainContext, defaults: defaults)

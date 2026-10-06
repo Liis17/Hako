@@ -94,6 +94,11 @@ nonisolated struct InstanceStorage: Sendable {
         instance.javaMajorVersion = javaMajorVersion
         instance.legacyTexturepacks = legacyTexturepacks
         do {
+            if draft.modLoader == .fabric {
+                guard let configuration = draft.fabricConfiguration, !configuration.loaderVersion.isEmpty else { throw InstanceFileError.message("Выберите версию Fabric Loader.") }
+                instance.fabricConfigurationData = try JSONEncoder().encode(configuration)
+            }
+            instance.modLoaderRaw = draft.modLoader.rawValue
             try FileManager.default.createDirectory(at: url.appendingPathComponent("java"), withIntermediateDirectories: false)
             try FileManager.default.createDirectory(at: url.appendingPathComponent("minecraft"), withIntermediateDirectories: false)
             if let data = draft.iconData { try data.write(to: url.appendingPathComponent("icon.png"), options: .atomic) }

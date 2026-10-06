@@ -35,6 +35,8 @@
 		F7A00000000000000000003E /* HakoPlaytimeHelper in Embed playtime helper */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000031 /* HakoPlaytimeHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
 		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
+		B4588F83C3B9F0485A2B8929 /* Hako/Minecraft/FabricModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D451EB603BA15CEF3FDC6D8E /* Hako/Minecraft/FabricModels.swift */; };
+		E38E63D0F70D7344DFBE6E28 /* Hako/Minecraft/FabricClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1144EB16EEA816036B6A215B /* Hako/Minecraft/FabricClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -89,6 +91,8 @@
 		F7A000000000000000000014 /* Hako/Playtime/PlaytimeHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeHelperClient.swift; sourceTree = SOURCE_ROOT; };
 		F7A000000000000000000015 /* Hako/Playtime/PlaytimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeFormatter.swift; sourceTree = SOURCE_ROOT; };
 		F7A000000000000000000031 /* HakoPlaytimeHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = HakoPlaytimeHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		D451EB603BA15CEF3FDC6D8E /* Hako/Minecraft/FabricModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/FabricModels.swift; sourceTree = SOURCE_ROOT; };
+		1144EB16EEA816036B6A215B /* Hako/Minecraft/FabricClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/FabricClient.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -152,6 +156,8 @@
 		90AD16F7D5E045B89C203407 /* Skin Test Sources */ = {
 			isa = PBXGroup;
 			children = (
+				1144EB16EEA816036B6A215B /* Hako/Minecraft/FabricClient.swift */,
+				D451EB603BA15CEF3FDC6D8E /* Hako/Minecraft/FabricModels.swift */,
 				F7A000000000000000000015 /* Hako/Playtime/PlaytimeFormatter.swift */,
 				F7A000000000000000000013 /* Hako/Playtime/PlaytimeJournal.swift */,
 				F7A000000000000000000014 /* Hako/Playtime/PlaytimeHelperClient.swift */,
@@ -304,6 +310,8 @@
 		8F1FCCEB115745ABA0EF12F5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				E38E63D0F70D7344DFBE6E28 /* Hako/Minecraft/FabricClient.swift in Sources */,
+				B4588F83C3B9F0485A2B8929 /* Hako/Minecraft/FabricModels.swift in Sources */,
 				532E7356524829C76834ADE8 /* Hako/Instances/GameInstance.swift in Sources */,
 				D491978AF7318A6470038C86 /* Hako/Instances/InstanceStorage.swift in Sources */,
 				F6D5560D00A2FE27B58DD1D5 /* Hako/GameLaunchDefaults.swift in Sources */,

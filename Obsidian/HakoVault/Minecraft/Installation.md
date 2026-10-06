@@ -47,3 +47,13 @@ Intel fallback на Apple Silicon, запуск игры через Rosetta, д�
 Совместимость определяется метаданными, а не сравнением текстовых номеров версий. Intel-процесс лаунчера
 под Rosetta определяется через `sysctl.proc_translated` как Apple Silicon ([документация Apple](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment)).
 URL загрузок должен быть HTTPS; пути, архивы и симлинки не могут выходить за папку сборки.
+
+## Каталог Fabric и Fabric API
+
+`Minecraft/FabricClient.swift` читает Fabric Meta и только официальный Fabric API (`P7dR8mSH`) из Modrinth.
+`prepare(minecraft:java:)` выбирает новейший release API, иначе beta/alpha, по точному Minecraft,
+проверяет кэшированный JAR по SHA-512/SHA-1 и читает `fabric.mod.json` через `unzip -p` без распаковки.
+Версии Loader фильтруются по требованиям Loader/Java; рекомендуемая версия определяется флагом Meta `stable`.
+Кэш расположен в `Library/Caches/Hako/FabricAPI`, папка сборки до сохранения не создаётся.
+`FabricVersionPredicate` использует AND между термами строки и OR между строками массива; поддерживает
+сравнения, диапазоны `~`/`^`, wildcard и prerelease. Modrinth запрашивается с User-Agent Hako.
