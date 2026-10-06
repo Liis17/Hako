@@ -156,7 +156,7 @@ import Testing
         defer { session.invalidateAndCancel() }
         let (version, responses) = try miniature(delay: 0.3)
         MojangTestProtocol.prepare(responses)
-        let container = try ModelContainer(for: GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let client = MojangClient(session: session)
         let coordinator = InstallationCoordinator(context: container.mainContext, storage: .init(root: root), client: client, installer: MinecraftInstaller(client: client, session: session))
         var draft = InstanceDraft(); draft.name = "Interrupted"
@@ -185,7 +185,7 @@ import Testing
     @Test func relaunchRestoresPauseRequestedBeforeCancellationFinished() throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }
-        let container = try ModelContainer(for: GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let coordinator = InstallationCoordinator(context: container.mainContext, storage: .init(root: root))
         var draft = InstanceDraft(); draft.name = "Stopping"
         let instance = try coordinator.store.create(draft, versionID: "v", metadataURL: "https://fixtures.test/version", metadataSHA1: "hash")
@@ -203,7 +203,7 @@ import Testing
         defer { session.invalidateAndCancel() }
         let (version, responses) = try miniature()
         MojangTestProtocol.prepare(responses)
-        let container = try ModelContainer(for: GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let client = MojangClient(session: session)
         let coordinator = InstallationCoordinator(context: container.mainContext, storage: .init(root: root), client: client, installer: MinecraftInstaller(client: client, session: session))
         var draft = InstanceDraft(); draft.name = "Invalid"

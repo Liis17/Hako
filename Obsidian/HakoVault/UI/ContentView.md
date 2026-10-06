@@ -19,7 +19,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator` и `GameLaunchCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координаторы |
+| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator` и `PlaytimeCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координаторы |
 
 ## Выбор экрана
 

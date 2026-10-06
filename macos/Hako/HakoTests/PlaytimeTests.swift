@@ -235,4 +235,12 @@ import Darwin
         #expect(playtime.instanceSeconds(first, xuid: "first") == 120)
         #expect(playtime.instanceSeconds(second, xuid: "first") == 90)
     }
+
+    @Test(arguments: [
+        (0.0, "0 мин"), (0.1, "меньше минуты"), (59.9, "меньше минуты"),
+        (60.0, "1 мин"), (2099.9, "34 мин"), (3600.0, "1 ч 0 мин"),
+        (45240.0, "12 ч 34 мин"), (176520.0, "49 ч 2 мин"),
+    ]) func durationUsesWholeMinutesAndNeverTurnsHoursIntoDays(seconds: Double, expected: String) {
+        #expect(PlaytimeFormatter.string(seconds) == expected)
+    }
 }

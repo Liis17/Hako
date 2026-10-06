@@ -4,7 +4,7 @@ import Testing
 
 @MainActor struct GameInstanceTests {
     private func container() throws -> ModelContainer {
-        try ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
     private func temporary() throws -> URL {
@@ -105,7 +105,7 @@ import Testing
             old.mainContext.insert(Account(xbox: XboxProfile(xuid: "preserved", gamertag: "Player", avatarURL: nil), email: nil))
             try old.mainContext.save()
         }
-        let updated = try ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(url: url))
+        let updated = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(url: url))
         #expect(try updated.mainContext.fetch(FetchDescriptor<Account>()).first?.xuid == "preserved")
     }
 

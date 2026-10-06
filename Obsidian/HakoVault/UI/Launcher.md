@@ -22,6 +22,7 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Instances/InstanceContent.swift` | `InstanceContent` | Локальные списки, независимый импорт и корзина |
 | `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Глобальные параметры игры, место на диске и сведения о приложении |
 | `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView`, `GuestProfileView` | Профиль аккаунта, повтор подключения Minecraft, выход и предложение входа гостю |
+| `macos/Hako/Hako/Views/Launcher/PlaytimeSummaryView.swift` | `PlaytimeSummaryView` | Общее игровое время аккаунта или гостя и ошибка сохранения |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView` | Анимированная модель скина справа в профиле |
 | `macos/Hako/Hako/Views/Avatars.swift` | `AccountAvatar`, `XboxAvatar`, `MinecraftHead` | Аватары аккаунтов |
 
@@ -29,7 +30,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `LauncherView(account: Account?, onSignIn:)` | Требует SwiftData со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator` и `GameLaunchCoordinator` в окружении. Начальная вкладка — `.instances`; `onSignIn` открывает вход из гостевого профиля |
+| `LauncherView(account: Account?, onSignIn:)` | Требует SwiftData со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator` и `PlaytimeCoordinator` в окружении. Начальная вкладка — `.instances`; `onSignIn` открывает вход из гостевого профиля |
 | `LauncherPage(caption:title:content:)` | Японская подпись, `heroTitle`, содержимое; выравнивание по верхнему левому краю, появление через `reveal` |
 | `AccountAvatar(account:)` | Голова Minecraft, если известен `minecraftSkinURL`, иначе `XboxAvatar` |
 | `XboxAvatar(url:name:)` | `AsyncImage`; пока картинки нет или она не загрузилась — первая буква `name` на градиенте `sakuraDeep` |
@@ -59,12 +60,13 @@ Parent: [[Index]]
 | `InstancesView` | パック | «Сборки», центрированный блок создания первой сборки либо адаптивная сетка карточек |
 | `InstanceProfileView` | — | Профиль выбранной сборки: установка, моды, текстурпаки и настройки |
 | `SettingsView` | 設定 | Разделы «Игра», «Хранилище», «О приложении» |
-| `ProfileView` | プロフィール | «Профиль»: строки Xbox и Java Edition, кнопка «Выйти», 3D-скин справа |
-| `GuestProfileView` | プロフィール | Пояснение о гостевом режиме и кнопка Microsoft-входа |
+| `ProfileView` | プロフィール | «Профиль»: строки Xbox и Java Edition, общее время Minecraft, кнопка «Выйти», 3D-скин справа |
+| `GuestProfileView` | プロフィール | Гостевое время, пояснение о переносе при входе и кнопка Microsoft-входа |
 
 `ProfileView(account:minecraftStatus:)` — две колонки: слева заголовок, две стеклянные строки
-(ширина 400–600 pt) и выход; справа [[UI/MinecraftSkin|3D-скин]] на прозрачном фоне.
-Колонки разделены 32 pt, область модели — от 240 pt, компоновка поддерживает минимум окна 960×540.
+(ширина 400–600 pt), общее время и выход; справа [[UI/MinecraftSkin|3D-скин]] на прозрачном фоне.
+Колонки разделены 32 pt, область модели — от 240 pt, компоновка поддерживает минимум окна 960×540. Левая колонка прокручивается, чтобы статистика
+и выход оставались доступны при небольшой высоте.
 
 Строки аккаунтов:
 
@@ -73,6 +75,13 @@ Parent: [[Index]]
   «Minecraft не подключён» и текст по `MinecraftStatus` (`idle` — недоступен для аккаунта,
   `connecting` — «Подключаем Minecraft…», `failed` — сообщение ошибки).
   `MinecraftStatus` определён в `Auth/MinecraftSessionCoordinator.swift`; сохранённый ник сам по себе не подтверждает сессию.
+
+`PlaytimeSummaryView(xuid:)` показывает «Время в Minecraft» через общий `PlaytimeCoordinator`.
+Статистика привязана к XUID; `nil` выбирает гостя. `PlaytimeFormatter.string(_:)` используется также
+для сборок: `0 мин`, `меньше минуты`, целые минуты либо часы и минуты, без перехода к дням.
+Значения обновляются при чтении игровых журналов каждые 10 секунд, без повторного открытия страницы.
+Ошибка записи отображается в строке статистики; игра продолжается. При Microsoft-входе накопленное
+гостевое время и работающие гостевые сессии переходят аккаунту ([[Data/Persistence]]).
 
 3D-превью использует UUID, URL и вариант скина из `Account`. До загрузки и при ошибке
 показывает классического Стива; реальные статус подключения и аватары строк остаются источником
@@ -117,7 +126,8 @@ Sheet не закрывается кликом снаружи (`interactiveDismi
 Подтверждённая отмена удаляет только черновик. После успешного `InstanceStore.create` форма закрывается,
 выбирается вкладка сборок и запускается общая очередь. Ошибка сохранения остаётся в форме.
 
-Карточка показывает иконку, имя, Minecraft, Vanilla и состояние/прогресс установки.
+Карточка показывает иконку, имя, Minecraft, Vanilla, состояние/прогресс установки и «Наиграно»
+для текущего аккаунта либо гостя, по UUID сборки.
 Кнопка с основными сведениями открывает профиль через UUID, «Играть» — отдельная соседняя кнопка;
 в карточке запуск расположен справа от статуса установки, вложенных `Button` нет.
 Иконка рейла открывает тот же профиль. Установка продолжается при смене страницы.
@@ -133,7 +143,9 @@ Microsoft/Xbox-вход сам по себе не разрешает онлай�
 
 `InstanceProfileView` показывает заголовок, состояние установки и разделы «Моды», «Текстурпаки»,
 «Настройки». Рядом с основными сведениями расположены те же `InstancePlayControls`.
-UUID выбирает профиль независимо от переименования папки.
+UUID выбирает профиль независимо от переименования папки. В заголовке показано «Наиграно» с тем же
+значением и форматтером, что на карточке. Общее время профиля хранится независимо от сборок
+и сохраняется после их удаления ([[Minecraft/Launching]]).
 
 - Моды — просмотр локальных JAR в `minecraft/mods`, открытие папки в Finder и пояснение,
   что Vanilla их не поддерживает.

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F7A000000000000000000006 /* PlaytimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000015 /* PlaytimeFormatter.swift */; };
 		F7A000000000000000000004 /* PlaytimeHelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000014 /* PlaytimeHelperClient.swift */; };
 		F7A000000000000000000005 /* PlaytimeJournal.swift in Helper Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000013 /* PlaytimeJournal.swift */; };
 		F7A00000000000000000003E /* HakoPlaytimeHelper in CopyFiles */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000031 /* HakoPlaytimeHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -37,6 +38,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F7A000000000000000000015 /* PlaytimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeFormatter.swift; sourceTree = SOURCE_ROOT; };
 		F7A000000000000000000014 /* PlaytimeHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeHelperClient.swift; sourceTree = SOURCE_ROOT; };
 		F7A000000000000000000031 /* HakoPlaytimeHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = HakoPlaytimeHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7A000000000000000000013 /* PlaytimeJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeJournal.swift; sourceTree = SOURCE_ROOT; };
@@ -128,6 +130,7 @@
 		90AD16F7D5E045B89C203407 /* Skin Test Sources */ = {
 			isa = PBXGroup;
 			children = (
+				F7A000000000000000000015 /* PlaytimeFormatter.swift */,
 				F7A000000000000000000013 /* PlaytimeJournal.swift */,
 				F7A000000000000000000014 /* PlaytimeHelperClient.swift */,
 				F7A000000000000000000011 /* PlaytimeModels.swift */,
@@ -284,6 +287,7 @@
 				F7A000000000000000000002 /* PlaytimeCoordinator.swift in Sources */,
 				F7A000000000000000000003 /* PlaytimeJournal.swift in Sources */,
 				F7A000000000000000000004 /* PlaytimeHelperClient.swift in Sources */,
+				F7A000000000000000000006 /* PlaytimeFormatter.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

@@ -17,7 +17,7 @@ struct ProfileView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 32) {
-            accountDetails
+            ScrollView { accountDetails }
                 .frame(minWidth: 400, maxWidth: 600)
 
             MinecraftSkinView(source: MinecraftSkinSource(
@@ -54,6 +54,8 @@ struct ProfileView: View {
                             .background(.quaternary, in: .rect(cornerRadius: 10))
                     }
                 }
+
+                PlaytimeSummaryView(xuid: account.xuid)
 
                 if sessions.identity(for: account) == nil || minecraftSubtitle != nil {
                     Button("Повторить подключение Minecraft") { Task { await sessions.connect(account, force: true) } }
@@ -105,6 +107,8 @@ struct GuestProfileView: View {
                 Label("Вы продолжили без аккаунта", systemImage: "person.crop.circle").font(.title3.weight(.semibold))
                 Text("Для онлайн-запуска подключите аккаунт Microsoft с Minecraft: Java Edition. Offline-mode включается отдельно в настройках каждой сборки.")
                     .foregroundStyle(.secondary)
+                PlaytimeSummaryView(xuid: nil)
+                Text("При входе гостевое время будет добавлено к вашему аккаунту.").font(.callout).foregroundStyle(.secondary)
                 Button("Войти в Microsoft", action: onSignIn).buttonStyle(.glassProminent).tint(.sakuraDeep).controlSize(.large)
             }.frame(maxWidth: 600, alignment: .leading).instanceSurface()
         }

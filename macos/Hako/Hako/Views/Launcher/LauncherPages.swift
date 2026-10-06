@@ -38,6 +38,7 @@ struct InstancesView: View {
     let onCreate: () -> Void
     let onOpen: (GameInstance) -> Void
     @Environment(InstallationCoordinator.self) private var installations
+    @Environment(PlaytimeCoordinator.self) private var playtime
 
     var body: some View {
         LauncherPage(caption: "パック", title: "Сборки") {
@@ -78,6 +79,8 @@ struct InstancesView: View {
                                                 ProgressView(value: progress.fraction).tint(.sakuraDeep)
                                                 Text(progress.stage).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                             }
+                                            Label("Наиграно: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
+                                                .font(.callout).foregroundStyle(.secondary)
                                         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                                     }.buttonStyle(.plain).accessibilityLabel("Открыть сборку \(instance.name)")
                                     InstancePlayControls(instance: instance, account: account, compact: true)

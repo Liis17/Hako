@@ -12,6 +12,7 @@ struct InstanceProfileView: View {
     var account: Account?
     let onBack: () -> Void
     @Environment(InstallationCoordinator.self) private var installations
+    @Environment(PlaytimeCoordinator.self) private var playtime
     @State private var section = InstanceSection.mods
     @State private var actionError: String?
 
@@ -24,6 +25,8 @@ struct InstanceProfileView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(instance.name).font(.system(size: 44, weight: .heavy)).tracking(-1).lineLimit(2).minimumScaleFactor(0.55)
                     Text("Minecraft \(instance.versionID) · Vanilla · Java \(instance.javaMajorVersion)").foregroundStyle(.secondary)
+                    Label("Наиграно: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
                 InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .leading)

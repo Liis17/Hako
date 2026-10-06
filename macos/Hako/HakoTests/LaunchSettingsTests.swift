@@ -31,7 +31,7 @@ import Testing
     @Test func migrationPreservesProfilesAndSnapshotsOldGlobalWindowOnce() throws {
         let suite = "hako.migration.\(UUID().uuidString)", defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
-        let container = try ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let global = instance(), custom = instance()
         global.argumentSourceRaw = nil; global.usesGlobalParameters = true
         custom.argumentSourceRaw = nil; custom.usesGlobalParameters = false; custom.javaArguments = "-Xmx3G"; custom.windowWidth = 800
@@ -90,7 +90,7 @@ import Testing
             old.mainContext.insert(Account(xbox: .init(xuid: "old-account", gamertag: "Steve", avatarURL: nil), email: nil))
             try old.mainContext.save()
         }
-        let updated = try ModelContainer(for: GameInstance.self, Account.self, configurations: ModelConfiguration(url: url))
+        let updated = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(url: url))
         let preserved = try #require(updated.mainContext.fetch(FetchDescriptor<GameInstance>()).first)
         #expect(preserved.id == id && preserved.folderName == "Preserved" && preserved.argumentSourceRaw == nil)
         try LaunchSettingsMigration.run(context: updated.mainContext, defaults: defaults)
