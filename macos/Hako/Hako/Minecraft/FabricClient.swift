@@ -104,20 +104,20 @@ actor FabricClient {
         let handle = try FileHandle(forWritingTo: output)
         defer { try? handle.close() }
         let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        defer { if process.isRunning { kill(process.processIdentifier, SIGKILL); process.waitUntilExit() } }
+        // waitUntilExit крутит run loop текущего потока и на потоках Swift Concurrency может не вернуться.
+        defer { if process.isRunning { kill(process.processIdentifier, SIGKILL); while process.isRunning { usleep(1_000) } } }
         process.arguments = ["-p", archive.path, entry]; process.standardOutput = handle; process.standardError = FileHandle.nullDevice
         try process.run()
         let deadline = Date().addingTimeInterval(10)
         while process.isRunning {
             let size = try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
             if Task.isCancelled || Date() > deadline || size > limit {
-                process.interrupt(); process.terminate(); kill(process.processIdentifier, SIGKILL); process.waitUntilExit()
+                process.interrupt(); process.terminate(); kill(process.processIdentifier, SIGKILL); while process.isRunning { usleep(1_000) }
                 try Task.checkCancellation()
                 throw MojangError.invalid("Не удалось прочитать metadata Fabric API.")
             }
             try await Task.sleep(for: .milliseconds(20))
         }
-        process.waitUntilExit()
         guard process.terminationStatus == 0, (try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= limit else { throw MojangError.invalid("В Fabric API отсутствует fabric.mod.json.") }
         return try Data(contentsOf: output)
     }
