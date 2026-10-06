@@ -144,7 +144,7 @@ import SwiftData
         controller.setEnabled(item, in: instance, enabled: false)
         for _ in 0..<100 where controller.confirmation == nil { try await Task.sleep(for: .milliseconds(10)) }
         #expect(controller.confirmation?.message.contains("Моды, зависящие") == true)
-        controller.resolveConfirmation(accepted: true)
+        controller.resolveConfirmation(try #require(controller.confirmation).id, accepted: true)
         for _ in 0..<100 where installations.contentBusy.contains(instance.id) { try await Task.sleep(for: .milliseconds(10)) }
         let disabled = try #require(controller.mods[instance.id]?.first)
         #expect(!disabled.enabled)

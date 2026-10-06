@@ -22,7 +22,10 @@ import Testing
         #expect(installations.store.contentBusy.contains(instance.id))
         #expect(throws: InstanceFileError.self) { try installations.store.rename(instance, to: "Moved") }
         #expect(throws: InstanceFileError.self) { try installations.enqueue(instance) }
-        controller.resolveConfirmation(accepted: true)
+        let confirmationID = try #require(controller.confirmation).id
+        controller.resolveConfirmation(UUID(), accepted: true)
+        #expect(controller.confirmation?.id == confirmationID)
+        controller.resolveConfirmation(confirmationID, accepted: true)
         for _ in 0..<100 where installations.store.contentBusy.contains(instance.id) { try await Task.sleep(for: .milliseconds(10)) }
         #expect(!installations.store.contentBusy.contains(instance.id))
         #expect(controller.mods[instance.id]?.count == 1)

@@ -71,8 +71,8 @@ import Observation
         }
     }
 
-    func resolveConfirmation(accepted: Bool) {
-        guard let confirmation = confirmations.first else { return }
+    func resolveConfirmation(_ id: UUID, accepted: Bool) {
+        guard let confirmation = confirmations.first, confirmation.id == id else { return }
         confirmations.removeFirst()
         answers.removeValue(forKey: confirmation.id)?.resume(returning: accepted)
     }

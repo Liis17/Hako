@@ -66,8 +66,8 @@ struct LauncherView: View {
                 Text(confirmation.message).fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Spacer()
-                    Button("Отмена") { content.resolveConfirmation(accepted: false) }.buttonStyle(.glass).keyboardShortcut(.cancelAction)
-                    Button(confirmation.action, role: confirmation.destructive ? .destructive : nil) { content.resolveConfirmation(accepted: true) }
+                    Button("Отмена") { content.resolveConfirmation(confirmation.id, accepted: false) }.buttonStyle(.glass).keyboardShortcut(.cancelAction)
+                    Button(confirmation.action, role: confirmation.destructive ? .destructive : nil) { content.resolveConfirmation(confirmation.id, accepted: true) }
                         .buttonStyle(.glassProminent).tint(.sakuraDeep).keyboardShortcut(.defaultAction)
                 }
             }.padding(28).frame(width: 460).interactiveDismissDisabled()

@@ -13,9 +13,9 @@ Hako — нативное macOS-приложение: таргет `Hako` (bundl
 Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
 с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
 (карточки и профили сборок, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java и анимированным 3D-скином) и выход.
-Создание ванильной сборки запускает независимую установку Java и Minecraft из официальных API Mojang в фоне.
+Создание сборки запускает независимую установку Java и Minecraft из официальных API Mojang в фоне; для Fabric дополнительно устанавливаются закреплённый Loader и проверенный Fabric API.
 Установленные сборки запускаются онлайн или в offline-mode; гостевой вход открывает лаунчер без аккаунта.
-Загрузчики модов, Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
+Поддерживаются Vanilla и Fabric, локальные моды и Fabric API из официального проекта Modrinth. Общие каталоги Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) нет.
 
 ## Стек
@@ -28,7 +28,7 @@ CocoaPods, Carthage не используются) нет.
 | SwiftData | Аккаунт, профили сборок и игровое время | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Playtime/PlaytimeModels.swift` |
 | UserDefaults / `@AppStorage` | Глобальные параметры игры | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
-| URLSession | Авторизация, каталог и загрузка Minecraft/Java | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift` |
+| URLSession | Авторизация, Minecraft/Java, Fabric Meta и Fabric API | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
 
 ## Структура репозитория
