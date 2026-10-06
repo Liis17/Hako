@@ -28,6 +28,7 @@ nonisolated struct InstanceContentItem: Identifiable, Sendable {
     let url: URL
     let isDirectory: Bool
     var origin: ModOrigin? = nil
+    var modificationDate: Date? = nil
     var id: URL { url }
     var name: String { url.lastPathComponent }
     var enabled: Bool { !name.lowercased().hasSuffix(".jar.disabled") }
@@ -84,16 +85,31 @@ actor InstanceContent {
     func list(at folder: URL, mods: Bool, readOrigins: Bool = true) throws -> [InstanceContentItem] {
         guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
         let origins = mods && readOrigins ? try registry(at: folder).files : [:]
-        return try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey], options: .skipsHiddenFiles).compactMap { url in
-            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey])
+        return try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey, .contentModificationDateKey], options: .skipsHiddenFiles).compactMap { url in
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey, .contentModificationDateKey])
             guard values.isSymbolicLink != true else { return nil }
             let directory = values.isDirectory == true
             let name = InstanceContentItem.logicalName(url.lastPathComponent)
             guard mods ? (values.isRegularFile == true && name.lowercased().hasSuffix(".jar")) : (directory || (values.isRegularFile == true && url.pathExtension.lowercased() == "zip")) else { return nil }
             var origin = origins[name.lowercased()]
             if let known = origin, try FabricClient.hashFile(url) != known.sha512.lowercased() { origin = nil }
-            return InstanceContentItem(url: url, isDirectory: directory, origin: origin)
+            return InstanceContentItem(url: url, isDirectory: directory, origin: origin, modificationDate: values.contentModificationDate)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    func modIconData(_ item: InstanceContentItem) async throws -> Data? {
+        let values = try item.url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        guard values.isRegularFile == true, values.isSymbolicLink != true else { return nil }
+        let metadata = try await FabricClient.archiveEntry("fabric.mod.json", in: item.url, limit: 1_048_576)
+        let json = try JSONSerialization.jsonObject(with: metadata) as? [String: Any]
+        let path: String?
+        if let single = json?["icon"] as? String { path = single }
+        else if let sizes = json?["icon"] as? [String: String] {
+            let candidates = sizes.compactMap { key, value in Int(key).map { (size: $0, path: value) } }.filter { $0.size > 0 }.sorted { $0.size < $1.size }
+            path = (candidates.first { $0.size >= 80 } ?? candidates.last)?.path
+        } else { path = nil }
+        guard let path else { return nil }
+        return try await FabricClient.archiveEntry(path, in: item.url, limit: 4_194_304)
     }
 
     /// Импорт всегда копирует содержимое, поэтому удаление оригинала не меняет сборку.

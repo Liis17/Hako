@@ -92,6 +92,11 @@ actor FabricClient {
     }
 
     @concurrent private static func readMetadata(_ archive: URL) async throws -> FabricModMetadata {
+        return try JSONDecoder().decode(FabricModMetadata.self, from: await archiveEntry("fabric.mod.json", in: archive, limit: 1_048_576))
+    }
+
+    @concurrent static func archiveEntry(_ entry: String, in archive: URL, limit: Int) async throws -> Data {
+        guard !entry.hasPrefix("/"), !entry.contains("\\"), !entry.contains(where: { "*?[]".contains($0) }), entry.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { throw MojangError.invalid("Некорректный путь внутри JAR.") }
         try Task.checkCancellation()
         let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         guard FileManager.default.createFile(atPath: output.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw MojangError.invalid("Не удалось прочитать Fabric API.") }
@@ -100,12 +105,12 @@ actor FabricClient {
         defer { try? handle.close() }
         let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
         defer { if process.isRunning { kill(process.processIdentifier, SIGKILL); process.waitUntilExit() } }
-        process.arguments = ["-p", archive.path, "fabric.mod.json"]; process.standardOutput = handle; process.standardError = FileHandle.nullDevice
+        process.arguments = ["-p", archive.path, entry]; process.standardOutput = handle; process.standardError = FileHandle.nullDevice
         try process.run()
         let deadline = Date().addingTimeInterval(10)
         while process.isRunning {
             let size = try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-            if Task.isCancelled || Date() > deadline || size > 1_048_576 {
+            if Task.isCancelled || Date() > deadline || size > limit {
                 process.interrupt(); process.terminate(); kill(process.processIdentifier, SIGKILL); process.waitUntilExit()
                 try Task.checkCancellation()
                 throw MojangError.invalid("Не удалось прочитать metadata Fabric API.")
@@ -113,8 +118,8 @@ actor FabricClient {
             try await Task.sleep(for: .milliseconds(20))
         }
         process.waitUntilExit()
-        guard process.terminationStatus == 0, (try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 1_048_576 else { throw MojangError.invalid("В Fabric API отсутствует fabric.mod.json.") }
-        return try JSONDecoder().decode(FabricModMetadata.self, from: Data(contentsOf: output))
+        guard process.terminationStatus == 0, (try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= limit else { throw MojangError.invalid("В Fabric API отсутствует fabric.mod.json.") }
+        return try Data(contentsOf: output)
     }
 
     func profile(minecraft: String, loader: String) async throws -> (FabricProfile, Data) {

@@ -309,8 +309,7 @@ private struct InstanceFilesView: View {
             ForEach(items) { item in
                 HStack(spacing: 12) {
                     if mods {
-                        Toggle("Активность \(item.logicalName)", isOn: Binding(get: { item.enabled }, set: { content.setEnabled(item, in: instance, enabled: $0) }))
-                            .toggleStyle(.switch).labelsHidden().disabled(disabledReason != nil)
+                        InstanceModIcon(item: item)
                     } else { Image(systemName: item.isDirectory ? "folder" : "doc.zipper").foregroundStyle(Color.sakuraDeep) }
                     VStack(alignment: .leading, spacing: 6) {
                         Text(item.logicalName).lineLimit(2).textSelection(.enabled).foregroundStyle(item.enabled ? .primary : .secondary)
@@ -328,6 +327,10 @@ private struct InstanceFilesView: View {
                     if mods, item.origin?.api != nil, let update = content.updates[instance.id]?[item.logicalName.lowercased()] {
                         Button("Обновить", systemImage: "arrow.down.circle") { content.update(item, in: instance) }
                             .buttonStyle(.glass).help("Fabric API \(update.version)").disabled(disabledReason != nil)
+                    }
+                    if mods {
+                        Toggle("Активность \(item.logicalName)", isOn: Binding(get: { item.enabled }, set: { content.setEnabled(item, in: instance, enabled: $0) }))
+                            .toggleStyle(.switch).labelsHidden().disabled(disabledReason != nil)
                     }
                     Menu {
                         Button("Показать в Finder", systemImage: "folder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
@@ -366,5 +369,27 @@ private struct InstanceFilesView: View {
             else { content.importFiles(urls, into: instance, mods: mods) }
         }
         return true
+    }
+}
+
+private struct InstanceModIcon: View {
+    let item: InstanceContentItem
+    @Environment(InstanceContentController.self) private var content
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image { Image(nsImage: image).resizable().scaledToFit() }
+            else { Image(systemName: "puzzlepiece.extension.fill").font(.title2).foregroundStyle(Color.sakuraDeep) }
+        }
+        .frame(width: 40, height: 40)
+        .background(.white.opacity(0.35), in: .rect(cornerRadius: 8))
+        .clipShape(.rect(cornerRadius: 8))
+        .opacity(item.enabled ? 1 : 0.5)
+        .accessibilityHidden(true)
+        .task(id: "\(item.url.path):\(item.modificationDate?.timeIntervalSince1970 ?? 0)") {
+            image = nil
+            if let data = try? await content.installations.content.modIconData(item), !Task.isCancelled { image = NSImage(data: data) }
+        }
     }
 }

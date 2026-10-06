@@ -9,6 +9,26 @@ struct InstanceContentTests {
         return root
     }
 
+    @Test(arguments: [false, true]) func readsModIconFromEnabledAndDisabledJAR(sized: Bool) async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let assets = root.appendingPathComponent("assets")
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        let small = Data("small icon".utf8), large = Data("large icon".utf8)
+        try small.write(to: assets.appendingPathComponent("small.png"))
+        try large.write(to: assets.appendingPathComponent("large.png"))
+        let icon: Any = sized ? ["16": "assets/small.png", "128": "assets/large.png"] : "assets/small.png"
+        try JSONSerialization.data(withJSONObject: ["icon": icon]).write(to: root.appendingPathComponent("fabric.mod.json"))
+        let archive = root.appendingPathComponent(sized ? "mod.jar.disabled" : "mod.jar")
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        process.currentDirectoryURL = root; process.arguments = ["-q", "-r", archive.path, "fabric.mod.json", "assets"]
+        try process.run(); process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        let item = InstanceContentItem(url: archive, isDirectory: false)
+        #expect(try await InstanceContent().modIconData(item) == (sized ? large : small))
+        await #expect(throws: MojangError.self) { try await FabricClient.archiveEntry("../small.png", in: archive, limit: 1024) }
+    }
+
     @Test func importsAreIndependentAndReplacementRequiresConsent() async throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }
