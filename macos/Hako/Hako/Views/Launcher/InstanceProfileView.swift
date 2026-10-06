@@ -44,9 +44,12 @@ struct InstanceProfileView: View {
                     .frame(width: 76, height: 76).id(instance.iconRevision)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(instance.name).font(.system(size: 44, weight: .heavy)).tracking(-1).lineLimit(2).minimumScaleFactor(0.55)
-                    Text("Minecraft \(instance.versionID) · Vanilla · Java \(instance.javaMajorVersion)").foregroundStyle(.secondary)
-                    Label("Наиграно: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
-                        .font(.callout).foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        Text("Minecraft \(instance.versionID) · Vanilla · Java \(instance.javaMajorVersion)")
+                            .lineLimit(1).truncationMode(.tail).foregroundStyle(.secondary)
+                        Label("В игре: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
+                            .font(.callout).foregroundStyle(.secondary).fixedSize()
+                    }
                 }
                 Spacer(minLength: 12)
                 InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .leading)
@@ -224,7 +227,7 @@ private struct InstanceSettingsView: View {
             try installations.store.updateSettings(instance, with: draft)
             draft = InstanceDraft(instance: instance)
             error = nil
-        } catch { error = error.localizedDescription }
+        } catch let saveError { error = saveError.localizedDescription }
     }
 
     private func loadManifest() async {

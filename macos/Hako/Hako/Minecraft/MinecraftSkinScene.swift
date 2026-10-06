@@ -16,6 +16,7 @@ final class MinecraftSkinScene {
     var isWalking = false
 
     private var limbs: [Entity] = []
+    private var capePivot: Entity?
     private var phase: Float = 0
     private var revision = 0
 
@@ -35,23 +36,7 @@ final class MinecraftSkinScene {
         try Task.checkCancellation()
         guard requestedRevision == revision else { return }
 
-        let sampler = MTLSamplerDescriptor()
-        sampler.minFilter = .nearest
-        sampler.magFilter = .nearest
-        sampler.mipFilter = .notMipmapped
-        sampler.sAddressMode = .clampToEdge
-        sampler.tAddressMode = .clampToEdge
-        let materials: [any Material] = [1.0, 0.82, 0.9, 0.82, 1.0, 0.7].map { brightness in
-            var material = UnlitMaterial(applyPostProcessToneMap: false)
-            material.color = .init(
-                tint: NSColor(white: brightness, alpha: 1),
-                texture: .init(texture, sampler: .init(sampler))
-            )
-            material.blending = .transparent(opacity: 1.0)
-            material.opacityThreshold = 0.5
-            material.faceCulling = .none
-            return material
-        }
+        let materials = Self.materials(for: texture)
 
         let width: Float = skin.variant == .slim ? 3 : 4
         let armX: Float = 4 + width / 2
@@ -78,8 +63,31 @@ final class MinecraftSkinScene {
             entity.addChild(overlay)
             entities.append(entity)
         }
+
+        var cape: Entity?
+        if let capeImage = skin.capeImage {
+            let capeTexture = try await TextureResource(
+                image: capeImage, options: .init(semantic: .color, mipmapsMode: .none)
+            )
+            try Task.checkCancellation()
+            guard requestedRevision == revision else { return }
+            cape = try Self.cuboid(
+                size: .init(10, 16, 1), uv: .zero, inflation: 0,
+                materials: Self.materials(for: capeTexture), textureSize: .init(64, 32)
+            )
+            let pivot = Entity()
+            pivot.position = .init(0, 8 / 16, -2.75 / 16)
+            cape?.position = .init(0, -8 / 16, 0)
+            if let cape { pivot.addChild(cape) }
+            self.capePivot = pivot
+            cape = pivot
+        } else {
+            capePivot = nil
+        }
+
         root.children.removeAll()
         for entity in entities { root.addChild(entity) }
+        if let cape { root.addChild(cape) }
         limbs = Array(entities.dropFirst(2))
         pose()
     }
@@ -116,10 +124,33 @@ final class MinecraftSkinScene {
                 angle: sin(phase) * amplitude * direction * .pi / 180, axis: .init(1, 0, 0)
             )
         }
+        let capePitch = (20 + (isWalking ? sin(phase) * 3 : 0)) * .pi / 180
+        capePivot?.orientation = simd_quatf(angle: capePitch, axis: .init(1, 0, 0))
+    }
+
+    private static func materials(for texture: TextureResource) -> [any Material] {
+        let sampler = MTLSamplerDescriptor()
+        sampler.minFilter = .nearest
+        sampler.magFilter = .nearest
+        sampler.mipFilter = .notMipmapped
+        sampler.sAddressMode = .clampToEdge
+        sampler.tAddressMode = .clampToEdge
+        return [1.0, 0.82, 0.9, 0.82, 1.0, 0.7].map { brightness in
+            var material = UnlitMaterial(applyPostProcessToneMap: false)
+            material.color = .init(
+                tint: NSColor(white: brightness, alpha: 1),
+                texture: .init(texture, sampler: .init(sampler))
+            )
+            material.blending = .transparent(opacity: 1.0)
+            material.opacityThreshold = 0.5
+            material.faceCulling = .none
+            return material
+        }
     }
 
     private static func cuboid(
-        size: SIMD3<Float>, uv: SIMD2<Float>, inflation: Float, materials: [any Material]
+        size: SIMD3<Float>, uv: SIMD2<Float>, inflation: Float, materials: [any Material],
+        textureSize: SIMD2<Float> = .init(64, 64)
     ) throws -> ModelEntity {
         let half = (size / 2 + SIMD3(repeating: inflation)) / 16
         let x = half.x, y = half.y, z = half.z
@@ -146,8 +177,8 @@ final class MinecraftSkinScene {
             normals += Array(repeating: normal, count: 4)
             // Не захватываем пиксели соседней грани на границе UV-прямоугольника.
             let inset: Float = 0.05
-            let left = (rect.x + inset) / 64, right = (rect.x + rect.z - inset) / 64
-            let top = 1 - (rect.y + inset) / 64, bottom = 1 - (rect.y + rect.w - inset) / 64
+            let left = (rect.x + inset) / textureSize.x, right = (rect.x + rect.z - inset) / textureSize.x
+            let top = 1 - (rect.y + inset) / textureSize.y, bottom = 1 - (rect.y + rect.w - inset) / textureSize.y
             coordinates += [.init(left, bottom), .init(right, bottom), .init(right, top), .init(left, top)]
             triangles += [start, start + 1, start + 2, start, start + 2, start + 3]
             materialIndices += [UInt32(index), UInt32(index)]

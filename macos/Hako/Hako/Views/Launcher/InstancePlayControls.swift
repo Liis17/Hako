@@ -5,14 +5,16 @@ struct InstancePlayControls: View {
     let instance: GameInstance
     var account: Account?
     var compact = false
+    var playtime: String?
     @Environment(GameLaunchCoordinator.self) private var games
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 if compact {
-                    Label(instance.state.title, systemImage: instance.state == .ready ? "checkmark.circle" : instance.state == .failed ? "exclamationmark.circle" : "clock")
-                        .font(.callout).foregroundStyle(instance.state == .failed ? Color.shu : .secondary)
+                    if let playtime {
+                        Label("В игре: \(playtime)", systemImage: "clock").font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                    }
                     Spacer(minLength: 8)
                 }
                 Button("Играть", systemImage: "play.fill") { games.launch(instance, account: account) }

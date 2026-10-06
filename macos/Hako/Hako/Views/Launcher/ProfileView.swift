@@ -23,7 +23,8 @@ struct ProfileView: View {
             MinecraftSkinView(source: MinecraftSkinSource(
                 uuid: account.minecraftUUID,
                 skinURL: account.minecraftSkinURL,
-                variant: account.minecraftSkinVariant.flatMap(MinecraftSkinVariant.init(rawValue:))
+                variant: account.minecraftSkinVariant.flatMap(MinecraftSkinVariant.init(rawValue:)),
+                loadCape: true
             ))
             .frame(minWidth: 240, maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 16)

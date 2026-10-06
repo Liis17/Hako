@@ -9,6 +9,14 @@ struct MinecraftSkinSource: Hashable {
     let uuid: String?
     let skinURL: URL?
     let variant: MinecraftSkinVariant?
+    let loadCape: Bool
+
+    init(uuid: String?, skinURL: URL?, variant: MinecraftSkinVariant?, loadCape: Bool = false) {
+        self.uuid = uuid
+        self.skinURL = skinURL
+        self.variant = variant
+        self.loadCape = loadCape
+    }
 }
 
 /// Загрузка скина без токенов; старым аккаунтам восстанавливает метаданные по UUID.
@@ -18,7 +26,7 @@ final class MinecraftSkinLoader {
 
     private let session: URLSession
     private var skins: [MinecraftSkinSource: MinecraftSkin] = [:]
-    private var profiles: [String: ResolvedSkin] = [:]
+    private var profiles: [String: ResolvedProfile] = [:]
 
     enum LoadingError: Error {
         case httpStatus(Int)
@@ -34,29 +42,35 @@ final class MinecraftSkinLoader {
         guard let uuid = source.uuid else { return nil }
         if let cached = skins[source] { return cached }
 
-        let resolved: ResolvedSkin
-        if let url = source.skinURL, let variant = source.variant {
-            resolved = ResolvedSkin(url: Self.secureURL(url), variant: variant)
+        let needsProfile = source.loadCape || source.skinURL == nil || source.variant == nil
+        let profile: ResolvedProfile?
+        if !needsProfile {
+            profile = nil
         } else if let cached = profiles[uuid] {
-            resolved = cached
+            profile = cached
         } else {
-            let url = URL(string: "https://sessionserver.mojang.com/session/minecraft/profile/")!
-                .appending(path: uuid.replacingOccurrences(of: "-", with: ""))
-            let profile = try JSONDecoder().decode(SessionProfile.self, from: await data(from: url))
-            guard let encoded = profile.properties.first(where: { $0.name == "textures" })?.value,
-                  let decoded = Data(base64Encoded: encoded)
-            else { throw LoadingError.invalidProfile }
-            let textures = try JSONDecoder().decode(TexturePayload.self, from: decoded)
-            resolved = ResolvedSkin(
-                url: textures.textures.skin.flatMap { Self.secureURL($0.url) },
-                variant: textures.textures.skin?.metadata?.model == "slim" ? .slim : .classic
-            )
-            try Task.checkCancellation()
-            profiles[uuid] = resolved
+            do {
+                let resolved = try await resolveProfile(uuid: uuid)
+                try Task.checkCancellation()
+                profiles[uuid] = resolved
+                profile = resolved
+            } catch {
+                try Task.checkCancellation()
+                guard source.skinURL != nil, source.variant != nil else { throw error }
+                profile = nil
+            }
         }
 
-        guard let url = resolved.url else { return nil }
-        let skin = try MinecraftSkin(data: await data(from: url), variant: resolved.variant)
+        guard let url = source.skinURL.flatMap(Self.secureURL) ?? profile?.skinURL else { return nil }
+        let variant = source.variant ?? profile?.variant ?? .classic
+        let capeData: Data?
+        if source.loadCape, let capeURL = profile?.capeURL {
+            capeData = try? await data(from: capeURL)
+        } else {
+            capeData = nil
+        }
+        try Task.checkCancellation()
+        let skin = try MinecraftSkin(data: await data(from: url), variant: variant, capeData: capeData)
         try Task.checkCancellation()
         skins[source] = skin
         return skin
@@ -70,6 +84,21 @@ final class MinecraftSkinLoader {
         return data
     }
 
+    private func resolveProfile(uuid: String) async throws -> ResolvedProfile {
+        let url = URL(string: "https://sessionserver.mojang.com/session/minecraft/profile/")!
+            .appending(path: uuid.replacingOccurrences(of: "-", with: ""))
+        let profile = try JSONDecoder().decode(SessionProfile.self, from: await data(from: url))
+        guard let encoded = profile.properties.first(where: { $0.name == "textures" })?.value,
+              let decoded = Data(base64Encoded: encoded)
+        else { throw LoadingError.invalidProfile }
+        let textures = try JSONDecoder().decode(TexturePayload.self, from: decoded)
+        return ResolvedProfile(
+            skinURL: textures.textures.skin.flatMap { Self.secureURL($0.url) },
+            variant: textures.textures.skin?.metadata?.model == "slim" ? .slim : .classic,
+            capeURL: textures.textures.cape.flatMap { Self.secureURL($0.url) }
+        )
+    }
+
     private static func secureURL(_ url: URL) -> URL? {
         guard url.scheme == "https" || url.scheme == "http",
               var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -78,9 +107,10 @@ final class MinecraftSkinLoader {
         return components.url
     }
 
-    private struct ResolvedSkin {
-        let url: URL?
+    private struct ResolvedProfile {
+        let skinURL: URL?
         let variant: MinecraftSkinVariant
+        let capeURL: URL?
     }
 
     private struct SessionProfile: Decodable {
@@ -100,9 +130,14 @@ final class MinecraftSkinLoader {
                 let url: URL
                 let metadata: Metadata?
             }
+            struct Cape: Decodable {
+                let url: URL
+            }
             let skin: Skin?
+            let cape: Cape?
             enum CodingKeys: String, CodingKey {
                 case skin = "SKIN"
+                case cape = "CAPE"
             }
         }
         let textures: Textures

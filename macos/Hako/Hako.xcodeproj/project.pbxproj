@@ -7,13 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F7A000000000000000000006 /* PlaytimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000015 /* PlaytimeFormatter.swift */; };
-		F7A000000000000000000004 /* PlaytimeHelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000014 /* PlaytimeHelperClient.swift */; };
-		F7A000000000000000000005 /* PlaytimeJournal.swift in Helper Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000013 /* PlaytimeJournal.swift */; };
-		F7A00000000000000000003E /* HakoPlaytimeHelper in CopyFiles */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000031 /* HakoPlaytimeHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		F7A000000000000000000003 /* PlaytimeJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000013 /* PlaytimeJournal.swift */; };
-		F7A000000000000000000001 /* PlaytimeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000011 /* PlaytimeModels.swift */; };
-		F7A000000000000000000002 /* PlaytimeCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000012 /* PlaytimeCoordinator.swift */; };
 		117748F9D15649E2A666DFE0 /* Hako/Resources/Steve.png in Resources */ = {isa = PBXBuildFile; fileRef = 8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */; };
 		12E753413C43D177C2195D62 /* Hako/Minecraft/MojangModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286ACECFA33B42C2FA7520EC /* Hako/Minecraft/MojangModels.swift */; };
 		23B7A7CE3562B8B430CBC697 /* Hako/Minecraft/MojangClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFFAEAD1958802A70849B30 /* Hako/Minecraft/MojangClient.swift */; };
@@ -33,17 +26,40 @@
 		D491978AF7318A6470038C86 /* Hako/Instances/InstanceStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0DB743DC3141178C7C3DF0 /* Hako/Instances/InstanceStorage.swift */; };
 		E36E0669EC0B4B51BA05CE68 /* Hako/Auth/MinecraftSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713B67E3DC294109979EF098 /* Hako/Auth/MinecraftSessionCoordinator.swift */; };
 		F6D5560D00A2FE27B58DD1D5 /* Hako/GameLaunchDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6FE82857DF991B2EEBB00A /* Hako/GameLaunchDefaults.swift */; };
+		F7A000000000000000000001 /* Hako/Playtime/PlaytimeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000011 /* Hako/Playtime/PlaytimeModels.swift */; };
+		F7A000000000000000000002 /* Hako/Playtime/PlaytimeCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000012 /* Hako/Playtime/PlaytimeCoordinator.swift */; };
+		F7A000000000000000000003 /* Hako/Playtime/PlaytimeJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000013 /* Hako/Playtime/PlaytimeJournal.swift */; };
+		F7A000000000000000000004 /* Hako/Playtime/PlaytimeHelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000014 /* Hako/Playtime/PlaytimeHelperClient.swift */; };
+		F7A000000000000000000005 /* Hako/Playtime/PlaytimeJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000013 /* Hako/Playtime/PlaytimeJournal.swift */; };
+		F7A000000000000000000006 /* Hako/Playtime/PlaytimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000015 /* Hako/Playtime/PlaytimeFormatter.swift */; };
+		F7A00000000000000000003E /* HakoPlaytimeHelper in Embed playtime helper */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000031 /* HakoPlaytimeHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
 		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		F7A000000000000000000038 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 233ED7CF3072CD6700E6B7EC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F7A000000000000000000030;
+			remoteInfo = HakoPlaytimeHelper;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F7A00000000000000000003D /* Embed playtime helper */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = Executables;
+			files = (
+				F7A00000000000000000003E /* HakoPlaytimeHelper in Embed playtime helper */,
+			);
+			name = "Embed playtime helper";
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		F7A000000000000000000015 /* PlaytimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeFormatter.swift; sourceTree = SOURCE_ROOT; };
-		F7A000000000000000000014 /* PlaytimeHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeHelperClient.swift; sourceTree = SOURCE_ROOT; };
-		F7A000000000000000000031 /* HakoPlaytimeHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = HakoPlaytimeHelper; sourceTree = BUILT_PRODUCTS_DIR; };
-		F7A000000000000000000013 /* PlaytimeJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeJournal.swift; sourceTree = SOURCE_ROOT; };
-		F7A000000000000000000011 /* PlaytimeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeModels.swift; sourceTree = SOURCE_ROOT; };
-		F7A000000000000000000012 /* PlaytimeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeCoordinator.swift; sourceTree = SOURCE_ROOT; };
 		1B6A550B2A7F7F3DEF381D8C /* Hako/Instances/InstanceContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceContent.swift; sourceTree = SOURCE_ROOT; };
 		1EFFAEAD1958802A70849B30 /* Hako/Minecraft/MojangClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MojangClient.swift; sourceTree = SOURCE_ROOT; };
 		233ED7D73072CD6700E6B7EC /* Hako.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hako.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -67,10 +83,15 @@
 		CF560E1908E666AD15802B46 /* Hako/AppDataLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/AppDataLocation.swift; sourceTree = SOURCE_ROOT; };
 		D82AE02E86C9459FBBAA6866 /* Hako/Minecraft/MinecraftLaunchPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftLaunchPlan.swift; sourceTree = SOURCE_ROOT; };
 		F33A143645BB4C788CA6EE7C /* Hako/Minecraft/JavaLaunchValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/JavaLaunchValidation.swift; sourceTree = SOURCE_ROOT; };
+		F7A000000000000000000011 /* Hako/Playtime/PlaytimeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeModels.swift; sourceTree = SOURCE_ROOT; };
+		F7A000000000000000000012 /* Hako/Playtime/PlaytimeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		F7A000000000000000000013 /* Hako/Playtime/PlaytimeJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeJournal.swift; sourceTree = SOURCE_ROOT; };
+		F7A000000000000000000014 /* Hako/Playtime/PlaytimeHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeHelperClient.swift; sourceTree = SOURCE_ROOT; };
+		F7A000000000000000000015 /* Hako/Playtime/PlaytimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeFormatter.swift; sourceTree = SOURCE_ROOT; };
+		F7A000000000000000000031 /* HakoPlaytimeHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = HakoPlaytimeHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		F7A000000000000000000037 /* HakoPlaytimeHelper */ = {isa = PBXFileSystemSynchronizedRootGroup; path = HakoPlaytimeHelper; sourceTree = "<group>"; };
 		233ED7D93072CD6700E6B7EC /* Hako */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Hako;
@@ -81,24 +102,25 @@
 			path = HakoTests;
 			sourceTree = "<group>";
 		};
+		F7A000000000000000000037 /* HakoPlaytimeHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HakoPlaytimeHelper;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
-/* Begin PBXContainerItemProxy section */
-		F7A000000000000000000038 = {isa = PBXContainerItemProxy; containerPortal = 233ED7CF3072CD6700E6B7EC; proxyType = 1; remoteGlobalIDString = F7A000000000000000000030; remoteInfo = HakoPlaytimeHelper; };
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		F7A00000000000000000003D /* Embed playtime helper */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 6; files = (F7A00000000000000000003E, ); name = "Embed playtime helper"; runOnlyForDeploymentPostprocessing = 0; };
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFrameworksBuildPhase section */
-		F7A000000000000000000033 /* Helper Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		233ED7D43072CD6700E6B7EC /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
 		};
 		A9E98347CF7349E4B352B712 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		F7A000000000000000000033 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -130,11 +152,11 @@
 		90AD16F7D5E045B89C203407 /* Skin Test Sources */ = {
 			isa = PBXGroup;
 			children = (
-				F7A000000000000000000015 /* PlaytimeFormatter.swift */,
-				F7A000000000000000000013 /* PlaytimeJournal.swift */,
-				F7A000000000000000000014 /* PlaytimeHelperClient.swift */,
-				F7A000000000000000000011 /* PlaytimeModels.swift */,
-				F7A000000000000000000012 /* PlaytimeCoordinator.swift */,
+				F7A000000000000000000015 /* Hako/Playtime/PlaytimeFormatter.swift */,
+				F7A000000000000000000013 /* Hako/Playtime/PlaytimeJournal.swift */,
+				F7A000000000000000000014 /* Hako/Playtime/PlaytimeHelperClient.swift */,
+				F7A000000000000000000011 /* Hako/Playtime/PlaytimeModels.swift */,
+				F7A000000000000000000012 /* Hako/Playtime/PlaytimeCoordinator.swift */,
 				33A91ADF86C64DC8A53E1991 /* Hako/Minecraft/MinecraftSkin.swift */,
 				A92821607F654453A3700F99 /* Hako/Minecraft/MinecraftSkinLoader.swift */,
 				7807B1C2156845C09A8285F3 /* Hako/Auth/MicrosoftAuth.swift */,
@@ -163,7 +185,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		F7A000000000000000000030 /* HakoPlaytimeHelper */ = {isa = PBXNativeTarget; buildConfigurationList = F7A000000000000000000034; buildPhases = (F7A000000000000000000032, F7A000000000000000000033, ); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (F7A000000000000000000037, ); name = HakoPlaytimeHelper; productName = HakoPlaytimeHelper; productReference = F7A000000000000000000031; productType = "com.apple.product-type.tool"; };
 		233ED7D63072CD6700E6B7EC /* Hako */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 233ED7E43072CD6800E6B7EC /* Build configuration list for PBXNativeTarget "Hako" */;
@@ -175,7 +196,9 @@
 			);
 			buildRules = (
 			);
-			dependencies = (F7A000000000000000000039, );
+			dependencies = (
+				F7A000000000000000000039 /* PBXTargetDependency */,
+			);
 			fileSystemSynchronizedGroups = (
 				233ED7D93072CD6700E6B7EC /* Hako */,
 			);
@@ -194,7 +217,9 @@
 			);
 			buildRules = (
 			);
-			dependencies = (F7A00000000000000000003A, );
+			dependencies = (
+				F7A00000000000000000003A /* PBXTargetDependency */,
+			);
 			fileSystemSynchronizedGroups = (
 				BF55C192E7034A1EA2164A18 /* HakoTests */,
 			);
@@ -202,6 +227,23 @@
 			productName = HakoTests;
 			productReference = 7F342BAABE3B426BA85DB9C5 /* HakoTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F7A000000000000000000030 /* HakoPlaytimeHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F7A000000000000000000034 /* Build configuration list for PBXNativeTarget "HakoPlaytimeHelper" */;
+			buildPhases = (
+				F7A000000000000000000032 /* Sources */,
+				F7A000000000000000000033 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				F7A000000000000000000037 /* HakoPlaytimeHelper */,
+			);
+			name = HakoPlaytimeHelper;
+			productName = HakoPlaytimeHelper;
+			productReference = F7A000000000000000000031 /* HakoPlaytimeHelper */;
+			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
@@ -254,7 +296,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		F7A000000000000000000032 /* Helper Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (F7A000000000000000000005, ); runOnlyForDeploymentPostprocessing = 0; };
 		233ED7D33072CD6700E6B7EC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
@@ -283,23 +324,35 @@
 				7BA304A44DF04915B9044970 /* Hako/Minecraft/MinecraftSkinLoader.swift in Sources */,
 				AC77148AC01F44EABDE88576 /* Hako/Auth/MicrosoftAuth.swift in Sources */,
 				52A0AEB1BB084D53B5F5BA60 /* Hako/Account.swift in Sources */,
-				F7A000000000000000000001 /* PlaytimeModels.swift in Sources */,
-				F7A000000000000000000002 /* PlaytimeCoordinator.swift in Sources */,
-				F7A000000000000000000003 /* PlaytimeJournal.swift in Sources */,
-				F7A000000000000000000004 /* PlaytimeHelperClient.swift in Sources */,
-				F7A000000000000000000006 /* PlaytimeFormatter.swift in Sources */,
+				F7A000000000000000000001 /* Hako/Playtime/PlaytimeModels.swift in Sources */,
+				F7A000000000000000000002 /* Hako/Playtime/PlaytimeCoordinator.swift in Sources */,
+				F7A000000000000000000003 /* Hako/Playtime/PlaytimeJournal.swift in Sources */,
+				F7A000000000000000000004 /* Hako/Playtime/PlaytimeHelperClient.swift in Sources */,
+				F7A000000000000000000006 /* Hako/Playtime/PlaytimeFormatter.swift in Sources */,
+			);
+		};
+		F7A000000000000000000032 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				F7A000000000000000000005 /* Hako/Playtime/PlaytimeJournal.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		F7A000000000000000000039 = {isa = PBXTargetDependency; target = F7A000000000000000000030; targetProxy = F7A000000000000000000038; };
-		F7A00000000000000000003A = {isa = PBXTargetDependency; target = F7A000000000000000000030; targetProxy = F7A000000000000000000038; };
+		F7A000000000000000000039 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F7A000000000000000000030 /* HakoPlaytimeHelper */;
+			targetProxy = F7A000000000000000000038 /* PBXContainerItemProxy */;
+		};
+		F7A00000000000000000003A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F7A000000000000000000030 /* HakoPlaytimeHelper */;
+			targetProxy = F7A000000000000000000038 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		F7A000000000000000000035 /* Helper Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 9Y935NYUP9; ENABLE_HARDENED_RUNTIME = YES; MACOSX_DEPLOYMENT_TARGET = 27.0; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_VERSION = 5.0; }; name = Debug; };
-		F7A000000000000000000036 /* Helper Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 9Y935NYUP9; ENABLE_HARDENED_RUNTIME = YES; MACOSX_DEPLOYMENT_TARGET = 27.0; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_VERSION = 5.0; }; name = Release; };
 		095730BA64A64C35BB69DB40 /* Debug configuration for PBXNativeTarget "HakoTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -522,10 +575,37 @@
 			};
 			name = Release;
 		};
+		F7A000000000000000000035 /* Debug configuration for PBXNativeTarget "HakoPlaytimeHelper" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9Y935NYUP9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F7A000000000000000000036 /* Release configuration for PBXNativeTarget "HakoPlaytimeHelper" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9Y935NYUP9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		F7A000000000000000000034 /* Helper configurations */ = {isa = XCConfigurationList; buildConfigurations = (F7A000000000000000000035, F7A000000000000000000036, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		233ED7D23072CD6700E6B7EC /* Build configuration list for PBXProject "Hako" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -547,6 +627,14 @@
 			buildConfigurations = (
 				095730BA64A64C35BB69DB40 /* Debug configuration for PBXNativeTarget "HakoTests" */,
 				8210802D714E493E9C3E4AAD /* Release configuration for PBXNativeTarget "HakoTests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		F7A000000000000000000034 /* Build configuration list for PBXNativeTarget "HakoPlaytimeHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F7A000000000000000000035 /* Debug configuration for PBXNativeTarget "HakoPlaytimeHelper" */,
+				F7A000000000000000000036 /* Release configuration for PBXNativeTarget "HakoPlaytimeHelper" */,
 			);
 			defaultConfigurationName = Release;
 		};

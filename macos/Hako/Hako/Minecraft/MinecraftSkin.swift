@@ -15,12 +15,13 @@ enum MinecraftSkinVariant: String {
 struct MinecraftSkin {
     let image: CGImage
     let variant: MinecraftSkinVariant
+    let capeImage: CGImage?
 
     enum DecodingError: Error {
         case invalidTexture
     }
 
-    init(data: Data, variant: MinecraftSkinVariant) throws {
+    init(data: Data, variant: MinecraftSkinVariant, capeData: Data? = nil) throws {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let original = CGImageSourceCreateImageAtIndex(source, 0, nil),
               original.width == 64, original.height == 64 || original.height == 32
@@ -89,6 +90,15 @@ struct MinecraftSkin {
         else { throw DecodingError.invalidTexture }
         image = normalized
         self.variant = legacy ? .classic : variant
+        capeImage = capeData.flatMap(Self.decodeCape)
+    }
+
+    private static func decodeCape(_ data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+              image.width == 64, image.height == 32
+        else { return nil }
+        return image
     }
 
     static func steve(bundle: Bundle = .main) throws -> MinecraftSkin {

@@ -62,7 +62,7 @@ struct InstancesView: View {
                         HStack { Text(error).font(.callout).foregroundStyle(Color.shu); Button("Повторить") { installations.queueError = nil; installations.scheduleQueuedInstallations() } }
                     }
                     ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 20)], spacing: 20) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 20)], spacing: 20) {
                             ForEach(instances) { instance in
                                 VStack(alignment: .leading, spacing: 16) {
                                     Button { onOpen(instance) } label: {
@@ -79,11 +79,10 @@ struct InstancesView: View {
                                                 ProgressView(value: progress.fraction).tint(.sakuraDeep)
                                                 Text(progress.stage).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                             }
-                                            Label("Наиграно: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
-                                                .font(.callout).foregroundStyle(.secondary)
                                         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                                     }.buttonStyle(.plain).accessibilityLabel("Открыть сборку \(instance.name)")
-                                    InstancePlayControls(instance: instance, account: account, compact: true)
+                                    InstancePlayControls(instance: instance, account: account, compact: true,
+                                                         playtime: PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))
                                 }.frame(maxWidth: .infinity, alignment: .leading).instanceSurface()
                             }
                         }.padding(2).padding(.bottom, 32)
