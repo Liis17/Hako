@@ -153,7 +153,7 @@ actor InstanceContent {
         return matches.first
     }
 
-    func importItem(from source: URL, into folder: URL, mods: Bool, replace: Bool = false) throws {
+    func importItem(from source: URL, into folder: URL, mods: Bool, replace: Bool = false, origin: ModOrigin? = nil) throws {
         let manager = FileManager.default
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
@@ -189,7 +189,7 @@ actor InstanceContent {
         do {
             try manager.moveItem(at: staged, to: destination)
             if registry != nil {
-                registry?.files.removeValue(forKey: source.lastPathComponent.lowercased())
+                registry?.files[source.lastPathComponent.lowercased()] = origin
                 try saveRegistry(registry!, at: folder)
             }
         } catch {

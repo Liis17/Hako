@@ -64,13 +64,36 @@ struct LauncherView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text(confirmation.title).font(.title2.bold())
                 Text(confirmation.message).fixedSize(horizontal: false, vertical: true)
+                if !confirmation.projects.isEmpty {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(confirmation.projects) { project in
+                                HStack(spacing: 10) {
+                                    AsyncImage(url: project.iconURL) { image in image.resizable().scaledToFit() } placeholder: {
+                                        Image(systemName: "puzzlepiece.extension.fill").foregroundStyle(Color.sakuraDeep)
+                                    }
+                                    .frame(width: 32, height: 32).background(.white.opacity(0.35), in: .rect(cornerRadius: 7)).clipShape(.rect(cornerRadius: 7))
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(project.title).lineLimit(1)
+                                        if let note = project.note { Text(note).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                                    }
+                                }.frame(height: 32)
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }.frame(height: min(CGFloat(confirmation.projects.count) * 42 - 10, 260))
+                }
                 HStack {
                     Spacer()
-                    Button("Отмена") { content.resolveConfirmation(confirmation.id, accepted: false) }.buttonStyle(.glass).keyboardShortcut(.cancelAction)
-                    Button(confirmation.action, role: confirmation.destructive ? .destructive : nil) { content.resolveConfirmation(confirmation.id, accepted: true) }
-                        .buttonStyle(.glassProminent).tint(.sakuraDeep).keyboardShortcut(.defaultAction)
+                    Button("Отмена") { content.resolveConfirmation(confirmation.id, choice: .cancel) }.buttonStyle(.glass).keyboardShortcut(.cancelAction)
+                    if let alternative = confirmation.alternative {
+                        Button(alternative) { content.resolveConfirmation(confirmation.id, choice: .alternative) }.buttonStyle(.glass)
+                    }
+                    if let action = confirmation.action {
+                        Button(action, role: confirmation.destructive ? .destructive : nil) { content.resolveConfirmation(confirmation.id, choice: .primary) }
+                            .buttonStyle(.glassProminent).tint(.sakuraDeep).keyboardShortcut(.defaultAction)
+                    }
                 }
-            }.padding(28).frame(width: 460).interactiveDismissDisabled()
+            }.padding(28).frame(width: confirmation.alternative == nil ? 460 : 560).interactiveDismissDisabled()
         }
         .alert(navigationError == nil ? "Переименовать сборку?" : "Не удалось переименовать сборку", isPresented: renamePromptPresented) {
             if navigationError != nil {
