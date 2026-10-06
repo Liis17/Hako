@@ -16,7 +16,9 @@ struct InstanceProfileView: View {
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(PlaytimeCoordinator.self) private var playtime
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section = InstanceSection.packs
+    @State private var catalog: InstanceSection?
     @State private var actionError: String?
     @State private var nameDraft: String
     @State private var renameAction: RenameAction?
@@ -40,6 +42,35 @@ struct InstanceProfileView: View {
     }
 
     var body: some View {
+        Group {
+            if let catalog {
+                ModrinthCatalogView(instance: instance, mods: catalog == .mods, onBack: { withAnimation(.smooth) { self.catalog = nil } })
+                    .transition(pageTransition)
+            } else {
+                profile.transition(pageTransition)
+            }
+        }.frame(maxWidth: profileColumnWidth, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear(perform: syncPendingRename)
+        .onChange(of: nameDraft) { syncPendingRename() }
+        .onChange(of: instance.name) { oldName, newName in
+            if nameDraft == oldName { nameDraft = newName }
+            syncPendingRename()
+        }
+        .onDisappear { if renameExit.pendingRename?.instanceID == instance.id { renameExit.pendingRename = nil } }
+        .alert(actionError == nil ? "Переименовать сборку?" : "Не удалось выполнить действие", isPresented: Binding(get: { renameAction != nil || actionError != nil }, set: { if !$0 { renameAction = nil; actionError = nil } })) {
+            if actionError != nil {
+                Button("ОК", role: .cancel) { actionError = nil }
+            } else {
+                Button("Переименовать") { confirmRename() }
+                Button(renameAction?.isSectionChange == true ? "Продолжить без переименования" : "Отмена", role: .cancel) { declineRename() }
+            }
+        } message: {
+            Text(actionError ?? "Будет переименована папка с файлами этой сборки в ~/.hako.")
+        }
+    }
+
+    private var profile: some View {
         VStack(alignment: .leading, spacing: 24) {
             Button("Все сборки", systemImage: "chevron.left", action: onBack).buttonStyle(.plain).foregroundStyle(.secondary)
             HStack(spacing: 20) {
@@ -73,32 +104,20 @@ struct InstanceProfileView: View {
             ScrollView {
                 Group {
                 switch section {
-                case .mods: InstanceFilesView(instance: instance, mods: true)
-                case .packs: InstanceFilesView(instance: instance, mods: false)
+                case .mods: InstanceFilesView(instance: instance, mods: true, onCatalog: { openCatalog(.mods) })
+                case .packs: InstanceFilesView(instance: instance, mods: false, onCatalog: { openCatalog(.packs) })
                     case .settings: InstanceSettingsView(instance: instance, name: $nameDraft, onSaveName: { renameAction = .save })
                 }
                 }.padding(2).padding(.bottom, 32)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }.padding(.horizontal, -2).id(section)
-        }.frame(maxWidth: profileColumnWidth, maxHeight: .infinity, alignment: .topLeading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear(perform: syncPendingRename)
-        .onChange(of: nameDraft) { syncPendingRename() }
-        .onChange(of: instance.name) { oldName, newName in
-            if nameDraft == oldName { nameDraft = newName }
-            syncPendingRename()
         }
-        .onDisappear { if renameExit.pendingRename?.instanceID == instance.id { renameExit.pendingRename = nil } }
-        .alert(actionError == nil ? "Переименовать сборку?" : "Не удалось выполнить действие", isPresented: Binding(get: { renameAction != nil || actionError != nil }, set: { if !$0 { renameAction = nil; actionError = nil } })) {
-            if actionError != nil {
-                Button("ОК", role: .cancel) { actionError = nil }
-            } else {
-                Button("Переименовать") { confirmRename() }
-                Button(renameAction?.isSectionChange == true ? "Продолжить без переименования" : "Отмена", role: .cancel) { declineRename() }
-            }
-        } message: {
-            Text(actionError ?? "Будет переименована папка с файлами этой сборки в ~/.hako.")
-        }
+    }
+
+    private var pageTransition: AnyTransition { reduceMotion ? .opacity : AnyTransition(.blurReplace) }
+
+    private func openCatalog(_ section: InstanceSection) {
+        withAnimation(.smooth) { catalog = section }
     }
 
     private func requestSectionChange(_ newSection: InstanceSection) {
@@ -261,6 +280,7 @@ private struct InstanceSettingsView: View {
 private struct InstanceFilesView: View {
     let instance: GameInstance
     let mods: Bool
+    let onCatalog: () -> Void
     @Environment(InstanceContentController.self) private var content
     @Environment(\.scenePhase) private var scenePhase
     @State private var importing = false
@@ -278,6 +298,8 @@ private struct InstanceFilesView: View {
                     Button("Проверить обновления", systemImage: "arrow.clockwise") { Task { await content.reload(instance, mods: true); await content.checkUpdates(instance) } }
                         .buttonStyle(.glass).disabled(content.checkingUpdates.contains(instance.id))
                 }
+                Button("Modrinth", systemImage: ModSource.modrinth.symbol, action: onCatalog)
+                    .buttonStyle(.glass).help(mods ? "Найти моды на Modrinth" : "Найти ресурспаки на Modrinth")
                 Button("Открыть папку", systemImage: "folder") {
                     do {
                         let folder = try content.folder(instance, mods: mods)

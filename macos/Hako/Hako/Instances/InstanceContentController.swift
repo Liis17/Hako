@@ -262,7 +262,7 @@ enum ContentChoice { case cancel, primary, alternative }
             }
         }
         if !listed.isEmpty {
-            let choice = await choose(.init(title: "Нужны зависимости", message: "«\(project.title)» требует проекты, которых нет или которые отключены в сборке «\(instance.name)».", action: downloads.isEmpty && enable.isEmpty ? nil : "Добавить с зависимостями", destructive: false, alternative: mods ? "Только мод" : "Только ресурспак", projects: listed))
+            let choice = await choose(.init(title: "Нужны зависимости", message: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:", action: downloads.isEmpty && enable.isEmpty ? nil : "Добавить с зависимостями", destructive: false, alternative: mods ? "Только мод" : "Только ресурспак", projects: listed))
             if choice == .cancel { return }
             if choice == .alternative { downloads = []; enable = [] }
         }
