@@ -46,10 +46,10 @@ CocoaPods, Carthage не используются) нет.
 
 - `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: создаёт общий
   `ModelContainer`, общие `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator`
-  и сцену `WindowGroup` с `ContentView`.
+  и `PlaytimeCoordinator`, затем сцену `WindowGroup` с `ContentView`.
   Устройство контейнера описано в [[Data/Persistence]].
 - [[Data/Persistence]] — схема SwiftData `Account` и `GameInstance`, контейнер хранилища, токены в Keychain,
-  глобальные параметры игры и независимые папки сборок.
+  глобальные параметры игры, независимые папки сборок и статистика времени по XUID.
 - [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и общий сервис действительной Minecraft-сессии.
 - [[Minecraft/Launching]] — построение аргументов, проверка Java, процессы и восстановление игр.
@@ -63,7 +63,7 @@ CocoaPods, Carthage не используются) нет.
 ### Запуск
 
 1. При инициализации `HakoApp` вычисляется `sharedModelContainer`:
-   `Schema([Account.self, GameInstance.self])` + `ModelConfiguration(schema:url:)` с URL из `AppDataLocation` → `ModelContainer`.
+   `HakoSchema.schema` + `ModelConfiguration(schema:url:)` с URL из `AppDataLocation` → `ModelContainer`.
    `LaunchSettingsMigration.run` сохраняет прежние режимы аргументов, фиксирует окна и переносит предел heap в ползунки.
    Ошибка создания контейнера или миграции завершает приложение через `fatalError`.
 2. `WindowGroup { ContentView() }` получает контейнер через

@@ -365,7 +365,7 @@ private struct SettingsCard<Content: View>: View {
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container = try! ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     return SettingsView()
         .modelContainer(container)
         .environment(InstallationCoordinator(context: container.mainContext))

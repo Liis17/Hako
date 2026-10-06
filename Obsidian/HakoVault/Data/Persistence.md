@@ -46,6 +46,25 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 для записи с `nil` 3D-превью получает вариант через публичный профиль по UUID ([[UI/MinecraftSkin]]),
 не изменяя запись или токены.
 
+### Наигранное время
+
+`macos/Hako/Hako/Playtime/PlaytimeModels.swift` определяет `PlayerPlaytime`, `InstancePlaytime`,
+`PlaytimeSession` и общую `HakoSchema.schema`. Длительности — `TimeInterval` в секундах, изначально ноль.
+`PlayerPlaytime.ownerKey` уникален: `account:<XUID>` либо `guest`; `totalSeconds` — самостоятельное
+общее время пользователя. `InstancePlaytime.key` объединяет владельца и UUID сборки; хранит её
+`totalSeconds`. `PlaytimeSession.id` — уникальный UUID с владельцем, UUID сборки и `creditedSeconds`.
+Отношений с `Account` и `GameInstance` нет: удаление данных входа или сборки не удаляет общее время.
+Новая сборка с другим UUID начинает с нуля. Добавление моделей поддерживает лёгкую миграцию прежнего store.
+
+`macos/Hako/Hako/Playtime/PlaytimeCoordinator.swift` — общий `@MainActor @Observable` сервис.
+`beginSession(instanceID:xuid:)` сохраняет нулевую сессию; `credit(sessionID:elapsedSeconds:)`
+начисляет только положительную разницу с курсором, сохраняет оба счётчика и курсор одной операцией.
+Ошибка сохранения восстанавливает затронутые значения, не откатывая чужие несохранённые изменения.
+`transferGuest(to:)` прибавляет гостевые счётчики аккаунту, обнуляет гостевые значения и переназначает
+его сессии без изменения курсоров. Последующие интервалы этих сессий принадлежат вошедшему аккаунту,
+даже после его выхода. Повторный вход переносит только новое гостевое время.
+`totalSeconds(xuid:)` и `instanceSeconds(_:xuid:)` возвращают статистику текущего владельца.
+
 ### Токены
 
 `AccountTokens: Codable` — `microsoftRefreshToken`, `minecraftAccessToken?`, `minecraftTokenExpiration?`
@@ -93,7 +112,7 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `HakoApp.sharedModelContainer: ModelContainer` | Схема `[Account, GameInstance]`, хранение на диске по явному URL из `AppDataLocation.storeURL()`. Создаётся при инициализации `HakoApp`; при ошибке вызывается `fatalError` |
+| `HakoApp.sharedModelContainer: ModelContainer` | Схема `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, хранение на диске по явному URL из `AppDataLocation.storeURL()`. Создаётся при инициализации `HakoApp`; при ошибке вызывается `fatalError` |
 | `.modelContainer(sharedModelContainer)` на `WindowGroup` | Помещает главный контекст контейнера (`modelContext`) в окружение всех представлений окна |
 | `TokenKeychain.save(_:for:) throws` | Удаляет прежнюю запись для XUID и добавляет новую; при ошибке `SecItemAdd` бросает `KeychainError` |
 | `TokenKeychain.load(for:) -> AccountTokens?` | Запись для XUID; `nil`, если записи нет или JSON не читается |
@@ -104,7 +123,8 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 
 - [[UI/ContentView]] читает аккаунты через `@Query`.
 - `LoginView.signIn()` после успешного [[Auth/MicrosoftAuth]] сохраняет токены
-  (`TokenKeychain.save`), затем вставляет `Account` (с Minecraft, если он доступен) и вызывает `modelContext.save()`.
+  (`TokenKeychain.save`), затем вставляет `Account` (с Minecraft, если он доступен) и вызывает `PlaytimeCoordinator.transferGuest(to:)`.
+  Данные входа и перенос гостевой статистики сохраняются одной операцией; при ошибке вставленный аккаунт удаляется.
 - `MinecraftSessionCoordinator.connect` читает токены, сохраняет обновлённый refresh token и,
   при успехе, токен Minecraft, затем `account.connect(_:)` и `modelContext.save()` ([[UI/Launcher]]).
 - `ProfileView.signOut()` отменяет общую Minecraft-сессию, вызывает `TokenKeychain.delete`, удаляет `Account` и сохраняет контекст.

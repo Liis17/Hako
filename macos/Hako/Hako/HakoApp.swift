@@ -14,12 +14,10 @@ struct HakoApp: App {
     @State private var installations: InstallationCoordinator
     @State private var sessions: MinecraftSessionCoordinator
     @State private var games: GameLaunchCoordinator
+    @State private var playtime: PlaytimeCoordinator
 
     init() {
-        let schema = Schema([
-            Account.self,
-            GameInstance.self,
-        ])
+        let schema = HakoSchema.schema
         do {
             let modelConfiguration = ModelConfiguration(schema: schema, url: try AppDataLocation.storeURL())
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -30,6 +28,7 @@ struct HakoApp: App {
             _installations = State(initialValue: installations)
             _sessions = State(initialValue: sessions)
             _games = State(initialValue: GameLaunchCoordinator(store: installations.store, sessions: sessions))
+            _playtime = State(initialValue: try PlaytimeCoordinator(context: container.mainContext))
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -41,6 +40,7 @@ struct HakoApp: App {
                 .environment(installations)
                 .environment(sessions)
                 .environment(games)
+                .environment(playtime)
                 .task { games.start(); installations.start() }
         }
         .modelContainer(sharedModelContainer)

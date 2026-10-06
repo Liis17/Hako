@@ -21,6 +21,7 @@ struct LoginView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(PlaytimeCoordinator.self) private var playtime
     @State private var phase = Phase.requestingCode
     @State private var attempt = 0
     @State private var isCopied = false
@@ -141,7 +142,8 @@ struct LoginView: View {
                 account.connect(minecraft.profile)
             }
             modelContext.insert(account)
-            try modelContext.save()
+            do { try playtime.transferGuest(to: account.xuid) }
+            catch { modelContext.delete(account); throw error }
         } catch {
             // Отмена — экран закрыт кнопкой «Назад»; показывать нечего.
             guard !Task.isCancelled else { return }
@@ -151,8 +153,10 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView(onBack: {})
-        .modelContainer(for: Account.self, inMemory: true)
+    let container = try! ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    return LoginView(onBack: {})
+        .modelContainer(container)
+        .environment(try! PlaytimeCoordinator(context: container.mainContext))
         .background { SakuraBackground() }
         .frame(width: 1280, height: 720)
 }

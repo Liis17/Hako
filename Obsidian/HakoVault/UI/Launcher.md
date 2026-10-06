@@ -29,7 +29,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `LauncherView(account: Account?, onSignIn:)` | Требует SwiftData со схемой `[Account, GameInstance]`, `InstallationCoordinator`, `MinecraftSessionCoordinator` и `GameLaunchCoordinator` в окружении. Начальная вкладка — `.instances`; `onSignIn` открывает вход из гостевого профиля |
+| `LauncherView(account: Account?, onSignIn:)` | Требует SwiftData со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator` и `GameLaunchCoordinator` в окружении. Начальная вкладка — `.instances`; `onSignIn` открывает вход из гостевого профиля |
 | `LauncherPage(caption:title:content:)` | Японская подпись, `heroTitle`, содержимое; выравнивание по верхнему левому краю, появление через `reveal` |
 | `AccountAvatar(account:)` | Голова Minecraft, если известен `minecraftSkinURL`, иначе `XboxAvatar` |
 | `XboxAvatar(url:name:)` | `AsyncImage`; пока картинки нет или она не загрузилась — первая буква `name` на градиенте `sakuraDeep` |

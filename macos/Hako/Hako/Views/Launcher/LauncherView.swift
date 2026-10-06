@@ -59,7 +59,7 @@ struct LauncherView: View {
 }
 
 #Preview {
-    let container = try! ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container = try! ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: "steve@example.com")
     let installations = InstallationCoordinator(context: container.mainContext)
     let sessions = MinecraftSessionCoordinator(context: container.mainContext)
@@ -69,6 +69,7 @@ struct LauncherView: View {
         .modelContainer(container)
         .environment(installations)
         .environment(sessions)
+        .environment(try! PlaytimeCoordinator(context: container.mainContext))
         .environment(GameLaunchCoordinator(store: installations.store, sessions: sessions))
         .background { SakuraBackground() }
         .frame(width: 1280, height: 720)

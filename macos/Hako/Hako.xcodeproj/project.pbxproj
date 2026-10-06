@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F7A000000000000000000001 /* PlaytimeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000011 /* PlaytimeModels.swift */; };
+		F7A000000000000000000002 /* PlaytimeCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000012 /* PlaytimeCoordinator.swift */; };
 		117748F9D15649E2A666DFE0 /* Hako/Resources/Steve.png in Resources */ = {isa = PBXBuildFile; fileRef = 8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */; };
 		12E753413C43D177C2195D62 /* Hako/Minecraft/MojangModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286ACECFA33B42C2FA7520EC /* Hako/Minecraft/MojangModels.swift */; };
 		23B7A7CE3562B8B430CBC697 /* Hako/Minecraft/MojangClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFFAEAD1958802A70849B30 /* Hako/Minecraft/MojangClient.swift */; };
@@ -31,6 +33,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F7A000000000000000000011 /* PlaytimeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeModels.swift; sourceTree = SOURCE_ROOT; };
+		F7A000000000000000000012 /* PlaytimeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeCoordinator.swift; sourceTree = SOURCE_ROOT; };
 		1B6A550B2A7F7F3DEF381D8C /* Hako/Instances/InstanceContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceContent.swift; sourceTree = SOURCE_ROOT; };
 		1EFFAEAD1958802A70849B30 /* Hako/Minecraft/MojangClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MojangClient.swift; sourceTree = SOURCE_ROOT; };
 		233ED7D73072CD6700E6B7EC /* Hako.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hako.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -105,6 +109,8 @@
 		90AD16F7D5E045B89C203407 /* Skin Test Sources */ = {
 			isa = PBXGroup;
 			children = (
+				F7A000000000000000000011 /* PlaytimeModels.swift */,
+				F7A000000000000000000012 /* PlaytimeCoordinator.swift */,
 				33A91ADF86C64DC8A53E1991 /* Hako/Minecraft/MinecraftSkin.swift */,
 				A92821607F654453A3700F99 /* Hako/Minecraft/MinecraftSkinLoader.swift */,
 				7807B1C2156845C09A8285F3 /* Hako/Auth/MicrosoftAuth.swift */,
@@ -247,6 +253,8 @@
 				7BA304A44DF04915B9044970 /* Hako/Minecraft/MinecraftSkinLoader.swift in Sources */,
 				AC77148AC01F44EABDE88576 /* Hako/Auth/MicrosoftAuth.swift in Sources */,
 				52A0AEB1BB084D53B5F5BA60 /* Hako/Account.swift in Sources */,
+				F7A000000000000000000001 /* PlaytimeModels.swift in Sources */,
+				F7A000000000000000000002 /* PlaytimeCoordinator.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
