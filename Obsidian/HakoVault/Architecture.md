@@ -15,7 +15,7 @@ Hako — нативное macOS-приложение: таргет `Hako` (bundl
 (карточки и профили сборок, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java и анимированным 3D-скином) и выход.
 Создание сборки запускает независимую установку Java и Minecraft из официальных API Mojang в фоне; для Fabric дополнительно устанавливаются закреплённый Loader и проверенный Fabric API.
 Установленные сборки запускаются онлайн или в offline-mode; гостевой вход открывает лаунчер без аккаунта.
-Поддерживаются Vanilla и Fabric, локальные моды и Fabric API из официального проекта Modrinth. Общие каталоги Modrinth и CurseForge не реализованы. Сторонних зависимостей (Swift Package Manager,
+Поддерживаются Vanilla и Fabric, локальные моды и Fabric API из официального проекта Modrinth. Каталог Modrinth устанавливает моды и ресурспаки ([[Minecraft/Modrinth]]); каталог CurseForge не реализован. Сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) нет.
 
 ## Стек
@@ -28,7 +28,7 @@ CocoaPods, Carthage не используются) нет.
 | SwiftData | Аккаунт, профили сборок и игровое время | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Playtime/PlaytimeModels.swift` |
 | UserDefaults / `@AppStorage` | Глобальные параметры игры | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
-| URLSession | Авторизация, Minecraft/Java, Fabric Meta и Fabric API | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift` |
+| URLSession | Авторизация, Minecraft/Java, Fabric Meta, Fabric API и каталог Modrinth | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
 
 ## Структура репозитория
@@ -37,7 +37,7 @@ CocoaPods, Carthage не используются) нет.
 |------|------------|
 | `macos/Hako/Hako.xcodeproj` | Проект Xcode: таргеты `Hako`, `HakoPlaytimeHelper`, `HakoTests`; общая схема `Hako`, конфигурации `Debug` и `Release` |
 | `macos/Hako/Hako/` | Исходники и ресурсы приложения |
-| `macos/Hako/HakoTests/` | Swift Testing: скины, хранение и миграция сборок, метаданные Mojang, установка, параметры и процессы запуска, сессии, игровое время и импорт текстурпаков |
+| `macos/Hako/HakoTests/` | Swift Testing: скины, хранение и миграция сборок, метаданные Mojang, установка, параметры и процессы запуска, сессии, игровое время, импорт текстурпаков и каталог Modrinth |
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
 | `Obsidian/HakoVault/` | Эта база знаний |
@@ -53,6 +53,7 @@ CocoaPods, Carthage не используются) нет.
 - [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и общий сервис действительной Minecraft-сессии.
 - [[Minecraft/Launching]] — построение аргументов, проверка Java, процессы и восстановление игр.
+- [[Minecraft/Modrinth]] — каталог модов и ресурспаков, зависимости и проверка загрузок.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
 - [[UI/Launcher]] — главная страница: рейл вкладок, профиль, аватары, автоподключение Minecraft.
@@ -134,7 +135,7 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 Она собирает приложение с зависимым CLI-помощником и запускает `HakoTests`. Помощник копируется
 в `Contents/MacOS` с `CodeSignOnCopy`; имеет те же deployment target и Hardened Runtime.
 Тестовый таргет без приложения-хоста: компилирует
-те же исходники скина, авторизации, данных сборок, официальных метаданных и установщика; использует собственную копию `Steve.png`,
+те же исходники скина, авторизации, данных сборок, официальных метаданных, установщика и клиента Modrinth; использует собственную копию `Steve.png`,
 фикстуры Mojang и подменённые HTTP-ответы; главное окно и вход в Microsoft не запускаются.
 
 ```sh
@@ -147,7 +148,9 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 
 - Группа `Hako` в проекте — `PBXFileSystemSynchronizedRootGroup`: всё содержимое
   `macos/Hako/Hako/` автоматически входит в таргет. Любой файл, положенный в эту папку,
-  попадает в сборку; правка `project.pbxproj` для добавления исходников не нужна.
+  попадает в сборку; правка `project.pbxproj` для добавления исходников не нужна. `HakoTests` компилирует
+  исходники приложения явным списком: файл, от которого зависят уже включённые исходники, добавляется
+  в фазу Sources этого таргета в `project.pbxproj`.
 - Новые `@Model`-типы регистрируются в схеме контейнера — см. [[Data/Persistence]].
 - `AppDataLocation` сохраняет прежнее расположение SwiftData при отключении Sandbox. Игровые файлы
   каждой сборки находятся в настоящем `~/.hako/{имя}/java` и `minecraft`; общих бинарных файлов нет.
@@ -156,7 +159,7 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 - Интерфейс рассчитан на светлую тему и белый фон: `ContentView` принудительно задаёт `.light`.
 - `HakoTests` проверяет формат текстур, зеркалирование 64×32, слои, загрузку, кэш, ошибки, отмену
   и сохранение варианта активного скина, миграцию аккаунта, независимость/переименование сборок, совместимость Mojang,
-  проверку загрузок, паузу/восстановление очереди и копирование текстурпаков. Компоновка и рендер проверяются в нативном окне.
+  проверку загрузок, паузу/восстановление очереди, копирование текстурпаков и установку из каталога Modrinth. Компоновка и рендер проверяются в нативном окне.
 
 ## Решения и основания
 
@@ -187,4 +190,4 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 Сборки выбирают Vanilla либо Fabric при создании. `Minecraft/FabricClient.swift` обращается к Fabric Meta
 и официальному проекту Fabric API в Modrinth, кэширует проверенный API для предварительной совместимости.
 Установка сохраняет исходный Mojang manifest и отдельный дочерний профиль Fabric; запуск разрешает их
-совместно, без запросов к сети. Общего каталога модов Modrinth/CurseForge пока нет.
+совместно, без запросов к сети. Моды и ресурспаки из Modrinth ставятся через каталог ([[Minecraft/Modrinth]]); каталога CurseForge нет.

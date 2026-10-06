@@ -53,6 +53,8 @@ URL загрузок должен быть HTTPS; пути, архивы и си
 `Minecraft/FabricClient.swift` читает Fabric Meta и только официальный Fabric API (`P7dR8mSH`) из Modrinth.
 `prepare(minecraft:java:)` выбирает новейший release API, иначе beta/alpha, по точному Minecraft,
 проверяет кэшированный JAR по SHA-512/SHA-1 и читает `fabric.mod.json` через `unzip -p` без распаковки.
+`FabricClient.archiveEntry` ждёт `unzip` опросом `isRunning`: `waitUntilExit` крутит run loop текущего потока
+и на потоках Swift Concurrency может не вернуться, оставив блокировку файловых операций сборки.
 Версии Loader фильтруются по требованиям Loader/Java; рекомендуемая версия определяется флагом Meta `stable`.
 Кэш расположен в `Library/Caches/Hako/FabricAPI`, папка сборки до сохранения не создаётся.
 `FabricVersionPredicate` использует AND между термами строки и OR между строками массива; поддерживает
