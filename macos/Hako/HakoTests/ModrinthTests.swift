@@ -47,6 +47,27 @@ import Testing
         await #expect(throws: MojangError.self) { try await client.latestVersion(project: "../root", mods: true, minecraft: "test") }
     }
 
+    @Test func fileVersionsAreCachedOnDiskAndRefreshedAfterChange() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let file = root.appendingPathComponent("mod.jar"), cache = root.appendingPathComponent("cache")
+        try Data("one".utf8).write(to: file)
+        let match = [FabricClient.hash(Data("one".utf8)): ["id": "v1", "project_id": "p1", "date_published": "2026-10-01"]]
+        ModrinthTestProtocol.prepare(["\(api)/version_files": try JSONSerialization.data(withJSONObject: match)])
+        var client = ModrinthClient(session: session, cache: cache)
+        #expect(try await client.versions(of: [file])[file]?.projectID == "p1")
+        _ = try await client.versions(of: [file])
+        #expect(ModrinthTestProtocol.requests.count == 1)
+        client = ModrinthClient(session: session, cache: cache)
+        #expect(try await client.versions(of: [file])[file]?.versionID == "v1")
+        #expect(ModrinthTestProtocol.requests.count == 1)
+        try Data("changed".utf8).write(to: file)
+        #expect(try await client.versions(of: [file])[file] == nil)
+        _ = try await client.versions(of: [file])
+        #expect(ModrinthTestProtocol.requests.count == 2)
+    }
+
     @Test func missingDependencyIsOfferedAndInstalledWithOrigins() async throws {
         let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
         let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
@@ -158,7 +179,7 @@ import Testing
         var draft = InstanceDraft(); draft.name = "Catalog"; draft.modLoader = .fabric; draft.fabricConfiguration = .init(loaderVersion: "0.19.5", api: api)
         let instance = try installations.store.create(draft, versionID: "test", metadataURL: "https://fixtures.test/version", metadataSHA1: "sha", javaMajorVersion: 21)
         instance.state = .ready
-        return (container, installations, InstanceContentController(installations: installations, modrinth: ModrinthClient(session: session)), instance)
+        return (container, installations, InstanceContentController(installations: installations, modrinth: ModrinthClient(session: session, cache: root.appendingPathComponent("modrinth-cache"))), instance)
     }
 
     private static func confirmation(_ controller: InstanceContentController, _ installations: InstallationCoordinator, _ instance: GameInstance) async throws -> ContentConfirmation {

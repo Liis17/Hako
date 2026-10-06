@@ -199,8 +199,8 @@ enum ContentChoice { case cancel, primary, alternative }
             if let origin = item.origin, origin.source == .modrinth { result[origin.projectID, default: []].append(item) }
             else if !item.isDirectory { unknown.append(item) }
         }
-        let matches = try await modrinth.projectIDs(of: unknown.map(\.url))
-        for item in unknown { if let project = matches[item.url] { result[project, default: []].append(item) } }
+        let matches = try await modrinth.versions(of: unknown.map(\.url))
+        for item in unknown { if let match = matches[item.url] { result[match.projectID, default: []].append(item) } }
         return result
     }
 

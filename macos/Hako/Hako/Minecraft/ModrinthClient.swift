@@ -80,12 +80,30 @@ nonisolated struct ModrinthVersion: Decodable, Sendable {
     }
 }
 
+/// Версия Modrinth, которой соответствует локальный файл.
+nonisolated struct ModrinthFileMatch: Codable, Sendable {
+    let projectID: String
+    let versionID: String
+    let published: String
+    let sha512: String
+}
+
 actor ModrinthClient {
+    private struct FileCache: Codable {
+        struct Entry: Codable { let size: Int64; let modified: Double; let sha512: String }
+        var files: [String: Entry] = [:]
+        var versions: [String: ModrinthFileMatch] = [:]
+    }
+
     private let session: URLSession
     private let baseURL: URL
+    private let cache: URL
+    private var fileCache: FileCache?
+    /// Хеши без проекта помнятся до закрытия Hako: файл могут опубликовать позже.
+    private var unknownHashes: Set<String> = []
 
-    init(session: URLSession = URLSession(configuration: .ephemeral), baseURL: URL = URL(string: "https://api.modrinth.com/v2")!) {
-        self.session = session; self.baseURL = baseURL
+    init(session: URLSession = URLSession(configuration: .ephemeral), baseURL: URL = URL(string: "https://api.modrinth.com/v2")!, cache: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("Hako/Modrinth")) {
+        self.session = session; self.baseURL = baseURL; self.cache = cache
     }
 
     private func request(_ url: URL) -> URLRequest {
@@ -151,18 +169,47 @@ actor ModrinthClient {
         return try JSONDecoder().decode([ModrinthVersion].self, from: await data(request(url("versions", ["ids": try json(checkedIDs(ids))]))))
     }
 
-    /// Узнаёт проекты Modrinth по SHA-512 локальных файлов, в том числе скачанных вручную.
-    func projectIDs(of files: [URL]) async throws -> [URL: String] {
-        var hashes: [URL: String] = [:]
-        for file in files { hashes[file] = try FabricClient.hashFile(file) }
-        guard !hashes.isEmpty else { return [:] }
-        struct Match: Decodable { let project_id: String }
-        var request = request(baseURL.appendingPathComponent("version_files"))
+    private func post(_ path: String, _ body: [String: Any]) throws -> URLRequest {
+        var request = request(baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["hashes": Array(Set(hashes.values)), "algorithm": "sha512"])
-        let matches = try JSONDecoder().decode([String: Match].self, from: await data(request))
-        return hashes.compactMapValues { matches[$0]?.project_id }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    /// Узнаёт версии Modrinth по SHA-512 локальных файлов, в том числе скачанных вручную.
+    /// Хеш берётся из кеша, пока у файла не изменились размер и дата; известные хеши не запрашиваются повторно.
+    func versions(of files: [URL]) async throws -> [URL: ModrinthFileMatch] {
+        let cacheFile = cache.appendingPathComponent("files.json")
+        if fileCache == nil { fileCache = (try? Data(contentsOf: cacheFile)).flatMap { try? JSONDecoder().decode(FileCache.self, from: $0) } ?? FileCache() }
+        var hashes: [URL: String] = [:], changed = false
+        for file in files {
+            var fresh = file; fresh.removeAllCachedResourceValues()
+            let values = try fresh.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+            let size = Int64(values.fileSize ?? -1), modified = values.contentModificationDate?.timeIntervalSince1970 ?? 0
+            if let entry = fileCache?.files[file.path], entry.size == size, entry.modified == modified { hashes[file] = entry.sha512; continue }
+            let sha512 = try FabricClient.hashFile(file)
+            hashes[file] = sha512; fileCache?.files[file.path] = .init(size: size, modified: modified, sha512: sha512); changed = true
+        }
+        let unknown = Set(hashes.values).filter { fileCache?.versions[$0] == nil && !unknownHashes.contains($0) }
+        if !unknown.isEmpty {
+            struct Match: Decodable { let id: String; let project_id: String; let date_published: String }
+            let matches = try JSONDecoder().decode([String: Match].self, from: await data(post("version_files", ["hashes": Array(unknown), "algorithm": "sha512"])))
+            for hash in unknown {
+                if let match = matches[hash] { fileCache?.versions[hash] = .init(projectID: match.project_id, versionID: match.id, published: match.date_published, sha512: hash); changed = true }
+                else { unknownHashes.insert(hash) }
+            }
+        }
+        if changed, var stored = fileCache {
+            // Записи удалённых файлов и их версий не накапливаются.
+            stored.files = stored.files.filter { FileManager.default.fileExists(atPath: $0.key) }
+            let used = Set(stored.files.values.map(\.sha512))
+            stored.versions = stored.versions.filter { used.contains($0.key) }
+            fileCache = stored
+            try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+            try? JSONEncoder().encode(stored).write(to: cacheFile, options: .atomic)
+        }
+        return hashes.compactMapValues { fileCache?.versions[$0] }
     }
 
     /// Загружает файл в `folder` под именем из Modrinth и проверяет размер и SHA-512.
