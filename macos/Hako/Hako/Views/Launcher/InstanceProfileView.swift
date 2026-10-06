@@ -11,10 +11,30 @@ struct InstanceProfileView: View {
     let instance: GameInstance
     var account: Account?
     let onBack: () -> Void
+    @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(PlaytimeCoordinator.self) private var playtime
     @State private var section = InstanceSection.packs
     @State private var actionError: String?
+    @State private var nameDraft: String
+    @State private var renameAction: RenameAction?
+
+    private enum RenameAction {
+        case save
+        case section(InstanceSection)
+
+        var isSectionChange: Bool {
+            if case .section = self { return true }
+            return false
+        }
+    }
+
+    init(instance: GameInstance, account: Account?, onBack: @escaping () -> Void) {
+        self.instance = instance
+        self.account = account
+        self.onBack = onBack
+        _nameDraft = State(initialValue: instance.name)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -32,7 +52,7 @@ struct InstanceProfileView: View {
                 InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .leading)
             }
             if instance.state != .ready { installationPanel }
-            Picker("Раздел сборки", selection: $section) {
+            Picker("Раздел сборки", selection: Binding(get: { section }, set: requestSectionChange)) {
                 ForEach(InstanceSection.allCases) { item in
                     Text(item.rawValue).tag(item)
                         .disabled(item == .mods)
@@ -42,16 +62,72 @@ struct InstanceProfileView: View {
             }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 600)
             ScrollView {
                 Group {
-                    switch section {
-                    case .mods: InstanceFilesView(instance: instance, mods: true)
-                    case .packs: InstanceFilesView(instance: instance, mods: false)
-                    case .settings: InstanceSettingsView(instance: instance)
-                    }
+                switch section {
+                case .mods: InstanceFilesView(instance: instance, mods: true)
+                case .packs: InstanceFilesView(instance: instance, mods: false)
+                    case .settings: InstanceSettingsView(instance: instance, name: $nameDraft, onSaveName: { renameAction = .save })
+                }
                 }.frame(maxWidth: 800, alignment: .leading).padding(2).padding(.bottom, 32)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }.id(section)
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .alert("Не удалось выполнить действие", isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })) { Button("ОК", role: .cancel) {} } message: { Text(actionError ?? "") }
+        .onAppear(perform: syncPendingRename)
+        .onChange(of: nameDraft) { syncPendingRename() }
+        .onChange(of: instance.name) { oldName, newName in
+            if nameDraft == oldName { nameDraft = newName }
+            syncPendingRename()
+        }
+        .onDisappear { if renameExit.pendingRename?.instanceID == instance.id { renameExit.pendingRename = nil } }
+        .alert(actionError == nil ? "Переименовать сборку?" : "Не удалось выполнить действие", isPresented: Binding(get: { renameAction != nil || actionError != nil }, set: { if !$0 { renameAction = nil; actionError = nil } })) {
+            if actionError != nil {
+                Button("ОК", role: .cancel) { actionError = nil }
+            } else {
+                Button("Переименовать") { confirmRename() }
+                Button(renameAction?.isSectionChange == true ? "Продолжить без переименования" : "Отмена", role: .cancel) { declineRename() }
+            }
+        } message: {
+            Text(actionError ?? "Будет переименована папка с файлами этой сборки в ~/.hako.")
+        }
+    }
+
+    private func requestSectionChange(_ newSection: InstanceSection) {
+        guard newSection != section else { return }
+        if nameDraft != instance.name { renameAction = .section(newSection) }
+        else { section = newSection }
+    }
+
+    private func confirmRename() {
+        do {
+            guard !installations.contentBusy.contains(instance.id) else {
+                throw InstanceFileError.message("Дождитесь завершения операций с файлами перед переименованием.")
+            }
+            try installations.store.rename(instance, to: nameDraft)
+            nameDraft = instance.name
+            renameExit.pendingRename = nil
+            if let renameAction, case .section(let newSection) = renameAction { section = newSection }
+            renameAction = nil
+            actionError = nil
+        } catch {
+            renameAction = nil
+            actionError = error.localizedDescription
+        }
+    }
+
+    private func declineRename() {
+        if let renameAction, case .section(let newSection) = renameAction {
+            nameDraft = instance.name
+            renameExit.pendingRename = nil
+            section = newSection
+        }
+        renameAction = nil
+    }
+
+    private func syncPendingRename() {
+        if nameDraft == instance.name {
+            if renameExit.pendingRename?.instanceID == instance.id { renameExit.pendingRename = nil }
+        } else {
+            renameExit.pendingRename = PendingInstanceRename(instanceID: instance.id, name: nameDraft)
+        }
     }
 
     private var installationPanel: some View {
@@ -78,19 +154,25 @@ struct InstanceProfileView: View {
 
 private struct InstanceSettingsView: View {
     let instance: GameInstance
+    @Binding var nameDraft: String
+    let onSaveName: () -> Void
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(GameLaunchCoordinator.self) private var games
     @State private var draft: InstanceDraft
     @State private var parametersValid = true
     @State private var error: String?
-    @State private var saved = false
     @State private var manifest: MinecraftVersionManifest?
     @State private var manifestError: String?
 
-    init(instance: GameInstance) { self.instance = instance; _draft = State(initialValue: InstanceDraft(instance: instance)) }
+    init(instance: GameInstance, name: Binding<String>, onSaveName: @escaping () -> Void) {
+        self.instance = instance
+        _nameDraft = name
+        self.onSaveName = onSaveName
+        _draft = State(initialValue: InstanceDraft(instance: instance))
+    }
     private var renameBlocked: Bool { instance.state == .installing || instance.state == .queued || installations.contentBusy.contains(instance.id) || installations.store.launchBusy.contains(instance.id) }
     private var nameError: String? {
-        do { _ = try installations.store.validateName(draft.name, excluding: instance); return nil }
+        do { _ = try installations.store.validateName(nameDraft, excluding: instance); return nil }
         catch { return error.localizedDescription }
     }
 
@@ -100,10 +182,13 @@ private struct InstanceSettingsView: View {
                 Text("Профиль сборки").font(.title3.weight(.semibold))
                 InstanceIconPicker(draft: $draft, existingIcon: try? InstanceStorage.containedURL("icon.png", in: installations.store.storage.directory(instance.folderName)))
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack { Text("Название").font(.callout.weight(.medium)); Spacer(); Text("\(draft.name.count)/60").font(.caption).foregroundStyle(.secondary) }
-                    TextField("Название сборки", text: $draft.name).textFieldStyle(.roundedBorder).disabled(renameBlocked)
+                    HStack { Text("Название").font(.callout.weight(.medium)); Spacer(); Text("\(nameDraft.count)/60").font(.caption).foregroundStyle(.secondary) }
+                    TextField("Название сборки", text: $nameDraft).textFieldStyle(.roundedBorder).disabled(renameBlocked)
                     if renameBlocked { Text("Переименование доступно после остановки загрузки, закрытия игры и завершения операций с файлами.").font(.caption).foregroundStyle(.secondary) }
                     if let nameError { Text(nameError).font(.caption).foregroundStyle(Color.shu) }
+                    Button("Сохранить имя", action: onSaveName)
+                        .buttonStyle(.glass)
+                        .disabled(renameBlocked || nameDraft == instance.name || nameError != nil)
                 }
                 Text("Minecraft \(instance.versionID) · Vanilla").foregroundStyle(.secondary)
                 Text("Папка: ~/.hako/\(instance.folderName)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
@@ -118,28 +203,28 @@ private struct InstanceSettingsView: View {
                     } else { ProgressView("Загружаем параметры Mojang…").font(.caption) }
                 }
             }.instanceSurface()
-            HStack {
-                Button("Сохранить настройки") {
-                    do {
-                        if renameBlocked && draft.name != instance.name { throw InstanceFileError.message("Дождитесь завершения операций с файлами перед переименованием.") }
-                        try installations.store.update(instance, with: draft)
-                        draft = InstanceDraft(instance: instance); error = nil; saved = true
-                    } catch { self.error = error.localizedDescription; saved = false }
-                }.buttonStyle(.glassProminent).tint(.sakuraDeep).disabled(nameError != nil || !parametersValid)
-                if saved { Label("Сохранено", systemImage: "checkmark").font(.callout).foregroundStyle(.secondary) }
-            }
+            Label("Иконка и параметры сохраняются автоматически.", systemImage: "checkmark.circle")
+                .font(.caption).foregroundStyle(.secondary)
             if games.states[instance.id] == .running || games.states[instance.id] == .preparing {
                 Text("Изменения параметров применятся при следующем запуске игры.").font(.caption).foregroundStyle(.secondary)
             }
             if let error { Text(error).font(.callout).foregroundStyle(Color.shu) }
-        }.onChange(of: draft.name) { saved = false }
-        .onChange(of: draft.iconSymbol) { saved = false }
-        .onChange(of: draft.iconData) { saved = false }
-        .onChange(of: draft.argumentSource) { saved = false }
-        .onChange(of: draft.offlineMode) { saved = false }
-        .onChange(of: draft.offlineUsername) { saved = false }
-        .onChange(of: draft.parameters) { saved = false }
+        }.onChange(of: draft.iconSymbol) { saveSettings() }
+        .onChange(of: draft.iconData) { saveSettings() }
+        .onChange(of: draft.argumentSource) { saveSettings() }
+        .onChange(of: draft.offlineMode) { saveSettings() }
+        .onChange(of: draft.offlineUsername) { saveSettings() }
+        .onChange(of: draft.parameters) { saveSettings() }
         .task(id: draft.argumentSource) { if draft.argumentSource == .mojang && manifest == nil { await loadManifest() } }
+    }
+
+    private func saveSettings() {
+        guard parametersValid else { return }
+        do {
+            try installations.store.updateSettings(instance, with: draft)
+            draft = InstanceDraft(instance: instance)
+            error = nil
+        } catch { error = error.localizedDescription }
     }
 
     private func loadManifest() async {

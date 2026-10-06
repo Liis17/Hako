@@ -10,11 +10,13 @@ import SwiftData
 
 @main
 struct HakoApp: App {
+    @NSApplicationDelegateAdaptor(HakoApplicationDelegate.self) private var appDelegate
     let sharedModelContainer: ModelContainer
     @State private var installations: InstallationCoordinator
     @State private var sessions: MinecraftSessionCoordinator
     @State private var games: GameLaunchCoordinator
     @State private var playtime: PlaytimeCoordinator
+    @State private var renameExit = InstanceRenameExitCoordinator()
 
     init() {
         let schema = HakoSchema.schema
@@ -42,6 +44,9 @@ struct HakoApp: App {
                 .environment(sessions)
                 .environment(games)
                 .environment(playtime)
+                .environment(renameExit)
+                .background(InstanceRenameWindowCloseGuard(coordinator: renameExit))
+                .onAppear { appDelegate.renameExit = renameExit }
                 .task { games.start(); installations.start() }
         }
         .modelContainer(sharedModelContainer)

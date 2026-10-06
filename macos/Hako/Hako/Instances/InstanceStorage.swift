@@ -146,6 +146,56 @@ nonisolated struct InstanceStorage: Sendable {
         }
     }
 
+    func updateSettings(_ instance: GameInstance, with draft: InstanceDraft) throws {
+        try validateOffline(draft)
+        let directory = try storage.directory(instance.folderName)
+        _ = try InstanceStorage.containedURL("icon.png", in: directory)
+        let icon = directory.appendingPathComponent("icon.png")
+        let oldIcon = FileManager.default.fileExists(atPath: icon.path) ? try Data(contentsOf: icon) : nil
+        let iconChanged = draft.iconData != nil || draft.iconSymbol != instance.iconSymbol
+        do {
+            if let data = draft.iconData { try data.write(to: icon, options: .atomic) }
+            if !draft.iconSymbol.isEmpty && FileManager.default.fileExists(atPath: icon.path) {
+                try FileManager.default.removeItem(at: icon)
+            }
+            apply(draft, to: instance)
+            if iconChanged { instance.iconRevision = UUID() }
+            try persist()
+        } catch {
+            context.rollback()
+            if let oldIcon { try? oldIcon.write(to: icon, options: .atomic) }
+            else { try? FileManager.default.removeItem(at: icon) }
+            throw error
+        }
+    }
+
+    func rename(_ instance: GameInstance, to input: String) throws {
+        let name = try InstanceName.validated(input)
+        let folder = try validateName(name, excluding: instance)
+        let oldFolder = instance.folderName
+        guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id)) else {
+            throw InstanceFileError.message("Остановите загрузку и закройте игру перед переименованием сборки.")
+        }
+
+        let original = try storage.directory(oldFolder)
+        let destination = try storage.directory(folder)
+        var moved = false
+        do {
+            if folder != oldFolder {
+                try moveDirectory(original, to: destination)
+                moved = true
+            }
+            instance.name = name
+            instance.folderName = folder
+            instance.iconRevision = UUID()
+            try persist()
+        } catch {
+            context.rollback()
+            if moved { try? moveDirectory(destination, to: original) }
+            throw error
+        }
+    }
+
     private func apply(_ draft: InstanceDraft, to instance: GameInstance) {
         instance.iconSymbol = draft.iconSymbol
         instance.argumentSource = draft.argumentSource

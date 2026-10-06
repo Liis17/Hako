@@ -14,12 +14,13 @@ Parent: [[Index]]
 |------|-----------------|------|
 | `macos/Hako/Hako/ContentView.swift` | `ContentView` | Корень окна |
 | `macos/Hako/Hako/HakoApp.swift` | `HakoApp.body` | Сцена окна и её настройки |
+| `macos/Hako/Hako/Instances/InstanceRenameExitCoordinator.swift` | `InstanceRenameExitCoordinator`, `InstanceRenameWindowCloseGuard`, `HakoApplicationDelegate` | Предупреждение перед закрытием окна или приложения при несохранённом переименовании |
 
 ## Публичные контракты
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator` и `PlaytimeCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координаторы |
+| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator` и `InstanceRenameExitCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координаторы |
 
 ## Выбор экрана
 
@@ -49,6 +50,10 @@ Parent: [[Index]]
 | `.windowResizability(.contentMinSize)` + `ContentView.frame(minWidth: 960, minHeight: 540)` | Окно растягивается, минимум 960×540 |
 | `.windowStyle(.hiddenTitleBar)` | Заголовок скрыт, контент уходит под него, кнопки окна остаются |
 | `.windowBackgroundDragBehavior(.enabled)` | Окно перетаскивается за фон |
+
+Если в настройках сборки введено новое имя, `InstanceRenameWindowCloseGuard` перехватывает закрытие окна,
+а `HakoApplicationDelegate.applicationShouldTerminate` — завершение приложения. Согласие переименовывает
+сборку и затем продолжает закрытие; отказ закрывает окно или приложение без изменения имени.
 
 ## Ограничения и важные детали
 

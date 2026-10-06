@@ -51,6 +51,7 @@ struct ContentView: View {
         .environment(installations)
         .environment(sessions)
         .environment(playtime)
+        .environment(InstanceRenameExitCoordinator())
         .environment(GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime))
         .frame(width: 1280, height: 720)
 }
