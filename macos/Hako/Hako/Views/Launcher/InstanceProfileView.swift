@@ -166,6 +166,7 @@ private struct InstanceSettingsView: View {
     @State private var error: String?
     @State private var manifest: MinecraftVersionManifest?
     @State private var manifestError: String?
+    @State private var fabricProfile: FabricProfile?
 
     init(instance: GameInstance, name: Binding<String>, onSaveName: @escaping () -> Void) {
         self.instance = instance
@@ -198,7 +199,7 @@ private struct InstanceSettingsView: View {
             }.instanceSurface()
             VStack(alignment: .leading, spacing: 18) {
                 Text("Параметры запуска").font(.title3.weight(.semibold))
-                InstanceParametersEditor(draft: $draft, isValid: $parametersValid, manifest: manifest)
+                InstanceParametersEditor(draft: $draft, isValid: $parametersValid, manifest: manifest, fabric: fabricProfile)
                 if draft.argumentSource == .mojang && manifest == nil {
                     if let manifestError {
                         Text(manifestError).font(.caption).foregroundStyle(Color.shu)
@@ -218,7 +219,7 @@ private struct InstanceSettingsView: View {
         .onChange(of: draft.offlineMode) { saveSettings() }
         .onChange(of: draft.offlineUsername) { saveSettings() }
         .onChange(of: draft.parameters) { saveSettings() }
-        .task(id: draft.argumentSource) { if draft.argumentSource == .mojang && manifest == nil { await loadManifest() } }
+        .task(id: "\(instance.folderName):\(instance.state.rawValue)") { await loadManifest() }
     }
 
     private func saveSettings() {
@@ -238,6 +239,12 @@ private struct InstanceSettingsView: View {
             let result = try await installations.client.manifest(.init(url: url, sha1: instance.metadataSHA1), installedAt: local)
             guard !Task.isCancelled else { return }
             guard result.id == instance.versionID else { throw MojangError.invalid("Описание версии не соответствует сборке.") }
+            if let configuration = try instance.fabricConfiguration() {
+                let root = try installations.store.storage.directory(instance.folderName)
+                if instance.fabricProfileSHA1 != nil { fabricProfile = try FabricProfile.installed(root: root, minecraft: instance.versionID, sha1: instance.fabricProfileSHA1) }
+                else { fabricProfile = try await installations.fabricClient.profile(minecraft: instance.versionID, loader: configuration.loaderVersion).0 }
+                guard !Task.isCancelled else { return }
+            }
             manifest = result
         } catch { if !Task.isCancelled { manifestError = error.localizedDescription } }
     }

@@ -149,6 +149,34 @@ import Testing
         await #expect(throws: MojangError.self) { try await MinecraftInstaller(client: MojangClient(session: session), session: session).install(version, at: root) { _ in } }
     }
 
+    @Test func fabricInstallationPinsProfileAndDoesNotRestoreRemovedAPIOnRetry() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let cache = try temporary(); defer { try? FileManager.default.removeItem(at: cache) }
+        let session = session(); defer { session.invalidateAndCancel() }
+        var (version, responses) = try miniature()
+        let apiBytes = try Data(contentsOf: #require(SkinTestFixtures.bundle.url(forResource: "fabric-api-test", withExtension: "zip")))
+        let apiURL = URL(string: "https://fixtures.test/api.jar")!
+        let api = FabricAPIDescriptor(projectID: "P7dR8mSH", versionID: "test", version: "test", channel: "release", filename: "api.jar", url: apiURL, size: Int64(apiBytes.count), sha1: sha(apiBytes), sha512: FabricClient.hash(apiBytes))
+        let profileURL = URL(string: "https://meta.fabricmc.net/v2/versions/loader/test/0.19.5/profile/json")!
+        let profile = Data(#"{"id":"fabric-loader-0.19.5-test","inheritsFrom":"test","mainClass":"net.fabricmc.loader.impl.launch.knot.KnotClient","libraries":[{"name":"net.fabricmc:fabric-loader:0.19.5","url":"https://fixtures.test/"}]}"#.utf8)
+        let libraryURL = URL(string: "https://fixtures.test/net/fabricmc/fabric-loader/0.19.5/fabric-loader-0.19.5.jar")!
+        responses[profileURL] = .init(data: profile); responses[apiURL] = .init(data: apiBytes)
+        responses[libraryURL] = .init(data: Data("abc".utf8)); responses[URL(string: libraryURL.absoluteString + ".sha1")!] = .init(data: Data(sha(Data("abc".utf8)).utf8))
+        MojangTestProtocol.prepare(responses)
+        let fabric = FabricClient(session: session, cache: cache), content = InstanceContent()
+        let installer = MinecraftInstaller(client: MojangClient(session: session), session: session, fabricClient: fabric, content: content)
+        let result = try await installer.install(version, at: root, fabric: .init(loaderVersion: "0.19.5", api: api)) { _ in }
+        #expect(result.fabricProfileSHA1 == sha(profile))
+        #expect(try FabricProfile.installed(root: root, minecraft: "test", sha1: result.fabricProfileSHA1).mainClass.contains("KnotClient"))
+        let mods = root.appendingPathComponent("minecraft/mods")
+        #expect(try await content.apiWasProvisioned(in: mods))
+        try FileManager.default.removeItem(at: mods.appendingPathComponent("api.jar"))
+        _ = try await installer.install(version, at: root, fabric: .init(loaderVersion: "0.19.5", api: api)) { _ in }
+        #expect(!FileManager.default.fileExists(atPath: mods.appendingPathComponent("api.jar").path))
+        try Data("broken".utf8).write(to: root.appendingPathComponent("minecraft/.hako-fabric.json"))
+        #expect(throws: MojangError.self) { try FabricProfile.installed(root: root, minecraft: "test", sha1: result.fabricProfileSHA1) }
+    }
+
     @Test func interruptionRecoversQueueButKeepsUserPause() async throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }

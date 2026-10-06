@@ -106,6 +106,7 @@ struct InstanceParametersEditor: View {
     @Binding var draft: InstanceDraft
     @Binding var isValid: Bool
     var manifest: MinecraftVersionManifest?
+    var fabric: FabricProfile?
     @AppStorage(GameLaunchDefaults.Key.javaArguments) private var globalJava = ""
     @AppStorage(GameLaunchDefaults.Key.minecraftArguments) private var globalMinecraft = ""
     @AppStorage(GameLaunchDefaults.Key.javaPath) private var globalJavaPath = ""
@@ -113,21 +114,30 @@ struct InstanceParametersEditor: View {
     @State private var width: String
     @State private var height: String
 
-    init(draft: Binding<InstanceDraft>, isValid: Binding<Bool>, manifest: MinecraftVersionManifest? = nil) {
+    init(draft: Binding<InstanceDraft>, isValid: Binding<Bool>, manifest: MinecraftVersionManifest? = nil, fabric: FabricProfile? = nil) {
         _draft = draft; _isValid = isValid; self.manifest = manifest
+        self.fabric = fabric
         _width = State(initialValue: String(draft.wrappedValue.parameters.windowWidth))
         _height = State(initialValue: String(draft.wrappedValue.parameters.windowHeight))
     }
 
     private var usesGlobal: Bool { draft.argumentSource == .global }
     private var globalJavaArguments: String {
+        if let templates = templates(source: .global) { return LaunchArguments.format(templates.java) }
         guard let arguments = try? LaunchArguments.parse(globalJava) else { return globalJava }
         return LaunchArguments.format(LaunchArguments.applyingMemory(arguments, maximumMiB: JavaMemoryPolicy.current.normalize(globalMemory)))
+    }
+    private var globalMinecraftArguments: String { templates(source: .global).map { LaunchArguments.format($0.minecraft) } ?? globalMinecraft }
+    private func templates(source: LaunchArgumentSource) -> (java: [String], minecraft: [String])? {
+        guard let manifest else { return nil }
+        var parameters = draft.parameters
+        if source == .global { parameters.javaArguments = globalJava; parameters.minecraftArguments = globalMinecraft; parameters.maximumMemoryMiB = globalMemory }
+        return try? MinecraftLaunchPlan.argumentTemplates(manifest: manifest, source: source, parameters: parameters, fabric: fabric)
     }
     private var mojangArguments: (java: String, minecraft: String) {
         var parameters = draft.parameters
         parameters.maximumMemoryMiB = JavaMemoryPolicy.current.normalize(parameters.maximumMemoryMiB)
-        guard let manifest, let arguments = try? MinecraftLaunchPlan.argumentTemplates(manifest: manifest, source: .mojang, parameters: parameters) else { return ("", "") }
+        guard let manifest, let arguments = try? MinecraftLaunchPlan.argumentTemplates(manifest: manifest, source: .mojang, parameters: parameters, fabric: fabric) else { return ("", "") }
         return (LaunchArguments.format(arguments.java), LaunchArguments.format(arguments.minecraft))
     }
     private func source(_ source: LaunchArgumentSource) -> Binding<Bool> {
@@ -152,13 +162,19 @@ struct InstanceParametersEditor: View {
                     warning("Эта сборка использует пользовательскую Java из глобальных настроек. Это может привести к проблемам в игре.")
                 }
             } else if draft.argumentSource == .mojang {
-                Text("Используются обязательные и рекомендуемые аргументы из описания версии Mojang.").font(.caption).foregroundStyle(.secondary)
+                Text(fabric == nil ? "Используются обязательные и рекомендуемые аргументы из описания версии Mojang." : "Используются обязательные и рекомендуемые аргументы Mojang и Fabric.").font(.caption).foregroundStyle(.secondary)
                 Text("Пути и значения аккаунта в ${…} будут подставлены при запуске.").font(.caption).foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 16) {
                 parameterField("Аргументы Java", text: usesGlobal ? .constant(globalJavaArguments) : draft.argumentSource == .mojang ? .constant(mojangArguments.java) : $draft.parameters.javaArguments)
-                parameterField("Аргументы Minecraft", text: usesGlobal ? .constant(globalMinecraft) : draft.argumentSource == .mojang ? .constant(mojangArguments.minecraft) : $draft.parameters.minecraftArguments)
+                parameterField("Аргументы Minecraft", text: usesGlobal ? .constant(globalMinecraftArguments) : draft.argumentSource == .mojang ? .constant(mojangArguments.minecraft) : $draft.parameters.minecraftArguments)
             }.disabled(draft.argumentSource != .custom)
+            if draft.argumentSource == .custom, let templates = templates(source: .custom) {
+                DisclosureGroup("Итоговые аргументы запуска") {
+                    Text(LaunchArguments.format(templates.java) + "\n" + LaunchArguments.format(templates.minecraft))
+                        .font(.caption.monospaced()).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
             JavaMemorySlider(value: usesGlobal ? .constant(JavaMemoryPolicy.current.normalize(globalMemory)) : $draft.parameters.maximumMemoryMiB, inherited: usesGlobal)
             Text("Значения -Xmx и MaxHeapSize в аргументах заменяются лимитом ползунка при запуске.").font(.caption).foregroundStyle(.secondary)
             Divider()

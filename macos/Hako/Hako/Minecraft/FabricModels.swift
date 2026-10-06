@@ -74,6 +74,16 @@ nonisolated struct FabricProfile: Decodable, Sendable {
         _ = try InstanceStorage.containedURL(id, in: FileManager.default.temporaryDirectory)
     }
 
+    static func installed(root: URL, minecraft: String, sha1: String?) throws -> Self {
+        guard let sha1 else { throw InstanceFileError.message("Профиль Fabric отсутствует. Повторите установку сборки.") }
+        let url = try InstanceStorage.containedURL("minecraft/.hako-fabric.json", in: root)
+        let bytes = try Data(contentsOf: url)
+        try MojangIntegrity.check(bytes, download: .init(url: url, sha1: sha1))
+        let profile = try JSONDecoder().decode(Self.self, from: bytes)
+        try profile.validate(minecraft: minecraft)
+        return profile
+    }
+
     func resolvedLibraries(_ base: [LibraryInstallation], manifest: MinecraftVersionManifest, root: URL) throws -> [LibraryInstallation] {
         let overridden = Set(libraries.map(\.key))
         let excluded = Set(manifest.libraries.filter { overridden.contains(Library.key($0.name)) }.compactMap { $0.downloads?.artifact?.path })

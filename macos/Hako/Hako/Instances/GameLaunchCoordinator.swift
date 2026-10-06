@@ -15,6 +15,8 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
     let source: LaunchArgumentSource
     let parameters: InstanceParameters
     let clientID: String
+    var fabric: FabricConfiguration? = nil
+    var fabricProfileSHA1: String? = nil
 }
 
 @MainActor @Observable final class GameLaunchCoordinator {
@@ -82,6 +84,10 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
         let source = instance.argumentSource, parameters = instance.effectiveParameters()
         let override = source == .global ? GameLaunchDefaults.load().javaPath.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         let javaExecutable = instance.javaExecutable, version = instance.versionID, sha1 = instance.metadataSHA1
+        let fabricProfileSHA1 = instance.fabricProfileSHA1
+        let fabric: FabricConfiguration?
+        do { fabric = try instance.fabricConfiguration() }
+        catch { try? playtime.cancelSession(sessionID); states[id] = .failed(error.localizedDescription); return }
         attempts[id] = attempt; states[id] = .preparing; store.launchBusy.insert(id)
         tasks[id] = Task { [self] in
             defer { tasks[id] = nil }
@@ -96,7 +102,7 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
                 }
                 let root = try store.storage.directory(folder)
                 let executable = override.isEmpty ? try InstanceStorage.containedURL("java/\(javaExecutable)", in: root) : URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
-                let plan = try await prepareLaunch(.init(root: root, version: version, sha1: sha1, executable: executable, identity: identity, source: source, parameters: parameters, clientID: MicrosoftAuth.clientID))
+                let plan = try await prepareLaunch(.init(root: root, version: version, sha1: sha1, executable: executable, identity: identity, source: source, parameters: parameters, clientID: MicrosoftAuth.clientID, fabric: fabric, fabricProfileSHA1: fabricProfileSHA1))
                 try Task.checkCancellation()
                 if !offline, sessions.identity(for: account)?.accessToken != identity.accessToken { throw InstanceFileError.message("Minecraft-сессия изменилась или завершилась. Повторите запуск.") }
                 let record = try await runner.start(plan, id: id, root: root, tracking: .init(sessionID: sessionID, directory: playtime.journalDirectory)) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) }
@@ -132,6 +138,10 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
         try MojangIntegrity.check(data, download: .init(url: url, sha1: sha1))
         let manifest = try JSONDecoder().decode(MinecraftVersionManifest.self, from: data)
         guard manifest.id == version else { throw MojangError.invalid("Описание версии не соответствует сборке.") }
+        let fabric = try request.fabric.map { _ in try FabricProfile.installed(root: root, minecraft: version, sha1: request.fabricProfileSHA1) }
+        if let fabric, let configuration = request.fabric, fabric.id != "fabric-loader-\(configuration.loaderVersion)-\(version)" {
+            throw InstanceFileError.message("Установленная версия Fabric не соответствует сборке. Повторите установку.")
+        }
         var assets: MinecraftAssetIndex?
         if let index = manifest.assetIndex {
             let url = try InstanceStorage.containedURL("minecraft/assets/indexes/\(index.id).json", in: root)
@@ -140,7 +150,14 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
             assets = try JSONDecoder().decode(MinecraftAssetIndex.self, from: data)
         }
         try await JavaLaunchValidation.validate(executable, minimumMajor: manifest.java.majorVersion)
-        let plan = try MinecraftLaunchPlan.build(manifest: manifest, root: root, executable: executable, identity: request.identity, source: request.source, parameters: request.parameters, assetIndex: assets, clientID: request.clientID)
+        let plan = try MinecraftLaunchPlan.build(manifest: manifest, root: root, executable: executable, identity: request.identity, source: request.source, parameters: request.parameters, assetIndex: assets, clientID: request.clientID, fabric: fabric)
+        if let fabric {
+            for library in fabric.libraries {
+                guard FileManager.default.fileExists(atPath: try InstanceStorage.containedURL("minecraft/libraries/\(library.path)", in: root).path) else {
+                    throw InstanceFileError.message("Библиотека Fabric отсутствует. Повторите установку сборки.")
+                }
+            }
+        }
         guard FileManager.default.fileExists(atPath: try InstanceStorage.containedURL("minecraft/versions/\(version)/\(version).jar", in: root).path) else { throw InstanceFileError.message("Файл Minecraft отсутствует. Повторите установку сборки.") }
         return plan
     }

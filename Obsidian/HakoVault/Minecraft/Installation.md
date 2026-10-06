@@ -57,3 +57,13 @@ URL загрузок должен быть HTTPS; пути, архивы и си
 Кэш расположен в `Library/Caches/Hako/FabricAPI`, папка сборки до сохранения не создаётся.
 `FabricVersionPredicate` использует AND между термами строки и OR между строками массива; поддерживает
 сравнения, диапазоны `~`/`^`, wildcard и prerelease. Modrinth запрашивается с User-Agent Hako.
+
+## Установка Fabric
+
+`MinecraftInstaller.install(..., fabric:)` принимает закреплённую `FabricConfiguration`.
+Fabric profile/json проверяется по `inheritsFrom`, сохраняется отдельно в `minecraft/.hako-fabric.json`;
+его SHA-1 возвращается координатору и хранится в сборке. Maven-библиотеки используют SHA-1 из профиля
+или `.jar.sha1`, проходят общий установщик и располагаются в `minecraft/libraries`.
+API устанавливается actor `InstanceContent`, общим для установщика и пользовательских операций.
+`minecraft/.hako-mods.json` хранит происхождение внешних модов и `apiProvisioned`; повторная установка
+не возвращает API после пользовательского удаления или отключения. Готовность включает все компоненты.

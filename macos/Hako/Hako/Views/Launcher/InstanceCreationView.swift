@@ -137,7 +137,7 @@ struct InstanceCreationView: View {
                         .buttonStyle(.plain)
 
                         if advanced {
-                            InstanceParametersEditor(draft: $draft, isValid: $parametersValid, manifest: prepared?.manifest)
+                            InstanceParametersEditor(draft: $draft, isValid: $parametersValid, manifest: prepared?.manifest, fabric: fabricProfile)
                                 .padding(.top, 16)
                         }
                     }

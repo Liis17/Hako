@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 nonisolated struct InstallationProgress: Sendable {
     var stage: String
@@ -11,6 +12,7 @@ nonisolated struct InstallationResult: Sendable {
     let javaMajorVersion: Int
     let javaExecutable: String
     let legacyTexturepacks: Bool
+    var fabricProfileSHA1: String? = nil
 }
 
 actor MinecraftInstaller {
@@ -22,14 +24,17 @@ actor MinecraftInstaller {
     private let client: MojangClient
     private let session: URLSession
     private let assetBaseURL: URL
+    private let fabricClient: FabricClient
+    private let content: InstanceContent
 
-    init(client: MojangClient = MojangClient(), session: URLSession = URLSession(configuration: .ephemeral), assetBaseURL: URL = URL(string: "https://resources.download.minecraft.net")!) {
+    init(client: MojangClient = MojangClient(), session: URLSession = URLSession(configuration: .ephemeral), assetBaseURL: URL = URL(string: "https://resources.download.minecraft.net")!, fabricClient: FabricClient = .init(), content: InstanceContent = .init()) {
         self.client = client
         self.session = session
         self.assetBaseURL = assetBaseURL
+        self.fabricClient = fabricClient; self.content = content
     }
 
-    func install(_ version: MinecraftVersion, at root: URL, platform: MinecraftPlatform = .current, progress: @escaping @Sendable (InstallationProgress) async -> Void) async throws -> InstallationResult {
+    func install(_ version: MinecraftVersion, at root: URL, platform: MinecraftPlatform = .current, fabric: FabricConfiguration? = nil, progress: @escaping @Sendable (InstallationProgress) async -> Void) async throws -> InstallationResult {
         await progress(.init(stage: "Проверяем файлы версии…"))
         let prepared = try await client.prepare(version, platform: platform)
         let runtimeData = try await client.data(for: prepared.runtime.manifest)
@@ -57,6 +62,14 @@ actor MinecraftInstaller {
         let clientFile = manifest.downloads["client"]!
         files.append(.init(download: clientFile, path: "\(versionDirectory)/\(version.id).jar"))
         for library in prepared.libraries { files.append(.init(download: library.download, path: "minecraft/libraries/\(library.path)")) }
+        var fabricSHA1: String?
+        if let fabric {
+            await progress(.init(stage: "Подготавливаем Fabric…"))
+            let (profile, data) = try await fabricClient.profile(minecraft: version.id, loader: fabric.loaderVersion)
+            for library in try await fabricClient.libraries(profile) { files.append(.init(download: library.download, path: "minecraft/libraries/\(library.path)")) }
+            try Self.write(data, relativePath: "minecraft/.hako-fabric.json", root: root)
+            fabricSHA1 = Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        }
         if let logging = manifest.logging?["client"] {
             files.append(.init(download: logging.file, path: "minecraft/assets/log_configs/\(logging.file.id ?? logging.file.url.lastPathComponent)"))
         }
@@ -144,8 +157,19 @@ actor MinecraftInstaller {
             try FileManager.default.createDirectory(at: try InstanceStorage.containedURL(path, in: root), withIntermediateDirectories: true)
         }
         guard FileManager.default.isExecutableFile(atPath: try InstanceStorage.containedURL(executable, in: javaRoot).path) else { throw MojangError.invalid("Не удалось подготовить Java к запуску.") }
+        if let fabric {
+            let folder = try InstanceStorage.containedURL("minecraft/mods", in: root)
+            if try await !content.apiWasProvisioned(in: folder) {
+                await progress(.init(stage: "Устанавливаем Fabric API…", completedBytes: completed, totalBytes: total))
+                let metadata = try await fabricClient.metadata(for: fabric.api)
+                guard try metadata.supports(loader: fabric.loaderVersion, java: manifest.java.majorVersion) else { throw MojangError.unsupported("Fabric API несовместим с выбранным Loader или Java.") }
+                let cached = try await fabricClient.cachedAPI(fabric.api)
+                try Task.checkCancellation()
+                try await content.provisionAPI(fabric.api, from: cached, in: folder)
+            }
+        }
         await progress(.init(stage: "Готово", completedBytes: total, totalBytes: total))
-        return InstallationResult(javaMajorVersion: manifest.java.majorVersion, javaExecutable: executable, legacyTexturepacks: manifest.legacyTexturepacks)
+        return InstallationResult(javaMajorVersion: manifest.java.majorVersion, javaExecutable: executable, legacyTexturepacks: manifest.legacyTexturepacks, fabricProfileSHA1: fabricSHA1)
     }
 
     @concurrent private static func download(_ file: File, root: URL, session: URLSession) async throws {

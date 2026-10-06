@@ -7,6 +7,7 @@ import SwiftData
     let store: InstanceStore
     let client: MojangClient
     let fabricClient: FabricClient
+    let content: InstanceContent
     private let installer: MinecraftInstaller
     private var activeID: UUID?
     private var activeTask: Task<Void, Never>?
@@ -16,11 +17,12 @@ import SwiftData
     var contentBusy: Set<UUID> = []
     private var lastProgressUpdate = Date.distantPast
 
-    init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), fabricClient: FabricClient = .init(), installer: MinecraftInstaller? = nil) {
+    init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), fabricClient: FabricClient = .init(), content: InstanceContent = .init(), installer: MinecraftInstaller? = nil) {
         store = InstanceStore(context: context, storage: storage)
         self.client = client
         self.fabricClient = fabricClient
-        self.installer = installer ?? MinecraftInstaller(client: client)
+        self.content = content
+        self.installer = installer ?? MinecraftInstaller(client: client, fabricClient: fabricClient, content: content)
     }
 
     func start() {
@@ -84,12 +86,14 @@ import SwiftData
             for instance in instances where instance.state == .queued {
                 let root: URL
                 let version: MinecraftVersion
+                let fabric: FabricConfiguration?
                 do {
                     guard let url = URL(string: instance.metadataURL), url.scheme == "https" else {
                         throw InstanceFileError.message("Не удалось прочитать описание версии.")
                     }
                     version = MinecraftVersion(id: instance.versionID, type: "release", url: url, sha1: instance.metadataSHA1)
                     root = try store.storage.directory(instance.folderName)
+                    fabric = try instance.fabricConfiguration()
                 } catch {
                     instance.state = .failed
                     instance.installationError = error.localizedDescription
@@ -108,13 +112,14 @@ import SwiftData
                         pump()
                     }
                     do {
-                        let result = try await installer.install(version, at: root) { [weak self] value in
+                        let result = try await installer.install(version, at: root, fabric: fabric) { [weak self] value in
                             await self?.setProgress(value, id: id)
                         }
                         try Task.checkCancellation()
                         instance.javaMajorVersion = result.javaMajorVersion
                         instance.javaExecutable = result.javaExecutable
                         instance.legacyTexturepacks = result.legacyTexturepacks
+                        instance.fabricProfileSHA1 = result.fabricProfileSHA1
                         instance.state = .ready
                         instance.installationError = nil
                         progress.removeValue(forKey: instance.id)

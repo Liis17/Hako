@@ -181,3 +181,10 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 1. Создать Swift-файл в `macos/Hako/Hako/` (допускаются подпапки) — он автоматически войдёт в таргет.
 2. Новую модель SwiftData зарегистрировать по правилам [[Data/Persistence]].
 3. Новое представление подключить к иерархии, начиная с `ContentView`, или как новую сцену в `HakoApp.body`.
+
+## Fabric
+
+Сборки выбирают Vanilla либо Fabric при создании. `Minecraft/FabricClient.swift` обращается к Fabric Meta
+и официальному проекту Fabric API в Modrinth, кэширует проверенный API для предварительной совместимости.
+Установка сохраняет исходный Mojang manifest и отдельный дочерний профиль Fabric; запуск разрешает их
+совместно, без запросов к сети. Общего каталога модов Modrinth/CurseForge пока нет.

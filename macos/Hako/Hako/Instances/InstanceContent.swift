@@ -1,5 +1,24 @@
 import Foundation
 
+nonisolated struct ModOrigin: Codable, Sendable {
+    let source: ModSource
+    let projectID: String
+    let versionID: String
+    let pageURL: URL
+    let sha512: String
+    let api: FabricAPIDescriptor?
+
+    init(api: FabricAPIDescriptor) {
+        source = .modrinth; projectID = api.projectID; versionID = api.versionID
+        pageURL = api.pageURL; sha512 = api.sha512; self.api = api
+    }
+}
+
+nonisolated struct ModRegistry: Codable, Sendable {
+    var apiProvisioned = false
+    var files: [String: ModOrigin] = [:]
+}
+
 nonisolated struct InstanceContentItem: Identifiable, Sendable {
     let url: URL
     let isDirectory: Bool
@@ -15,6 +34,35 @@ nonisolated enum PackImportError: LocalizedError {
 }
 
 actor InstanceContent {
+    private func registry(at folder: URL) throws -> ModRegistry {
+        let file = try InstanceStorage.containedURL(".hako-mods.json", in: folder.deletingLastPathComponent())
+        if (try? file.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message("Реестр модов не может быть ссылкой.") }
+        guard FileManager.default.fileExists(atPath: file.path) else { return .init() }
+        return try JSONDecoder().decode(ModRegistry.self, from: Data(contentsOf: file))
+    }
+
+    private func saveRegistry(_ registry: ModRegistry, at folder: URL) throws {
+        let file = try InstanceStorage.containedURL(".hako-mods.json", in: folder.deletingLastPathComponent())
+        try JSONEncoder().encode(registry).write(to: file, options: .atomic)
+    }
+
+    func provisionAPI(_ api: FabricAPIDescriptor, from cached: URL, in folder: URL) throws {
+        var registry = try registry(at: folder)
+        guard !registry.apiProvisioned else { return }
+        guard try FabricClient.validAPI(cached, api: api) else { throw InstanceFileError.message("Файл Fabric API повреждён.") }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let target = try InstanceStorage.containedURL(api.filename, in: folder)
+        guard !FileManager.default.fileExists(atPath: target.path) else { throw InstanceFileError.message("Файл Fabric API уже существует. Уберите конфликтующий файл и повторите установку.") }
+        let staged = folder.appendingPathComponent(".api-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: staged) }
+        try FileManager.default.copyItem(at: cached, to: staged)
+        try FileManager.default.moveItem(at: staged, to: target)
+        registry.files[api.filename.lowercased()] = ModOrigin(api: api); registry.apiProvisioned = true
+        do { try saveRegistry(registry, at: folder) }
+        catch { try? FileManager.default.removeItem(at: target); throw error }
+    }
+
+    func apiWasProvisioned(in folder: URL) throws -> Bool { try registry(at: folder).apiProvisioned }
     func list(at folder: URL, mods: Bool) throws -> [InstanceContentItem] {
         guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
         return try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: .skipsHiddenFiles).compactMap { url in

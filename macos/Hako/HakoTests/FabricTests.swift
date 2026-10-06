@@ -29,15 +29,15 @@ import Testing
     }
 
     @Test func loaderCatalogKeepsOrderAndDistinguishesUnsupportedFromNetwork() async throws {
-        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [MojangTestProtocol.self]
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [FabricTestProtocol.self]
         let session = URLSession(configuration: config); defer { session.invalidateAndCancel() }
         let url = URL(string: "https://meta.fabricmc.net/v2/versions/loader/26.3")!
-        MojangTestProtocol.prepare([url: .init(data: Data(#"[{"loader":{"version":"0.19.5","stable":true}},{"loader":{"version":"0.19.4","stable":false}}]"#.utf8))])
+        FabricTestProtocol.prepare([url: .init(data: Data(#"[{"loader":{"version":"0.19.5","stable":true}},{"loader":{"version":"0.19.4","stable":false}}]"#.utf8))])
         let client = FabricClient(session: session)
         #expect(try await client.loaderVersions(minecraft: "26.3").map(\.version) == ["0.19.5", "0.19.4"])
-        MojangTestProtocol.prepare([url: .init(status: 400, data: Data("[]".utf8))])
+        FabricTestProtocol.prepare([url: .init(status: 400, data: Data("[]".utf8))])
         #expect(try await client.loaderVersions(minecraft: "26.3").isEmpty)
-        MojangTestProtocol.prepare([url: .init(data: Data(), error: URLError(.notConnectedToInternet))])
+        FabricTestProtocol.prepare([url: .init(data: Data(), error: URLError(.notConnectedToInternet))])
         await #expect(throws: URLError.self) { try await client.loaderVersions(minecraft: "26.3") }
     }
 
@@ -49,7 +49,7 @@ import Testing
     }
 
     @Test func apiSelectionPrefersReleaseThenNewestBetaAndRejectsMissingAPI() async throws {
-        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [MojangTestProtocol.self]
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [FabricTestProtocol.self]
         let session = URLSession(configuration: config); defer { session.invalidateAndCancel() }
         let client = FabricClient(session: session)
         var components = URLComponents(string: "https://api.modrinth.com/v2/project/P7dR8mSH/version")!
@@ -59,11 +59,78 @@ import Testing
             ["id": id, "project_id": "P7dR8mSH", "version_number": id, "version_type": channel, "date_published": date,
              "game_versions": ["26.3"], "loaders": ["fabric"], "files": [["filename": "api.jar", "url": "https://fixtures.test/api.jar", "size": 3, "primary": true, "hashes": ["sha1": String(repeating: "a", count: 40), "sha512": String(repeating: "b", count: 128)]]]]
         }
-        MojangTestProtocol.prepare([url: .init(data: try JSONSerialization.data(withJSONObject: [version("beta", "beta", "2026-10-06"), version("release", "release", "2026-10-05")]))])
+        FabricTestProtocol.prepare([url: .init(data: try JSONSerialization.data(withJSONObject: [version("beta", "beta", "2026-10-06"), version("release", "release", "2026-10-05")]))])
         #expect(try await client.latestAPI(minecraft: "26.3").versionID == "release")
-        MojangTestProtocol.prepare([url: .init(data: try JSONSerialization.data(withJSONObject: [version("old", "beta", "2026-10-04"), version("new", "beta", "2026-10-06")]))])
+        FabricTestProtocol.prepare([url: .init(data: try JSONSerialization.data(withJSONObject: [version("old", "beta", "2026-10-04"), version("new", "beta", "2026-10-06")]))])
         #expect(try await client.latestAPI(minecraft: "26.3").versionID == "new")
-        MojangTestProtocol.prepare([url: .init(data: Data("[]".utf8))])
+        FabricTestProtocol.prepare([url: .init(data: Data("[]".utf8))])
         await #expect(throws: MojangError.self) { try await client.latestAPI(minecraft: "26.3") }
     }
+
+    @Test func fabricLaunchKeepsBaseClientAndMandatoryArgumentsInEveryMode() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        for minecraft in ["1.19", "26.3"] {
+            let base = try JSONDecoder().decode(MinecraftVersionManifest.self, from: Data(contentsOf: #require(SkinTestFixtures.bundle.url(forResource: minecraft, withExtension: "json"))))
+            let fabric = try JSONDecoder().decode(FabricProfile.self, from: Data(contentsOf: #require(SkinTestFixtures.bundle.url(forResource: "fabric-\(minecraft)", withExtension: "json"))))
+            for source in LaunchArgumentSource.allCases {
+                let plan = try MinecraftLaunchPlan.build(manifest: base, root: root, executable: root.appendingPathComponent("java/bin/java"), identity: .offline(name: "Player"), source: source, parameters: InstanceParameters(), fabric: fabric)
+                #expect(plan.arguments.contains(fabric.mainClass))
+                #expect(plan.arguments.contains("-XstartOnFirstThread"))
+                #expect(plan.arguments.contains("-DFabricMcEmu= net.minecraft.client.main.Main "))
+                #expect(!plan.arguments.contains(where: { $0.contains("${") }))
+                let cp = try #require(plan.arguments.firstIndex(of: "-cp"))
+                let classpath = plan.arguments[cp + 1]
+                #expect(classpath.contains("versions/\(minecraft)/\(minecraft).jar"))
+                #expect(classpath.contains("fabric-loader/0.19.5"))
+                if minecraft == "26.3" { #expect(!classpath.contains("intermediary/")) }
+                else { #expect(classpath.contains("intermediary/1.19")) }
+                let templates = try MinecraftLaunchPlan.argumentTemplates(manifest: base, source: source, parameters: InstanceParameters(), fabric: fabric)
+                #expect(templates.java.contains("-DFabricMcEmu= net.minecraft.client.main.Main "))
+            }
+        }
+    }
+
+    @Test func apiPreflightFiltersLoaderAndReusesOnlyVerifiedCache() async throws {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [FabricTestProtocol.self]
+        let session = URLSession(configuration: config); defer { session.invalidateAndCancel() }
+        let cache = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let client = FabricClient(session: session, cache: cache)
+        let bytes = try Data(contentsOf: #require(SkinTestFixtures.bundle.url(forResource: "fabric-api-test", withExtension: "zip")))
+        let hash = FabricClient.hash(bytes), sha1 = Insecure.SHA1.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        let file = URL(string: "https://fixtures.test/api.jar")!
+        let api = FabricAPIDescriptor(projectID: "P7dR8mSH", versionID: "test", version: "test", channel: "release", filename: "api.jar", url: file, size: Int64(bytes.count), sha1: sha1, sha512: hash)
+        FabricTestProtocol.prepare([file: .init(data: bytes)])
+        #expect(try await client.metadata(for: api).supports(loader: "0.19.5", java: 25))
+        #expect(try await !client.metadata(for: api).supports(loader: "0.19.2", java: 25))
+        #expect(FabricTestProtocol.requests.filter { $0 == file }.count == 1)
+        try Data("broken".utf8).write(to: cache.appendingPathComponent("\(hash).jar"))
+        FabricTestProtocol.prepare([file: .init(data: Data("bad".utf8))])
+        await #expect(throws: MojangError.self) { try await client.cachedAPI(api) }
+    }
+}
+
+nonisolated final class FabricTestProtocol: URLProtocol, @unchecked Sendable {
+    struct Response: Sendable { var status = 200; let data: Data; var delay: TimeInterval = 0; var error: URLError? }
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var responses: [URL: Response] = [:]
+    private nonisolated(unsafe) static var recorded: [URL] = []
+    private var delivery: DispatchWorkItem?
+    static var requests: [URL] { lock.withLock { recorded } }
+    static func prepare(_ responses: [URL: Response]) { lock.withLock { self.responses = responses; recorded = [] } }
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = Self.lock.withLock { Self.recorded.append(request.url!); return Self.responses[request.url!] ?? .init(status: 404, data: Data()) }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if let error = response.error { client?.urlProtocol(self, didFailWithError: error); return }
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: response.status, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: response.data)
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        delivery = work
+        DispatchQueue.global().asyncAfter(deadline: .now() + response.delay, execute: work)
+    }
+    override func stopLoading() { delivery?.cancel() }
 }
