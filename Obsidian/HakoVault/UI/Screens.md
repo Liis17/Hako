@@ -62,7 +62,7 @@ Minecraft is a trademark of Microsoft.» (`.caption`, `.tertiary`). Элемен
 Вход выполняет `signIn()` в `.task(id: attempt)`: SwiftUI отменяет задачу, когда экран исчезает
 («Назад»), и перезапускает при смене `attempt`. Ошибки после отмены не показываются.
 Шаги входа — [[Auth/MicrosoftAuth]]; если Minecraft недоступен, вход завершается только с аккаунтом
-Microsoft. При успехе токены сохраняются в `TokenKeychain`, затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]) — [[UI/ContentView]]
+Microsoft. При успехе токены сохраняются в `TokenKeychain`, затем вставляется `Account` и одним сохранением переносится гостевое игровое время ([[Data/Persistence]]) — [[UI/ContentView]]
 сам переключается на главную страницу [[UI/Launcher]].
 
 ## Главная страница

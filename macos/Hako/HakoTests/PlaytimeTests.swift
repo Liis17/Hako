@@ -153,10 +153,10 @@ import Darwin
         try journal.save(in: root)
         let executable = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
         let client = PlaytimeHelperClient(executable: executable)
-        try await client.attach(to: journal.url(in: root))
+        try await client.attach(to: journal, in: root)
         let first = try PlaytimeJournal.load(from: journal.url(in: root))
         #expect(first.helper?.isRunning == true)
-        try await PlaytimeHelperClient(executable: executable).attach(to: journal.url(in: root))
+        try await PlaytimeHelperClient(executable: executable).attach(to: journal, in: root)
         #expect(try PlaytimeJournal.load(from: journal.url(in: root)).helper == first.helper)
         try await Task.sleep(for: .milliseconds(80))
         game.terminate()
@@ -166,6 +166,65 @@ import Darwin
         }
         let finished = try PlaytimeJournal.load(from: journal.url(in: root))
         #expect(finished.isFinished && finished.elapsedSeconds > 0)
+    }
+
+    @Test func helperAttachingAfterGameExitKeepsTheLastCheckpoint() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let startedUptime = ProcessInfo.processInfo.systemUptime
+        let game = Process(); game.executableURL = URL(fileURLWithPath: "/bin/sleep"); game.arguments = ["20"]
+        try game.run()
+        defer { if game.isRunning { game.terminate() } }
+        let identity = try #require(PlaytimeProcessIdentity.read(pid: game.processIdentifier))
+        var journal = PlaytimeJournal(sessionID: UUID(), process: identity, startedUptime: startedUptime)
+        try await Task.sleep(for: .milliseconds(20))
+        journal.checkpoint()
+        try journal.save(in: root)
+        game.terminate(); game.waitUntilExit()
+        try await Task.sleep(for: .milliseconds(80))
+        let executable = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        try await PlaytimeHelperClient(executable: executable).attach(to: journal, in: root)
+        let finished = try PlaytimeJournal.load(from: journal.url(in: root))
+        #expect(finished.isFinished)
+        #expect(finished.elapsedSeconds == journal.elapsedSeconds)
+        try FileManager.default.removeItem(at: journal.url(in: root))
+        try await PlaytimeHelperClient(executable: root.appendingPathComponent("missing-helper")).attach(to: journal, in: root)
+    }
+
+    @Test func finalJournalSurvivesCleanupSaveFailureAndRetriesWithoutDuplicateTime() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        var saves = 0, failingSave: Int?
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root, persist: {
+            saves += 1
+            if saves == failingSave { throw InstanceFileError.message("Test cleanup failure") }
+            try container.mainContext.save()
+        })
+        let sessionID = try playtime.beginSession(instanceID: UUID(), xuid: "first")
+        let process = try #require(PlaytimeProcessIdentity.read(pid: getpid()))
+        var journal = PlaytimeJournal(sessionID: sessionID, process: process, startedUptime: 1000)
+        journal.elapsedSeconds = 90; journal.isFinished = true
+        try journal.save(in: root)
+        failingSave = saves + 2
+        #expect(throws: InstanceFileError.self) { try playtime.reconcile() }
+        #expect(FileManager.default.fileExists(atPath: journal.url(in: root).path))
+        #expect(try container.mainContext.fetch(FetchDescriptor<PlaytimeSession>()).first?.creditedSeconds == 90)
+        // Autosave не должен потерять курсор после неуспешного удаления модели.
+        try container.mainContext.save()
+        let restored = try PlaytimeCoordinator(context: ModelContext(container), journalDirectory: root)
+        #expect(restored.totalSeconds(xuid: "first") == 90)
+        failingSave = nil
+        try playtime.reconcile()
+        #expect(playtime.totalSeconds(xuid: "first") == 90)
+        #expect(!FileManager.default.fileExists(atPath: journal.url(in: root).path))
+        #expect(try container.mainContext.fetch(FetchDescriptor<PlaytimeSession>()).isEmpty)
+        #expect(try ModelContext(container).fetch(FetchDescriptor<PlaytimeSession>()).isEmpty)
+        // Завершение после сохранения удаления сессии, но до удаления файла, тоже восстанавливается.
+        try journal.save(in: root)
+        try playtime.reconcile()
+        #expect(!FileManager.default.fileExists(atPath: journal.url(in: root).path))
+        #expect(playtime.totalSeconds(xuid: "first") == 90)
     }
 
     @Test func helperOutlivesItsLaunchingProcessAndFinalTimeCanBeImportedLater() async throws {

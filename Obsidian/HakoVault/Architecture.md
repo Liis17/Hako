@@ -25,7 +25,7 @@ CocoaPods, Carthage не используются) нет.
 | Swift, режим языка 5.0 | Язык приложения | `macos/Hako/Hako.xcodeproj/project.pbxproj` (`SWIFT_VERSION`) |
 | SwiftUI | UI и жизненный цикл приложения (`@main` `App`) | `macos/Hako/Hako/HakoApp.swift` |
 | RealityKit / `RealityView` | Нативное 3D-превью скина | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift`, `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` |
-| SwiftData | Аккаунт и профили сборок | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Account.swift` |
+| SwiftData | Аккаунт, профили сборок и игровое время | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Playtime/PlaytimeModels.swift` |
 | UserDefaults / `@AppStorage` | Глобальные параметры игры | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
 | URLSession | Авторизация, каталог и загрузка Minecraft/Java | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift` |
@@ -35,9 +35,9 @@ CocoaPods, Carthage не используются) нет.
 
 | Путь | Содержимое |
 |------|------------|
-| `macos/Hako/Hako.xcodeproj` | Проект Xcode: таргет и схема `Hako`, конфигурации `Debug` и `Release` |
+| `macos/Hako/Hako.xcodeproj` | Проект Xcode: таргеты `Hako`, `HakoPlaytimeHelper`, `HakoTests`; общая схема `Hako`, конфигурации `Debug` и `Release` |
 | `macos/Hako/Hako/` | Исходники и ресурсы приложения |
-| `macos/Hako/HakoTests/` | Swift Testing: скины, хранение и миграция сборок, метаданные Mojang, установка, параметры и процессы запуска, сессии и импорт текстурпаков |
+| `macos/Hako/HakoTests/` | Swift Testing: скины, хранение и миграция сборок, метаданные Mojang, установка, параметры и процессы запуска, сессии, игровое время и импорт текстурпаков |
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
 | `Obsidian/HakoVault/` | Эта база знаний |
@@ -48,7 +48,7 @@ CocoaPods, Carthage не используются) нет.
   `ModelContainer`, общие `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator`
   и `PlaytimeCoordinator`, затем сцену `WindowGroup` с `ContentView`.
   Устройство контейнера описано в [[Data/Persistence]].
-- [[Data/Persistence]] — схема SwiftData `Account` и `GameInstance`, контейнер хранилища, токены в Keychain,
+- [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками и игровым временем, контейнер хранилища, токены в Keychain,
   глобальные параметры игры, независимые папки сборок и статистика времени по XUID.
 - [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и общий сервис действительной Minecraft-сессии.
@@ -87,7 +87,8 @@ CocoaPods, Carthage не используются) нет.
    пользователь вводит код на microsoft.com/link.
 3. `MicrosoftAuth.waitForToken` опрашивает Microsoft до подтверждения, `signIn` получает профиль Xbox
    и пробует Minecraft ([[Auth/MicrosoftAuth]]). Недоступный Minecraft не прерывает вход.
-4. Токены сохраняются в Keychain под XUID, затем вставляется `Account` и сохраняется контекст ([[Data/Persistence]]).
+4. Токены сохраняются в Keychain под XUID, читаются игровые журналы, затем вставляется `Account`.
+   `PlaytimeCoordinator.transferGuest(to:)` сохраняет аккаунт и перенос гостевого времени одной операцией ([[Data/Persistence]]).
 5. `@Query` в `ContentView` видит аккаунт и переключает окно на `LauncherView`.
 
 Источники: `macos/Hako/Hako/Views/LoginView.swift`, `macos/Hako/Hako/Auth/MicrosoftAuth.swift`.

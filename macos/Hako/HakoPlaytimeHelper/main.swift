@@ -21,12 +21,12 @@ private final class PlaytimeWatcher: @unchecked Sendable {
         journal = try PlaytimeJournal.load(from: journal.url(in: directory))
         guard !journal.isFinished else { return false }
         journal.helper = PlaytimeProcessIdentity.read(pid: getpid())
-        journal.checkpoint()
         if !journal.process.isRunning {
             journal.isFinished = true
             try journal.save(in: directory)
             return false
         }
+        journal.checkpoint()
         try journal.save(in: directory)
         let process = journal.process
         let observer = DispatchSource.makeProcessSource(identifier: process.pid, eventMask: .exit, queue: queue)

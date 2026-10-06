@@ -74,7 +74,7 @@ actor GameProcessRunner {
             if let tracking {
                 let journal = PlaytimeJournal(sessionID: tracking.sessionID, process: .init(pid: record.pid, startSeconds: record.startSeconds, startMicroseconds: record.startMicroseconds), startedUptime: startedUptime)
                 try journal.save(in: tracking.directory)
-                try await helper.attach(to: journal.url(in: tracking.directory))
+                try await helper.attach(to: journal, in: tracking.directory)
             }
         } catch {
             if process.isRunning { process.terminate() }
@@ -87,7 +87,6 @@ actor GameProcessRunner {
 
     func observe(_ record: GameProcessRecord, root: URL, tracking: PlaytimeTrackingRequest? = nil, onExit: @escaping @Sendable (Int32?) async -> Void) async throws {
         guard record.isRunning else { Task { await onExit(nil) }; return }
-        records[record.instanceID] = record
         let observer = DispatchSource.makeProcessSource(identifier: record.pid, eventMask: .exit, queue: .global())
         observer.setEventHandler { [weak self] in
             let endedUptime = ProcessInfo.processInfo.systemUptime
@@ -100,7 +99,7 @@ actor GameProcessRunner {
         if let tracking {
             let journal = PlaytimeJournal(sessionID: tracking.sessionID, process: .init(pid: record.pid, startSeconds: record.startSeconds, startMicroseconds: record.startMicroseconds), startedUptime: ProcessInfo.processInfo.systemUptime)
             if !FileManager.default.fileExists(atPath: journal.url(in: tracking.directory).path) { try journal.save(in: tracking.directory) }
-            try await helper.attach(to: journal.url(in: tracking.directory))
+            try await helper.attach(to: journal, in: tracking.directory)
         }
         if !record.isRunning {
             finished(record.instanceID, pid: record.pid, root: root, tracking: tracking, endedUptime: ProcessInfo.processInfo.systemUptime)

@@ -46,7 +46,7 @@ import SwiftData
         for url in files where url.pathExtension == "json" {
             do {
                 var journal = try PlaytimeJournal.load(from: url)
-                guard sessions[journal.sessionID] != nil else { continue }
+                guard sessions[journal.sessionID] != nil || journal.isFinished else { continue }
                 if !journal.isFinished, !journal.process.isRunning, journal.helper?.isRunning != true {
                     // После выключения Mac или потери помощника известна только последняя контрольная точка.
                     guard let lock = try PlaytimeJournalLock.acquire(sessionID: journal.sessionID, directory: journalDirectory) else { continue }
@@ -56,10 +56,10 @@ import SwiftData
                         try journal.save(in: journalDirectory)
                     }
                 }
-                try credit(sessionID: journal.sessionID, elapsedSeconds: journal.elapsedSeconds)
+                if sessions[journal.sessionID] != nil { try credit(sessionID: journal.sessionID, elapsedSeconds: journal.elapsedSeconds) }
                 if journal.isFinished {
-                    try FileManager.default.removeItem(at: url)
                     try removeSession(journal.sessionID)
+                    try FileManager.default.removeItem(at: url)
                     try? FileManager.default.removeItem(at: journalDirectory.appendingPathComponent("\(journal.sessionID.uuidString).lock"))
                 }
             } catch { if failure == nil { failure = error } }
@@ -74,9 +74,15 @@ import SwiftData
 
     private func removeSession(_ id: UUID) throws {
         guard let session = sessions[id] else { return }
+        let ownerKey = session.ownerKey, instanceID = session.instanceID, creditedSeconds = session.creditedSeconds
         context.delete(session)
         do { try persist() }
-        catch { context.insert(session); throw error }
+        catch {
+            let restored = PlaytimeSession(instanceID: instanceID, ownerKey: ownerKey)
+            restored.id = id; restored.creditedSeconds = creditedSeconds
+            context.insert(restored); sessions[id] = restored
+            throw error
+        }
         sessions[id] = nil
     }
 

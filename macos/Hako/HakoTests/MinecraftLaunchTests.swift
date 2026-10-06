@@ -206,6 +206,31 @@ import Testing
         #expect(!journal.process.isRunning && journal.isFinished)
     }
 
+    @Test func shortGameFinishingDuringHelperStartupKeepsItsTimeAndSuccessfulExit() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        var draft = InstanceDraft(); draft.name = "Pack"; draft.offlineMode = true
+        let instance = try store.create(draft, versionID: "v", metadataURL: "url", metadataSHA1: "sha")
+        instance.state = .ready
+        let actualHelper = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        let helper = root.appendingPathComponent("delayed-helper")
+        let escapedPath = actualHelper.path.replacingOccurrences(of: "'", with: "'\\''")
+        try Data("#!/bin/sh\n/bin/sleep 0.3\nexec '\(escapedPath)' \"$@\"\n".utf8).write(to: helper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root.appendingPathComponent("sessions"))
+        let games = GameLaunchCoordinator(store: store, sessions: MinecraftSessionCoordinator(context: container.mainContext), playtime: playtime, runner: GameProcessRunner(helperURL: helper), prepare: { request in
+            .init(executable: URL(fileURLWithPath: "/bin/sleep"), arguments: ["0.05"], workingDirectory: request.root)
+        })
+        games.launch(instance, account: nil)
+        try await eventually { playtime.totalSeconds(xuid: nil) > 0 }
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(games.states[instance.id] == nil && !store.launchBusy.contains(instance.id))
+        #expect(playtime.instanceSeconds(instance.id, xuid: nil) == playtime.totalSeconds(xuid: nil))
+        #expect(try container.mainContext.fetch(FetchDescriptor<PlaytimeSession>()).isEmpty)
+    }
+
     @Test func veryShortTrackedProcessStillRecordsTimeAndItsExitStatus() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
