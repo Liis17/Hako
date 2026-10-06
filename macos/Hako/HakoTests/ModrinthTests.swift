@@ -137,7 +137,7 @@ import Testing
         #expect(controller.mods[instance.id]?.isEmpty != false)
     }
 
-    @Test func modRequiringNewerLoaderIsRejected() async throws {
+    @Test func newerLoaderRequirementWarnsAndInstallsOnlyWhenConfirmed() async throws {
         let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
         let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
         let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
@@ -153,9 +153,41 @@ import Testing
             "fixtures.test/root.jar": bytes
         ])
         controller.install(try Self.project("root"), in: instance, mods: true)
+        var confirmation = try await Self.confirmation(controller, installations, instance)
+        #expect(confirmation.title == "Возможна несовместимость" && confirmation.destructive)
+        #expect(confirmation.projects.first?.note == "Нужен Fabric Loader >=0.20.0, в сборке 0.19.5")
+        controller.resolveConfirmation(confirmation.id, choice: .cancel)
         try await Self.settle(installations, instance)
-        #expect(controller.errors[instance.id]?.contains("Fabric Loader") == true)
+        #expect(controller.errors[instance.id] == nil)
         #expect(controller.mods[instance.id]?.isEmpty != false)
+        controller.install(try Self.project("root"), in: instance, mods: true)
+        confirmation = try await Self.confirmation(controller, installations, instance)
+        controller.resolveConfirmation(confirmation.id, choice: .primary)
+        try await Self.settle(installations, instance)
+        #expect(controller.mods[instance.id]?.map(\.name) == ["root.jar"])
+    }
+
+    @Test func declaredIncompatibilityWithInstalledModWarns() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let other = root.appendingPathComponent("other.jar"); try Data("other".utf8).write(to: other)
+        try await installations.content.importItem(from: other, into: controller.folder(instance, mods: true), mods: true)
+        let rootBytes = Data("root".utf8)
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [Self.version("root-v", project: "root", file: ("root.jar", rootBytes), dependencies: [("other", "incompatible")])]),
+            "\(api)/version_files": try JSONSerialization.data(withJSONObject: [FabricClient.hash(Data("other".utf8)): ["id": "other-v", "project_id": "other", "date_published": "2026-10-01"]]),
+            "\(api)/projects": Data(#"[{"id":"other","slug":"other","title":"Other","description":"","icon_url":null,"project_type":"mod"}]"#.utf8),
+            "fixtures.test/root.jar": rootBytes
+        ])
+        controller.install(try Self.project("root"), in: instance, mods: true)
+        let confirmation = try await Self.confirmation(controller, installations, instance)
+        #expect(confirmation.projects.map(\.title) == ["Other"])
+        #expect(confirmation.projects.first?.note == "Несовместим с «Root»")
+        controller.resolveConfirmation(confirmation.id, choice: .cancel)
+        try await Self.settle(installations, instance)
+        #expect(controller.mods[instance.id]?.map(\.name) == ["other.jar"])
     }
 
     private static func temporaryRoot() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString) }

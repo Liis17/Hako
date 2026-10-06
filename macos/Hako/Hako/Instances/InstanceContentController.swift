@@ -271,11 +271,33 @@ enum ContentChoice { case cancel, primary, alternative }
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("Hako-Modrinth-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: staging) }
         let loader = try instance.fabricConfiguration()?.loaderVersion
-        var files: [URL] = []
+        var files: [URL] = [], warnings: [ContentConfirmation.Project] = []
         for download in downloads {
             let url = try await modrinth.download(download.file, into: staging.appendingPathComponent(UUID().uuidString))
-            if download.mods, let loader { try await checkCompatibility(url, title: download.project.title, loader: loader, java: instance.javaMajorVersion) }
+            if download.mods, let loader {
+                let notes = await compatibilityNotes(url, loader: loader, java: instance.javaMajorVersion)
+                if !notes.isEmpty { warnings.append(.init(id: download.project.id, title: download.project.title, iconURL: download.project.iconURL, note: notes.joined(separator: "; "))) }
+            }
             files.append(url)
+        }
+        // Конфликты, которые объявляют новые версии, с уже включёнными проектами сборки.
+        var conflicts: [String: String] = [:]
+        for download in downloads {
+            let incompatible = (download.version.dependencies ?? []).filter { $0.type == "incompatible" }
+            var ids = incompatible.compactMap(\.projectID)
+            ids += try await modrinth.versions(incompatible.filter { $0.projectID == nil }.compactMap(\.versionID)).map(\.projectID)
+            for id in ids {
+                for kind in [true, false] {
+                    if installed[kind] == nil { installed[kind] = try await installedProjects(instance, mods: kind) }
+                    if installed[kind]?[id]?.contains(where: \.enabled) == true { conflicts[id] = download.project.title }
+                }
+            }
+        }
+        for conflict in try await modrinth.projects(Array(conflicts.keys)) {
+            warnings.append(.init(id: conflict.id, title: conflict.title, iconURL: conflict.iconURL, note: "Несовместим с «\(conflicts[conflict.id] ?? project.title)»"))
+        }
+        if !warnings.isEmpty {
+            guard await confirm(.init(title: "Возможна несовместимость", message: "Эти проблемы могут помешать запуску игры. Установить «\(project.title)» всё равно?", action: "Установить всё равно", destructive: true, projects: warnings)) else { return }
         }
         for (download, url) in zip(downloads, files) {
             let target = try folder(instance, mods: download.mods)
@@ -289,14 +311,18 @@ enum ContentChoice { case cancel, primary, alternative }
         if !mods && (downloads.contains(where: \.mods) || enable.contains(where: \.mods)) { await reload(instance, mods: true, clearError: false) }
     }
 
+    /// Требования fabric.mod.json к Loader и Java, которым сборка не отвечает.
     /// Без fabric.mod.json или с нечитаемым требованием проверка пропускается.
-    private func checkCompatibility(_ file: URL, title: String, loader: String, java: Int) async throws {
+    private func compatibilityNotes(_ file: URL, loader: String, java: Int) async -> [String] {
         guard let data = try? await FabricClient.archiveEntry("fabric.mod.json", in: file, limit: 1_048_576),
-              let metadata = try? JSONDecoder().decode(FabricModMetadata.self, from: data) else { return }
-        let loaderMatches = (try? metadata.depends?["fabricloader"]?.matches(loader)) ?? true
-        let javaMatches = java <= 0 || ((try? metadata.depends?["java"]?.matches(String(java))) ?? true)
-        guard loaderMatches && javaMatches else {
-            throw InstanceFileError.message("«\(title)» требует другую версию Fabric Loader или Java. В сборке Fabric Loader \(loader)\(java > 0 ? ", Java \(java)" : "").")
+              let metadata = try? JSONDecoder().decode(FabricModMetadata.self, from: data) else { return [] }
+        var notes: [String] = []
+        if let predicate = metadata.depends?["fabricloader"], (try? predicate.matches(loader)) == false {
+            notes.append("Нужен Fabric Loader \(predicate.alternatives.joined(separator: " или ")), в сборке \(loader)")
         }
+        if java > 0, let predicate = metadata.depends?["java"], (try? predicate.matches(String(java))) == false {
+            notes.append("Нужна Java \(predicate.alternatives.joined(separator: " или ")), в сборке \(java)")
+        }
+        return notes
     }
 }
