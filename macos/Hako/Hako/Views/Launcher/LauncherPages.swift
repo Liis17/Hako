@@ -62,7 +62,7 @@ struct InstancesView: View {
                         HStack { Text(error).font(.callout).foregroundStyle(Color.shu); Button("Повторить") { installations.queueError = nil; installations.scheduleQueuedInstallations() } }
                     }
                     ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 20)], spacing: 20) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 20, alignment: .top)], spacing: 20) {
                             ForEach(instances) { instance in
                                 VStack(alignment: .leading, spacing: 16) {
                                     Button { onOpen(instance) } label: {
@@ -78,12 +78,17 @@ struct InstancesView: View {
                                             if let progress = installations.progress[instance.id], instance.state == .installing || instance.state == .paused {
                                                 ProgressView(value: progress.fraction).tint(.sakuraDeep)
                                                 Text(progress.stage).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                            } else if instance.state != .ready {
+                                                Text(instance.state.title).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                             }
                                         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                                     }.buttonStyle(.plain).accessibilityLabel("Открыть сборку \(instance.name)")
-                                    InstancePlayControls(instance: instance, account: account, compact: true,
-                                                         playtime: PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))
-                                }.frame(maxWidth: .infinity, alignment: .leading).instanceSurface()
+                                    if instance.state == .ready {
+                                        Spacer(minLength: 0)
+                                        InstancePlayControls(instance: instance, account: account, compact: true,
+                                                             playtime: PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))
+                                    }
+                                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).instanceSurface()
                             }
                         }.padding(2).padding(.bottom, 32)
                     }

@@ -7,6 +7,8 @@ private enum InstanceSection: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+private let profileColumnWidth: CGFloat = 900
+
 struct InstanceProfileView: View {
     let instance: GameInstance
     var account: Account?
@@ -48,12 +50,16 @@ struct InstanceProfileView: View {
                     HStack(spacing: 8) {
                         Text("Minecraft \(instance.versionID) · \(instance.loaderTitle) · Java \(instance.javaMajorVersion)")
                             .lineLimit(1).truncationMode(.tail).foregroundStyle(.secondary)
-                        Label("В игре: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
-                            .font(.callout).foregroundStyle(.secondary).fixedSize()
+                        if instance.state == .ready {
+                            Label("В игре: \(PlaytimeFormatter.string(playtime.instanceSeconds(instance.id, xuid: account?.xuid)))", systemImage: "clock")
+                                .font(.callout).foregroundStyle(.secondary).fixedSize()
+                        }
                     }
                 }
                 Spacer(minLength: 12)
-                InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .leading)
+                if instance.state == .ready {
+                    InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .trailing)
+                }
             }
             if instance.state != .ready { installationPanel }
             Picker("Раздел сборки", selection: Binding(get: { section }, set: requestSectionChange)) {
@@ -63,7 +69,7 @@ struct InstanceProfileView: View {
                         .selectionDisabled(item == .mods && instance.modLoader != .fabric)
                         .help(item == .mods && instance.modLoader != .fabric ? "Моды доступны только для сборок с выбранным модлоадером." : "")
                 }
-            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 600)
+            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 600, alignment: .leading)
             ScrollView {
                 Group {
                 switch section {
@@ -71,10 +77,11 @@ struct InstanceProfileView: View {
                 case .packs: InstanceFilesView(instance: instance, mods: false)
                     case .settings: InstanceSettingsView(instance: instance, name: $nameDraft, onSaveName: { renameAction = .save })
                 }
-                }.frame(maxWidth: 800, alignment: .leading).padding(2).padding(.bottom, 32)
+                }.padding(2).padding(.bottom, 32)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            }.id(section)
-        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }.padding(.horizontal, -2).id(section)
+        }.frame(maxWidth: profileColumnWidth, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: syncPendingRename)
         .onChange(of: nameDraft) { syncPendingRename() }
         .onChange(of: instance.name) { oldName, newName in

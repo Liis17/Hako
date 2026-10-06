@@ -9,7 +9,7 @@ struct InstancePlayControls: View {
     @Environment(GameLaunchCoordinator.self) private var games
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: compact ? .leading : .trailing, spacing: 8) {
             HStack(spacing: 12) {
                 if compact {
                     if let playtime {
@@ -46,6 +46,7 @@ struct InstancePlayControls: View {
                         .font(.caption).foregroundStyle(.secondary).lineLimit(compact ? 2 : nil)
                 }
             }
-        }.help(games.disabledReason(instance, account: account) ?? "Запустить Minecraft")
+        }.multilineTextAlignment(compact ? .leading : .trailing)
+        .help(games.disabledReason(instance, account: account) ?? "Запустить Minecraft")
     }
 }
