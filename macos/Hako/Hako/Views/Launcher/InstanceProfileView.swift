@@ -293,6 +293,13 @@ private struct InstanceFilesView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 Text(mods ? "Моды" : "Ресурспаки").font(.title3.weight(.semibold))
+                if !items.isEmpty {
+                    let active = items.filter(\.enabled).count
+                    Text("\(active)/\(items.count)").font(.caption.monospacedDigit()).padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(.white.opacity(0.6), in: Capsule())
+                        .contentTransition(.numericText()).animation(.smooth, value: active)
+                        .help("Активно \(active) из \(items.count)").accessibilityLabel("Активно \(active) из \(items.count)")
+                }
                 Spacer()
                 if mods {
                     Button("Проверить обновления", systemImage: "arrow.clockwise") { Task { await content.reload(instance, mods: true); await content.checkUpdates(instance) } }
