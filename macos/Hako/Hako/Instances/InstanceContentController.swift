@@ -15,6 +15,9 @@ import Observation
     var mods: [UUID: [InstanceContentItem]] = [:]
     var packs: [UUID: [InstanceContentItem]] = [:]
     var errors: [UUID: String] = [:]
+    var updates: [UUID: [String: FabricAPIDescriptor]] = [:]
+    var updateMessages: [UUID: String] = [:]
+    private(set) var checkingUpdates: Set<UUID> = []
     private(set) var confirmations: [ContentConfirmation] = []
     @ObservationIgnored private var answers: [UUID: CheckedContinuation<Bool, Never>] = [:]
     @ObservationIgnored private var reloads: [String: UUID] = [:]
@@ -50,7 +53,12 @@ import Observation
                 return
             }
             guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
-            if mods { self.mods[instance.id] = items } else { packs[instance.id] = items }
+            if mods {
+                self.mods[instance.id] = items
+                let eligible = items.filter { $0.origin?.api != nil }
+                updates[instance.id] = updates[instance.id]?.filter { key, api in eligible.contains { $0.logicalName.lowercased() == key && $0.origin?.versionID != api.versionID } }
+                if eligible.isEmpty { updateMessages[instance.id] = nil }
+            } else { packs[instance.id] = items }
             if clearError { errors[instance.id] = nil }
         } catch {
             if !Task.isCancelled && reloads[key] == request && instance.folderName == folderName { errors[instance.id] = error.localizedDescription }
@@ -122,6 +130,46 @@ import Observation
             let warning = item.origin?.projectID == FabricAPIDescriptor.project ? " Моды, зависящие от Fabric API, могут больше не давать игре запуститься." : ""
             guard await confirm(.init(title: "Удалить \(mods ? "мод" : "ресурспак")?", message: "\(item.logicalName) будет перемещён в корзину.\(warning)", action: "Удалить", destructive: true)) else { return }
             try await installations.content.trash(item, in: folder, mods: mods)
+        }
+    }
+
+    func checkUpdates(_ instance: GameInstance) async {
+        guard instance.modLoader == .fabric, !checkingUpdates.contains(instance.id),
+              mods[instance.id]?.contains(where: { $0.origin?.api != nil }) == true else { return }
+        checkingUpdates.insert(instance.id); updateMessages[instance.id] = nil
+        defer { checkingUpdates.remove(instance.id) }
+        do {
+            guard let configuration = try instance.fabricConfiguration() else { return }
+            let latest = try await installations.fabricClient.latestAPI(minecraft: instance.versionID)
+            guard !Task.isCancelled else { return }
+            let current = (mods[instance.id] ?? []).filter { $0.origin?.api != nil && $0.origin?.versionID != latest.versionID }
+            guard !current.isEmpty else { updates[instance.id] = [:]; return }
+            let metadata = try await installations.fabricClient.metadata(for: latest)
+            guard !Task.isCancelled else { return }
+            guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else {
+                updates[instance.id] = [:]
+                updateMessages[instance.id] = "Fabric API \(latest.version) требует другой версии Loader или Java. Текущая версия сохранена."
+                return
+            }
+            var available: [String: FabricAPIDescriptor] = [:]
+            for previous in current where mods[instance.id]?.contains(where: { $0.logicalName == previous.logicalName && $0.origin?.sha512 == previous.origin?.sha512 && $0.origin?.versionID != latest.versionID }) == true {
+                available[previous.logicalName.lowercased()] = latest
+            }
+            updates[instance.id] = available
+        } catch {
+            if !Task.isCancelled { updateMessages[instance.id] = "Не удалось проверить обновление Fabric API: \(error.localizedDescription)" }
+        }
+    }
+
+    func update(_ item: InstanceContentItem, in instance: GameInstance) {
+        guard item.origin?.api != nil, let next = updates[instance.id]?[item.logicalName.lowercased()] else { return }
+        perform(instance, mods: true) { [self] folder in
+            guard let configuration = try instance.fabricConfiguration() else { throw InstanceFileError.message("Конфигурация Fabric отсутствует.") }
+            let metadata = try await installations.fabricClient.metadata(for: next)
+            guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else { throw InstanceFileError.message("Обновление Fabric API несовместимо с Loader или Java сборки.") }
+            let cached = try await installations.fabricClient.cachedAPI(next)
+            try await installations.content.updateAPI(item, to: next, from: cached, in: folder)
+            updates[instance.id] = nil; updateMessages[instance.id] = nil
         }
     }
 }

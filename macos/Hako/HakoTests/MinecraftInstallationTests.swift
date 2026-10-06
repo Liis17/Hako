@@ -267,6 +267,56 @@ import Testing
         #expect(text.contains("\"\(result.javaMajorVersion)."))
         try Data(text.utf8).write(to: URL(fileURLWithPath: "/tmp/hako-live-java.txt"))
     }
+
+    @Test func liveFabricClientWhenRequested() async throws {
+        guard ProcessInfo.processInfo.environment["HAKO_LIVE_FABRIC"] == "1" else { return }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("hako-fabric-smoke-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let client = MojangClient(), fabric = FabricClient(), content = InstanceContent()
+        let catalog = try await client.catalog()
+        let version = try #require(catalog.versions.first { $0.id == "26.3" })
+        let base = try await client.prepare(version)
+        let prepared = try await fabric.prepare(minecraft: version.id, java: base.manifest.java.majorVersion)
+        let loader = try #require(prepared.loaders.first(where: \.stable) ?? prepared.loaders.first)
+        let configuration = FabricConfiguration(loaderVersion: loader.version, api: prepared.api)
+        let result = try await MinecraftInstaller(client: client, fabricClient: fabric, content: content).install(version, at: root, fabric: configuration) { progress in
+            try? Data("\(progress.stage): \(Int(progress.fraction * 100))%".utf8).write(to: URL(fileURLWithPath: "/tmp/hako-fabric-smoke-progress.txt"), options: .atomic)
+        }
+        let profile = try FabricProfile.installed(root: root, minecraft: version.id, sha1: result.fabricProfileSHA1)
+        // A pinned, small client/server mod for 26.3; production still has no mod catalog.
+        let modURL = URL(string: "https://cdn.modrinth.com/data/uXXizFIs/versions/d5ddUdiB/ferritecore-9.0.0-fabric.jar")!
+        let modBytes = try await client.data(for: .init(url: modURL, sha1: "eac76ff0f3753422c61b2c44487d0d195d88d4bc", size: 72677))
+        let localMod = root.appendingPathComponent("ferritecore-test.jar")
+        try modBytes.write(to: localMod)
+        let mods = root.appendingPathComponent("minecraft/mods")
+        try await content.importItem(from: localMod, into: mods, mods: true)
+        #expect(try await content.list(at: mods, mods: true).first(where: { $0.name == "ferritecore-test.jar" })?.source == .local)
+        var parameters = InstanceParameters(); parameters.maximumMemoryMiB = 2048; parameters.windowWidth = 960; parameters.windowHeight = 540
+        let executable = root.appendingPathComponent("java/\(result.javaExecutable)")
+        try await JavaLaunchValidation.validate(executable, minimumMajor: base.manifest.java.majorVersion)
+        let plan = try MinecraftLaunchPlan.build(manifest: base.manifest, root: root, executable: executable, identity: .offline(name: "HakoSmoke"), source: .mojang, parameters: parameters, fabric: profile)
+        let log = root.appendingPathComponent("smoke.log")
+        #expect(FileManager.default.createFile(atPath: log.path, contents: nil))
+        let output = try FileHandle(forWritingTo: log); defer { try? output.close() }
+        let process = Process(); process.executableURL = plan.executable; process.arguments = plan.arguments; process.currentDirectoryURL = plan.workingDirectory
+        process.standardOutput = output; process.standardError = output; process.standardInput = FileHandle.nullDevice
+        process.environment = ProcessInfo.processInfo.environment.filter { !["JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS"].contains($0.key) }
+        try process.run()
+        defer { if process.isRunning { kill(process.processIdentifier, SIGKILL) }; process.waitUntilExit() }
+        let deadline = Date().addingTimeInterval(90)
+        var text = ""
+        while process.isRunning && Date() < deadline {
+            text = String(decoding: try Data(contentsOf: log), as: UTF8.self)
+            if text.contains("OpenAL initialized") || text.contains("Created: ") && text.contains("textures/atlas") { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        text = String(decoding: try Data(contentsOf: log), as: UTF8.self)
+        let artifact = URL(fileURLWithPath: "/tmp/hako-fabric-smoke.log")
+        try Data(text.utf8).write(to: artifact, options: .atomic)
+        #expect(process.isRunning, "Fabric stopped during startup: \(text.suffix(4000))")
+        #expect(text.contains("Fabric Loader") && text.contains("fabric-api") && text.contains("ferritecore"), "Fabric/API/local mod were not loaded: \(text.suffix(4000))")
+        #expect(text.contains("OpenAL initialized") || text.contains("textures/atlas"), "Client renderer did not initialize: \(text.suffix(4000))")
+    }
 }
 
 nonisolated final class MojangTestProtocol: URLProtocol, @unchecked Sendable {

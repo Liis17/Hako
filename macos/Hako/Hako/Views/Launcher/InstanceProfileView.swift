@@ -267,6 +267,10 @@ private struct InstanceFilesView: View {
             HStack {
                 Text(mods ? "Моды" : "Ресурспаки").font(.title3.weight(.semibold))
                 Spacer()
+                if mods {
+                    Button("Проверить обновления", systemImage: "arrow.clockwise") { Task { await content.reload(instance, mods: true); await content.checkUpdates(instance) } }
+                        .buttonStyle(.glass).disabled(content.checkingUpdates.contains(instance.id))
+                }
                 Button("Открыть папку", systemImage: "folder") {
                     do {
                         let folder = try content.folder(instance, mods: mods)
@@ -290,6 +294,8 @@ private struct InstanceFilesView: View {
             if let reason = disabledReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
             if content.installations.contentBusy.contains(instance.id) { ProgressView("Обрабатываем файлы…").font(.callout) }
             if let error = content.errors[instance.id] { Text(error).font(.callout).foregroundStyle(Color.shu) }
+            if mods && content.checkingUpdates.contains(instance.id) { ProgressView("Проверяем Fabric API…").font(.caption) }
+            if mods, let message = content.updateMessages[instance.id] { Text(message).font(.caption).foregroundStyle(.secondary) }
             if items.isEmpty {
                 Text(mods ? "В сборке пока нет модов." : "Ресурспаков пока нет.").foregroundStyle(.secondary).padding(.vertical, 16)
             }
@@ -312,6 +318,10 @@ private struct InstanceFilesView: View {
                         }
                     }
                     Spacer(minLength: 8)
+                    if mods, item.origin?.api != nil, let update = content.updates[instance.id]?[item.logicalName.lowercased()] {
+                        Button("Обновить", systemImage: "arrow.down.circle") { content.update(item, in: instance) }
+                            .buttonStyle(.glass).help("Fabric API \(update.version)").disabled(disabledReason != nil)
+                    }
                     Menu {
                         Button("Показать в Finder", systemImage: "folder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
                         if let origin = item.origin { Button("Открыть страницу на \(origin.source.title)", systemImage: "arrow.up.right.square") { NSWorkspace.shared.open(origin.pageURL) } }
@@ -322,7 +332,10 @@ private struct InstanceFilesView: View {
             }
         }
         .instanceSurface()
-        .task(id: "\(instance.folderName):\(instance.state.rawValue)") { await content.reload(instance, mods: mods) }
+        .task(id: "\(instance.folderName):\(instance.state.rawValue)") {
+            await content.reload(instance, mods: mods)
+            if mods { await content.checkUpdates(instance) }
+        }
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await content.reload(instance, mods: mods) } } }
         .fileImporter(isPresented: $importing, allowedContentTypes: mods ? [UTType(filenameExtension: "jar") ?? .data] : [.zip, .folder], allowsMultipleSelection: true) { result in
             do { content.importFiles(try result.get(), into: instance, mods: mods) }

@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Testing
+import SwiftData
 
 @Suite(.serialized) struct FabricTests {
     @Test func predicatesFollowFabricSemantics() throws {
@@ -107,6 +108,56 @@ import Testing
         try Data("broken".utf8).write(to: cache.appendingPathComponent("\(hash).jar"))
         FabricTestProtocol.prepare([file: .init(data: Data("bad".utf8))])
         await #expect(throws: MojangError.self) { try await client.cachedAPI(api) }
+    }
+
+    @Test @MainActor func apiUpdateChecksCompatibilityWarnsOnDisableAndPreservesDisabledState() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [FabricTestProtocol.self]
+        let session = URLSession(configuration: config); defer { session.invalidateAndCancel() }
+        let fabric = FabricClient(session: session, cache: root.appendingPathComponent("cache"))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let installations = InstallationCoordinator(context: container.mainContext, storage: .init(root: root.appendingPathComponent("instances")), fabricClient: fabric)
+        let bytes = try Data(contentsOf: #require(SkinTestFixtures.bundle.url(forResource: "fabric-api-test", withExtension: "zip")))
+        let sha1 = Insecure.SHA1.hash(data: bytes).map { String(format: "%02x", $0) }.joined(), sha512 = FabricClient.hash(bytes)
+        let apiURL = URL(string: "https://fixtures.test/new-api.jar")!
+        let old = FabricAPIDescriptor(projectID: "P7dR8mSH", versionID: "old", version: "old", channel: "release", filename: "old-api.jar", url: apiURL, size: Int64(bytes.count), sha1: sha1, sha512: sha512)
+        var draft = InstanceDraft(); draft.name = "Update"; draft.modLoader = .fabric; draft.fabricConfiguration = .init(loaderVersion: "0.19.2", api: old)
+        let instance = try installations.store.create(draft, versionID: "test", metadataURL: "https://fixtures.test/version", metadataSHA1: "sha", javaMajorVersion: 17)
+        instance.state = .ready
+        let controller = InstanceContentController(installations: installations), folder = try controller.folder(instance, mods: true)
+        let cached = root.appendingPathComponent("api.jar"); try bytes.write(to: cached)
+        try await installations.content.provisionAPI(old, from: cached, in: folder)
+        var components = URLComponents(string: "https://api.modrinth.com/v2/project/P7dR8mSH/version")!
+        components.queryItems = [.init(name: "game_versions", value: "[\"test\"]"), .init(name: "loaders", value: "[\"fabric\"]"), .init(name: "include_changelog", value: "false")]
+        let version: [String: Any] = ["id": "new", "project_id": "P7dR8mSH", "version_number": "new", "version_type": "release", "date_published": "2026-10-06", "game_versions": ["test"], "loaders": ["fabric"], "files": [["filename": "new-api.jar", "url": apiURL.absoluteString, "size": bytes.count, "primary": true, "hashes": ["sha1": sha1, "sha512": sha512]]]]
+        FabricTestProtocol.prepare([components.url!: .init(data: try JSONSerialization.data(withJSONObject: [version])), apiURL: .init(data: bytes)])
+        await controller.reload(instance, mods: true)
+        await controller.checkUpdates(instance)
+        #expect(controller.updates[instance.id]?.isEmpty != false)
+        #expect(controller.updateMessages[instance.id]?.contains("другой версии") == true)
+        instance.fabricConfigurationData = try JSONEncoder().encode(FabricConfiguration(loaderVersion: "0.19.5", api: old))
+        await controller.checkUpdates(instance)
+        #expect(controller.updates[instance.id]?["old-api.jar"]?.versionID == "new")
+        let item = try #require(controller.mods[instance.id]?.first)
+        controller.setEnabled(item, in: instance, enabled: false)
+        for _ in 0..<100 where controller.confirmation == nil { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(controller.confirmation?.message.contains("Моды, зависящие") == true)
+        controller.resolveConfirmation(accepted: true)
+        for _ in 0..<100 where installations.contentBusy.contains(instance.id) { try await Task.sleep(for: .milliseconds(10)) }
+        let disabled = try #require(controller.mods[instance.id]?.first)
+        #expect(!disabled.enabled)
+        controller.update(disabled, in: instance)
+        for _ in 0..<100 where installations.contentBusy.contains(instance.id) { try await Task.sleep(for: .milliseconds(10)) }
+        let updated = try #require(controller.mods[instance.id]?.first)
+        #expect(!updated.enabled && updated.name == "new-api.jar.disabled")
+        #expect(updated.origin?.versionID == "new")
+        #expect(!FileManager.default.fileExists(atPath: disabled.url.path))
+        try Data("changed outside".utf8).write(to: updated.url)
+        await controller.reload(instance, mods: true)
+        #expect(controller.mods[instance.id]?.first?.source == .local)
+        #expect(controller.updates[instance.id]?.isEmpty != false)
     }
 }
 
