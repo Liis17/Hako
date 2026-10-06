@@ -33,6 +33,20 @@ struct InstanceCreationView: View {
     @State private var cancelConfirmation = false
     @State private var saveError: String?
     @State private var saving = false
+    @State private var preparedFabric: PreparedFabric?
+    @State private var selectedLoader = ""
+    @State private var fabricProfile: FabricProfile?
+    @State private var fabricChecking = false
+    @State private var profileChecking = false
+    @State private var fabricError: String?
+    @State private var profileError: String?
+    @State private var fabricRetry = UUID()
+    @State private var checkedFabricKey = ""
+    @State private var checkedProfileKey = ""
+
+    private var fabricKey: String { "\(draft.modLoader.rawValue):\(selectedID):\(prepared?.version.id ?? ""):\(fabricRetry)" }
+    private var profileKey: String { "\(fabricKey):\(selectedLoader)" }
+    private var fabricReady: Bool { draft.modLoader == .vanilla || (checkedFabricKey == fabricKey && checkedProfileKey == profileKey && preparedFabric != nil && fabricProfile != nil && !fabricChecking && !profileChecking && fabricError == nil && profileError == nil) }
 
     private var versions: [MinecraftVersion] {
         (catalog?.versions ?? []).filter { filter.includes($0) && (search.isEmpty || $0.id.localizedCaseInsensitiveContains(search)) }
@@ -82,8 +96,29 @@ struct InstanceCreationView: View {
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Загрузчик модов").font(.headline)
-                        Picker("Загрузчик", selection: .constant("vanilla")) { Text("Vanilla — без загрузчика").tag("vanilla") }.disabled(true)
-                        Text("Сейчас доступны только ванильные сборки.").font(.caption).foregroundStyle(.secondary)
+                        Picker("Загрузчик", selection: $draft.modLoader) {
+                            Text("Vanilla — без загрузчика").tag(ModLoader.vanilla)
+                            Text("Fabric").tag(ModLoader.fabric)
+                        }
+                        if draft.modLoader == .fabric {
+                            if fabricChecking { ProgressView("Подбираем Fabric и проверяем Fabric API…").font(.callout) }
+                            if let preparedFabric {
+                                Picker("Версия Fabric Loader", selection: $selectedLoader) {
+                                    ForEach(preparedFabric.loaders) { loader in
+                                        Text(loader.version + (loader.stable ? " — рекомендуется" : "")).tag(loader.version)
+                                    }
+                                }.pickerStyle(.menu)
+                                Text("Fabric API \(preparedFabric.api.version)\(preparedFabric.api.channel == "release" ? "" : " · \(preparedFabric.api.channel)") установится автоматически.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            if profileChecking { ProgressView("Проверяем профиль Fabric…").font(.callout) }
+                            if let error = fabricError ?? profileError {
+                                Text(error).font(.callout).foregroundStyle(Color.shu)
+                                Button("Повторить проверку Fabric") { fabricRetry = UUID() }.buttonStyle(.glass).disabled(fabricChecking || profileChecking)
+                            }
+                            Text("Fabric API заранее скачивается в кэш для проверки совместимости. Установка сборки начнётся после сохранения.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     VStack(alignment: .leading, spacing: 0) {
                         Button {
@@ -110,12 +145,12 @@ struct InstanceCreationView: View {
                 }.padding(.horizontal, 2).padding(.top, 6).padding(.bottom, 4)
             }
             HStack {
-                Text("Java и файлы игры загрузятся в фоне.").font(.caption).foregroundStyle(.secondary)
+                Text("Java, игра и загрузчик установятся в фоне.").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Отмена") { cancelConfirmation = true }.buttonStyle(.glass).keyboardShortcut(.cancelAction)
                 Button("Сохранить сборку", action: save).buttonStyle(.glassProminent).tint(.sakuraDeep)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(saving || prepared == nil || checking || nameError != nil || !parametersValid)
+                    .disabled(saving || prepared == nil || checking || nameError != nil || !parametersValid || !fabricReady)
             }
         }
         .padding(28).frame(width: 660, height: 500)
@@ -127,6 +162,8 @@ struct InstanceCreationView: View {
         } message: { Text("Название, иконка и выбранные параметры не будут сохранены.") }
         .task { await loadCatalog() }
         .task(id: selectedID) { await checkCompatibility() }
+        .task(id: fabricKey) { await checkFabric() }
+        .task(id: profileKey) { await loadFabricProfile() }
         .onChange(of: filter) { selectVisibleVersion() }
         .onChange(of: search) { selectVisibleVersion() }
     }
@@ -159,7 +196,8 @@ struct InstanceCreationView: View {
         }
     }
     private func save() {
-        guard let prepared, !saving, parametersValid else { return }
+        guard let prepared, prepared.version.id == selectedID, !saving, parametersValid, fabricReady else { return }
+        draft.fabricConfiguration = draft.modLoader == .fabric ? preparedFabric.map { .init(loaderVersion: selectedLoader, api: $0.api) } : nil
         saving = true
         do {
             _ = try installations.store.create(draft, versionID: prepared.version.id, metadataURL: prepared.version.url.absoluteString, metadataSHA1: prepared.version.sha1, javaMajorVersion: prepared.manifest.java.majorVersion, legacyTexturepacks: prepared.manifest.legacyTexturepacks)
@@ -167,6 +205,40 @@ struct InstanceCreationView: View {
             onCreated()
             dismiss()
         } catch { saveError = error.localizedDescription; saving = false }
+    }
+
+    private func checkFabric() async {
+        let key = fabricKey
+        preparedFabric = nil; selectedLoader = ""; fabricProfile = nil; fabricError = nil; profileError = nil
+        fabricChecking = false
+        guard draft.modLoader == .fabric, let prepared, prepared.version.id == selectedID else { return }
+        fabricChecking = true
+        do {
+            let result = try await installations.fabricClient.prepare(minecraft: selectedID, java: prepared.manifest.java.majorVersion)
+            guard !Task.isCancelled, fabricKey == key else { return }
+            preparedFabric = result
+            checkedFabricKey = key
+            selectedLoader = result.loaders.first(where: \.stable)?.version ?? result.loaders.first?.version ?? ""
+            fabricChecking = false
+        } catch {
+            guard !Task.isCancelled, fabricKey == key else { return }
+            fabricError = error.localizedDescription; fabricChecking = false
+        }
+    }
+
+    private func loadFabricProfile() async {
+        let key = profileKey
+        fabricProfile = nil; profileError = nil; profileChecking = false
+        guard draft.modLoader == .fabric, preparedFabric != nil, !selectedLoader.isEmpty else { return }
+        profileChecking = true
+        do {
+            let (profile, _) = try await installations.fabricClient.profile(minecraft: selectedID, loader: selectedLoader)
+            guard !Task.isCancelled, profileKey == key else { return }
+            fabricProfile = profile; checkedProfileKey = key; profileChecking = false
+        } catch {
+            guard !Task.isCancelled, profileKey == key else { return }
+            profileError = error.localizedDescription; profileChecking = false
+        }
     }
 }
 

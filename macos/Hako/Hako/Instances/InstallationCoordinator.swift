@@ -6,6 +6,7 @@ import SwiftData
 @MainActor @Observable final class InstallationCoordinator {
     let store: InstanceStore
     let client: MojangClient
+    let fabricClient: FabricClient
     private let installer: MinecraftInstaller
     private var activeID: UUID?
     private var activeTask: Task<Void, Never>?
@@ -15,9 +16,10 @@ import SwiftData
     var contentBusy: Set<UUID> = []
     private var lastProgressUpdate = Date.distantPast
 
-    init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), installer: MinecraftInstaller? = nil) {
+    init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), fabricClient: FabricClient = .init(), installer: MinecraftInstaller? = nil) {
         store = InstanceStore(context: context, storage: storage)
         self.client = client
+        self.fabricClient = fabricClient
         self.installer = installer ?? MinecraftInstaller(client: client)
     }
 
