@@ -137,6 +137,7 @@ struct LoginView: View {
                 ),
                 for: xbox.xuid
             )
+            try playtime.reconcile()
             let account = Account(xbox: xbox, email: token.email)
             if let minecraft {
                 account.connect(minecraft.profile)

@@ -5,15 +5,79 @@ import SwiftData
 @MainActor @Observable final class PlaytimeCoordinator {
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let persist: () throws -> Void
+    @ObservationIgnored private var polling: Task<Void, Never>?
+    let journalDirectory: URL
+    private(set) var errorMessage: String?
     private var players: [String: PlayerPlaytime]
     private var instances: [String: InstancePlaytime]
     private var sessions: [UUID: PlaytimeSession]
 
-    init(context: ModelContext, persist: (() throws -> Void)? = nil) throws {
+    init(context: ModelContext, journalDirectory: URL = PlaytimeJournal.directory(), persist: (() throws -> Void)? = nil) throws {
         self.context = context; self.persist = persist ?? { try context.save() }
+        self.journalDirectory = journalDirectory
         players = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<PlayerPlaytime>()).map { ($0.ownerKey, $0) })
         instances = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<InstancePlaytime>()).map { ($0.key, $0) })
         sessions = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<PlaytimeSession>()).map { ($0.id, $0) })
+    }
+
+    deinit { polling?.cancel() }
+
+    func start() {
+        guard polling == nil else { return }
+        refresh()
+        polling = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(PlaytimeJournal.checkpointInterval)) }
+                catch { return }
+                self?.refresh()
+            }
+        }
+    }
+
+    func refresh() {
+        do { try reconcile(); errorMessage = nil }
+        catch { errorMessage = "Не удалось сохранить игровое время: \(error.localizedDescription)" }
+    }
+
+    func reconcile() throws {
+        guard FileManager.default.fileExists(atPath: journalDirectory.path) else { return }
+        let files = try FileManager.default.contentsOfDirectory(at: journalDirectory, includingPropertiesForKeys: nil)
+        var failure: Error?
+        for url in files where url.pathExtension == "json" {
+            do {
+                var journal = try PlaytimeJournal.load(from: url)
+                guard sessions[journal.sessionID] != nil else { continue }
+                if !journal.isFinished, !journal.process.isRunning, journal.helper?.isRunning != true {
+                    // После выключения Mac или потери помощника известна только последняя контрольная точка.
+                    guard let lock = try PlaytimeJournalLock.acquire(sessionID: journal.sessionID, directory: journalDirectory) else { continue }
+                    try withExtendedLifetime(lock) {
+                        journal = try PlaytimeJournal.load(from: url)
+                        journal.isFinished = true
+                        try journal.save(in: journalDirectory)
+                    }
+                }
+                try credit(sessionID: journal.sessionID, elapsedSeconds: journal.elapsedSeconds)
+                if journal.isFinished {
+                    try FileManager.default.removeItem(at: url)
+                    try removeSession(journal.sessionID)
+                    try? FileManager.default.removeItem(at: journalDirectory.appendingPathComponent("\(journal.sessionID.uuidString).lock"))
+                }
+            } catch { if failure == nil { failure = error } }
+        }
+        if let failure { throw failure }
+    }
+
+    func cancelSession(_ id: UUID) throws {
+        if FileManager.default.fileExists(atPath: journalDirectory.appendingPathComponent("\(id.uuidString).json").path) { refresh(); return }
+        try removeSession(id)
+    }
+
+    private func removeSession(_ id: UUID) throws {
+        guard let session = sessions[id] else { return }
+        context.delete(session)
+        do { try persist() }
+        catch { context.insert(session); throw error }
+        sessions[id] = nil
     }
 
     func beginSession(instanceID: UUID, xuid: String?) throws -> UUID {
@@ -23,6 +87,11 @@ import SwiftData
         catch { context.delete(session); throw error }
         sessions[session.id] = session
         return session.id
+    }
+
+    func resumeSession(instanceID: UUID, sessionID: UUID?, xuid: String?) throws -> UUID {
+        if let sessionID, sessions[sessionID]?.instanceID == instanceID { return sessionID }
+        return try beginSession(instanceID: instanceID, xuid: xuid)
     }
 
     func totalSeconds(xuid: String?) -> TimeInterval { players[Self.ownerKey(xuid)]?.totalSeconds ?? 0 }

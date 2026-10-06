@@ -19,6 +19,7 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
 
 @MainActor @Observable final class GameLaunchCoordinator {
     let sessions: MinecraftSessionCoordinator
+    let playtime: PlaytimeCoordinator
     private let store: InstanceStore
     private let runner: GameProcessRunner
     private let prepareLaunch: @Sendable (MinecraftLaunchRequest) async throws -> MinecraftLaunchPlan
@@ -27,22 +28,34 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
     private var started = false
     private(set) var states: [UUID: GameRunState] = [:]
 
-    init(store: InstanceStore, sessions: MinecraftSessionCoordinator, runner: GameProcessRunner = .init(), prepare: @escaping @Sendable (MinecraftLaunchRequest) async throws -> MinecraftLaunchPlan = GameLaunchCoordinator.prepare) {
+    init(store: InstanceStore, sessions: MinecraftSessionCoordinator, playtime: PlaytimeCoordinator, runner: GameProcessRunner = .init(), prepare: @escaping @Sendable (MinecraftLaunchRequest) async throws -> MinecraftLaunchPlan = GameLaunchCoordinator.prepare) {
         self.store = store; self.sessions = sessions; self.runner = runner
+        self.playtime = playtime
         prepareLaunch = prepare
     }
 
     func start() {
         guard !started else { return }
         started = true
+        playtime.start()
         do {
+            let xuid = try store.context.fetch(FetchDescriptor<Account>()).first?.xuid
             for instance in try store.context.fetch(FetchDescriptor<GameInstance>()) {
                 do {
                     let root = try store.storage.directory(instance.folderName)
-                    if let record = try GameProcessRecord.load(in: root), record.instanceID == instance.id, record.isRunning {
+                    if var record = try GameProcessRecord.load(in: root), record.instanceID == instance.id, record.isRunning {
                         let id = instance.id, attempt = UUID()
+                        let sessionID = try playtime.resumeSession(instanceID: id, sessionID: record.sessionID, xuid: xuid)
+                        record.sessionID = sessionID
+                        let restoredRecord = record, tracking = PlaytimeTrackingRequest(sessionID: sessionID, directory: playtime.journalDirectory)
                         attempts[id] = attempt; states[id] = .running; store.launchBusy.insert(id)
-                        Task { [runner, weak self] in await runner.observe(record, root: root) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) } }
+                        Task { [runner, weak self] in
+                            do { try await runner.observe(restoredRecord, root: root, tracking: tracking) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) } }
+                            catch {
+                                guard let self, self.attempts[id] == attempt else { return }
+                                self.states[id] = .failed("Не удалось восстановить учёт времени: \(error.localizedDescription)")
+                            }
+                        }
                     }
                 } catch { states[instance.id] = .failed("Не удалось восстановить статус игры: \(error.localizedDescription)") }
             }
@@ -53,6 +66,7 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
         if instance.state != .ready { return "Дождитесь завершения установки сборки." }
         if states[instance.id] == .preparing { return "Подготавливаем запуск…" }
         if states[instance.id] == .running { return "Эта сборка уже запущена." }
+        if store.launchBusy.contains(instance.id) { return "Эта сборка уже запущена." }
         if instance.offlineMode { return OfflineUsername.isValid(instance.offlineUsername) ? nil : "Проверьте ник в настройках offline-mode." }
         if sessions.identity(for: account) == nil { return "Нужен Minecraft-токен. Подключите аккаунт или включите offline-mode в настройках сборки." }
         return nil
@@ -61,6 +75,9 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
     func launch(_ instance: GameInstance, account: Account?) {
         guard disabledReason(instance, account: account) == nil else { return }
         let id = instance.id, attempt = UUID()
+        let sessionID: UUID
+        do { sessionID = try playtime.beginSession(instanceID: id, xuid: account?.xuid) }
+        catch { states[id] = .failed("Не удалось начать учёт времени: \(error.localizedDescription)"); return }
         let offline = instance.offlineMode, username = instance.offlineUsername, folder = instance.folderName
         let source = instance.argumentSource, parameters = instance.effectiveParameters()
         let override = source == .global ? GameLaunchDefaults.load().javaPath.trimmingCharacters(in: .whitespacesAndNewlines) : ""
@@ -82,15 +99,17 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
                 let plan = try await prepareLaunch(.init(root: root, version: version, sha1: sha1, executable: executable, identity: identity, source: source, parameters: parameters, clientID: MicrosoftAuth.clientID))
                 try Task.checkCancellation()
                 if !offline, sessions.identity(for: account)?.accessToken != identity.accessToken { throw InstanceFileError.message("Minecraft-сессия изменилась или завершилась. Повторите запуск.") }
-                let record = try await runner.start(plan, id: id, root: root) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) }
+                let record = try await runner.start(plan, id: id, root: root, tracking: .init(sessionID: sessionID, directory: playtime.journalDirectory)) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) }
                 if attempts[id] == attempt, states[id] == .preparing {
                     if record.startSeconds > 0 { states[id] = .running }
                     else { store.launchBusy.remove(id) }
                 }
+                playtime.refresh()
             } catch {
                 guard attempts[id] == attempt else { return }
                 store.launchBusy.remove(id)
                 states[id] = .failed(error.localizedDescription)
+                try? playtime.cancelSession(sessionID)
             }
         }
     }
@@ -100,6 +119,8 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
     private func finished(_ id: UUID, attempt: UUID, status: Int32?) {
         guard attempts[id] == attempt else { return }
         store.launchBusy.remove(id)
+        playtime.refresh()
+        if case .failed = states[id] { return }
         if let status, status != 0 { states[id] = .failed("Minecraft завершился с кодом \(status). Подробности — в журнале запуска.") }
         else { states[id] = nil }
     }

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Testing
+import Darwin
 
 @Suite(.serialized) @MainActor struct PlaytimeTests {
     private func container() throws -> ModelContainer {
@@ -101,10 +102,137 @@ import Testing
         context.delete(account); context.delete(instance); try context.save()
         let restored = try PlaytimeCoordinator(context: ModelContext(updated))
         #expect(restored.totalSeconds(xuid: "preserved") == 180)
+        try restored.credit(sessionID: session, elapsedSeconds: 240)
+        #expect(restored.totalSeconds(xuid: "preserved") == 240)
         context.insert(Account(xbox: .init(xuid: "preserved", gamertag: "Player", avatarURL: nil), email: nil))
         let recreated = GameInstance(name: "Pack", folderName: "Pack", versionID: "v", metadataURL: "url", metadataSHA1: "sha")
         context.insert(recreated); try context.save()
-        #expect(restored.totalSeconds(xuid: "preserved") == 180)
+        #expect(restored.totalSeconds(xuid: "preserved") == 240)
         #expect(restored.instanceSeconds(recreated.id, xuid: "preserved") == 0)
+    }
+
+    @Test func journalsResumeWithoutDuplicateCreditAndSurviveSaveFailure() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        var fail = false
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root, persist: {
+            if fail { throw InstanceFileError.message("Test save failure") }
+            try container.mainContext.save()
+        })
+        let instanceID = UUID(), sessionID = try playtime.beginSession(instanceID: instanceID, xuid: nil)
+        let process = try #require(PlaytimeProcessIdentity.read(pid: getpid()))
+        var journal = PlaytimeJournal(sessionID: sessionID, process: process, startedUptime: 1000)
+        journal.helper = process; journal.elapsedSeconds = 90
+        try journal.save(in: root)
+        try playtime.reconcile()
+        #expect(playtime.totalSeconds(xuid: nil) == 90)
+        let restored = try PlaytimeCoordinator(context: ModelContext(container), journalDirectory: root)
+        try restored.reconcile()
+        #expect(restored.totalSeconds(xuid: nil) == 90)
+        journal.elapsedSeconds = 150; journal.isFinished = true
+        try journal.save(in: root)
+        fail = true
+        #expect(throws: InstanceFileError.self) { try playtime.reconcile() }
+        #expect(FileManager.default.fileExists(atPath: journal.url(in: root).path))
+        #expect(playtime.totalSeconds(xuid: nil) == 90)
+        fail = false
+        try playtime.reconcile()
+        #expect(playtime.totalSeconds(xuid: nil) == 150)
+        #expect(!FileManager.default.fileExists(atPath: journal.url(in: root).path))
+    }
+
+    @Test func helperTracksAnIndependentProcessAndDoesNotDuplicateItsWatcher() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = Process(); game.executableURL = URL(fileURLWithPath: "/bin/sleep"); game.arguments = ["20"]
+        try game.run()
+        defer { if game.isRunning { game.terminate() } }
+        let identity = try #require(PlaytimeProcessIdentity.read(pid: game.processIdentifier))
+        let journal = PlaytimeJournal(sessionID: UUID(), process: identity, startedUptime: ProcessInfo.processInfo.systemUptime)
+        try journal.save(in: root)
+        let executable = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        let client = PlaytimeHelperClient(executable: executable)
+        try await client.attach(to: journal.url(in: root))
+        let first = try PlaytimeJournal.load(from: journal.url(in: root))
+        #expect(first.helper?.isRunning == true)
+        try await PlaytimeHelperClient(executable: executable).attach(to: journal.url(in: root))
+        #expect(try PlaytimeJournal.load(from: journal.url(in: root)).helper == first.helper)
+        try await Task.sleep(for: .milliseconds(80))
+        game.terminate()
+        for _ in 0..<100 {
+            if try PlaytimeJournal.load(from: journal.url(in: root)).isFinished { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let finished = try PlaytimeJournal.load(from: journal.url(in: root))
+        #expect(finished.isFinished && finished.elapsedSeconds > 0)
+    }
+
+    @Test func helperOutlivesItsLaunchingProcessAndFinalTimeCanBeImportedLater() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root)
+        let session = try playtime.beginSession(instanceID: UUID(), xuid: "first")
+        let game = Process(); game.executableURL = URL(fileURLWithPath: "/bin/sleep"); game.arguments = ["20"]
+        try game.run()
+        defer { if game.isRunning { game.terminate() } }
+        let process = try #require(PlaytimeProcessIdentity.read(pid: game.processIdentifier))
+        let journal = PlaytimeJournal(sessionID: session, process: process, startedUptime: ProcessInfo.processInfo.systemUptime)
+        try journal.save(in: root)
+        let executable = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        let parent = Process(); parent.executableURL = URL(fileURLWithPath: "/bin/sh")
+        parent.arguments = ["-c", "\"$1\" \"$2\" </dev/null >/dev/null 2>&1 &", "Hako-test", executable.path, journal.url(in: root).path]
+        parent.standardOutput = FileHandle.nullDevice; parent.standardError = FileHandle.nullDevice
+        try parent.run(); parent.waitUntilExit()
+        for _ in 0..<100 {
+            if try PlaytimeJournal.load(from: journal.url(in: root)).helper?.isRunning == true { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(!parent.isRunning && parent.terminationStatus == 0)
+        let running = try PlaytimeJournal.load(from: journal.url(in: root))
+        let helper = try #require(running.helper)
+        defer { if helper.isRunning { kill(helper.pid, SIGTERM) } }
+        #expect(helper.isRunning && game.isRunning)
+        try await Task.sleep(for: .milliseconds(100))
+        game.terminate()
+        for _ in 0..<100 {
+            if try PlaytimeJournal.load(from: journal.url(in: root)).isFinished { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let finished = try PlaytimeJournal.load(from: journal.url(in: root))
+        #expect(finished.isFinished && finished.elapsedSeconds > 0)
+        let reopened = try PlaytimeCoordinator(context: ModelContext(container), journalDirectory: root)
+        try reopened.reconcile()
+        #expect(reopened.totalSeconds(xuid: "first") == finished.elapsedSeconds)
+    }
+
+    @Test func uptimeClockExcludesSleepAndCannotMoveDurationBackwards() throws {
+        let process = try #require(PlaytimeProcessIdentity.read(pid: getpid()))
+        var journal = PlaytimeJournal(sessionID: UUID(), process: process, startedUptime: 1000)
+        journal.checkpoint(atUptime: 1120)
+        #expect(journal.elapsedSeconds == 120)
+        // За время системного сна uptime не растёт; календарное время не участвует в расчёте.
+        journal.checkpoint(atUptime: 1120)
+        #expect(journal.elapsedSeconds == 120)
+        journal.checkpoint(atUptime: 1130)
+        #expect(journal.elapsedSeconds == 130)
+        journal.checkpoint(atUptime: 900)
+        #expect(journal.elapsedSeconds == 130)
+        let wrongBirth = PlaytimeProcessIdentity(pid: process.pid, startSeconds: process.startSeconds - 1, startMicroseconds: process.startMicroseconds)
+        #expect(!wrongBirth.isRunning)
+    }
+
+    @Test func simultaneousInstancesAccumulateIndependentlyForOneAccount() throws {
+        let container = try container()
+        let playtime = try PlaytimeCoordinator(context: container.mainContext)
+        let first = UUID(), second = UUID()
+        let a = try playtime.beginSession(instanceID: first, xuid: "first")
+        let b = try playtime.beginSession(instanceID: second, xuid: "first")
+        try playtime.credit(sessionID: a, elapsedSeconds: 120)
+        try playtime.credit(sessionID: b, elapsedSeconds: 90)
+        #expect(playtime.totalSeconds(xuid: "first") == 210)
+        #expect(playtime.instanceSeconds(first, xuid: "first") == 120)
+        #expect(playtime.instanceSeconds(second, xuid: "first") == 90)
     }
 }

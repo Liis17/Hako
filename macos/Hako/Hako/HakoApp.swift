@@ -25,10 +25,11 @@ struct HakoApp: App {
             sharedModelContainer = container
             let installations = InstallationCoordinator(context: container.mainContext)
             let sessions = MinecraftSessionCoordinator(context: container.mainContext)
+            let playtime = try PlaytimeCoordinator(context: container.mainContext)
             _installations = State(initialValue: installations)
             _sessions = State(initialValue: sessions)
-            _games = State(initialValue: GameLaunchCoordinator(store: installations.store, sessions: sessions))
-            _playtime = State(initialValue: try PlaytimeCoordinator(context: container.mainContext))
+            _games = State(initialValue: GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime))
+            _playtime = State(initialValue: playtime)
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }

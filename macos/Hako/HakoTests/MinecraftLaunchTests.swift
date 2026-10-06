@@ -78,7 +78,7 @@ import Testing
     }
 
     @Test func sessionRefreshKeepsNewRefreshTokenAfterMinecraftFailureThenCanRetry() async throws {
-        let container = try ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let account = Account(xbox: .init(xuid: "test", gamertag: "Steve", avatarURL: nil), email: nil)
         container.mainContext.insert(account)
         var saved = AccountTokens(microsoftRefreshToken: "old"), refreshCalls = 0, fail = true
@@ -102,7 +102,7 @@ import Testing
     }
 
     @Test func expiredTokensNeverAuthorizeAndConcurrentRefreshIsShared() async throws {
-        let container = try ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let account = Account(xbox: .init(xuid: "test", gamertag: "Steve", avatarURL: nil), email: nil)
         account.minecraftUUID = "uuid"; account.minecraftName = "Steve"; container.mainContext.insert(account)
         var date = Date(timeIntervalSince1970: 1000), calls = 0
@@ -124,14 +124,16 @@ import Testing
     @Test func coordinatorStartsOfflineOnceRestoresProcessAndBlocksRename() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let container = try ModelContainer(for: Account.self, GameInstance.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
         var draft = InstanceDraft(); draft.name = "Pack"; draft.offlineMode = true
         let instance = try store.create(draft, versionID: "v", metadataURL: "url", metadataSHA1: "sha")
         instance.state = .ready
         let sessions = MinecraftSessionCoordinator(context: container.mainContext, dependencies: .init(load: { _ in Issue.record("Offline requested auth"); return nil }))
         let probe = LaunchProbe()
-        let games = GameLaunchCoordinator(store: store, sessions: sessions, prepare: { request in
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root.appendingPathComponent("sessions"))
+        let runner = GameProcessRunner(helperURL: SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper"))
+        let games = GameLaunchCoordinator(store: store, sessions: sessions, playtime: playtime, runner: runner, prepare: { request in
             await probe.add(request.identity); try await Task.sleep(for: .milliseconds(40))
             return .init(executable: URL(fileURLWithPath: "/bin/sleep"), arguments: ["20"], workingDirectory: request.root.appendingPathComponent("minecraft"))
         })
@@ -145,7 +147,7 @@ import Testing
         #expect(record.isRunning)
         let wrongBirth = GameProcessRecord(instanceID: instance.id, pid: record.pid, startSeconds: record.startSeconds - 1, startMicroseconds: record.startMicroseconds)
         #expect(!wrongBirth.isRunning)
-        let restored = GameLaunchCoordinator(store: store, sessions: sessions); restored.start()
+        let restored = GameLaunchCoordinator(store: store, sessions: sessions, playtime: playtime, runner: GameProcessRunner(helperURL: SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper"))); restored.start()
         #expect(restored.states[instance.id] == .running)
         var edit = InstanceDraft(instance: instance); edit.name = "Renamed"
         #expect(throws: InstanceFileError.self) { try store.update(instance, with: edit) }
@@ -166,6 +168,103 @@ import Testing
         for _ in 0..<100 { if await sink.count > 0 { break }; try await Task.sleep(for: .milliseconds(20)) }
         #expect(await sink.status == 1)
         #expect(try GameProcessRecord.load(in: root)?.isRunning != true)
+    }
+
+    @Test func trackedProcessKeepsItsSessionAndCreditsAfterExit() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root.appendingPathComponent("sessions"))
+        let instanceID = UUID(), sessionID = try playtime.beginSession(instanceID: instanceID, xuid: "first")
+        let helper = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        let runner = GameProcessRunner(helperURL: helper)
+        let sink = ExitProbe()
+        let record = try await runner.start(.init(executable: URL(fileURLWithPath: "/bin/sleep"), arguments: ["20"], workingDirectory: root), id: instanceID, root: root, tracking: .init(sessionID: sessionID, directory: playtime.journalDirectory)) { status in await sink.add(status) }
+        defer { if record.isRunning { kill(record.pid, SIGTERM) } }
+        #expect(record.sessionID == sessionID && record.isRunning)
+        let loaded = try GameProcessRecord.load(in: root)
+        let restored = try #require(loaded)
+        #expect(restored.sessionID == sessionID && restored.isRunning)
+        try await Task.sleep(for: .milliseconds(80))
+        kill(record.pid, SIGTERM)
+        let journalURL = playtime.journalDirectory.appendingPathComponent("\(sessionID.uuidString).json")
+        try await eventually { (try? PlaytimeJournal.load(from: journalURL).isFinished) == true }
+        try playtime.reconcile()
+        #expect(playtime.totalSeconds(xuid: "first") > 0)
+        #expect(playtime.instanceSeconds(instanceID, xuid: "first") == playtime.totalSeconds(xuid: "first"))
+    }
+
+    @Test func unavailableHelperStopsOnlyTheProcessStartedForThisAttempt() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent("sessions"), session = UUID()
+        let runner = GameProcessRunner(helperURL: root.appendingPathComponent("missing-helper"))
+        await #expect(throws: InstanceFileError.self) {
+            try await runner.start(.init(executable: URL(fileURLWithPath: "/bin/sleep"), arguments: ["20"], workingDirectory: root), id: UUID(), root: root, tracking: .init(sessionID: session, directory: directory)) { _ in }
+        }
+        let journal = try PlaytimeJournal.load(from: directory.appendingPathComponent("\(session.uuidString).json"))
+        #expect(!journal.process.isRunning && journal.isFinished)
+    }
+
+    @Test func veryShortTrackedProcessStillRecordsTimeAndItsExitStatus() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = UUID(), directory = root.appendingPathComponent("sessions"), sink = ExitProbe()
+        let helper = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        let runner = GameProcessRunner(helperURL: helper)
+        _ = try await runner.start(.init(executable: URL(fileURLWithPath: "/usr/bin/false"), arguments: [], workingDirectory: root), id: UUID(), root: root, tracking: .init(sessionID: session, directory: directory)) { status in await sink.add(status) }
+        for _ in 0..<100 { if await sink.count > 0 { break }; try await Task.sleep(for: .milliseconds(20)) }
+        let journal = try PlaytimeJournal.load(from: directory.appendingPathComponent("\(session.uuidString).json"))
+        #expect(await sink.status == 1)
+        #expect(journal.isFinished && journal.elapsedSeconds > 0)
+    }
+
+    @Test(arguments: [false, true]) func failedPreparationOrProcessStartDoesNotAccumulateTime(missingExecutable: Bool) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        var draft = InstanceDraft(); draft.name = "Pack"; draft.offlineMode = true
+        let instance = try store.create(draft, versionID: "v", metadataURL: "url", metadataSHA1: "sha")
+        instance.state = .ready
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root.appendingPathComponent("sessions"))
+        let games = GameLaunchCoordinator(store: store, sessions: MinecraftSessionCoordinator(context: container.mainContext), playtime: playtime, prepare: { request in
+            if !missingExecutable { throw InstanceFileError.message("Test preparation failure") }
+            return .init(executable: root.appendingPathComponent("missing-java"), arguments: [], workingDirectory: request.root)
+        })
+        games.launch(instance, account: nil)
+        try await eventually { if case .failed = games.states[instance.id] { true } else { false } }
+        #expect(playtime.totalSeconds(xuid: nil) == 0 && playtime.instanceSeconds(instance.id, xuid: nil) == 0)
+        #expect(!store.launchBusy.contains(instance.id))
+    }
+
+    @Test func legacyRunningRecordStartsTrackingAtRecovery() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        var draft = InstanceDraft(); draft.name = "Pack"
+        let instance = try store.create(draft, versionID: "v", metadataURL: "url", metadataSHA1: "sha")
+        let gameRoot = root.appendingPathComponent("Pack")
+        let runner = GameProcessRunner(helperURL: SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper"))
+        let original = try await runner.start(.init(executable: URL(fileURLWithPath: "/bin/sleep"), arguments: ["20"], workingDirectory: gameRoot), id: instance.id, root: gameRoot) { _ in }
+        defer { if original.isRunning { kill(original.pid, SIGTERM) } }
+        #expect(original.sessionID == nil)
+        let playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: root.appendingPathComponent("sessions"))
+        let recoveryUptime = ProcessInfo.processInfo.systemUptime
+        let restoredRunner = GameProcessRunner(helperURL: SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper"))
+        let games = GameLaunchCoordinator(store: store, sessions: MinecraftSessionCoordinator(context: container.mainContext), playtime: playtime, runner: restoredRunner)
+        games.start()
+        try await eventually { (try? GameProcessRecord.load(in: gameRoot)?.sessionID) != nil }
+        let loaded = try GameProcessRecord.load(in: gameRoot)
+        let record = try #require(loaded)
+        let session = try #require(record.sessionID)
+        let url = playtime.journalDirectory.appendingPathComponent("\(session.uuidString).json")
+        try await eventually { (try? PlaytimeJournal.load(from: url).helper?.isRunning) == true }
+        let journal = try PlaytimeJournal.load(from: url)
+        #expect(record.isRunning && journal.startedUptime >= recoveryUptime)
+        kill(original.pid, SIGTERM)
+        try await eventually { !store.launchBusy.contains(instance.id) }
     }
 
     @Test func javaOverrideRequiresExecutableVersionAndNativeArchitecture() async throws {

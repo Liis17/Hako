@@ -63,14 +63,15 @@ struct LauncherView: View {
     let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: "steve@example.com")
     let installations = InstallationCoordinator(context: container.mainContext)
     let sessions = MinecraftSessionCoordinator(context: container.mainContext)
+    let playtime = try! PlaytimeCoordinator(context: container.mainContext)
     container.mainContext.insert(account)
 
     return LauncherView(account: account)
         .modelContainer(container)
         .environment(installations)
         .environment(sessions)
-        .environment(try! PlaytimeCoordinator(context: container.mainContext))
-        .environment(GameLaunchCoordinator(store: installations.store, sessions: sessions))
+        .environment(playtime)
+        .environment(GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime))
         .background { SakuraBackground() }
         .frame(width: 1280, height: 720)
 }

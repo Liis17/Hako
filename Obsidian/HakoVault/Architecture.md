@@ -5,7 +5,7 @@ Parent: [[Index]]
 ## Назначение и границы
 
 Hako — нативное macOS-приложение: таргет `Hako` (bundle ID `com.Launcher.Hako`)
-и отдельный таргет Swift Testing `HakoTests`.
+и отдельные таргеты Swift Testing `HakoTests` и CLI-помощника `HakoPlaytimeHelper`.
 
 Назначение (со слов пользователя): лаунчер Minecraft с авторизацией через Microsoft
 и интеграцией каталогов Modrinth и CurseForge.
@@ -72,7 +72,8 @@ CocoaPods, Carthage не используются) нет.
    показывает поверх фона с сакурой `LauncherView`, если в SwiftData есть `Account` либо выбран гостевой вход,
    иначе приветствие. Гостевой выбор действует до закрытия Hako; сборки сохраняются независимо.
 4. `ContentView` наблюдает срок Minecraft-токена через `MinecraftSessionCoordinator.monitor` ([[Auth/MicrosoftAuth]]).
-   `GameLaunchCoordinator.start` восстанавливает работающие игры до запуска очереди установки.
+   `GameLaunchCoordinator.start` включает `PlaytimeCoordinator`, читает журналы сессий и восстанавливает
+   работающие игры с независимым помощником учёта до запуска очереди установки.
    Общий координатор из окружения восстанавливает очередь независимо от аккаунта; сохранённая пауза остаётся паузой.
    Настройки окна и выбор экрана — в [[UI/ContentView]].
 
@@ -96,6 +97,8 @@ CocoaPods, Carthage не используются) нет.
 `ProfileView.signOut()` (вкладка «Профиль») удаляет запись токенов из Keychain и `Account` из SwiftData,
 сохраняет контекст; `ContentView` возвращает приветствие. `GameInstance`, файлы сборок и очередь установки сохраняются.
 Работающие игры продолжаются независимо от выхода из аккаунта и закрытия Hako.
+`HakoPlaytimeHelper` продолжает измерять их длительность; общее время аккаунта хранится отдельно
+от удаляемых данных входа и сборок. Жизненный цикл и восстановление описаны в [[Minecraft/Launching]].
 
 Источники: `macos/Hako/Hako/Views/Launcher/ProfileView.swift`, `macos/Hako/Hako/Auth/TokenKeychain.swift`.
 
@@ -113,6 +116,7 @@ CocoaPods, Carthage не используются) нет.
   `INFOPLIST_KEY_*` в настройках таргета.
 - `macos/Hako/Hako/PrivacyInfo.xcprivacy` включён в ресурсы приложения и объявляет использование
   `UserDefaults` для собственных настроек (`CA92.1`) и API ёмкости диска для отображения места (`85F4.1`).
+  System Boot Time (`35F9.1`) используется для длительностей игры без учёта системного сна.
 - Конкурентность: `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`,
   `SWIFT_APPROACHABLE_CONCURRENCY = YES` — код модуля по умолчанию изолирован на главном акторе.
 - Подпись автоматическая (`CODE_SIGN_STYLE = Automatic`), команда `DEVELOPMENT_TEAM = 9Y935NYUP9`.
@@ -126,7 +130,9 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 ```
 
 Общая схема `Hako` хранится в `macos/Hako/Hako.xcodeproj/xcshareddata/xcschemes/Hako.xcscheme`.
-Она собирает приложение и запускает `HakoTests`. Тестовый таргет без приложения-хоста: компилирует
+Она собирает приложение с зависимым CLI-помощником и запускает `HakoTests`. Помощник копируется
+в `Contents/MacOS` с `CodeSignOnCopy`; имеет те же deployment target и Hardened Runtime.
+Тестовый таргет без приложения-хоста: компилирует
 те же исходники скина, авторизации, данных сборок, официальных метаданных и установщика; использует собственную копию `Steve.png`,
 фикстуры Mojang и подменённые HTTP-ответы; главное окно и вход в Microsoft не запускаются.
 
