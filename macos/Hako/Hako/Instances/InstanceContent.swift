@@ -237,21 +237,31 @@ actor InstanceContent {
         let old = try checkedFile(item, in: folder)
         guard let origin = item.origin, origin.source == .modrinth, origin.projectID == FabricAPIDescriptor.project,
               try FabricClient.hashFile(old) == origin.sha512, try FabricClient.validAPI(cached, api: api) else { throw InstanceFileError.message("Файл мода изменился. Обновите список и повторите действие.") }
-        var registry = try registry(at: folder)
-        let newName = api.filename + (item.enabled ? "" : ".disabled")
-        if let other = try existing(api.filename, in: folder, mods: true), other != old { throw PackImportError.exists(api.filename) }
-        let target = try InstanceStorage.containedURL(newName, in: folder)
-        let staged = folder.appendingPathComponent(".update-\(UUID().uuidString)")
-        let backup = folder.appendingPathComponent(".backup-\(UUID().uuidString)")
+        try replaceItem(item, from: cached, filename: api.filename, in: folder, mods: true, origin: ModOrigin(api: api))
+    }
+
+    /// Заменяет мод или ресурспак новым файлом, сохраняя отключение; реестр модов получает новое происхождение.
+    func replaceItem(_ item: InstanceContentItem, from source: URL, filename: String, in folder: URL, mods: Bool, expectedSHA512: String? = nil, origin: ModOrigin?) throws {
+        let old = try checkedFile(item, in: folder)
+        if let expectedSHA512, try FabricClient.hashFile(old) != expectedSHA512.lowercased() { throw InstanceFileError.message("Файл изменился. Обновите список и повторите действие.") }
+        var registry = mods ? try registry(at: folder) : nil
+        let parent = old.deletingLastPathComponent()
+        let newName = filename + (mods && !item.enabled ? ".disabled" : "")
+        if let other = try existing(filename, in: folder, mods: mods), other.standardizedFileURL.path != old.standardizedFileURL.path { throw PackImportError.exists(filename) }
+        let target = try InstanceStorage.containedURL(newName, in: parent)
+        let staged = parent.appendingPathComponent(".update-\(UUID().uuidString)")
+        let backup = parent.appendingPathComponent(".backup-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: staged) }
-        try FileManager.default.copyItem(at: cached, to: staged)
+        try FileManager.default.copyItem(at: source, to: staged)
         try Task.checkCancellation()
         try FileManager.default.moveItem(at: old, to: backup)
         do {
             try FileManager.default.moveItem(at: staged, to: target)
-            registry.files.removeValue(forKey: item.logicalName.lowercased())
-            registry.files[api.filename.lowercased()] = ModOrigin(api: api)
-            try saveRegistry(registry, at: folder)
+            if registry != nil {
+                registry?.files.removeValue(forKey: item.logicalName.lowercased())
+                registry?.files[filename.lowercased()] = origin
+                try saveRegistry(registry!, at: folder)
+            }
         } catch {
             try? FileManager.default.removeItem(at: target); try? FileManager.default.moveItem(at: backup, to: old)
             throw error

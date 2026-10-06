@@ -212,6 +212,20 @@ actor ModrinthClient {
         return hashes.compactMapValues { fileCache?.versions[$0] }
     }
 
+    /// Новейшие версии проектов по SHA-512 их файлов с тем же приоритетом каналов, что у `latestVersion`.
+    func latestVersions(for hashes: [String], mods: Bool, minecraft: String) async throws -> [String: ModrinthVersion] {
+        let loader = mods ? "fabric" : "minecraft"
+        var remaining = Set(hashes), result: [String: ModrinthVersion] = [:]
+        for channel in ["release", "beta", "alpha"] where !remaining.isEmpty {
+            let body: [String: Any] = ["hashes": Array(remaining), "algorithm": "sha512", "loaders": [loader], "game_versions": [minecraft], "version_types": [channel]]
+            let found = try JSONDecoder().decode([String: ModrinthVersion].self, from: await data(post("version_files/update", body)))
+            for (hash, version) in found where remaining.contains(hash) && version.channel == channel && version.gameVersions.contains(minecraft) && version.loaders.contains(loader) && version.file(mods: mods) != nil {
+                result[hash] = version; remaining.remove(hash)
+            }
+        }
+        return result
+    }
+
     /// Загружает файл в `folder` под именем из Modrinth и проверяет размер и SHA-512.
     func download(_ file: ModrinthVersion.File, into folder: URL) async throws -> URL {
         guard file.url.scheme == "https" else { throw MojangError.invalid("Ссылка загрузки должна использовать HTTPS.") }

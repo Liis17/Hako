@@ -301,10 +301,8 @@ private struct InstanceFilesView: View {
                         .help("Активно \(active) из \(items.count)").accessibilityLabel("Активно \(active) из \(items.count)")
                 }
                 Spacer()
-                if mods {
-                    Button("Проверить обновления", systemImage: "arrow.clockwise") { Task { await content.reload(instance, mods: true); await content.checkUpdates(instance) } }
-                        .buttonStyle(.glass).disabled(content.checkingUpdates.contains(instance.id))
-                }
+                Button("Проверить обновления", systemImage: "arrow.clockwise") { Task { await content.reload(instance, mods: mods); await content.checkAllUpdates(instance, mods: mods) } }
+                    .buttonStyle(.glass).disabled(content.isCheckingUpdates(instance, mods: mods))
                 Button("Modrinth", systemImage: ModSource.modrinth.symbol, action: onCatalog)
                     .buttonStyle(.glass).help(mods ? "Найти моды на Modrinth" : "Найти ресурспаки на Modrinth")
                 Button("Открыть папку", systemImage: "folder") {
@@ -330,8 +328,9 @@ private struct InstanceFilesView: View {
             if let reason = disabledReason { Text(reason).font(.caption).foregroundStyle(.secondary) }
             if content.installations.contentBusy.contains(instance.id) { ProgressView("Обрабатываем файлы…").font(.callout) }
             if let error = content.errors[instance.id] { Text(error).font(.callout).foregroundStyle(Color.shu) }
-            if mods && content.checkingUpdates.contains(instance.id) { ProgressView("Проверяем Fabric API…").font(.caption) }
+            if content.isCheckingUpdates(instance, mods: mods) { ProgressView("Проверяем обновления…").font(.caption) }
             if mods, let message = content.updateMessages[instance.id] { Text(message).font(.caption).foregroundStyle(.secondary) }
+            if let message = content.modrinthUpdateMessages["\(instance.id):\(mods)"] { Text(message).font(.caption).foregroundStyle(.secondary) }
             if items.isEmpty {
                 Text(mods ? "В сборке пока нет модов." : "Ресурспаков пока нет.").foregroundStyle(.secondary).padding(.vertical, 16)
             }
@@ -345,15 +344,17 @@ private struct InstanceFilesView: View {
                                 Label(item.source.title, systemImage: item.source.symbol).font(.caption).padding(.horizontal, 7).padding(.vertical, 3)
                                     .background(.white.opacity(0.6), in: Capsule())
                                 if let api = item.origin?.api { Text(api.version).font(.caption).foregroundStyle(.secondary) }
-                                if item.source == .local { Text("Обновляется вручную").font(.caption).foregroundStyle(.secondary) }
+                                if item.source == .local && content.modrinthUpdate(for: item, in: instance, mods: mods) == nil { Text("Обновляется вручную").font(.caption).foregroundStyle(.secondary) }
                                 if !item.enabled { Text("Отключён").font(.caption).foregroundStyle(.secondary) }
                             }
                         }
                     }
                     Spacer(minLength: 8)
-                    if mods, item.origin?.api != nil, let update = content.updates[instance.id]?[item.logicalName.lowercased()] {
-                        Button("Обновить", systemImage: "arrow.down.circle") { content.update(item, in: instance) }
-                            .buttonStyle(.glass).help("Fabric API \(update.version)").disabled(disabledReason != nil)
+                    if let update = content.modrinthUpdate(for: item, in: instance, mods: mods) {
+                        if content.catalogInstalling[instance.id] == update.projectID { ProgressView().controlSize(.small).frame(width: 24) }
+                        else { updateButton(item, version: update.version.number) { content.updateFromModrinth(item, in: instance, mods: mods) } }
+                    } else if mods, item.origin?.api != nil, let update = content.updates[instance.id]?[item.logicalName.lowercased()] {
+                        updateButton(item, version: update.version) { content.update(item, in: instance) }
                     }
                     Toggle("Активность \(item.logicalName)", isOn: Binding(get: { item.enabled }, set: { content.setEnabled(item, in: instance, enabled: $0, mods: mods) }))
                         .toggleStyle(.switch).labelsHidden().disabled(disabledReason != nil)
@@ -369,13 +370,21 @@ private struct InstanceFilesView: View {
         .instanceSurface()
         .task(id: "\(instance.folderName):\(instance.state.rawValue)") {
             await content.reload(instance, mods: mods)
-            if mods { await content.checkUpdates(instance) }
+            await content.checkAllUpdates(instance, mods: mods)
         }
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await content.reload(instance, mods: mods) } } }
         .fileImporter(isPresented: $importing, allowedContentTypes: mods ? [UTType(filenameExtension: "jar") ?? .data] : [.zip, .folder], allowsMultipleSelection: true) { result in
             do { content.importFiles(try result.get(), into: instance, mods: mods) }
             catch { content.errors[instance.id] = error.localizedDescription }
         }
+    }
+
+    private func updateButton(_ item: InstanceContentItem, version: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "arrow.down.circle.fill").font(.title2).foregroundStyle(.orange)
+        }
+        .buttonStyle(.plain).disabled(disabledReason != nil)
+        .help("Обновить до \(version)").accessibilityLabel("Обновить \(item.logicalName)")
     }
 
     private func receiveDrop(_ providers: [NSItemProvider]) -> Bool {

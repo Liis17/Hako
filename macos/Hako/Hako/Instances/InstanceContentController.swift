@@ -20,6 +20,13 @@ import Observation
 
 enum ContentChoice { case cancel, primary, alternative }
 
+/// Новая версия Modrinth для файла сборки.
+struct ModrinthUpdate {
+    let projectID: String
+    let version: ModrinthVersion
+    let currentSHA512: String
+}
+
 /// Lives with the launcher, not with the currently selected content tab.
 @MainActor @Observable final class InstanceContentController {
     let installations: InstallationCoordinator
@@ -29,6 +36,10 @@ enum ContentChoice { case cancel, primary, alternative }
     var updates: [UUID: [String: FabricAPIDescriptor]] = [:]
     var updateMessages: [UUID: String] = [:]
     private(set) var checkingUpdates: Set<UUID> = []
+    /// Обновления модов и ресурспаков из Modrinth по ключу раздела `updateKey`, внутри — по имени файла.
+    private(set) var modrinthUpdates: [String: [String: ModrinthUpdate]] = [:]
+    private(set) var checkingModrinth: Set<String> = []
+    var modrinthUpdateMessages: [String: String] = [:]
     private(set) var confirmations: [ContentConfirmation] = []
     /// Проект Modrinth, который сейчас устанавливается в сборку.
     private(set) var catalogInstalling: [UUID: String] = [:]
@@ -73,6 +84,8 @@ enum ContentChoice { case cancel, primary, alternative }
                 updates[instance.id] = updates[instance.id]?.filter { key, api in eligible.contains { $0.logicalName.lowercased() == key && $0.origin?.versionID != api.versionID } }
                 if eligible.isEmpty { updateMessages[instance.id] = nil }
             } else { packs[instance.id] = items }
+            let key = updateKey(instance, mods: mods)
+            modrinthUpdates[key] = modrinthUpdates[key]?.filter { name, _ in items.contains { $0.logicalName.lowercased() == name } }
             if clearError { errors[instance.id] = nil }
         } catch {
             if !Task.isCancelled && reloads[key] == request && instance.folderName == folderName { errors[instance.id] = error.localizedDescription }
@@ -191,6 +204,57 @@ enum ContentChoice { case cancel, primary, alternative }
         }
     }
 
+    private func updateKey(_ instance: GameInstance, mods: Bool) -> String { "\(instance.id):\(mods)" }
+
+    func isCheckingUpdates(_ instance: GameInstance, mods: Bool) -> Bool {
+        checkingModrinth.contains(updateKey(instance, mods: mods)) || mods && checkingUpdates.contains(instance.id)
+    }
+
+    func modrinthUpdate(for item: InstanceContentItem, in instance: GameInstance, mods: Bool) -> ModrinthUpdate? {
+        modrinthUpdates[updateKey(instance, mods: mods)]?[item.logicalName.lowercased()]
+    }
+
+    /// Fabric API проверяется прежним путём, остальные файлы раздела — через Modrinth.
+    func checkAllUpdates(_ instance: GameInstance, mods: Bool) async {
+        if mods { await checkUpdates(instance) }
+        await checkModrinthUpdates(instance, mods: mods)
+    }
+
+    /// Обновление предлагается, если новая версия содержит другой файл и опубликована позже текущей.
+    func checkModrinthUpdates(_ instance: GameInstance, mods: Bool) async {
+        let key = updateKey(instance, mods: mods)
+        guard !checkingModrinth.contains(key) else { return }
+        let items = ((mods ? self.mods : packs)[instance.id] ?? []).filter { !$0.isDirectory && $0.origin?.api == nil }
+        guard !items.isEmpty else { modrinthUpdates[key] = [:]; return }
+        checkingModrinth.insert(key); modrinthUpdateMessages[key] = nil
+        defer { checkingModrinth.remove(key) }
+        do {
+            let matches = try await modrinth.versions(of: items.map(\.url))
+            let latest = try await modrinth.latestVersions(for: Array(Set(matches.values.map(\.sha512))), mods: mods, minecraft: instance.versionID)
+            guard !Task.isCancelled else { return }
+            var available: [String: ModrinthUpdate] = [:]
+            for item in items {
+                guard let match = matches[item.url], let next = latest[match.sha512], next.projectID == match.projectID,
+                      let file = next.file(mods: mods), file.sha512 != match.sha512, next.published > match.published else { continue }
+                available[item.logicalName.lowercased()] = .init(projectID: match.projectID, version: next, currentSHA512: match.sha512)
+            }
+            modrinthUpdates[key] = available
+        } catch {
+            if !Task.isCancelled { modrinthUpdateMessages[key] = "Не удалось проверить обновления: \(error.localizedDescription)" }
+        }
+    }
+
+    func updateFromModrinth(_ item: InstanceContentItem, in instance: GameInstance, mods: Bool) {
+        guard let update = modrinthUpdate(for: item, in: instance, mods: mods), catalogInstalling[instance.id] == nil else { return }
+        catalogInstalling[instance.id] = update.projectID
+        let started = perform(instance, mods: mods) { [self] _ in
+            defer { catalogInstalling[instance.id] = nil }
+            guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message("Проект Modrinth не найден.") }
+            try await installFromModrinth(project, in: instance, mods: mods, version: update.version, replacing: (item, update.currentSHA512))
+        }
+        if !started { catalogInstalling[instance.id] = nil }
+    }
+
     /// Установленные проекты Modrinth: происхождения из реестра и совпадения SHA-512 остальных файлов.
     func installedProjects(_ instance: GameInstance, mods: Bool) async throws -> [String: [InstanceContentItem]] {
         let items = try await installations.content.list(at: folder(instance, mods: mods), mods: mods)
@@ -230,9 +294,11 @@ enum ContentChoice { case cancel, primary, alternative }
         }
     }
 
-    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, mods: Bool) async throws {
+    /// С `replacing` новая версия заменяет файл сборки вместо импорта рядом с ним.
+    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, mods: Bool, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil) async throws {
         let minecraft = instance.versionID
-        guard let version = try await modrinth.latestVersion(project: project.id, mods: mods, minecraft: minecraft), let file = version.file(mods: mods) else {
+        let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, mods: mods, minecraft: minecraft) : requested
+        guard let version = latest, let file = version.file(mods: mods) else {
             throw InstanceFileError.message("У «\(project.title)» нет версии для Minecraft \(minecraft)\(mods ? " и Fabric" : "").")
         }
         let modsAvailable = instance.modLoader == .fabric && instance.state != .queued && instance.state != .installing
@@ -262,7 +328,7 @@ enum ContentChoice { case cancel, primary, alternative }
             }
         }
         if !listed.isEmpty {
-            let choice = await choose(.init(title: "Нужны зависимости", message: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:", action: downloads.isEmpty && enable.isEmpty ? nil : "Добавить с зависимостями", destructive: false, alternative: mods ? "Только мод" : "Только ресурспак", projects: listed))
+            let choice = await choose(.init(title: "Нужны зависимости", message: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:", action: downloads.isEmpty && enable.isEmpty ? nil : "Добавить с зависимостями", destructive: false, alternative: replacing != nil ? "Только обновить" : mods ? "Только мод" : "Только ресурспак", projects: listed))
             if choice == .cancel { return }
             if choice == .alternative { downloads = []; enable = [] }
         }
@@ -297,10 +363,16 @@ enum ContentChoice { case cancel, primary, alternative }
             warnings.append(.init(id: conflict.id, title: conflict.title, iconURL: conflict.iconURL, note: "Несовместим с «\(conflicts[conflict.id] ?? project.title)»"))
         }
         if !warnings.isEmpty {
-            guard await confirm(.init(title: "Возможна несовместимость", message: "Эти проблемы могут помешать запуску игры. Установить «\(project.title)» всё равно?", action: "Установить всё равно", destructive: true, projects: warnings)) else { return }
+            let verb = replacing == nil ? "Установить" : "Обновить"
+            guard await confirm(.init(title: "Возможна несовместимость", message: "Эти проблемы могут помешать запуску игры. \(verb) «\(project.title)» всё равно?", action: "\(verb) всё равно", destructive: true, projects: warnings)) else { return }
         }
         for (download, url) in zip(downloads, files) {
             let target = try folder(instance, mods: download.mods)
+            if let replacing, download.project.id == project.id, download.mods == mods {
+                try await installations.content.replaceItem(replacing.item, from: url, filename: url.lastPathComponent, in: target, mods: mods, expectedSHA512: replacing.sha512, origin: download.origin)
+                modrinthUpdates[updateKey(instance, mods: mods)]?.removeValue(forKey: replacing.item.logicalName.lowercased())
+                continue
+            }
             do { try await installations.content.importItem(from: url, into: target, mods: download.mods, origin: download.origin) }
             catch PackImportError.exists {
                 guard await confirm(.init(title: "Заменить \(download.mods ? "мод" : "ресурспак")?", message: "\(url.lastPathComponent) уже существует в сборке «\(instance.name)».", action: "Заменить", destructive: true)) else { continue }

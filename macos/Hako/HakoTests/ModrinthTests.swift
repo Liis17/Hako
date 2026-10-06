@@ -190,6 +190,87 @@ import Testing
         #expect(controller.mods[instance.id]?.map(\.name) == ["other.jar"])
     }
 
+    @Test func latestVersionsPreferReleaseAndAskLowerChannelsOnlyForRemainingHashes() async throws {
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let bytes = Data("x".utf8), first = String(repeating: "1", count: 128), second = String(repeating: "2", count: 128)
+        let release = Self.version("release", project: "a", date: "2026-10-01", file: ("a.jar", bytes))
+        let beta = Self.version("beta", project: "b", channel: "beta", date: "2026-10-05", file: ("b.jar", bytes))
+        let bodies = BodyLog()
+        ModrinthTestProtocol.prepare([:]) { url, body in
+            guard url.path.hasSuffix("version_files/update"), let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return nil }
+            bodies.append(json)
+            let channel = (json["version_types"] as? [String])?.first
+            return try? JSONSerialization.data(withJSONObject: channel == "release" ? [first: release] : channel == "beta" ? [second: beta] : [:])
+        }
+        let found = try await ModrinthClient(session: session).latestVersions(for: [first, second], mods: true, minecraft: "test")
+        #expect(found[first]?.id == "release" && found[second]?.id == "beta")
+        #expect(bodies.values.count == 2)
+        #expect(bodies.values.last?["hashes"] as? [String] == [second])
+    }
+
+    @Test func modUpdateReplacesFileKeepsItDisabledAndRecordsOrigin() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let folder = try controller.folder(instance, mods: true)
+        let old = root.appendingPathComponent("old.jar"), oldBytes = Data("old".utf8), newBytes = Data("new".utf8)
+        try oldBytes.write(to: old)
+        try await installations.content.importItem(from: old, into: folder, mods: true)
+        await controller.reload(instance, mods: true)
+        try await installations.content.setEnabled(try #require(controller.mods[instance.id]?.first), in: folder, enabled: false)
+        let newer = Self.version("new-v", project: "p", date: "2026-10-05", file: ("new.jar", newBytes))
+        ModrinthTestProtocol.prepare([
+            "\(api)/version_files": try JSONSerialization.data(withJSONObject: [FabricClient.hash(oldBytes): ["id": "old-v", "project_id": "p", "date_published": "2026-10-01"]]),
+            "\(api)/version_files/update": try JSONSerialization.data(withJSONObject: [FabricClient.hash(oldBytes): newer]),
+            "\(api)/projects": Data(#"[{"id":"p","slug":"p","title":"P","description":"","icon_url":null,"project_type":"mod"}]"#.utf8),
+            "fixtures.test/new.jar": newBytes
+        ])
+        await controller.reload(instance, mods: true)
+        await controller.checkModrinthUpdates(instance, mods: true)
+        let item = try #require(controller.mods[instance.id]?.first)
+        #expect(controller.modrinthUpdate(for: item, in: instance, mods: true)?.version.id == "new-v")
+        controller.updateFromModrinth(item, in: instance, mods: true)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        let updated = try #require(controller.mods[instance.id]?.first)
+        #expect(controller.mods[instance.id]?.count == 1 && updated.name == "new.jar.disabled" && !updated.enabled)
+        #expect(updated.origin?.projectID == "p" && updated.origin?.versionID == "new-v")
+        #expect(controller.modrinthUpdate(for: updated, in: instance, mods: true) == nil)
+    }
+
+    @Test func packUpdateIgnoresOlderVersionsAndKeepsPackDisabled() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let folder = try controller.folder(instance, mods: false)
+        let old = root.appendingPathComponent("old.zip"), oldBytes = Data("old".utf8), newBytes = Data("new".utf8)
+        try oldBytes.write(to: old)
+        try await installations.content.importItem(from: old, into: folder, mods: false)
+        await controller.reload(instance, mods: false)
+        try await installations.content.setEnabled(try #require(controller.packs[instance.id]?.first), in: folder, enabled: false, mods: false)
+        let match = try JSONSerialization.data(withJSONObject: [FabricClient.hash(oldBytes): ["id": "old-v", "project_id": "p", "date_published": "2026-10-01"]])
+        let older = Self.version("older-v", project: "p", date: "2026-09-01", loader: "minecraft", file: ("older.zip", newBytes))
+        ModrinthTestProtocol.prepare(["\(api)/version_files": match, "\(api)/version_files/update": try JSONSerialization.data(withJSONObject: [FabricClient.hash(oldBytes): older])])
+        await controller.reload(instance, mods: false)
+        await controller.checkModrinthUpdates(instance, mods: false)
+        let item = try #require(controller.packs[instance.id]?.first)
+        #expect(controller.modrinthUpdate(for: item, in: instance, mods: false) == nil)
+        let newer = Self.version("new-v", project: "p", date: "2026-10-05", loader: "minecraft", file: ("new.zip", newBytes))
+        ModrinthTestProtocol.prepare([
+            "\(api)/version_files": match, "\(api)/version_files/update": try JSONSerialization.data(withJSONObject: [FabricClient.hash(oldBytes): newer]),
+            "\(api)/projects": Data(#"[{"id":"p","slug":"p","title":"P","description":"","icon_url":null,"project_type":"resourcepack"}]"#.utf8),
+            "fixtures.test/new.zip": newBytes
+        ])
+        await controller.checkModrinthUpdates(instance, mods: false)
+        controller.updateFromModrinth(item, in: instance, mods: false)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        let updated = try #require(controller.packs[instance.id]?.first)
+        #expect(controller.packs[instance.id]?.count == 1 && updated.name == "new.zip" && !updated.enabled)
+    }
+
     private static func temporaryRoot() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString) }
 
     private static func sha1(_ data: Data) -> String { Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined() }
@@ -225,13 +306,22 @@ import Testing
     }
 }
 
+nonisolated final class BodyLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [[String: Any]] = []
+    var values: [[String: Any]] { lock.withLock { stored } }
+    func append(_ value: [String: Any]) { lock.withLock { stored.append(value) } }
+}
+
 /// Отвечает по «хост + путь», без учёта query: запросы Modrinth различаются путём.
 nonisolated final class ModrinthTestProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     private nonisolated(unsafe) static var routes: [String: Data] = [:]
     private nonisolated(unsafe) static var recorded: [URLRequest] = []
+    private nonisolated(unsafe) static var handler: (@Sendable (URL, Data) -> Data?)?
     static var requests: [URLRequest] { lock.withLock { recorded } }
-    static func prepare(_ routes: [String: Data]) { lock.withLock { self.routes = routes; recorded = [] } }
+    /// `handler` отвечает раньше `routes` и видит тело запроса.
+    static func prepare(_ routes: [String: Data], handler: (@Sendable (URL, Data) -> Data?)? = nil) { lock.withLock { self.routes = routes; self.handler = handler; recorded = [] } }
     static func session() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [ModrinthTestProtocol.self]
         return URLSession(configuration: configuration)
@@ -240,7 +330,13 @@ nonisolated final class ModrinthTestProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let url = request.url!
-        let data = Self.lock.withLock { Self.recorded.append(request); return Self.routes[(url.host ?? "") + url.path] }
+        var body = request.httpBody ?? Data()
+        if let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }
+            var buffer = [UInt8](repeating: 0, count: 65_536)
+            while stream.hasBytesAvailable { let count = stream.read(&buffer, maxLength: buffer.count); if count <= 0 { break }; body.append(buffer, count: count) }
+        }
+        let data = Self.lock.withLock { Self.recorded.append(request); return Self.handler?(url, body) ?? Self.routes[(url.host ?? "") + url.path] }
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: data == nil ? 404 : 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data ?? Data())
         client?.urlProtocolDidFinishLoading(self)
