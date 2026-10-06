@@ -13,7 +13,7 @@ struct InstanceProfileView: View {
     let onBack: () -> Void
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(PlaytimeCoordinator.self) private var playtime
-    @State private var section = InstanceSection.mods
+    @State private var section = InstanceSection.packs
     @State private var actionError: String?
 
     var body: some View {
@@ -33,7 +33,12 @@ struct InstanceProfileView: View {
             }
             if instance.state != .ready { installationPanel }
             Picker("Раздел сборки", selection: $section) {
-                ForEach(InstanceSection.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(InstanceSection.allCases) { item in
+                    Text(item.rawValue).tag(item)
+                        .disabled(item == .mods)
+                        .selectionDisabled(item == .mods)
+                        .help(item == .mods ? "Моды доступны только для сборок с выбранным модлоадером." : "")
+                }
             }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 600)
             ScrollView {
                 Group {
