@@ -47,6 +47,12 @@ struct WelcomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .padding(.horizontal, 96)
+        .overlay(alignment: .topTrailing) {
+            AppLanguagePicker()
+                .padding(.top, 20)
+                .padding(.trailing, 24)
+                .reveal(isVisible, order: 5)
+        }
         .overlay(alignment: .bottomTrailing) {
             Text("Hako is not affiliated with or endorsed by Mojang or Microsoft. Minecraft is a trademark of Microsoft.")
                 .font(.caption)

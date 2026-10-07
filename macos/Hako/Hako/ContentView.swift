@@ -13,6 +13,7 @@ struct ContentView: View {
     @Query private var accounts: [Account]
     @State private var isSigningIn = false
     @State private var isGuestLauncher = false
+    @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.current
     @Environment(MinecraftSessionCoordinator.self) private var sessions
 
     var body: some View {
@@ -37,6 +38,7 @@ struct ContentView: View {
         .onChange(of: accounts.isEmpty) { isSigningIn = false; if accounts.isEmpty { sessions.signOut(); isGuestLauncher = false } }
         .task(id: accounts.first?.xuid) { if let account = accounts.first { await sessions.monitor(account) } }
         .frame(minWidth: 960, minHeight: 540)
+        .environment(\.locale, language.locale)
         .preferredColorScheme(.light)
     }
 }

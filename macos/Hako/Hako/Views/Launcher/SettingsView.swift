@@ -8,18 +8,20 @@ import SwiftUI
 import SwiftData
 
 private enum SettingsSection {
+    case general
     case game
     case storage
     case about
 }
 
 struct SettingsView: View {
-    @State private var section = SettingsSection.game
+    @State private var section = SettingsSection.general
 
     var body: some View {
         LauncherPage(caption: "設定", title: "Настройки") {
             VStack(alignment: .leading, spacing: 24) {
                 Picker("Раздел настроек", selection: $section) {
+                    Text("Основные").tag(SettingsSection.general)
                     Text("Игра").tag(SettingsSection.game)
                     Text("Хранилище").tag(SettingsSection.storage)
                     Text("О приложении").tag(SettingsSection.about)
@@ -31,6 +33,8 @@ struct SettingsView: View {
                 ScrollView {
                     Group {
                         switch section {
+                        case .general:
+                            GeneralSettingsView()
                         case .game:
                             GameSettingsView()
                         case .storage:
@@ -46,6 +50,17 @@ struct SettingsView: View {
                 .id(section)
             }
             .frame(maxWidth: 800, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+}
+
+private struct GeneralSettingsView: View {
+    var body: some View {
+        SettingsCard(title: "Язык", systemImage: "globe") {
+            AppLanguagePicker()
+            Text("Язык интерфейса Hako. Меню и системные окна macOS используют язык системы.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
