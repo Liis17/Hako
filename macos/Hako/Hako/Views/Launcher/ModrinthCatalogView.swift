@@ -236,13 +236,10 @@ struct ModrinthCatalogRow: View {
                         Button("Добавить", systemImage: "plus") { onAdd("release") }.buttonStyle(.glass)
                             .disabled(status == .unavailable || channels != nil && channels?["release"] == nil)
                             .accessibilityLabel("Добавить «\(project.title)»")
-                        Menu {
-                            channelButton("beta", install: "бету", missing: "Бета недоступна")
-                            channelButton("alpha", install: "альфу", missing: "Альфа недоступна")
-                        } label: { Image(systemName: "ellipsis") }
-                            .menuStyle(.button).buttonStyle(.glass).menuIndicator(.hidden).fixedSize()
+                        Button(action: showChannelMenu) { Image(systemName: "ellipsis").frame(maxHeight: .infinity) }.buttonStyle(.glass)
                             .help("Другие версии").accessibilityLabel("Другие версии «\(project.title)»")
                     }
+                    .fixedSize()
                 }
             }
             .frame(width: 180, alignment: .trailing)
@@ -253,13 +250,25 @@ struct ModrinthCatalogRow: View {
         .animation(.smooth(duration: 0.25), value: status)
     }
 
-    @ViewBuilder private func channelButton(_ channel: String, install: String, missing: String) -> some View {
-        if let version = channels?[channel] {
-            Button("Установить \(install) \(version.number)") { onAdd(channel) }.disabled(status == .unavailable)
-        } else {
-            Button(missing) {}.disabled(true)
+    /// `Menu` со стилем `.glass` рисуется серой капсулой ниже «Добавить», поэтому «⋯» — стеклянная кнопка с `NSMenu`.
+    private func showChannelMenu() {
+        let menu = NSMenu(); menu.autoenablesItems = false
+        for (channel, install, missing) in [("beta", "бету", "Бета недоступна"), ("alpha", "альфу", "Альфа недоступна")] {
+            let version = channels?[channel], action = MenuAction { onAdd(channel) }
+            let item = NSMenuItem(title: version.map { "Установить \(install) \($0.number)" } ?? missing, action: #selector(MenuAction.run(_:)), keyEquivalent: "")
+            item.target = action; item.representedObject = action
+            item.isEnabled = version != nil && status != .unavailable
+            menu.addItem(item)
         }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
     private func openPage() { NSWorkspace.shared.open(project.pageURL) }
+}
+
+/// Цель пункта `NSMenu`; пункт держит её в `representedObject`, потому что `target` — слабая ссылка.
+private final class MenuAction: NSObject {
+    private let action: () -> Void
+    init(_ action: @escaping () -> Void) { self.action = action }
+    @objc func run(_ sender: NSMenuItem) { action() }
 }
