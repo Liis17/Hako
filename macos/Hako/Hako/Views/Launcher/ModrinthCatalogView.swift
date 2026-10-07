@@ -250,25 +250,14 @@ struct ModrinthCatalogRow: View {
         .animation(.smooth(duration: 0.25), value: status)
     }
 
-    /// `Menu` со стилем `.glass` рисуется серой капсулой ниже «Добавить», поэтому «⋯» — стеклянная кнопка с `NSMenu`.
     private func showChannelMenu() {
         let menu = NSMenu(); menu.autoenablesItems = false
         for (channel, install, missing) in [("beta", "бету", "Бета недоступна"), ("alpha", "альфу", "Альфа недоступна")] {
-            let version = channels?[channel], action = MenuAction { onAdd(channel) }
-            let item = NSMenuItem(title: version.map { "Установить \(install) \($0.number)" } ?? missing, action: #selector(MenuAction.run(_:)), keyEquivalent: "")
-            item.target = action; item.representedObject = action
-            item.isEnabled = version != nil && status != .unavailable
-            menu.addItem(item)
+            let version = channels?[channel]
+            menu.addItem(ClosureMenuItem(version.map { "Установить \(install) \($0.number)" } ?? missing, enabled: version != nil && status != .unavailable) { onAdd(channel) })
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
     private func openPage() { NSWorkspace.shared.open(project.pageURL) }
-}
-
-/// Цель пункта `NSMenu`; пункт держит её в `representedObject`, потому что `target` — слабая ссылка.
-private final class MenuAction: NSObject {
-    private let action: () -> Void
-    init(_ action: @escaping () -> Void) { self.action = action }
-    @objc func run(_ sender: NSMenuItem) { action() }
 }

@@ -138,20 +138,20 @@ struct InstanceProfileView: View {
     }
 
     private var actionsMenu: some View {
-        let blocked = installations.store.managementBlockedReason(instance)
-        return Menu {
-            Button("Дублировать", systemImage: "plus.square.on.square", action: duplicate)
-                .disabled(blocked != nil || instance.state != .ready)
-            Button("Резервная копия", systemImage: "archivebox", action: backup)
-                .disabled(blocked != nil || instance.state != .ready)
-            Divider()
-            Button("Удалить сборку…", systemImage: "trash", role: .destructive) { confirmingDelete = true }
-                .disabled(blocked != nil)
-        } label: {
-            Image(systemName: "ellipsis")
-        }
-        .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.glass).controlSize(.large).fixedSize()
-        .help(blocked ?? "Действия со сборкой").accessibilityLabel("Действия со сборкой")
+        // Невидимый текст задаёт кнопке высоту «Играть»: одна иконка ниже строки текста.
+        Button(action: showActionsMenu) { Text("A").hidden().overlay { Image(systemName: "ellipsis") } }
+            .buttonStyle(.glass).controlSize(.large)
+            .help(installations.store.managementBlockedReason(instance) ?? "Действия со сборкой").accessibilityLabel("Действия со сборкой")
+    }
+
+    private func showActionsMenu() {
+        let blocked = installations.store.managementBlockedReason(instance) != nil, ready = instance.state == .ready
+        let menu = NSMenu(); menu.autoenablesItems = false
+        menu.addItem(ClosureMenuItem("Дублировать", systemImage: "plus.square.on.square", enabled: !blocked && ready, handler: duplicate))
+        menu.addItem(ClosureMenuItem("Резервная копия", systemImage: "archivebox", enabled: !blocked && ready, handler: backup))
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("Удалить сборку…", systemImage: "trash", enabled: !blocked) { confirmingDelete = true })
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
     private func duplicate() {
