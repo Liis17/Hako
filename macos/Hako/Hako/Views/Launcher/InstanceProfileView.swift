@@ -481,7 +481,7 @@ private struct InstanceFilesView: View {
     }
 }
 
-private struct InstanceFileIcon: View {
+struct InstanceFileIcon: View {
     let item: InstanceContentItem
     let mods: Bool
     @Environment(InstanceContentController.self) private var content

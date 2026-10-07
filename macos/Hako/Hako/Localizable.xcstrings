@@ -1308,6 +1308,22 @@
         }
       }
     },
+    "В этом мире пока нет датапаков." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This world has no datapacks yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этом мире пока нет датапаков."
+          }
+        }
+      }
+    },
     "Введите от 1 до 60 символов: латинские буквы, цифры и пробелы." : {
       "localizations" : {
         "en" : {
@@ -1448,6 +1464,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Версия неизвестна"
+          }
+        }
+      }
+    },
+    "Включить датапак «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable datapack “%@”"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить датапак «%@»"
+          }
+        }
+      }
+    },
+    "Включён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabled"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включён"
           }
         }
       }
@@ -1964,6 +2012,22 @@
         }
       }
     },
+    "Датапаки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datapacks"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Датапаки"
+          }
+        }
+      }
+    },
     "Датапаки с Modrinth" : {
       "localizations" : {
         "en" : {
@@ -1976,6 +2040,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Датапаки с Modrinth"
+          }
+        }
+      }
+    },
+    "Действия с миром" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World actions"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Действия с миром"
+          }
+        }
+      }
+    },
+    "Действия с миром «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actions for world “%@”"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Действия с миром «%@»"
           }
         }
       }
@@ -3020,6 +3116,22 @@
         }
       }
     },
+    "Изменения датапаков применятся при следующем открытии мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datapack changes will take effect the next time you open the world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменения датапаков применятся при следующем открытии мира."
+          }
+        }
+      }
+    },
     "Изменения параметров применятся при следующем запуске игры." : {
       "localizations" : {
         "en" : {
@@ -3096,6 +3208,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Имя «backups» занято папкой резервных копий."
+          }
+        }
+      }
+    },
+    "Имя «worlds» занято папкой резервных копий миров." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The name “worlds” is reserved for world backups."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя «worlds» занято папкой резервных копий миров."
           }
         }
       }
@@ -3340,6 +3468,22 @@
         }
       }
     },
+    "Копируем мир…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copying world…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копируем мир…"
+          }
+        }
+      }
+    },
     "Копируем сборку…" : {
       "localizations" : {
         "en" : {
@@ -3484,6 +3628,22 @@
         }
       }
     },
+    "Мир «%@» и его датапаки будут перемещены в корзину." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World “%@” and its datapacks will be moved to the Trash."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мир «%@» и его датапаки будут перемещены в корзину."
+          }
+        }
+      }
+    },
     "Мир больше не существует. Обновите список миров." : {
       "localizations" : {
         "en" : {
@@ -3496,6 +3656,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Мир больше не существует. Обновите список миров."
+          }
+        }
+      }
+    },
+    "Мир содержит символические ссылки. Уберите их перед копированием или резервным копированием." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This world contains symbolic links. Remove them before copying or backing up the world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мир содержит символические ссылки. Уберите их перед копированием или резервным копированием."
           }
         }
       }
@@ -4120,6 +4296,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось подготовить проверку Java."
+          }
+        }
+      }
+    },
+    "Не удалось подобрать имя для копии мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not find an available name for the world copy."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подобрать имя для копии мира."
           }
         }
       }
@@ -5724,6 +5916,22 @@
         }
       }
     },
+    "Папку worlds занимает сборка. Переименуйте её, чтобы сохранять резервные копии миров." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An instance occupies the worlds folder. Rename it to save world backups."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папку worlds занимает сборка. Переименуйте её, чтобы сохранять резервные копии миров."
+          }
+        }
+      }
+    },
     "Параметр %@ задаётся отдельной настройкой или лаунчером." : {
       "localizations" : {
         "en" : {
@@ -6248,6 +6456,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Показать в Finder"
+          }
+        }
+      }
+    },
+    "Показать или скрыть установленные датапаки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show or hide installed datapacks"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать или скрыть установленные датапаки"
           }
         }
       }
@@ -6908,6 +7132,22 @@
         }
       }
     },
+    "Резервная копия мира создана" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World backup created"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Резервная копия мира создана"
+          }
+        }
+      }
+    },
     "Резервная копия с таким именем уже существует. Повторите через секунду." : {
       "localizations" : {
         "en" : {
@@ -7132,6 +7372,22 @@
         }
       }
     },
+    "Сделать копию" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make a copy"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сделать копию"
+          }
+        }
+      }
+    },
     "Сервер загрузки вернул ошибку %lld. Попробуйте ещё раз." : {
       "localizations" : {
         "en" : {
@@ -7244,6 +7500,22 @@
         }
       }
     },
+    "Создать резервную копию" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create backup"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать резервную копию"
+          }
+        }
+      }
+    },
     "Создать сборку" : {
       "localizations" : {
         "en" : {
@@ -7256,6 +7528,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Создать сборку"
+          }
+        }
+      }
+    },
+    "Создаём резервную копию мира…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating world backup…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создаём резервную копию мира…"
           }
         }
       }
@@ -7644,6 +7932,38 @@
         }
       }
     },
+    "Удалить мир?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete world?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить мир?"
+          }
+        }
+      }
+    },
+    "Удалить мир…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete world…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить мир…"
+          }
+        }
+      }
+    },
     "Удалить мод?" : {
       "localizations" : {
         "en" : {
@@ -7704,6 +8024,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Удалить сборку…"
+          }
+        }
+      }
+    },
+    "Удаляем мир…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleting world…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удаляем мир…"
           }
         }
       }
@@ -7848,6 +8184,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Файл %1$@ сохранён в ~/.hako/%2$@."
+          }
+        }
+      }
+    },
+    "Файл %@ сохранён в ~/.hako/worlds." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File %@ was saved in ~/.hako/worlds."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл %@ сохранён в ~/.hako/worlds."
           }
         }
       }
@@ -8040,6 +8392,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Хранилище"
+          }
+        }
+      }
+    },
+    "Читаем датапаки…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading datapacks…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читаем датапаки…"
           }
         }
       }
