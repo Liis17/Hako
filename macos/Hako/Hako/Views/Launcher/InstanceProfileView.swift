@@ -13,6 +13,7 @@ struct InstanceProfileView: View {
     let instance: GameInstance
     var account: Account?
     let onBack: () -> Void
+    let onDelete: () -> Void
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(PlaytimeCoordinator.self) private var playtime
@@ -22,6 +23,7 @@ struct InstanceProfileView: View {
     @State private var actionError: String?
     @State private var nameDraft: String
     @State private var renameAction: RenameAction?
+    @State private var confirmingDelete = false
 
     private enum RenameAction {
         case save
@@ -33,10 +35,11 @@ struct InstanceProfileView: View {
         }
     }
 
-    init(instance: GameInstance, account: Account?, onBack: @escaping () -> Void) {
+    init(instance: GameInstance, account: Account?, onBack: @escaping () -> Void, onDelete: @escaping () -> Void) {
         self.instance = instance
         self.account = account
         self.onBack = onBack
+        self.onDelete = onDelete
         _section = State(initialValue: instance.modLoader == .fabric ? .mods : .packs)
         _nameDraft = State(initialValue: instance.name)
     }
@@ -88,8 +91,11 @@ struct InstanceProfileView: View {
                     }
                 }
                 Spacer(minLength: 12)
-                if instance.state == .ready {
-                    InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .trailing)
+                HStack(alignment: .top, spacing: 10) {
+                    if instance.state == .ready {
+                        InstancePlayControls(instance: instance, account: account).frame(maxWidth: 260, alignment: .trailing)
+                    }
+                    actionsMenu
                 }
             }
             if instance.state != .ready { installationPanel }
@@ -112,6 +118,29 @@ struct InstanceProfileView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }.padding(.horizontal, -2).id(section)
         }
+        .alert("Удалить сборку «\(instance.name)»?", isPresented: $confirmingDelete) {
+            Button("Удалить", role: .destructive, action: confirmDelete)
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Папка ~/.hako/\(instance.folderName) со всеми мирами, модами и Java будет удалена без возможности восстановления. Время игры сохранится.")
+        }
+    }
+
+    private var actionsMenu: some View {
+        let blocked = installations.store.managementBlockedReason(instance)
+        return Menu {
+            Button("Удалить сборку…", systemImage: "trash", role: .destructive) { confirmingDelete = true }
+                .disabled(blocked != nil)
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.glass).controlSize(.large).fixedSize()
+        .help(blocked ?? "Действия со сборкой").accessibilityLabel("Действия со сборкой")
+    }
+
+    private func confirmDelete() {
+        if let reason = installations.store.managementBlockedReason(instance) { actionError = reason }
+        else { onDelete() }
     }
 
     private var pageTransition: AnyTransition { reduceMotion ? .opacity : AnyTransition(.blurReplace) }

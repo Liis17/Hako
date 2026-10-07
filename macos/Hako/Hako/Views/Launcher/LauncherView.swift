@@ -27,6 +27,7 @@ struct LauncherView: View {
     @State private var creatingInstance = false
     @State private var pendingTab: LauncherTab?
     @State private var navigationError: String?
+    @State private var deleteError: String?
 
     var body: some View {
         let _ = renameExit.pendingRename
@@ -41,7 +42,7 @@ struct LauncherView: View {
                     InstancesView(instances: instances, account: account, onCreate: { creatingInstance = true }, onOpen: { requestTab(.instance($0.id)) })
                 case .instance(let id):
                     if let instance = instances.first(where: { $0.id == id }) {
-                        InstanceProfileView(instance: instance, account: account, onBack: { requestTab(.instances) })
+                        InstanceProfileView(instance: instance, account: account, onBack: { requestTab(.instances) }, onDelete: { delete(instance) })
                     }
                 case .settings:
                     SettingsView()
@@ -54,6 +55,11 @@ struct LauncherView: View {
             .transition(.blurReplace)
             .padding(.horizontal, 56)
             .padding(.top, 40)
+            .alert("Не удалось удалить сборку", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+                Button("ОК", role: .cancel) { deleteError = nil }
+            } message: {
+                Text(deleteError ?? "")
+            }
         }
         .animation(.smooth, value: tab)
         .sheet(isPresented: $creatingInstance) {
@@ -169,6 +175,15 @@ struct LauncherView: View {
         } else if let pendingTab {
             self.pendingTab = nil
             tab = pendingTab
+        }
+    }
+
+    /// Профиль закрывается до удаления, чтобы уходящая страница не читала удалённую модель.
+    private func delete(_ instance: GameInstance) {
+        if renameExit.pendingRename?.instanceID == instance.id { renameExit.pendingRename = nil }
+        withAnimation(.smooth, completionCriteria: .removed) { tab = .instances } completion: {
+            do { try installations.store.delete(instance) }
+            catch { deleteError = error.localizedDescription }
         }
     }
 

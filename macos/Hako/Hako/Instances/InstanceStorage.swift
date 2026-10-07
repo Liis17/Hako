@@ -5,6 +5,7 @@ import Observation
 
 /// Все игровые файлы принадлежат одной сборке; корень можно заменить в тестах.
 nonisolated struct InstanceStorage: Sendable {
+    static let backupsFolder = "backups"
     let root: URL
 
     init(root: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".hako", isDirectory: true)) {
@@ -77,6 +78,7 @@ nonisolated struct InstanceStorage: Sendable {
 
     func validateName(_ name: String, excluding instance: GameInstance? = nil) throws -> String {
         let folder = try InstanceName.folder(for: name)
+        guard folder.lowercased() != InstanceStorage.backupsFolder else { throw InstanceFileError.message("Имя «backups» занято папкой резервных копий.") }
         let instances = try context.fetch(FetchDescriptor<GameInstance>())
         guard !instances.contains(where: { $0.id != instance?.id && $0.folderName.lowercased() == folder.lowercased() }) else {
             throw InstanceFileError.message("Сборка с таким именем уже существует.")
@@ -201,6 +203,32 @@ nonisolated struct InstanceStorage: Sendable {
             if moved { try? moveDirectory(destination, to: original) }
             throw error
         }
+    }
+
+    /// Причина, по которой сборку сейчас нельзя удалить, дублировать или сохранить в резервную копию.
+    func managementBlockedReason(_ instance: GameInstance) -> String? {
+        if instance.state == .installing || instance.state == .queued { return "Остановите загрузку сборки." }
+        if launchBusy.contains(instance.id) { return "Закройте Minecraft." }
+        if contentBusy.contains(instance.id) { return "Дождитесь завершения операций с файлами сборки." }
+        return nil
+    }
+
+    /// Стирает папку сборки без корзины; время игры хранится отдельно и остаётся.
+    func delete(_ instance: GameInstance) throws {
+        if let reason = managementBlockedReason(instance) { throw InstanceFileError.message(reason) }
+        let directory = try storage.directory(instance.folderName)
+        let removed = storage.root.appendingPathComponent(".delete-\(UUID().uuidString)")
+        let exists = FileManager.default.fileExists(atPath: directory.path)
+        if exists { try FileManager.default.moveItem(at: directory, to: removed) }
+        do {
+            context.delete(instance)
+            try persist()
+        } catch {
+            context.rollback()
+            if exists { try? FileManager.default.moveItem(at: removed, to: directory) }
+            throw error
+        }
+        if exists { Task.detached(priority: .utility) { try? FileManager.default.removeItem(at: removed) } }
     }
 
     private func apply(_ draft: InstanceDraft, to instance: GameInstance) {
