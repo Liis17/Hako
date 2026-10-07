@@ -19,7 +19,7 @@ import Testing
         #expect(requests.count == 2)
         func item(_ components: URLComponents, _ name: String) -> String? { components.queryItems?.first { $0.name == name }?.value }
         func facets(_ components: URLComponents) throws -> [[String]] { try JSONDecoder().decode([[String]].self, from: Data(try #require(item(components, "facets")).utf8)) }
-        #expect(try facets(requests[0]) == [["project_type:mod"], ["categories:fabric"], ["versions:1.21.1"], ["environment!=server_only"], ["environment!=dedicated_server_only"]])
+        #expect(try facets(requests[0]) == [["project_type:mod"], ["categories:fabric"], ["versions:1.21.1"], ["environment!=dedicated_server_only"]])
         #expect(item(requests[0], "query") == "c++" && requests[0].percentEncodedQuery?.contains("c%2B%2B") == true)
         #expect(item(requests[0], "index") == "downloads" && item(requests[0], "offset") == "20" && item(requests[0], "limit") == "20")
         #expect(try facets(requests[1]) == [["project_type:resourcepack"], ["versions:1.21.1"]])

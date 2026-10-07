@@ -140,7 +140,7 @@ actor ModrinthClient {
     func search(_ query: String, mods: Bool, minecraft: String, sort: ModrinthSort, offset: Int) async throws -> ModrinthSearchPage {
         var facets = mods ? [["project_type:mod"], ["categories:fabric"]] : [["project_type:resourcepack"]]
         facets.append(["versions:\(minecraft)"])
-        if mods { facets += [["environment!=server_only"], ["environment!=dedicated_server_only"]] }
+        if mods { facets.append(["environment!=dedicated_server_only"]) }
         var parameters = ["facets": try json(facets), "index": sort.rawValue, "offset": String(offset), "limit": "20"]
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !query.isEmpty { parameters["query"] = query }

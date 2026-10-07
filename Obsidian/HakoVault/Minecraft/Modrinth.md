@@ -33,8 +33,8 @@ Parent: [[Index]]
 | `latestVersions(for:mods:minecraft:)` | `POST /version_files/update` | Новейшие версии по хешам; `version_types` запрашиваются по очереди release → beta → alpha только для ненайденных хешей |
 | `download(_:into:)` | URL файла | Временный файл переносится под именем из Modrinth; размер и SHA-512 обязаны совпасть |
 
-Фасеты модов: `project_type:mod`, `categories:fabric`, `versions:<mc>`, `environment!=server_only`,
-`environment!=dedicated_server_only` — серверные моды скрыты. Ресурспаков: `project_type:resourcepack`, `versions:<mc>`.
+Фасеты модов: `project_type:mod`, `categories:fabric`, `versions:<mc>`, `environment!=dedicated_server_only` —
+скрыты только моды выделенного сервера; `server_only` работает во встроенном сервере одиночной игры и показывается. Ресурспаков: `project_type:resourcepack`, `versions:<mc>`.
 `ModrinthVersion.file(mods:)` выбирает primary либо первый `.jar`/`.zip` без `sources/dev/javadoc-jar`,
 с HTTPS, ненулевым размером, SHA-1 и SHA-512; версия без такого файла не устанавливается.
 `ModrinthProject.pageURL` — `https://modrinth.com/{project_type}/{slug ?? id}`.
@@ -99,7 +99,7 @@ Modrinth; ошибки откатывают замену. `updateAPI` после
 ## Решения и основания
 
 Решения пользователя: предлагать установку недостающих зависимостей, ставить последнюю совместимую версию,
-поиск, сортировка, скрытие серверных модов и проверка Loader/Java; несовместимость — предупреждение с установкой
+поиск, сортировка, скрытие модов только для выделенного сервера (`server_only` вроде Async работает в одиночной игре) и проверка Loader/Java; несовместимость — предупреждение с установкой
 на выбор пользователя; обновления модов и ресурспаков; кеш хешей на диске. На кнопке — SF Symbol `shippingbox`,
 как у бейджа источника: использование логотипа Modrinth требует письменного разрешения Rinth, Inc.
 (`COPYING.md` в репозитории `modrinth/code`).
