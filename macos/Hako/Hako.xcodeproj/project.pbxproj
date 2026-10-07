@@ -39,6 +39,7 @@
 		F7B0000000000000000000A1 /* Hako/Minecraft/ModrinthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B0000000000000000000A2 /* Hako/Minecraft/ModrinthClient.swift */; };
 		F7B0000000000000000000B1 /* Hako/Instances/InstanceBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B0000000000000000000B2 /* Hako/Instances/InstanceBackup.swift */; };
 		F7C0000000000000000000A1 /* Hako/AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C0000000000000000000A2 /* Hako/AppLanguage.swift */; };
+		F7C0000000000000000000B1 /* Hako/Minecraft/GameAppBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C0000000000000000000B2 /* Hako/Minecraft/GameAppBundle.swift */; };
 		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
 		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 /* End PBXBuildFile section */
@@ -101,6 +102,7 @@
 		F7B0000000000000000000A2 /* Hako/Minecraft/ModrinthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/ModrinthClient.swift; sourceTree = SOURCE_ROOT; };
 		F7B0000000000000000000B2 /* Hako/Instances/InstanceBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceBackup.swift; sourceTree = SOURCE_ROOT; };
 		F7C0000000000000000000A2 /* Hako/AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/AppLanguage.swift; sourceTree = SOURCE_ROOT; };
+		F7C0000000000000000000B2 /* Hako/Minecraft/GameAppBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/GameAppBundle.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -187,6 +189,7 @@
 				6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */,
 				C07ABF19DDF64E2FA24BB069 /* Hako/Instances/GameLaunchCoordinator.swift */,
 				8AA721C749B34EAFB630C89E /* Hako/Minecraft/GameProcessRunner.swift */,
+				F7C0000000000000000000B2 /* Hako/Minecraft/GameAppBundle.swift */,
 				F33A143645BB4C788CA6EE7C /* Hako/Minecraft/JavaLaunchValidation.swift */,
 				D82AE02E86C9459FBBAA6866 /* Hako/Minecraft/MinecraftLaunchPlan.swift */,
 				6A4EE77C8D0049BB9F58B4B7 /* Hako/Minecraft/LaunchArguments.swift */,
@@ -336,6 +339,7 @@
 				FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */,
 				8FF45D80DC8F48BA8CE18896 /* Hako/Instances/GameLaunchCoordinator.swift in Sources */,
 				BF1DC6780ACF4C9CBBF60617 /* Hako/Minecraft/GameProcessRunner.swift in Sources */,
+				F7C0000000000000000000B1 /* Hako/Minecraft/GameAppBundle.swift in Sources */,
 				A6D6534AF7444C3E9AF69C5A /* Hako/Minecraft/JavaLaunchValidation.swift in Sources */,
 				6A511B571744480C81DF4B9D /* Hako/Minecraft/MinecraftLaunchPlan.swift in Sources */,
 				33BFFA4BCD294EA2B2C42E14 /* Hako/Minecraft/LaunchArguments.swift in Sources */,
