@@ -51,6 +51,10 @@ actor InstanceWorlds {
     }
 
     nonisolated static func datapacksFolder(world: String, in instanceRoot: URL) throws -> URL {
+        try checkedURL("datapacks", in: worldFolder(world: world, in: instanceRoot))
+    }
+
+    nonisolated static func worldFolder(world: String, in instanceRoot: URL) throws -> URL {
         guard !world.contains("/") else { throw InstanceFileError.message(String(appLocalized: "Недопустимая папка мира.")) }
         let folder = try checkedURL("minecraft/saves/\(world)", in: instanceRoot)
         guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
@@ -58,7 +62,54 @@ actor InstanceWorlds {
                   guard let url = try? checkedURL(file, in: folder) else { return false }
                   return (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
               }) else { throw InstanceFileError.message(String(appLocalized: "Мир больше не существует. Обновите список миров.")) }
-        return try checkedURL("datapacks", in: folder)
+        return folder
+    }
+
+    func duplicate(_ world: InstanceWorld, in instanceRoot: URL) throws -> String {
+        let source = try Self.worldFolder(world: world.id, in: instanceRoot)
+        try Self.checkIndependentFiles(in: source)
+        let saves = source.deletingLastPathComponent(), manager = FileManager.default
+        let names = try manager.contentsOfDirectory(atPath: saves.path).map { $0.lowercased() }
+        guard let number = (2...999).first(where: { !names.contains((world.id + " \($0)").lowercased()) }) else {
+            throw InstanceFileError.message(String(appLocalized: "Не удалось подобрать имя для копии мира."))
+        }
+        let name = world.id + " \(number)", destination = try Self.checkedURL(name, in: saves)
+        let staged = saves.appendingPathComponent(".world-copy-\(UUID().uuidString)")
+        defer { try? manager.removeItem(at: staged) }
+        try manager.copyItem(at: source, to: staged)
+        try Self.checkIndependentFiles(in: staged)
+        // Меняется только LevelName в копии; исходное сохранение остаётся нетронутым.
+        var renamedMetadata = false
+        for file in ["level.dat", "level.dat_old"] {
+            let url = staged.appendingPathComponent(file)
+            guard manager.fileExists(atPath: url.path) else { continue }
+            let data = try Data(contentsOf: url)
+            if let renamed = try? WorldMetadata.renamed(data, to: world.name + " \(number)") {
+                try renamed.write(to: url, options: .atomic)
+                renamedMetadata = true
+            }
+        }
+        if world.metadataError == nil && !renamedMetadata { throw CocoaError(.fileReadCorruptFile) }
+        _ = try Self.worldFolder(world: world.id, in: instanceRoot)
+        try manager.moveItem(at: staged, to: destination)
+        return name
+    }
+
+    func trash(_ world: String, in instanceRoot: URL) throws {
+        let folder = try Self.worldFolder(world: world, in: instanceRoot)
+        try FileManager.default.trashItem(at: folder, resultingItemURL: nil)
+    }
+
+    nonisolated static func checkIndependentFiles(in folder: URL) throws {
+        var failure: Error?
+        guard let files = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: [.isSymbolicLinkKey], errorHandler: { _, error in failure = error; return false }) else { throw CocoaError(.fileReadUnknown) }
+        for case let file as URL in files {
+            try Task.checkCancellation()
+            if try file.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true {
+                throw InstanceFileError.message(String(appLocalized: "Мир содержит символические ссылки. Уберите их перед копированием или резервным копированием."))
+            }
+        }
+        if let failure { throw failure }
     }
 
     nonisolated private static func checkedURL(_ path: String, in root: URL) throws -> URL {

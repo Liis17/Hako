@@ -156,7 +156,26 @@ actor InstanceContent {
     /// Проверка мира и публикация идут на одном акторе; исчезнувшие родительские папки не создаются заново.
     func importDatapack(from source: URL, world: String, in instanceRoot: URL, replace: Bool = false) throws {
         let folder = try InstanceWorlds.datapacksFolder(world: world, in: instanceRoot)
-        try importItem(from: source, into: folder, mods: false, replace: replace, createIntermediateDirectories: false, includeDisabledPacks: false)
+        try importItem(from: source, into: folder, mods: false, replace: replace, createIntermediateDirectories: false)
+    }
+
+    func setDatapackEnabled(_ item: InstanceContentItem, world: String, in instanceRoot: URL, enabled: Bool) throws {
+        let folder = try InstanceWorlds.datapacksFolder(world: world, in: instanceRoot)
+        try setEnabled(item, in: folder, enabled: enabled, mods: false, createIntermediateDirectories: false)
+    }
+
+    func datapackBackupEntries(world: String, in instanceRoot: URL) async throws -> [WorldBackupManifest.Datapack] {
+        let root = try InstanceWorlds.worldFolder(world: world, in: instanceRoot)
+        try InstanceWorlds.checkIndependentFiles(in: root)
+        let items = try list(at: InstanceWorlds.datapacksFolder(world: world, in: instanceRoot), mods: false)
+        var packs: [WorldBackupManifest.Datapack] = []
+        for item in items {
+            try Task.checkCancellation()
+            let icon = try? await packIconData(item)
+            let hash = item.isDirectory ? nil : try FabricClient.hashFile(item.url)
+            packs.append(.init(file: item.name, path: "\(item.enabled ? "datapacks" : ".hako-disabled-datapacks")/\(item.name)", enabled: item.enabled, isDirectory: item.isDirectory, sha512: hash, iconPNG: icon))
+        }
+        return packs
     }
 
     func importItem(from source: URL, into folder: URL, mods: Bool, replace: Bool = false, origin: ModOrigin? = nil, createIntermediateDirectories: Bool = true, includeDisabledPacks: Bool = true) throws {
@@ -208,12 +227,14 @@ actor InstanceContent {
         if existing != nil { try manager.removeItem(at: backup) }
     }
 
-    func setEnabled(_ item: InstanceContentItem, in folder: URL, enabled: Bool, mods: Bool = true) throws {
+    func setEnabled(_ item: InstanceContentItem, in folder: URL, enabled: Bool, mods: Bool = true, createIntermediateDirectories: Bool = true) throws {
         let source = try checkedFile(item, in: folder)
         guard enabled != item.enabled else { return }
         let name = mods ? item.logicalName + (enabled ? "" : ".disabled") : item.name
         let targetFolder = mods || enabled ? folder : try disabledPacksFolder(folder)
-        try FileManager.default.createDirectory(at: targetFolder, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: targetFolder.path) {
+            try FileManager.default.createDirectory(at: targetFolder, withIntermediateDirectories: createIntermediateDirectories)
+        }
         let target = try InstanceStorage.containedURL(name, in: targetFolder)
         let collision = try FileManager.default.contentsOfDirectory(at: targetFolder, includingPropertiesForKeys: nil).contains { $0.lastPathComponent.lowercased() == name.lowercased() }
         guard !collision else { throw PackImportError.exists(name) }

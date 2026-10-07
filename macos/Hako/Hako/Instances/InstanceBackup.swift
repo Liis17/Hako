@@ -118,7 +118,7 @@ nonisolated enum InstanceBackup {
     }
 
     /// Ожидание через terminationHandler: waitUntilExit на потоках Swift Concurrency может не вернуться.
-    private static func zip(_ arguments: [String], in directory: URL) async throws {
+    static func zip(_ arguments: [String], in directory: URL) async throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
         process.arguments = arguments

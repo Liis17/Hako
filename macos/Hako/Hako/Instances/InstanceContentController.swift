@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 
 @MainActor struct ContentConfirmation: Identifiable {
     struct Project: Identifiable {
@@ -34,6 +35,9 @@ struct ModrinthUpdate {
     var packs: [UUID: [InstanceContentItem]] = [:]
     var datapacks: [UUID: [String: [InstanceContentItem]]] = [:]
     var worldInstallMessages: [UUID: [String: String]] = [:]
+    var worldOperations: [UUID: [String: String]] = [:]
+    var worldRevisions: [UUID: Int] = [:]
+    var worldBackupURLs: [UUID: URL] = [:]
     var errors: [UUID: String] = [:]
     var updates: [UUID: [String: FabricAPIDescriptor]] = [:]
     var updateMessages: [UUID: String] = [:]
@@ -84,7 +88,7 @@ struct ModrinthUpdate {
         let key = "\(instance.id):world:\(world)", request = UUID(), folderName = instance.folderName
         reloads[key] = request
         do {
-            let items = try await installations.content.list(at: folder(instance, target: target), mods: false, includeDisabledPacks: false)
+            let items = try await installations.content.list(at: folder(instance, target: target), mods: false)
             guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
             datapacks[instance.id, default: [:]][world] = items
             if clearError { errors[instance.id] = nil }
@@ -199,6 +203,65 @@ struct ModrinthUpdate {
         }
     }
 
+    func setDatapackEnabled(_ item: InstanceContentItem, world: String, in instance: GameInstance, enabled: Bool) {
+        if let reason = worldBlockedReason(instance) { errors[instance.id] = reason; return }
+        perform(instance, target: .worldDatapacks(world)) { [self] _ in
+            try await installations.content.setDatapackEnabled(item, world: world, in: installations.store.storage.directory(instance.folderName), enabled: enabled)
+            worldInstallMessages[instance.id, default: [:]][world] = String(appLocalized: "Изменения датапаков применятся при следующем открытии мира.")
+        }
+    }
+
+    func worldBlockedReason(_ instance: GameInstance) -> String? {
+        if let reason = installations.store.managementBlockedReason(instance) { return reason }
+        if instance.state != .ready { return String(appLocalized: "Дождитесь завершения установки сборки.") }
+        return nil
+    }
+
+    enum WorldAction { case delete, duplicate, backup }
+
+    func manageWorld(_ world: InstanceWorld, in instance: GameInstance, action: WorldAction) {
+        if let reason = worldBlockedReason(instance) { errors[instance.id] = reason; return }
+        let root: URL
+        do { root = try installations.store.storage.directory(instance.folderName); _ = try InstanceWorlds.worldFolder(world: world.id, in: root) }
+        catch { errors[instance.id] = error.localizedDescription; return }
+        let title: String
+        switch action {
+        case .delete: title = String(appLocalized: "Удаляем мир…")
+        case .duplicate: title = String(appLocalized: "Копируем мир…")
+        case .backup: title = String(appLocalized: "Создаём резервную копию мира…")
+        }
+        installations.contentBusy.insert(instance.id); errors[instance.id] = nil
+        worldOperations[instance.id, default: [:]][world.id] = title
+        Task { [self] in
+            defer {
+                installations.contentBusy.remove(instance.id)
+                worldOperations[instance.id]?[world.id] = nil
+                worldRevisions[instance.id, default: 0] += 1
+                installations.scheduleQueuedInstallations()
+            }
+            do {
+                switch action {
+                case .delete:
+                    guard await confirm(.init(title: String(appLocalized: "Удалить мир?"), message: String(appLocalized: "Мир «\(world.name)» и его датапаки будут перемещены в корзину."), action: String(appLocalized: "Удалить"), destructive: true)) else { return }
+                    try await worlds.trash(world.id, in: root)
+                    datapacks[instance.id]?[world.id] = nil; worldInstallMessages[instance.id]?[world.id] = nil
+                case .duplicate:
+                    _ = try await worlds.duplicate(world, in: root)
+                case .backup:
+                    guard try !installations.store.context.fetch(FetchDescriptor<GameInstance>()).contains(where: { $0.folderName.lowercased() == InstanceStorage.worldsFolder }) else {
+                        throw InstanceFileError.message(String(appLocalized: "Папку worlds занимает сборка. Переименуйте её, чтобы сохранять резервные копии миров."))
+                    }
+                    let latest = try await worlds.list(in: root).first { $0.id == world.id }
+                    guard let latest else { throw InstanceFileError.message(String(appLocalized: "Мир больше не существует. Обновите список миров.")) }
+                    let packs = try await installations.content.datapackBackupEntries(world: world.id, in: root)
+                    let source = WorldBackupManifest.SourceInstance(id: instance.id, name: instance.name, folderName: instance.folderName, minecraftVersion: instance.versionID, modLoader: instance.modLoaderRaw, loaderVersion: try instance.fabricConfiguration()?.loaderVersion)
+                    let manifest = WorldBackupManifest(backupCreatedAt: Date(), name: latest.name, folderName: latest.id, saveVersion: latest.version, gameType: latest.gameType, lastPlayed: latest.lastPlayed, size: latest.size, iconPNG: latest.iconData, sourceInstance: source, datapacks: packs)
+                    worldBackupURLs[instance.id] = try await WorldBackup.archive(world: world.id, in: root, manifest: manifest, into: installations.store.storage.directory(InstanceStorage.worldsFolder))
+                }
+            } catch { errors[instance.id] = error.localizedDescription }
+        }
+    }
+
     func delete(_ item: InstanceContentItem, in instance: GameInstance, mods: Bool) {
         perform(instance, mods: mods) { [self] folder in
             let message = item.origin?.projectID == FabricAPIDescriptor.project
@@ -307,7 +370,7 @@ struct ModrinthUpdate {
     }
 
     func installedProjects(_ instance: GameInstance, target: ModrinthInstallTarget) async throws -> [String: [InstanceContentItem]] {
-        let items = try await installations.content.list(at: folder(instance, target: target), mods: target == .mods, includeDisabledPacks: target.world == nil)
+        let items = try await installations.content.list(at: folder(instance, target: target), mods: target == .mods)
         var result: [String: [InstanceContentItem]] = [:], unknown: [InstanceContentItem] = []
         for item in items {
             if let origin = item.origin, origin.source == .modrinth { result[origin.projectID, default: []].append(item) }
@@ -481,7 +544,10 @@ struct ModrinthUpdate {
             }
             if download.project.id == project.id { added = true }
         }
-        for (item, itemTarget) in enable { try await installations.content.setEnabled(item, in: folder(instance, target: itemTarget), enabled: true, mods: itemTarget == .mods) }
+        for (item, itemTarget) in enable {
+            if let world = itemTarget.world { try await installations.content.setDatapackEnabled(item, world: world, in: installations.store.storage.directory(instance.folderName), enabled: true) }
+            else { try await installations.content.setEnabled(item, in: folder(instance, target: itemTarget), enabled: true, mods: itemTarget == .mods) }
+        }
         let changed = Set(downloads.map(\.target) + enable.map(\.target))
         for other in changed where other != target { await reload(instance, target: other, clearError: false) }
         return added

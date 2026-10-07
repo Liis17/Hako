@@ -6,6 +6,7 @@ import Observation
 /// Все игровые файлы принадлежат одной сборке; корень можно заменить в тестах.
 nonisolated struct InstanceStorage: Sendable {
     static let backupsFolder = "backups"
+    static let worldsFolder = "worlds"
     let root: URL
 
     init(root: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".hako", isDirectory: true)) {
@@ -86,6 +87,7 @@ nonisolated struct InstanceStorage: Sendable {
     func validateName(_ name: String, excluding instance: GameInstance? = nil) throws -> String {
         let folder = try InstanceName.folder(for: name)
         guard folder.lowercased() != InstanceStorage.backupsFolder else { throw InstanceFileError.message(String(appLocalized: "Имя «backups» занято папкой резервных копий.")) }
+        guard folder.lowercased() != InstanceStorage.worldsFolder else { throw InstanceFileError.message(String(appLocalized: "Имя «worlds» занято папкой резервных копий миров.")) }
         let instances = try context.fetch(FetchDescriptor<GameInstance>())
         guard !instances.contains(where: { $0.id != instance?.id && $0.folderName.lowercased() == folder.lowercased() }) else {
             throw InstanceFileError.message(String(appLocalized: "Сборка с таким именем уже существует."))

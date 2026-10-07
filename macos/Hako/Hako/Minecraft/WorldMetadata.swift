@@ -17,6 +17,48 @@ nonisolated struct WorldMetadata: Sendable {
         return reader.metadata
     }
 
+    /// Сохраняет все неизвестные теги побайтно, заменяя только название при копировании мира.
+    static func renamed(_ compressed: Data, to name: String) throws -> Data {
+        var data = try decompress(compressed), reader = NBTReader(bytes: Array(data))
+        guard try reader.number(1) == 10 else { throw CocoaError(.fileReadCorruptFile) }
+        _ = try reader.string()
+        try reader.compound(path: "", depth: 0)
+        guard let end = reader.dataEnd else { throw CocoaError(.fileReadCorruptFile) }
+        // NBT использует Java modified UTF-8, включая суррогатные пары.
+        var text = Data()
+        for unit in name.utf16 {
+            if unit > 0 && unit < 128 { text.append(UInt8(unit)) }
+            else if unit < 2048 { text.append(contentsOf: [UInt8(0xC0 | unit >> 6), UInt8(0x80 | unit & 0x3F)]) }
+            else { text.append(contentsOf: [UInt8(0xE0 | unit >> 12), UInt8(0x80 | unit >> 6 & 0x3F), UInt8(0x80 | unit & 0x3F)]) }
+        }
+        guard text.count <= 65535 else { throw CocoaError(.fileWriteInvalidFileName) }
+        var replacement = Data([UInt8(text.count >> 8), UInt8(text.count & 255)]) + text
+        if let range = reader.levelNameRange { data.replaceSubrange(range, with: replacement) }
+        else {
+            replacement = Data([8, 0, 9]) + Data("LevelName".utf8) + replacement
+            data.insert(contentsOf: replacement, at: end)
+        }
+        var stream = z_stream()
+        guard deflateInit2_(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 31, 8, Z_DEFAULT_STRATEGY, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else { throw CocoaError(.fileWriteUnknown) }
+        defer { deflateEnd(&stream) }
+        return try data.withUnsafeBytes { input in
+            stream.next_in = UnsafeMutablePointer(mutating: input.bindMemory(to: UInt8.self).baseAddress)
+            stream.avail_in = uInt(input.count)
+            var result = Data(), buffer = [UInt8](repeating: 0, count: 32_768)
+            while true {
+                try Task.checkCancellation()
+                let (status, count) = buffer.withUnsafeMutableBytes { output in
+                    stream.next_out = output.bindMemory(to: UInt8.self).baseAddress; stream.avail_out = uInt(output.count)
+                    let status = deflate(&stream, Z_FINISH)
+                    return (status, output.count - Int(stream.avail_out))
+                }
+                guard status == Z_OK || status == Z_STREAM_END else { throw CocoaError(.fileWriteUnknown) }
+                result.append(contentsOf: buffer.prefix(count))
+                if status == Z_STREAM_END { return result }
+            }
+        }
+    }
+
     private static func decompress(_ data: Data) throws -> Data {
         guard !data.isEmpty, data.count <= 16_777_216 else { throw CocoaError(.fileReadCorruptFile) }
         var stream = z_stream()
@@ -47,6 +89,8 @@ nonisolated private struct NBTReader {
     var offset = 0
     var metadata = WorldMetadata()
     var hasData = false
+    var levelNameRange: Range<Int>?
+    var dataEnd: Int?
 
     mutating func skip(_ count: Int) throws {
         guard count >= 0, count <= bytes.count - offset else { throw CocoaError(.fileReadCorruptFile) }
@@ -88,7 +132,7 @@ nonisolated private struct NBTReader {
         while true {
             try Task.checkCancellation()
             let type = Int(try number(1))
-            if type == 0 { return }
+            if type == 0 { if path == "Data" { dataEnd = offset - 1 }; return }
             let name = try string(), child = path.isEmpty ? name : "\(path)/\(name)"
             if child == "Data", type == 10 { hasData = true }
             try value(type, path: child, depth: depth + 1)
@@ -113,8 +157,9 @@ nonisolated private struct NBTReader {
             guard count >= 0 else { throw CocoaError(.fileReadCorruptFile) }
             try skip(count * (type == 7 ? 1 : type == 11 ? 4 : 8))
         case 8:
+            let start = offset
             let text = try string()
-            if path == "Data/LevelName", !text.isEmpty { metadata.name = text }
+            if path == "Data/LevelName" { levelNameRange = start..<offset; if !text.isEmpty { metadata.name = text } }
             if path == "Data/Version/Name", !text.isEmpty { metadata.version = text }
         case 9:
             let element = Int(try number(1)), count = Int(Int32(bitPattern: UInt32(try number(4))))
