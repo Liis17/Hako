@@ -6,6 +6,12 @@
     },
     "%.2f ГиБ" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%.2f GiB"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -46,8 +52,46 @@
         }
       }
     },
+    "%@ будет перемещён в корзину." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ will be moved to the Trash."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ будет перемещён в корзину."
+          }
+        }
+      }
+    },
+    "%@ будет перемещён в корзину. Моды, зависящие от Fabric API, могут больше не давать игре запуститься." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ will be moved to the Trash. Mods that depend on Fabric API may prevent the game from starting."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ будет перемещён в корзину. Моды, зависящие от Fabric API, могут больше не давать игре запуститься."
+          }
+        }
+      }
+    },
     "%@ из %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ of %2$@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -58,6 +102,12 @@
     },
     "%@ окна в пикселях" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window %@ in pixels"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -66,12 +116,122 @@
         }
       }
     },
+    "%@ уже существует в сборке «%@»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ already exists in the instance “%2$@”."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ уже существует в сборке «%2$@»."
+          }
+        }
+      }
+    },
+    "%@ — рекомендуется" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — recommended"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — рекомендуется"
+          }
+        }
+      }
+    },
+    "%lld мин" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld мин"
+          }
+        }
+      }
+    },
     "%lld сборок" : {
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld instance"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld instances"
+                }
+              }
+            }
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld сборок"
+          }
+        }
+      }
+    },
+    "%lld сборок · ~/.hako" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld instance · ~/.hako"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld instances · ~/.hako"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld сборок · ~/.hako"
+          }
+        }
+      }
+    },
+    "%lld ч %lld мин" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld h %2$lld min"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld ч %2$lld мин"
           }
         }
       }
@@ -126,6 +286,12 @@
     },
     "-Xmx и MaxHeapSize из аргументов заменяются лимитом ползунка при запуске." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "-Xmx and MaxHeapSize in the arguments are replaced by the slider limit at launch."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -136,6 +302,12 @@
     },
     "0 Б" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 B"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -144,8 +316,30 @@
         }
       }
     },
+    "0 мин" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 min"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0 мин"
+          }
+        }
+      }
+    },
     "3D-модель скина Minecraft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D model of the Minecraft skin"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -170,6 +364,22 @@
         }
       }
     },
+    "Client ID не одобрен Mojang для Minecraft API. Заявка: aka.ms/mce-reviewappid" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Client ID is not approved by Mojang for the Minecraft API. Application: aka.ms/mce-reviewappid"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client ID не одобрен Mojang для Minecraft API. Заявка: aka.ms/mce-reviewappid"
+          }
+        }
+      }
+    },
     "Fabric" : {
       "localizations" : {
         "en" : {
@@ -186,8 +396,46 @@
         }
       }
     },
+    "Fabric API %@ требует другой версии Loader или Java. Текущая версия сохранена." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API %@ requires a different Loader or Java version. The current version was kept."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API %@ требует другой версии Loader или Java. Текущая версия сохранена."
+          }
+        }
+      }
+    },
+    "Fabric API %@ требует другую версию Java или Fabric Loader." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API %@ requires a different Java or Fabric Loader version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API %@ требует другую версию Java или Fabric Loader."
+          }
+        }
+      }
+    },
     "Fabric API %@%@ установится автоматически." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API %1$@%2$@ will be installed automatically."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -198,10 +446,32 @@
     },
     "Fabric API заранее скачивается в кэш для проверки совместимости. Установка сборки начнётся после сохранения." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API is downloaded to the cache in advance to check compatibility. The instance will start installing after you save it."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fabric API заранее скачивается в кэш для проверки совместимости. Установка сборки начнётся после сохранения."
+          }
+        }
+      }
+    },
+    "Fabric API несовместим с выбранным Loader или Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API is incompatible with the selected Loader or Java."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API несовместим с выбранным Loader или Java."
           }
         }
       }
@@ -240,6 +510,12 @@
     },
     "Hako на GitHub" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hako on GitHub"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -266,6 +542,12 @@
     },
     "Java, игра и загрузчик установятся в фоне." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Java, the game and the loader will be installed in the background."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -322,6 +604,86 @@
         }
       }
     },
+    "Minecraft завершился с кодом %d. Подробности — в журнале запуска." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft exited with code %d. See the launch log for details."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft завершился с кодом %d. Подробности — в журнале запуска."
+          }
+        }
+      }
+    },
+    "Minecraft не подключён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft not connected"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft не подключён"
+          }
+        }
+      }
+    },
+    "Minecraft-сессия изменилась или завершилась. Повторите запуск." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Minecraft session changed or ended. Launch again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft-сессия изменилась или завершилась. Повторите запуск."
+          }
+        }
+      }
+    },
+    "Minecraft-сессия недоступна. Повторите подключение аккаунта." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Minecraft session is unavailable. Reconnect your account."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft-сессия недоступна. Повторите подключение аккаунта."
+          }
+        }
+      }
+    },
+    "Minecraft: Java Edition недоступен для этого аккаунта." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft: Java Edition is not available for this account."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft: Java Edition недоступен для этого аккаунта."
+          }
+        }
+      }
+    },
     "Modrinth" : {
       "localizations" : {
         "en" : {
@@ -338,12 +700,60 @@
         }
       }
     },
+    "Mojang не предоставляет клиент этой версии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mojang does not provide a client for this version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mojang не предоставляет клиент этой версии."
+          }
+        }
+      }
+    },
+    "Mojang не предоставляет файлы библиотеки %@ для этой версии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mojang does not provide files of the %@ library for this version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mojang не предоставляет файлы библиотеки %@ для этой версии."
+          }
+        }
+      }
+    },
+    "Offline-mode не рекомендуется. Часть серверов может быть недоступна. Рекомендуется вход с аккаунтом Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline mode is not recommended. Some servers may be unavailable. Signing in with a Minecraft account is recommended."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline-mode не рекомендуется. Часть серверов может быть недоступна. Рекомендуется вход с аккаунтом Minecraft."
+          }
+        }
+      }
+    },
     "Offline-mode: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Offline-mode: %@"
+            "value" : "Offline mode: %@"
           }
         },
         "ru" : {
@@ -356,10 +766,48 @@
     },
     "Vanilla — без загрузчика" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vanilla — no loader"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vanilla — без загрузчика"
+          }
+        }
+      }
+    },
+    "Xbox Live недоступен в вашей стране." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xbox Live is not available in your country."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xbox Live недоступен в вашей стране."
+          }
+        }
+      }
+    },
+    "Xbox Live отклонил вход (код %@)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xbox Live declined the sign-in (code %@)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xbox Live отклонил вход (код %@)."
           }
         }
       }
@@ -369,7 +817,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "offline-mode"
+            "value" : "Offline Mode"
           }
         },
         "ru" : {
@@ -396,8 +844,30 @@
         }
       }
     },
+    "Аккаунту нужно подтверждение возраста на xbox.com." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The account needs age verification on xbox.com."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунту нужно подтверждение возраста на xbox.com."
+          }
+        }
+      }
+    },
     "Активно %lld из %lld" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld active"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -408,6 +878,12 @@
     },
     "Активность %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -416,8 +892,62 @@
         }
       }
     },
+    "Альфа недоступна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alpha Unavailable"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Альфа недоступна"
+          }
+        }
+      }
+    },
+    "Аргументы Java" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Java Arguments"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аргументы Java"
+          }
+        }
+      }
+    },
+    "Аргументы Minecraft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft Arguments"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аргументы Minecraft"
+          }
+        }
+      }
+    },
     "Аргументы запуска Java" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Java Launch Arguments"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -428,6 +958,12 @@
     },
     "Аргументы запуска Minecraft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft Launch Arguments"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -438,6 +974,12 @@
     },
     "Аргументы и память наследуются из текущих настроек лаунчера." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arguments and memory are inherited from the current launcher settings."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -448,6 +990,12 @@
     },
     "Аргументы, память и путь Java для сборок с глобальными параметрами. Настройки окна служат начальными только при создании сборки. Изменения сохраняются автоматически." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arguments, memory and Java path for instances that use global parameters. Window settings are only used as defaults when creating an instance. Changes are saved automatically."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -456,8 +1004,110 @@
         }
       }
     },
+    "Архитектура выбранной Java не соответствует процессору Mac и библиотекам сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The architecture of the selected Java doesn't match the Mac's processor and the instance libraries."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Архитектура выбранной Java не соответствует процессору Mac и библиотекам сборки."
+          }
+        }
+      }
+    },
+    "Бета недоступна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta Unavailable"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бета недоступна"
+          }
+        }
+      }
+    },
+    "Библиотека Fabric отсутствует. Повторите установку сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Fabric library is missing. Reinstall the instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Библиотека Fabric отсутствует. Повторите установку сборки."
+          }
+        }
+      }
+    },
+    "Будет переименована папка с файлами этой сборки в ~/.hako." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The folder with this instance's files in ~/.hako will be renamed."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Будет переименована папка с файлами этой сборки в ~/.hako."
+          }
+        }
+      }
+    },
+    "В Fabric API отсутствует fabric.mod.json." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API has no fabric.mod.json."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В Fabric API отсутствует fabric.mod.json."
+          }
+        }
+      }
+    },
+    "В библиотеке игры обнаружена недопустимая ссылка." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A game library contains an invalid link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В библиотеке игры обнаружена недопустимая ссылка."
+          }
+        }
+      }
+    },
     "В игре: %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Played: %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -466,8 +1116,126 @@
         }
       }
     },
+    "В комплекте Java отсутствует исполняемый файл." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Java bundle has no executable."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В комплекте Java отсутствует исполняемый файл."
+          }
+        }
+      }
+    },
+    "В описании Fabric API отсутствует проверяемый JAR-файл." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric API description has no verifiable JAR file."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В описании Fabric API отсутствует проверяемый JAR-файл."
+          }
+        }
+      }
+    },
+    "В описании Java отсутствует файл загрузки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Java description has no download file."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В описании Java отсутствует файл загрузки."
+          }
+        }
+      }
+    },
+    "В описании Java отсутствует цель ссылки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Java description has no link target."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В описании Java отсутствует цель ссылки."
+          }
+        }
+      }
+    },
+    "В описании библиотеки отсутствует путь." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The library description has no path."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В описании библиотеки отсутствует путь."
+          }
+        }
+      }
+    },
+    "В описании версии отсутствует главный класс Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The version description has no Minecraft main class."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В описании версии отсутствует главный класс Minecraft."
+          }
+        }
+      }
+    },
+    "В очереди" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queued"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В очереди"
+          }
+        }
+      }
+    },
     "В сборке пока нет модов." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This instance has no mods yet."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -476,8 +1244,30 @@
         }
       }
     },
+    "Введите от 1 до 60 символов: латинские буквы, цифры и пробелы." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter 1 to 60 characters: Latin letters, digits and spaces."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите от 1 до 60 символов: латинские буквы, цифры и пробелы."
+          }
+        }
+      }
+    },
     "Введите целое число больше 0" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a whole number greater than 0"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -488,6 +1278,12 @@
     },
     "Введите целые размеры окна больше 0." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter whole window dimensions greater than 0."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -498,6 +1294,12 @@
     },
     "Версии не найдены." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No versions found."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -508,6 +1310,12 @@
     },
     "Версия" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -518,6 +1326,12 @@
     },
     "Версия %@ · сборка %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %1$@ · build %2$@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -528,6 +1342,12 @@
     },
     "Версия Fabric Loader" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric Loader Version"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -538,6 +1358,12 @@
     },
     "Версия Minecraft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft Version"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -546,8 +1372,46 @@
         }
       }
     },
+    "Возможна несовместимость" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Possible Incompatibility"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Возможна несовместимость"
+          }
+        }
+      }
+    },
+    "Войдите в Minecraft или включите offline-mode." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to Minecraft or turn on offline mode."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Войдите в Minecraft или включите offline-mode."
+          }
+        }
+      }
+    },
     "Войти в Microsoft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign In with Microsoft"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -558,6 +1422,12 @@
     },
     "Время в Minecraft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time in Minecraft"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -566,8 +1436,30 @@
         }
       }
     },
+    "Все" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все"
+          }
+        }
+      }
+    },
     "Все сборки" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Instances"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -578,6 +1470,12 @@
     },
     "Всего" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -588,6 +1486,12 @@
     },
     "Вход в Microsoft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microsoft Sign-In"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -596,8 +1500,30 @@
         }
       }
     },
+    "Вход отклонён на странице Microsoft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in was declined on the Microsoft page."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вход отклонён на странице Microsoft."
+          }
+        }
+      }
+    },
     "Входим в Xbox Live и Minecraft…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing in to Xbox Live and Minecraft…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -608,6 +1534,12 @@
     },
     "Вы продолжили без аккаунта" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You continued without an account"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -616,8 +1548,62 @@
         }
       }
     },
+    "Выберите JAR-файл мода." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a mod JAR file."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите JAR-файл мода."
+          }
+        }
+      }
+    },
+    "Выберите ZIP-файл или папку ресурспака." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a resource pack ZIP file or folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите ZIP-файл или папку ресурспака."
+          }
+        }
+      }
+    },
+    "Выберите версию Fabric Loader." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a Fabric Loader version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите версию Fabric Loader."
+          }
+        }
+      }
+    },
     "Выберите версию Minecraft — Hako загрузит Java и файлы игры." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a Minecraft version — Hako will download Java and the game files."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -626,8 +1612,46 @@
         }
       }
     },
+    "Выберите файл java в папке bin установленной Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the java file in the bin folder of an installed Java."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите файл java в папке bin установленной Java."
+          }
+        }
+      }
+    },
+    "Выбор Java" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Java"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбор Java"
+          }
+        }
+      }
+    },
     "Выбрано более 70% памяти. Java может повлиять на работу других приложений и системы." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected memory is above 70%. Java may affect other apps and the system."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -636,8 +1660,30 @@
         }
       }
     },
+    "Выбрать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать"
+          }
+        }
+      }
+    },
     "Выбрать…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -648,6 +1694,12 @@
     },
     "Выйти" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -658,6 +1710,12 @@
     },
     "Выйти без переименования" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit Without Renaming"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -668,6 +1726,12 @@
     },
     "Выйти из аккаунта?" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out?"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -676,8 +1740,78 @@
         }
       }
     },
+    "Высота" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Height"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Высота"
+          }
+        }
+      }
+    },
+    "Глобальные аргументы не заданы. Рекомендуется использовать параметры Mojang." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global arguments are not set. Using Mojang parameters is recommended."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Глобальные аргументы не заданы. Рекомендуется использовать параметры Mojang."
+          }
+        }
+      }
+    },
+    "Готова" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готова"
+          }
+        }
+      }
+    },
+    "Готово" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
+          }
+        }
+      }
+    },
     "Данные входа будут удалены с этого Mac. Чтобы вернуться, понадобится снова войти по коду." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in data will be removed from this Mac. To come back, you'll need to sign in with a code again."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -686,8 +1820,30 @@
         }
       }
     },
+    "Данные входа недоступны. Войдите в Microsoft повторно." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in data is unavailable. Sign in to Microsoft again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Данные входа недоступны. Войдите в Microsoft повторно."
+          }
+        }
+      }
+    },
     "Действия с файлом" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File Actions"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -698,6 +1854,12 @@
     },
     "Действия со сборкой" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance Actions"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -706,8 +1868,62 @@
         }
       }
     },
+    "Детский аккаунт: взрослый должен добавить его в семью Microsoft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Child account: an adult must add it to a Microsoft family."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Детский аккаунт: взрослый должен добавить его в семью Microsoft."
+          }
+        }
+      }
+    },
+    "Диск с данными Hako" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hako data disk"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диск с данными Hako"
+          }
+        }
+      }
+    },
+    "Для Minecraft %@ ещё нет совместимого Fabric API. Выберите другую версию Minecraft или Vanilla." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is no compatible Fabric API for Minecraft %@ yet. Choose another Minecraft version or Vanilla."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для Minecraft %@ ещё нет совместимого Fabric API. Выберите другую версию Minecraft или Vanilla."
+          }
+        }
+      }
+    },
     "Для онлайн-запуска подключите аккаунт Microsoft с Minecraft: Java Edition. Offline-mode включается отдельно в настройках каждой сборки." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To play online, connect a Microsoft account with Minecraft: Java Edition. Offline mode is turned on separately in each instance's settings."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -716,8 +1932,78 @@
         }
       }
     },
+    "Для работы «%@» в сборке «%@» нужны:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” in the instance “%2$@” requires:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для работы «%1$@» в сборке «%2$@» нужны:"
+          }
+        }
+      }
+    },
+    "Для этой версии Minecraft требуется Java %lld или новее. Выбранная Java не подходит." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Minecraft version requires Java %lld or later. The selected Java is not suitable."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой версии Minecraft требуется Java %lld или новее. Выбранная Java не подходит."
+          }
+        }
+      }
+    },
+    "Для этой версии отсутствуют подходящие библиотеки macOS." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no suitable macOS libraries for this version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой версии отсутствуют подходящие библиотеки macOS."
+          }
+        }
+      }
+    },
+    "Для этой версии требуется Java %lld, которую Mojang не предоставляет для %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This version requires Java %1$lld, which Mojang doesn't provide for %2$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой версии требуется Java %1$lld, которую Mojang не предоставляет для %2$@."
+          }
+        }
+      }
+    },
     "Добавить" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -728,6 +2014,12 @@
     },
     "Добавить «%@»" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add “%@”"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -736,8 +2028,30 @@
         }
       }
     },
+    "Добавить с зависимостями" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add with Dependencies"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить с зависимостями"
+          }
+        }
+      }
+    },
     "Добавить…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -748,6 +2062,12 @@
     },
     "Добавляем…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -772,8 +2092,94 @@
         }
       }
     },
+    "Дождитесь завершения операции с файлами." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the file operation to finish."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дождитесь завершения операции с файлами."
+          }
+        }
+      }
+    },
+    "Дождитесь завершения операций с файлами перед переименованием." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for file operations to finish before renaming."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дождитесь завершения операций с файлами перед переименованием."
+          }
+        }
+      }
+    },
+    "Дождитесь завершения операций с файлами сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the instance's file operations to finish."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дождитесь завершения операций с файлами сборки."
+          }
+        }
+      }
+    },
+    "Дождитесь завершения установки Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for Fabric to finish installing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дождитесь завершения установки Fabric."
+          }
+        }
+      }
+    },
+    "Дождитесь завершения установки сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the instance to finish installing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дождитесь завершения установки сборки."
+          }
+        }
+      }
+    },
     "Дополнительные аргументы Java" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Additional Java arguments"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -784,6 +2190,12 @@
     },
     "Дополнительные аргументы Minecraft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Additional Minecraft arguments"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -794,6 +2206,12 @@
     },
     "Дополнительные настройки" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced Settings"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -802,8 +2220,62 @@
         }
       }
     },
+    "Доступна только альфа" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only alpha available"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступна только альфа"
+          }
+        }
+      }
+    },
+    "Доступна только бета" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only beta available"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступна только бета"
+          }
+        }
+      }
+    },
+    "Доступны только бета и альфа" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only beta and alpha available"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступны только бета и альфа"
+          }
+        }
+      }
+    },
     "Другие версии" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Versions"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -814,6 +2286,12 @@
     },
     "Другие версии «%@»" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other versions of “%@”"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -822,8 +2300,30 @@
         }
       }
     },
+    "Дублировать" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дублировать"
+          }
+        }
+      }
+    },
     "Если путь задан, сборки с глобальными параметрами используют эту Java вместо рекомендуемой Java внутри сборки." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If a path is set, instances with global parameters use this Java instead of the recommended Java inside the instance."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -834,6 +2334,12 @@
     },
     "Ждём подтверждения…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for confirmation…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -844,6 +2350,12 @@
     },
     "Журнал запуска" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Launch Log"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -854,6 +2366,12 @@
     },
     "Загружаем версии…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading versions…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -864,6 +2382,12 @@
     },
     "Загружаем каталог…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading catalog…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -874,6 +2398,12 @@
     },
     "Загружаем параметры Mojang…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading Mojang parameters…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -882,8 +2412,62 @@
         }
       }
     },
+    "Загруженный Fabric API повреждён. Повторите загрузку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded Fabric API is corrupted. Download it again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загруженный Fabric API повреждён. Повторите загрузку."
+          }
+        }
+      }
+    },
+    "Загруженный файл %@ повреждён. Повторите загрузку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded file %@ is corrupted. Download it again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загруженный файл %@ повреждён. Повторите загрузку."
+          }
+        }
+      }
+    },
+    "Загруженный файл повреждён. Повторите загрузку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded file is corrupted. Download it again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загруженный файл повреждён. Повторите загрузку."
+          }
+        }
+      }
+    },
     "Загрузка начнётся, когда завершится предыдущая сборка." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The download will start when the previous instance finishes."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -892,8 +2476,46 @@
         }
       }
     },
+    "Загрузка остановлена" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download paused"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка остановлена"
+          }
+        }
+      }
+    },
+    "Загрузки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузки"
+          }
+        }
+      }
+    },
     "Загрузчик" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loader"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -904,6 +2526,12 @@
     },
     "Загрузчик модов" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mod Loader"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -912,8 +2540,62 @@
         }
       }
     },
+    "Закройте Minecraft перед изменением файлов сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit Minecraft before changing the instance files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закройте Minecraft перед изменением файлов сборки."
+          }
+        }
+      }
+    },
+    "Закройте Minecraft перед повторной установкой сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit Minecraft before reinstalling the instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закройте Minecraft перед повторной установкой сборки."
+          }
+        }
+      }
+    },
+    "Закройте Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit Minecraft."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закройте Minecraft."
+          }
+        }
+      }
+    },
     "Закрыть без переименования" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Without Renaming"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -922,8 +2604,62 @@
         }
       }
     },
+    "Заменить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить"
+          }
+        }
+      }
+    },
+    "Заменить мод?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace Mod?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить мод?"
+          }
+        }
+      }
+    },
+    "Заменить ресурспак?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace Resource Pack?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить ресурспак?"
+          }
+        }
+      }
+    },
     "Занимают на диске" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk usage"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -934,6 +2670,12 @@
     },
     "Занято" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -944,6 +2686,12 @@
     },
     "Занято на диске" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used disk space"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -952,8 +2700,30 @@
         }
       }
     },
+    "Запустить Minecraft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Launch Minecraft"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запустить Minecraft"
+          }
+        }
+      }
+    },
     "Значения -Xmx и MaxHeapSize в аргументах заменяются лимитом ползунка при запуске." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "-Xmx and MaxHeapSize values in the arguments are replaced by the slider limit at launch."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -980,6 +2750,12 @@
     },
     "Игра запущена" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game running"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -990,6 +2766,12 @@
     },
     "Играть" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1000,6 +2782,12 @@
     },
     "Играть в %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1010,6 +2798,12 @@
     },
     "Изменения параметров применятся при следующем запуске игры." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parameter changes will apply the next time the game launches."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1020,6 +2814,12 @@
     },
     "Измените запрос или сортировку." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change the search or sorting."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1030,6 +2830,12 @@
     },
     "Иконка и параметры сохраняются автоматически." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The icon and parameters are saved automatically."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1040,6 +2846,12 @@
     },
     "Иконка: %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icon: %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1048,8 +2860,30 @@
         }
       }
     },
+    "Имя «backups» занято папкой резервных копий." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The name “backups” is taken by the backups folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя «backups» занято папкой резервных копий."
+          }
+        }
+      }
+    },
     "Имя в offline-mode" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline mode name"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1060,6 +2894,12 @@
     },
     "Имя в игре" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In-game name"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1070,6 +2910,12 @@
     },
     "Использовать глобальные параметры" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Global Parameters"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1080,6 +2926,12 @@
     },
     "Использовать параметры Mojang" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Mojang Parameters"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1090,6 +2942,12 @@
     },
     "Используются обязательные и рекомендуемые аргументы Mojang и Fabric." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Required and recommended Mojang and Fabric arguments are used."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1100,6 +2958,12 @@
     },
     "Используются обязательные и рекомендуемые аргументы из описания версии Mojang." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Required and recommended arguments from the Mojang version description are used."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1108,8 +2972,30 @@
         }
       }
     },
+    "История" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historical"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "История"
+          }
+        }
+      }
+    },
     "Итоговые аргументы запуска" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final Launch Arguments"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1120,6 +3006,12 @@
     },
     "Каталог недоступен" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catalog Unavailable"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1130,6 +3022,12 @@
     },
     "Кеш" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cache"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1140,10 +3038,128 @@
     },
     "Кеш игры пока не создан." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game cache hasn't been created yet."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Кеш игры пока не создан."
+          }
+        }
+      }
+    },
+    "Код истёк. Получите новый и попробуйте снова." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The code has expired. Get a new one and try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Код истёк. Получите новый и попробуйте снова."
+          }
+        }
+      }
+    },
+    "Конфигурация Fabric отсутствует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric configuration is missing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Конфигурация Fabric отсутствует."
+          }
+        }
+      }
+    },
+    "Конфигурация Fabric отсутствует. Повторите установку сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric configuration is missing. Reinstall the instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Конфигурация Fabric отсутствует. Повторите установку сборки."
+          }
+        }
+      }
+    },
+    "Конфликт файлов в описании версии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File conflict in the version description."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Конфликт файлов в описании версии."
+          }
+        }
+      }
+    },
+    "Копируем сборку…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copying instance…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копируем сборку…"
+          }
+        }
+      }
+    },
+    "Коробка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Box"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коробка"
+          }
+        }
+      }
+    },
+    "Куб" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cube"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Куб"
           }
         }
       }
@@ -1164,8 +3180,62 @@
         }
       }
     },
+    "Лист" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leaf"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лист"
+          }
+        }
+      }
+    },
+    "Локальный" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Локальный"
+          }
+        }
+      }
+    },
+    "Луна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moon"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Луна"
+          }
+        }
+      }
+    },
     "Максимальная память Java" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum Java Memory"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1176,6 +3246,12 @@
     },
     "Место на диске" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk Space"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1186,6 +3262,12 @@
     },
     "Моды" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mods"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1194,8 +3276,30 @@
         }
       }
     },
+    "Моды доступны для сборок с Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mods are available for Fabric instances."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Моды доступны для сборок с Fabric."
+          }
+        }
+      }
+    },
     "Моды доступны только для сборок с выбранным модлоадером." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mods are only available for instances with a mod loader."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1206,6 +3310,12 @@
     },
     "Моды с Modrinth" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mods from Modrinth"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1214,8 +3324,62 @@
         }
       }
     },
+    "Моды, зависящие от Fabric API, могут больше не давать игре запуститься." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mods that depend on Fabric API may prevent the game from starting."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Моды, зависящие от Fabric API, могут больше не давать игре запуститься."
+          }
+        }
+      }
+    },
+    "Молния" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bolt"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Молния"
+          }
+        }
+      }
+    },
+    "На этом аккаунте нет Minecraft: Java Edition." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account doesn't own Minecraft: Java Edition."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На этом аккаунте нет Minecraft: Java Edition."
+          }
+        }
+      }
+    },
     "Назад" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1226,6 +3390,12 @@
     },
     "Назад к сборке" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Instance"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1236,6 +3406,12 @@
     },
     "Назад к сборке (⌘[)" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Instance (⌘[)"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1246,6 +3422,12 @@
     },
     "Название" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1256,6 +3438,12 @@
     },
     "Название сборки" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance name"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1266,6 +3454,12 @@
     },
     "Название, иконка и выбранные параметры не будут сохранены." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The name, icon and selected parameters won't be saved."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1274,8 +3468,30 @@
         }
       }
     },
+    "Найдено несколько файлов %@. Уберите дубликаты в папке сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Several %@ files were found. Remove the duplicates from the instance folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найдено несколько файлов %@. Уберите дубликаты в папке сборки."
+          }
+        }
+      }
+    },
     "Найти моды на Modrinth" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Mods on Modrinth"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1286,6 +3502,12 @@
     },
     "Найти ресурспаки на Modrinth" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Resource Packs on Modrinth"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1296,6 +3518,12 @@
     },
     "Например, My Vanilla Pack" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For example, My Vanilla Pack"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1338,6 +3566,12 @@
     },
     "Не задан" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not set"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1346,8 +3580,78 @@
         }
       }
     },
+    "Не поддерживается Hako" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not supported by Hako"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не поддерживается Hako"
+          }
+        }
+      }
+    },
+    "Не удалось восстановить очередь: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't restore the queue: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось восстановить очередь: %@"
+          }
+        }
+      }
+    },
+    "Не удалось восстановить статус игры: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't restore the game status: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось восстановить статус игры: %@"
+          }
+        }
+      }
+    },
+    "Не удалось восстановить учёт времени: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't restore playtime tracking: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось восстановить учёт времени: %@"
+          }
+        }
+      }
+    },
     "Не удалось выполнить действие" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Complete the Action"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1356,8 +3660,78 @@
         }
       }
     },
+    "Не удалось запустить помощник учёта игрового времени." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't start the playtime tracking helper."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось запустить помощник учёта игрового времени."
+          }
+        }
+      }
+    },
+    "Не удалось начать установку: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't start the installation: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось начать установку: %@"
+          }
+        }
+      }
+    },
+    "Не удалось начать учёт времени: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't start playtime tracking: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось начать учёт времени: %@"
+          }
+        }
+      }
+    },
+    "Не удалось открыть картинку. Выберите PNG или JPEG." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't open the image. Choose a PNG or JPEG."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось открыть картинку. Выберите PNG или JPEG."
+          }
+        }
+      }
+    },
     "Не удалось переименовать сборку" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Rename the Instance"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1366,8 +3740,94 @@
         }
       }
     },
+    "Не удалось подготовить Java к запуску." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't prepare Java for launch."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подготовить Java к запуску."
+          }
+        }
+      }
+    },
+    "Не удалось подготовить запуск Java (codesign, код %d)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't prepare the Java launch (codesign, code %d)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подготовить запуск Java (codesign, код %d)."
+          }
+        }
+      }
+    },
+    "Не удалось подготовить иконку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't prepare the icon."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подготовить иконку."
+          }
+        }
+      }
+    },
+    "Не удалось подготовить проверку Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't prepare the Java check."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подготовить проверку Java."
+          }
+        }
+      }
+    },
+    "Не удалось подобрать имя для копии сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't find a name for the instance copy."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось подобрать имя для копии сборки."
+          }
+        }
+      }
+    },
     "Не удалось получить данные" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't get the data"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1376,8 +3836,350 @@
         }
       }
     },
+    "Не удалось получить размер сборок." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't get the size of the instances."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось получить размер сборок."
+          }
+        }
+      }
+    },
+    "Не удалось проверить выбранную Java. Выберите исполняемый файл java из папки bin." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't check the selected Java. Choose the java executable from the bin folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить выбранную Java. Выберите исполняемый файл java из папки bin."
+          }
+        }
+      }
+    },
+    "Не удалось проверить обновление Fabric API: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't check for a Fabric API update: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить обновление Fabric API: %@"
+          }
+        }
+      }
+    },
+    "Не удалось проверить обновления: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't check for updates: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить обновления: %@"
+          }
+        }
+      }
+    },
+    "Не удалось прочитать Fabric API." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read Fabric API."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать Fabric API."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать metadata Fabric API." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the Fabric API metadata."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать metadata Fabric API."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать версию Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the Fabric version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать версию Fabric."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать игровую сессию для учёта времени." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the game session for playtime tracking."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать игровую сессию для учёта времени."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать картинку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the image."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать картинку."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать описание версии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the version description."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать описание версии."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать перетаскиваемые файлы." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the dropped files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать перетаскиваемые файлы."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать реестр модов. Источники и обновления недоступны: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the mod registry. Sources and updates are unavailable: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать реестр модов. Источники и обновления недоступны: %@"
+          }
+        }
+      }
+    },
+    "Не удалось прочитать ссылку описания версии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the version description link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать ссылку описания версии."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать требование версии Fabric API: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the Fabric API version requirement: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать требование версии Fabric API: %@."
+          }
+        }
+      }
+    },
+    "Не удалось распаковать библиотеки игры." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't extract the game libraries."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось распаковать библиотеки игры."
+          }
+        }
+      }
+    },
+    "Не удалось создать архив резервной копии (zip, код %d)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't create the backup archive (zip, code %d)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать архив резервной копии (zip, код %d)."
+          }
+        }
+      }
+    },
+    "Не удалось составить запрос к Modrinth." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't build the Modrinth request."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось составить запрос к Modrinth."
+          }
+        }
+      }
+    },
+    "Не удалось сохранить данные входа в Keychain (код %@)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't save sign-in data to the Keychain (code %@)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить данные входа в Keychain (код %@)."
+          }
+        }
+      }
+    },
+    "Не удалось сохранить игровое время: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't save playtime: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить игровое время: %@"
+          }
+        }
+      }
+    },
+    "Не удалось сохранить иконку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't save the icon."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить иконку."
+          }
+        }
+      }
+    },
+    "Не удалось сохранить состояние сборки: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't save the instance state: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить состояние сборки: %@"
+          }
+        }
+      }
+    },
     "Не удалось удалить сборку" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Delete the Instance"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1386,8 +4188,350 @@
         }
       }
     },
+    "Недопустимая папка сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid instance folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимая папка сборки."
+          }
+        }
+      }
+    },
+    "Недопустимый путь к файлу сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid instance file path."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимый путь к файлу сборки."
+          }
+        }
+      }
+    },
+    "Неизвестный загрузчик модов: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown mod loader: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный загрузчик модов: %@."
+          }
+        }
+      }
+    },
+    "Неизвестный параметр запуска Mojang: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown Mojang launch parameter: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный параметр запуска Mojang: %@."
+          }
+        }
+      }
+    },
+    "Неизвестный формат файла Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown Java file format."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный формат файла Java."
+          }
+        }
+      }
+    },
+    "Некорректная Maven-библиотека Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid Fabric Maven library."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректная Maven-библиотека Fabric."
+          }
+        }
+      }
+    },
+    "Некорректная ссылка в комплекте Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid link in the Java bundle."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректная ссылка в комплекте Java."
+          }
+        }
+      }
+    },
+    "Некорректное описание Fabric API." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid Fabric API description."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректное описание Fabric API."
+          }
+        }
+      }
+    },
+    "Некорректное описание файла Fabric API." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid Fabric API file description."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректное описание файла Fabric API."
+          }
+        }
+      }
+    },
+    "Некорректное требование версии Fabric API." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid Fabric API version requirement."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректное требование версии Fabric API."
+          }
+        }
+      }
+    },
+    "Некорректный идентификатор проекта Modrinth." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid Modrinth project ID."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный идентификатор проекта Modrinth."
+          }
+        }
+      }
+    },
+    "Некорректный ответ сервера Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid response from the Fabric server."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный ответ сервера Fabric."
+          }
+        }
+      }
+    },
+    "Некорректный ответ сервера Modrinth." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid response from the Modrinth server."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный ответ сервера Modrinth."
+          }
+        }
+      }
+    },
+    "Некорректный ответ сервера." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid server response."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный ответ сервера."
+          }
+        }
+      }
+    },
+    "Некорректный путь в библиотеке игры." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid path in a game library."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный путь в библиотеке игры."
+          }
+        }
+      }
+    },
+    "Некорректный путь внутри JAR." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid path inside the JAR."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный путь внутри JAR."
+          }
+        }
+      }
+    },
+    "Некорректный ресурс в описании игры." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid asset in the game description."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный ресурс в описании игры."
+          }
+        }
+      }
+    },
+    "Нельзя заменять файл-ссылку в сборке." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A symbolic link in the instance can't be replaced."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нельзя заменять файл-ссылку в сборке."
+          }
+        }
+      }
+    },
+    "Нельзя импортировать папку в неё саму. Выберите отдельную папку текстурпака." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A folder can't be imported into itself. Choose a separate resource pack folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нельзя импортировать папку в неё саму. Выберите отдельную папку текстурпака."
+          }
+        }
+      }
+    },
+    "Несовместим с «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incompatible with “%@”"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Несовместим с «%@»"
+          }
+        }
+      }
+    },
+    "Нет совместимой версии" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No compatible version"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет совместимой версии"
+          }
+        }
+      }
+    },
     "Ник: от 3 до 16 латинских букв, цифр или _." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name: 3 to 16 Latin letters, digits or _."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1398,6 +4542,12 @@
     },
     "Ничего не найдено" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing Found"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1408,10 +4558,128 @@
     },
     "Новая сборка" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Instance"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Новая сборка"
+          }
+        }
+      }
+    },
+    "Новые" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Newest"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новые"
+          }
+        }
+      }
+    },
+    "Нужен Fabric Loader %@, в сборке %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires Fabric Loader %1$@, the instance has %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужен Fabric Loader %1$@, в сборке %2$@"
+          }
+        }
+      }
+    },
+    "Нужен Minecraft-вход или offline-mode." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires a Minecraft sign-in or offline mode."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужен Minecraft-вход или offline-mode."
+          }
+        }
+      }
+    },
+    "Нужен Minecraft-токен. Подключите аккаунт или включите offline-mode в настройках сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Minecraft token is required. Connect an account or turn on offline mode in the instance settings."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужен Minecraft-токен. Подключите аккаунт или включите offline-mode в настройках сборки."
+          }
+        }
+      }
+    },
+    "Нужна Java %@, в сборке %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires Java %1$@, the instance has %2$lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужна Java %1$@, в сборке %2$lld"
+          }
+        }
+      }
+    },
+    "Нужна сборка с Fabric" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires a Fabric instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужна сборка с Fabric"
+          }
+        }
+      }
+    },
+    "Нужны зависимости" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dependencies Required"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нужны зависимости"
           }
         }
       }
@@ -1434,6 +4702,12 @@
     },
     "ОК" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1444,6 +4718,12 @@
     },
     "Обновить %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1452,8 +4732,30 @@
         }
       }
     },
+    "Обновить всё равно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Anyway"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить всё равно"
+          }
+        }
+      }
+    },
     "Обновить до %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update to %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1462,8 +4764,30 @@
         }
       }
     },
+    "Обновление Fabric API несовместимо с Loader или Java сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric API update is incompatible with the instance's Loader or Java."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновление Fabric API несовместимо с Loader или Java сборки."
+          }
+        }
+      }
+    },
     "Обновляется вручную" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated manually"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1472,8 +4796,30 @@
         }
       }
     },
+    "Обновлённые" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently Updated"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновлённые"
+          }
+        }
+      }
+    },
     "Обрабатываем файлы…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Processing files…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1484,6 +4830,12 @@
     },
     "Объём кеша игры" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game cache size"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1494,6 +4846,12 @@
     },
     "Окно" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1504,10 +4862,32 @@
     },
     "Оконный" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windowed"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Оконный"
+          }
+        }
+      }
+    },
+    "Описание версии не соответствует сборке." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The version description doesn't match the instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Описание версии не соответствует сборке."
           }
         }
       }
@@ -1528,8 +4908,62 @@
         }
       }
     },
+    "Останавливаем загрузку…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausing download…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Останавливаем загрузку…"
+          }
+        }
+      }
+    },
+    "Остановите загрузку и закройте игру перед переименованием сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause the download and quit the game before renaming the instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Остановите загрузку и закройте игру перед переименованием сборки."
+          }
+        }
+      }
+    },
+    "Остановите загрузку сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause the instance download."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Остановите загрузку сборки."
+          }
+        }
+      }
+    },
     "Остановить" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1538,8 +4972,46 @@
         }
       }
     },
+    "Отключить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключить"
+          }
+        }
+      }
+    },
+    "Отключить Fabric API?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable Fabric API?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключить Fabric API?"
+          }
+        }
+      }
+    },
     "Отключён" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1548,8 +5020,30 @@
         }
       }
     },
+    "Отключён — будет включён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled — will be enabled"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключён — будет включён"
+          }
+        }
+      }
+    },
     "Откройте microsoft.com/link и введите код." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open microsoft.com/link and enter the code."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1560,6 +5054,12 @@
     },
     "Открыть microsoft.com/link" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open microsoft.com/link"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1570,6 +5070,12 @@
     },
     "Открыть «%@» на Modrinth" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open “%@” on Modrinth"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1580,6 +5086,12 @@
     },
     "Открыть папку" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Folder"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1590,6 +5102,12 @@
     },
     "Открыть сборку %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open instance %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1600,6 +5118,12 @@
     },
     "Открыть страницу на %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Page on %@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1610,6 +5134,12 @@
     },
     "Открыть страницу на Modrinth" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Page on Modrinth"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1620,6 +5150,12 @@
     },
     "Отмена" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1630,6 +5166,12 @@
     },
     "Отменить создание" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Creation"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1640,6 +5182,12 @@
     },
     "Отменить создание сборки?" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Instance Creation?"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1648,8 +5196,30 @@
         }
       }
     },
+    "Отсутствует контрольная сумма библиотеки Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Fabric library checksum is missing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отсутствует контрольная сумма библиотеки Fabric."
+          }
+        }
+      }
+    },
     "Очистить поиск" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Search"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1658,8 +5228,30 @@
         }
       }
     },
+    "Ошибка установки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installation failed"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибка установки"
+          }
+        }
+      }
+    },
     "Папка ~/.hako/%@ со всеми мирами, модами и Java будет удалена без возможности восстановления. Время игры сохранится." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ~/.hako/%@ folder with all worlds, mods and Java will be permanently deleted. Playtime will be kept."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1668,8 +5260,78 @@
         }
       }
     },
+    "Папка отключённых паков не может быть ссылкой." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The disabled packs folder can't be a link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка отключённых паков не может быть ссылкой."
+          }
+        }
+      }
+    },
+    "Папка с файлами сборки будет переименована в ~/.hako при сохранении имени «%@»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance folder in ~/.hako will be renamed when the name “%@” is saved."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка с файлами сборки будет переименована в ~/.hako при сохранении имени «%@»."
+          }
+        }
+      }
+    },
+    "Папка сборки не может быть символической ссылкой." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance folder can't be a symbolic link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка сборки не может быть символической ссылкой."
+          }
+        }
+      }
+    },
+    "Папка текстурпака содержит ссылки. Импортируйте папку с независимыми файлами." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The resource pack folder contains links. Import a folder with standalone files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка текстурпака содержит ссылки. Импортируйте папку с независимыми файлами."
+          }
+        }
+      }
+    },
     "Папка: ~/.hako/%@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder: ~/.hako/%@"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1678,8 +5340,46 @@
         }
       }
     },
+    "Папку backups занимает сборка. Переименуйте её, чтобы сохранять резервные копии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An instance occupies the backups folder. Rename it to save backups."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папку backups занимает сборка. Переименуйте её, чтобы сохранять резервные копии."
+          }
+        }
+      }
+    },
+    "Параметр %@ задаётся отдельной настройкой или лаунчером." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The %@ parameter is set by a separate setting or by the launcher."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Параметр %@ задаётся отдельной настройкой или лаунчером."
+          }
+        }
+      }
+    },
     "Параметры запуска" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Launch Parameters"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1690,6 +5390,12 @@
     },
     "Переименование доступно после остановки загрузки, закрытия игры и завершения операций с файлами." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renaming is available once the download is paused, the game is closed and file operations finish."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1698,8 +5404,30 @@
         }
       }
     },
+    "Переименование изменит имя папки с файлами сборки в ~/.hako." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renaming will change the name of the instance folder in ~/.hako."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переименование изменит имя папки с файлами сборки в ~/.hako."
+          }
+        }
+      }
+    },
     "Переименовать" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1710,6 +5438,12 @@
     },
     "Переименовать и выйти" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename and Quit"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1720,6 +5454,12 @@
     },
     "Переименовать и закрыть" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename and Close"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1730,6 +5470,12 @@
     },
     "Переименовать и перейти" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename and Continue"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1740,6 +5486,12 @@
     },
     "Переименовать сборку?" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename the Instance?"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1750,6 +5502,12 @@
     },
     "Перетащите JAR-файлы модов" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop mod JAR files here"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1760,6 +5518,12 @@
     },
     "Перетащите ZIP-архивы ресурспаков" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop resource pack ZIP archives here"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1770,6 +5534,12 @@
     },
     "Перетащите, чтобы повернуть персонажа" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to rotate the character"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1778,8 +5548,46 @@
         }
       }
     },
+    "Пламя" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flame"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пламя"
+          }
+        }
+      }
+    },
+    "По указанному пути нет исполняемого файла Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is no Java executable at the specified path."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По указанному пути нет исполняемого файла Java."
+          }
+        }
+      }
+    },
     "Повторить" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1790,6 +5598,12 @@
     },
     "Повторить загрузку каталога" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload Catalog"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1800,6 +5614,12 @@
     },
     "Повторить загрузку параметров" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload Parameters"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1810,6 +5630,12 @@
     },
     "Повторить подключение Minecraft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnect Minecraft"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1820,6 +5646,12 @@
     },
     "Повторить проверку" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Again"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1830,6 +5662,12 @@
     },
     "Повторить проверку Fabric" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Fabric Again"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1840,6 +5678,12 @@
     },
     "Подбираем Fabric и проверяем Fabric API…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecting Fabric and checking Fabric API…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1848,8 +5692,46 @@
         }
       }
     },
+    "Подготавливаем Fabric…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing Fabric…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготавливаем Fabric…"
+          }
+        }
+      }
+    },
+    "Подготавливаем Java и библиотеки…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing Java and libraries…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготавливаем Java и библиотеки…"
+          }
+        }
+      }
+    },
     "Подготавливаем запуск…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing launch…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1858,8 +5740,30 @@
         }
       }
     },
+    "Подготавливаем ресурсы…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing assets…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготавливаем ресурсы…"
+          }
+        }
+      }
+    },
     "Поддерживается · Java %lld" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supported · Java %lld"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1868,8 +5772,30 @@
         }
       }
     },
+    "Подключаем Minecraft…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting Minecraft…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключаем Minecraft…"
+          }
+        }
+      }
+    },
     "Поиск" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1880,6 +5806,12 @@
     },
     "Поиск версии" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search versions"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1890,6 +5822,12 @@
     },
     "Поиск модов" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search mods"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1900,6 +5838,12 @@
     },
     "Поиск ресурспаков" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search resource packs"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1910,6 +5854,12 @@
     },
     "Показать в Finder" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1920,6 +5870,12 @@
     },
     "Полноэкранный" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Screen"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1930,6 +5886,12 @@
     },
     "Полноэкранный режим" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Screen"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1940,6 +5902,12 @@
     },
     "Получаем информацию о диске…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getting disk information…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1950,6 +5918,12 @@
     },
     "Получаем код…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getting code…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1958,8 +5932,46 @@
         }
       }
     },
+    "Получаем список ресурсов…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getting asset list…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Получаем список ресурсов…"
+          }
+        }
+      }
+    },
+    "Помощник учёта игрового времени отсутствует. Переустановите Hako." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The playtime tracking helper is missing. Reinstall Hako."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Помощник учёта игрового времени отсутствует. Переустановите Hako."
+          }
+        }
+      }
+    },
     "Попробовать снова" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try Again"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1970,6 +5982,12 @@
     },
     "Предел Java heap. Общий расход процесса может быть выше. На Mac: %.0f ГиБ." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Java heap limit. The process may use more memory in total. This Mac has %.0f GiB."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1980,6 +5998,12 @@
     },
     "При входе гостевое время будет добавлено к вашему аккаунту." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you sign in, guest playtime will be added to your account."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1988,8 +6012,30 @@
         }
       }
     },
+    "Пробелы в имени папки будут заменены на _." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spaces in the folder name will be replaced with _."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пробелы в имени папки будут заменены на _."
+          }
+        }
+      }
+    },
     "Проверить обновления" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Updates"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1998,8 +6044,62 @@
         }
       }
     },
+    "Проверка Java превысила время ожидания. Выберите другой исполняемый файл java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Java check timed out. Choose another java executable."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверка Java превысила время ожидания. Выберите другой исполняемый файл java."
+          }
+        }
+      }
+    },
+    "Проверьте кавычки и экранирование в аргументах запуска." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the quotes and escaping in the launch arguments."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте кавычки и экранирование в аргументах запуска."
+          }
+        }
+      }
+    },
+    "Проверьте ник в настройках offline-mode." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the name in the offline mode settings."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте ник в настройках offline-mode."
+          }
+        }
+      }
+    },
     "Проверяем обновления…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking for updates…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2010,6 +6110,12 @@
     },
     "Проверяем профиль Fabric…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking Fabric profile…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2020,6 +6126,12 @@
     },
     "Проверяем совместимость с вашим Mac…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking compatibility with your Mac…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2028,8 +6140,30 @@
         }
       }
     },
+    "Проверяем файлы версии…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking version files…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверяем файлы версии…"
+          }
+        }
+      }
+    },
     "Продолжить" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2056,6 +6190,12 @@
     },
     "Продолжить без переименования" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Without Renaming"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2066,6 +6206,12 @@
     },
     "Продолжить создание" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Editing"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2074,8 +6220,30 @@
         }
       }
     },
+    "Проект Modrinth не найден." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modrinth project not found."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проект Modrinth не найден."
+          }
+        }
+      }
+    },
     "Профиль" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2084,8 +6252,46 @@
         }
       }
     },
+    "Профиль Fabric не соответствует версии Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric profile doesn't match the Minecraft version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль Fabric не соответствует версии Minecraft."
+          }
+        }
+      }
+    },
+    "Профиль Fabric отсутствует. Повторите установку сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric profile is missing. Reinstall the instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль Fabric отсутствует. Повторите установку сборки."
+          }
+        }
+      }
+    },
     "Профиль сборки" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance Profile"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2094,8 +6300,30 @@
         }
       }
     },
+    "Пустое требование версии Fabric API." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty Fabric API version requirement."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пустое требование версии Fabric API."
+          }
+        }
+      }
+    },
     "Пути и значения аккаунта в ${…} будут подставлены при запуске." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paths and account values in ${…} will be substituted at launch."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2106,6 +6334,12 @@
     },
     "Путь к Java" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Java Path"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2132,6 +6366,12 @@
     },
     "Раздел сборки" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance section"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2142,6 +6382,12 @@
     },
     "Размер кеша игры" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game cache size"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2152,6 +6398,12 @@
     },
     "Размер окна указан в пикселях и применяется в оконном режиме." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window size is in pixels and applies in windowed mode."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2160,8 +6412,30 @@
         }
       }
     },
+    "Реестр модов не может быть ссылкой." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The mod registry can't be a link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Реестр модов не может быть ссылкой."
+          }
+        }
+      }
+    },
     "Режим отображения" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display Mode"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2170,8 +6444,46 @@
         }
       }
     },
+    "Резервная копия" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back Up"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Резервная копия"
+          }
+        }
+      }
+    },
+    "Резервная копия с таким именем уже существует. Повторите через секунду." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A backup with this name already exists. Try again in a second."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Резервная копия с таким именем уже существует. Повторите через секунду."
+          }
+        }
+      }
+    },
     "Резервная копия создана" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup Created"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2180,8 +6492,46 @@
         }
       }
     },
+    "Релевантность" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relevance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Релевантность"
+          }
+        }
+      }
+    },
+    "Релизы" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Releases"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Релизы"
+          }
+        }
+      }
+    },
     "Ресурспаки" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resource Packs"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2192,6 +6542,12 @@
     },
     "Ресурспаки с Modrinth" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resource Packs from Modrinth"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2202,6 +6558,12 @@
     },
     "Ресурспаков пока нет." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No resource packs yet."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2210,8 +6572,46 @@
         }
       }
     },
+    "Сборка или папка с таким именем уже существует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An instance or folder with this name already exists."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка или папка с таким именем уже существует."
+          }
+        }
+      }
+    },
+    "Сборка с таким именем уже существует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An instance with this name already exists."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка с таким именем уже существует."
+          }
+        }
+      }
+    },
     "Сборки" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instances"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2222,6 +6622,12 @@
     },
     "Сборки Minecraft" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft Instances"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2230,8 +6636,30 @@
         }
       }
     },
+    "Сборок пока нет." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No instances yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборок пока нет."
+          }
+        }
+      }
+    },
     "Свободно" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2242,6 +6670,12 @@
     },
     "Своя картинка…" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom Image…"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2250,8 +6684,62 @@
         }
       }
     },
+    "Сервер загрузки вернул ошибку %lld. Попробуйте ещё раз." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The download server returned error %lld. Try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервер загрузки вернул ошибку %lld. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "Сервер ответил с ошибкой %lld. Попробуйте ещё раз." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server responded with error %lld. Try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервер ответил с ошибкой %lld. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "Скачиваем Java и Minecraft…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading Java and Minecraft…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачиваем Java и Minecraft…"
+          }
+        }
+      }
+    },
     "Скопировано" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2262,6 +6750,12 @@
     },
     "Скопировать код" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Code"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2270,8 +6764,30 @@
         }
       }
     },
+    "Снапшоты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snapshots"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снапшоты"
+          }
+        }
+      }
+    },
     "Создайте первую сборку" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Your First Instance"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2282,6 +6798,12 @@
     },
     "Создать сборку" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create Instance"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2290,8 +6812,30 @@
         }
       }
     },
+    "Создаём резервную копию…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating backup…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создаём резервную копию…"
+          }
+        }
+      }
+    },
     "Сортировка" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2302,6 +6846,12 @@
     },
     "Сохранить имя" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Name"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2312,6 +6862,12 @@
     },
     "Сохранить сборку" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Instance"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2320,8 +6876,62 @@
         }
       }
     },
+    "Ссылка Modrinth должна использовать HTTPS." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modrinth links must use HTTPS."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ссылка Modrinth должна использовать HTTPS."
+          }
+        }
+      }
+    },
+    "Ссылка выходит за пределы папки Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A link points outside the Java folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ссылка выходит за пределы папки Java."
+          }
+        }
+      }
+    },
+    "Ссылка загрузки должна использовать HTTPS." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download links must use HTTPS."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ссылка загрузки должна использовать HTTPS."
+          }
+        }
+      }
+    },
     "Также можно добавить папку ресурспака через кнопку «Добавить»." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can also add a resource pack folder with the Add button."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2332,6 +6942,12 @@
     },
     "Тип версий" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version type"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2340,8 +6956,206 @@
         }
       }
     },
+    "Только мод" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mod Only"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только мод"
+          }
+        }
+      }
+    },
+    "Только обновить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Only"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только обновить"
+          }
+        }
+      }
+    },
+    "Только ресурспак" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resource Pack Only"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только ресурспак"
+          }
+        }
+      }
+    },
+    "У «%@» нет альфы для Minecraft %@ и Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no alpha for Minecraft %2$@ and Fabric."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет альфы для Minecraft %2$@ и Fabric."
+          }
+        }
+      }
+    },
+    "У «%@» нет альфы для Minecraft %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no alpha for Minecraft %2$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет альфы для Minecraft %2$@."
+          }
+        }
+      }
+    },
+    "У «%@» нет беты для Minecraft %@ и Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no beta for Minecraft %2$@ and Fabric."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет беты для Minecraft %2$@ и Fabric."
+          }
+        }
+      }
+    },
+    "У «%@» нет беты для Minecraft %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no beta for Minecraft %2$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет беты для Minecraft %2$@."
+          }
+        }
+      }
+    },
+    "У «%@» нет версии для Minecraft %@ и Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no version for Minecraft %2$@ and Fabric."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет версии для Minecraft %2$@ и Fabric."
+          }
+        }
+      }
+    },
+    "У «%@» нет версии для Minecraft %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no version for Minecraft %2$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет версии для Minecraft %2$@."
+          }
+        }
+      }
+    },
+    "У «%@» нет релиза для Minecraft %@ и Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no release for Minecraft %2$@ and Fabric."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет релиза для Minecraft %2$@ и Fabric."
+          }
+        }
+      }
+    },
+    "У «%@» нет релиза для Minecraft %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” has no release for Minecraft %2$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У «%1$@» нет релиза для Minecraft %2$@."
+          }
+        }
+      }
+    },
+    "У этого аккаунта нет профиля Xbox. Создайте его на xbox.com и попробуйте снова." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account has no Xbox profile. Create one on xbox.com and try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У этого аккаунта нет профиля Xbox. Создайте его на xbox.com и попробуйте снова."
+          }
+        }
+      }
+    },
     "Удалить" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2350,8 +7164,46 @@
         }
       }
     },
+    "Удалить мод?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Mod?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить мод?"
+          }
+        }
+      }
+    },
+    "Удалить ресурспак?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Resource Pack?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить ресурспак?"
+          }
+        }
+      }
+    },
     "Удалить сборку «%@»?" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the Instance “%@”?"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2360,8 +7212,126 @@
         }
       }
     },
+    "Удалить сборку…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Instance…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить сборку…"
+          }
+        }
+      }
+    },
+    "Укажите Client ID приложения Azure в MicrosoftAuth.clientID." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set the Azure app Client ID in MicrosoftAuth.clientID."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Укажите Client ID приложения Azure в MicrosoftAuth.clientID."
+          }
+        }
+      }
+    },
+    "Устанавливаем Fabric API…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing Fabric API…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Устанавливаем Fabric API…"
+          }
+        }
+      }
+    },
+    "Установить альфу %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Alpha %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить альфу %@"
+          }
+        }
+      }
+    },
+    "Установить бету %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Beta %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить бету %@"
+          }
+        }
+      }
+    },
+    "Установить всё равно" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Anyway"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить всё равно"
+          }
+        }
+      }
+    },
+    "Установка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установка"
+          }
+        }
+      }
+    },
     "Установлен" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed"
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2370,8 +7340,30 @@
         }
       }
     },
+    "Установленная версия Fabric не соответствует сборке. Повторите установку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The installed Fabric version doesn't match the instance. Reinstall it."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установленная версия Fabric не соответствует сборке. Повторите установку."
+          }
+        }
+      }
+    },
     "Файл %@ сохранён в ~/.hako/%@." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file %1$@ was saved to ~/.hako/%2$@."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2380,8 +7372,158 @@
         }
       }
     },
+    "Файл %@ уже существует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file %@ already exists."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл %@ уже существует."
+          }
+        }
+      }
+    },
+    "Файл Fabric API повреждён." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric API file is corrupted."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл Fabric API повреждён."
+          }
+        }
+      }
+    },
+    "Файл Fabric API уже существует. Уберите конфликтующий файл и повторите установку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Fabric API file already exists. Remove the conflicting file and install again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл Fabric API уже существует. Уберите конфликтующий файл и повторите установку."
+          }
+        }
+      }
+    },
+    "Файл Minecraft отсутствует. Повторите установку сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Minecraft file is missing. Reinstall the instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл Minecraft отсутствует. Повторите установку сборки."
+          }
+        }
+      }
+    },
+    "Файл выходит за пределы папки сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file is outside the instance folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл выходит за пределы папки сборки."
+          }
+        }
+      }
+    },
+    "Файл изменился. Обновите список и повторите действие." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file has changed. Refresh the list and try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл изменился. Обновите список и повторите действие."
+          }
+        }
+      }
+    },
+    "Файл мода изменился. Обновите список и повторите действие." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The mod file has changed. Refresh the list and try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл мода изменился. Обновите список и повторите действие."
+          }
+        }
+      }
+    },
+    "Файл не принадлежит папке сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file doesn't belong to the instance folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл не принадлежит папке сборки."
+          }
+        }
+      }
+    },
+    "Файл содержимого не может быть ссылкой." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A content file can't be a link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл содержимого не может быть ссылкой."
+          }
+        }
+      }
+    },
     "Файлы будут скопированы в эту сборку." : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The files will be copied to this instance."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2402,6 +7544,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Хранилище"
+          }
+        }
+      }
+    },
+    "Ширина" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Width"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ширина"
+          }
+        }
+      }
+    },
+    "Эта версия не поддерживает %@: подходящие библиотеки игры отсутствуют." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This version doesn't support %@: suitable game libraries are missing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта версия не поддерживает %@: подходящие библиотеки игры отсутствуют."
+          }
+        }
+      }
+    },
+    "Эта версия не поддерживает Apple Silicon: библиотеки игры доступны только для Intel." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This version doesn't support Apple Silicon: the game libraries are only available for Intel."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта версия не поддерживает Apple Silicon: библиотеки игры доступны только для Intel."
+          }
+        }
+      }
+    },
+    "Эта сборка использует пользовательскую Java из глобальных настроек. Это может привести к проблемам в игре." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This instance uses a custom Java from the global settings. This may cause problems in the game."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта сборка использует пользовательскую Java из глобальных настроек. Это может привести к проблемам в игре."
+          }
+        }
+      }
+    },
+    "Эта сборка уже запущена." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This instance is already running."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта сборка уже запущена."
+          }
+        }
+      }
+    },
+    "Эти проблемы могут помешать запуску игры. Обновить «%@» всё равно?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These problems may prevent the game from starting. Update “%@” anyway?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эти проблемы могут помешать запуску игры. Обновить «%@» всё равно?"
+          }
+        }
+      }
+    },
+    "Эти проблемы могут помешать запуску игры. Установить «%@» всё равно?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These problems may prevent the game from starting. Install “%@” anyway?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эти проблемы могут помешать запуску игры. Установить «%@» всё равно?"
           }
         }
       }
@@ -2434,6 +7688,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Язык интерфейса Hako. Меню и системные окна macOS используют язык системы."
+          }
+        }
+      }
+    },
+    "меньше минуты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "less than a minute"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "меньше минуты"
           }
         }
       }
