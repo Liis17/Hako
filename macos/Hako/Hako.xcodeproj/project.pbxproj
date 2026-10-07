@@ -37,6 +37,7 @@
 		F7A000000000000000000006 /* Hako/Playtime/PlaytimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000015 /* Hako/Playtime/PlaytimeFormatter.swift */; };
 		F7A00000000000000000003E /* HakoPlaytimeHelper in Embed playtime helper */ = {isa = PBXBuildFile; fileRef = F7A000000000000000000031 /* HakoPlaytimeHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		F7B0000000000000000000A1 /* Hako/Minecraft/ModrinthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B0000000000000000000A2 /* Hako/Minecraft/ModrinthClient.swift */; };
+		F7B0000000000000000000B1 /* Hako/Instances/InstanceBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B0000000000000000000B2 /* Hako/Instances/InstanceBackup.swift */; };
 		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
 		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 /* End PBXBuildFile section */
@@ -97,6 +98,7 @@
 		F7A000000000000000000015 /* Hako/Playtime/PlaytimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Playtime/PlaytimeFormatter.swift; sourceTree = SOURCE_ROOT; };
 		F7A000000000000000000031 /* HakoPlaytimeHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = HakoPlaytimeHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7B0000000000000000000A2 /* Hako/Minecraft/ModrinthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/ModrinthClient.swift; sourceTree = SOURCE_ROOT; };
+		F7B0000000000000000000B2 /* Hako/Instances/InstanceBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceBackup.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -176,6 +178,7 @@
 				8B4BB7C578684614BF24DCCC /* Hako/Resources/Steve.png */,
 				9D8D8E1428996CD5856D89FE /* Hako/Instances/GameInstance.swift */,
 				AA0DB743DC3141178C7C3DF0 /* Hako/Instances/InstanceStorage.swift */,
+				F7B0000000000000000000B2 /* Hako/Instances/InstanceBackup.swift */,
 				2F6FE82857DF991B2EEBB00A /* Hako/GameLaunchDefaults.swift */,
 				713B67E3DC294109979EF098 /* Hako/Auth/MinecraftSessionCoordinator.swift */,
 				6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */,
@@ -322,6 +325,7 @@
 				F7B0000000000000000000A1 /* Hako/Minecraft/ModrinthClient.swift in Sources */,
 				532E7356524829C76834ADE8 /* Hako/Instances/GameInstance.swift in Sources */,
 				D491978AF7318A6470038C86 /* Hako/Instances/InstanceStorage.swift in Sources */,
+				F7B0000000000000000000B1 /* Hako/Instances/InstanceBackup.swift in Sources */,
 				F6D5560D00A2FE27B58DD1D5 /* Hako/GameLaunchDefaults.swift in Sources */,
 				E36E0669EC0B4B51BA05CE68 /* Hako/Auth/MinecraftSessionCoordinator.swift in Sources */,
 				FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */,

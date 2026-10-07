@@ -25,6 +25,7 @@ struct InstanceProfileView: View {
     @State private var renameAction: RenameAction?
     @State private var confirmingDelete = false
     @State private var operation: String?
+    @State private var backupURL: URL?
 
     private enum RenameAction {
         case save
@@ -99,6 +100,12 @@ struct InstanceProfileView: View {
                     actionsMenu
                 }
             }
+            .alert("Резервная копия создана", isPresented: Binding(get: { backupURL != nil }, set: { if !$0 { backupURL = nil } }), presenting: backupURL) { url in
+                Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                Button("ОК", role: .cancel) {}
+            } message: { url in
+                Text("Файл \(url.lastPathComponent) сохранён в ~/.hako/\(InstanceStorage.backupsFolder).")
+            }
             if let operation {
                 HStack(spacing: 8) { ProgressView().controlSize(.small); Text(operation).font(.callout).foregroundStyle(.secondary) }
             }
@@ -135,6 +142,8 @@ struct InstanceProfileView: View {
         return Menu {
             Button("Дублировать", systemImage: "plus.square.on.square", action: duplicate)
                 .disabled(blocked != nil || instance.state != .ready)
+            Button("Резервная копия", systemImage: "archivebox", action: backup)
+                .disabled(blocked != nil || instance.state != .ready)
             Divider()
             Button("Удалить сборку…", systemImage: "trash", role: .destructive) { confirmingDelete = true }
                 .disabled(blocked != nil)
@@ -150,6 +159,15 @@ struct InstanceProfileView: View {
         Task {
             defer { operation = nil }
             do { _ = try await installations.store.duplicate(instance) }
+            catch { actionError = error.localizedDescription }
+        }
+    }
+
+    private func backup() {
+        operation = "Создаём резервную копию…"
+        Task {
+            defer { operation = nil }
+            do { backupURL = try await installations.store.backup(instance, content: installations.content) }
             catch { actionError = error.localizedDescription }
         }
     }

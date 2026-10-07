@@ -126,6 +126,55 @@ import Testing
         await #expect(throws: InstanceFileError.self) { _ = try await store.duplicate(instance) }
     }
 
+    @Test func backupArchivesFolderWithManifestAtRoot() async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        var source = draft("Backup Pack")
+        source.iconSymbol = ""
+        source.iconData = Data("png".utf8)
+        source.modLoader = .fabric
+        source.fabricConfiguration = FabricConfiguration(loaderVersion: "0.16.5", api: api)
+        let instance = try store.create(source, versionID: "1.21.1", metadataURL: "https://example.test/v.json", metadataSHA1: "hash", javaMajorVersion: 21)
+        instance.state = .ready
+        try container.mainContext.save()
+        let folder = root.appendingPathComponent("Backup_Pack")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("java/bin"), withIntermediateDirectories: true)
+        try Data("java".utf8).write(to: folder.appendingPathComponent("java/bin/java"))
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("java/link").path, withDestinationPath: "bin/java")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("minecraft/mods"), withIntermediateDirectories: true)
+        try Data("one".utf8).write(to: folder.appendingPathComponent("minecraft/mods/one.jar"))
+        try Data("two".utf8).write(to: folder.appendingPathComponent("minecraft/mods/two.jar.disabled"))
+        try Data("{}".utf8).write(to: folder.appendingPathComponent("minecraft/.hako-running.json"))
+
+        let archive = try await store.backup(instance, content: InstanceContent())
+        #expect(archive.deletingLastPathComponent().standardizedFileURL == root.appendingPathComponent("backups").standardizedFileURL)
+        #expect(archive.lastPathComponent.hasPrefix("Backup_Pack_") && archive.pathExtension == "hakobackup")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: archive.deletingLastPathComponent().path) == [archive.lastPathComponent])
+        #expect(store.contentBusy.isEmpty)
+
+        let listing = Process()
+        let output = Pipe()
+        listing.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        listing.arguments = ["-Z1", archive.path]
+        listing.standardOutput = output
+        try listing.run()
+        let entries = Set(String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).split(separator: "\n").map(String.init))
+        listing.waitUntilExit()
+        #expect(entries.isSuperset(of: ["data.json", "icon.png", "java/bin/java", "java/link", "minecraft/mods/one.jar", "minecraft/mods/two.jar.disabled"]))
+        #expect(!entries.contains("minecraft/.hako-running.json"))
+
+        let data = try await FabricClient.archiveEntry("data.json", in: archive, limit: 1_048_576)
+        let manifest = try InstanceBackupManifest.decoder().decode(InstanceBackupManifest.self, from: data)
+        #expect(manifest.formatVersion == 1 && manifest.name == "Backup Pack" && manifest.folderName == "Backup_Pack")
+        #expect(manifest.minecraftVersion == "1.21.1" && manifest.modLoader == "fabric" && manifest.loaderVersion == "0.16.5" && manifest.javaMajorVersion == 21)
+        #expect(manifest.iconPNG == Data("png".utf8) && manifest.iconSymbol.isEmpty)
+        #expect(manifest.modCount == 2 && manifest.mods.map(\.file) == ["one.jar", "two.jar"] && manifest.mods.map(\.enabled) == [true, false])
+        #expect(manifest.profile.metadataURL == instance.metadataURL && manifest.profile.fabricConfiguration?.api == api)
+        #expect(String(decoding: data, as: UTF8.self).contains("\"iconPNG\" : \"\(Data("png".utf8).base64EncodedString())\""))
+    }
+
     @Test func backupsFolderNameIsReserved() throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }
