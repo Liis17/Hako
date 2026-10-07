@@ -49,7 +49,7 @@ struct InstanceIconPicker: View {
     @State private var importing = false
     @State private var error: String?
 
-    private let symbols = [("shippingbox.fill", "Коробка"), ("cube.fill", "Куб"), ("leaf.fill", "Лист"), ("flame.fill", "Пламя"), ("bolt.fill", "Молния"), ("moon.stars.fill", "Луна")]
+    private let symbols = [("shippingbox.fill", String(appLocalized: "Коробка")), ("cube.fill", String(appLocalized: "Куб")), ("leaf.fill", String(appLocalized: "Лист")), ("flame.fill", String(appLocalized: "Пламя")), ("bolt.fill", String(appLocalized: "Молния")), ("moon.stars.fill", String(appLocalized: "Луна"))]
 
     var body: some View {
         HStack(alignment: .top, spacing: 18) {
@@ -80,7 +80,7 @@ struct InstanceIconPicker: View {
                 draft.iconData = try Self.normalizedIcon(url)
                 draft.iconSymbol = ""
                 error = nil
-            } catch { self.error = "Не удалось открыть картинку. Выберите PNG или JPEG." }
+            } catch { self.error = String(appLocalized: "Не удалось открыть картинку. Выберите PNG или JPEG.") }
         }
     }
 
@@ -88,16 +88,16 @@ struct InstanceIconPicker: View {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 512, kCGImageSourceCreateThumbnailWithTransform: true] as CFDictionary),
               let context = CGContext(data: nil, width: 256, height: 256, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw InstanceFileError.message("Не удалось прочитать картинку.")
+            throw InstanceFileError.message(String(appLocalized: "Не удалось прочитать картинку."))
         }
         let side = min(thumbnail.width, thumbnail.height)
-        guard let crop = thumbnail.cropping(to: CGRect(x: (thumbnail.width - side) / 2, y: (thumbnail.height - side) / 2, width: side, height: side)) else { throw InstanceFileError.message("Не удалось подготовить иконку.") }
+        guard let crop = thumbnail.cropping(to: CGRect(x: (thumbnail.width - side) / 2, y: (thumbnail.height - side) / 2, width: side, height: side)) else { throw InstanceFileError.message(String(appLocalized: "Не удалось подготовить иконку.")) }
         context.interpolationQuality = .high
         context.draw(crop, in: CGRect(x: 0, y: 0, width: 256, height: 256))
         let data = NSMutableData()
-        guard let image = context.makeImage(), let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { throw InstanceFileError.message("Не удалось сохранить иконку.") }
+        guard let image = context.makeImage(), let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { throw InstanceFileError.message(String(appLocalized: "Не удалось сохранить иконку.")) }
         CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else { throw InstanceFileError.message("Не удалось сохранить иконку.") }
+        guard CGImageDestinationFinalize(destination) else { throw InstanceFileError.message(String(appLocalized: "Не удалось сохранить иконку.")) }
         return data as Data
     }
 }
@@ -207,14 +207,14 @@ struct InstanceParametersEditor: View {
     private func validate() {
         isValid = (draft.parameters.fullscreen || (GameLaunchDefaults.windowDimension(from: width) != nil && GameLaunchDefaults.windowDimension(from: height) != nil)) && (!draft.offlineMode || OfflineUsername.isValid(draft.offlineUsername))
     }
-    private func warning(_ text: String) -> some View { Label(text, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(Color.shu).fixedSize(horizontal: false, vertical: true) }
-    private func parameterField(_ title: String, text: Binding<String>) -> some View {
+    private func warning(_ text: LocalizedStringKey) -> some View { Label(text, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(Color.shu).fixedSize(horizontal: false, vertical: true) }
+    private func parameterField(_ title: LocalizedStringKey, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.callout.weight(.medium))
             TextField(title, text: text, axis: .vertical).textFieldStyle(.roundedBorder).font(.system(.body, design: .monospaced)).lineLimit(2...3)
         }
     }
-    private func dimension(_ title: String, text: Binding<String>) -> some View {
+    private func dimension(_ title: LocalizedStringKey, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.callout.weight(.medium))
             HStack { TextField(title, text: text).textFieldStyle(.roundedBorder); Text("px").foregroundStyle(.secondary) }

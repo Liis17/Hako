@@ -62,9 +62,9 @@ extension InstanceStore {
     /// Упаковывает всю папку сборки в `~/.hako/backups/{папка}_{дата}.hakobackup` с `data.json` в корне архива.
     func backup(_ instance: GameInstance, content: InstanceContent) async throws -> URL {
         if let reason = managementBlockedReason(instance) { throw InstanceFileError.message(reason) }
-        guard instance.state == .ready else { throw InstanceFileError.message("Дождитесь завершения установки сборки.") }
+        guard instance.state == .ready else { throw InstanceFileError.message(String(appLocalized: "Дождитесь завершения установки сборки.")) }
         guard try !context.fetch(FetchDescriptor<GameInstance>()).contains(where: { $0.folderName.lowercased() == InstanceStorage.backupsFolder }) else {
-            throw InstanceFileError.message("Папку backups занимает сборка. Переименуйте её, чтобы сохранять резервные копии.")
+            throw InstanceFileError.message(String(appLocalized: "Папку backups занимает сборка. Переименуйте её, чтобы сохранять резервные копии."))
         }
         let root = try storage.directory(instance.folderName)
         let backups = try storage.directory(InstanceStorage.backupsFolder)
@@ -103,7 +103,7 @@ nonisolated enum InstanceBackup {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         let target = backups.appendingPathComponent("\(manifest.folderName)_\(formatter.string(from: manifest.backupCreatedAt)).\(InstanceBackupManifest.fileExtension)")
-        guard !manager.fileExists(atPath: target.path) else { throw InstanceFileError.message("Резервная копия с таким именем уже существует. Повторите через секунду.") }
+        guard !manager.fileExists(atPath: target.path) else { throw InstanceFileError.message(String(appLocalized: "Резервная копия с таким именем уже существует. Повторите через секунду.")) }
         let partial = backups.appendingPathComponent(".\(UUID().uuidString).partial")
         let staging = manager.temporaryDirectory.appendingPathComponent("Hako-Backup-\(UUID().uuidString)")
         defer { try? manager.removeItem(at: partial); try? manager.removeItem(at: staging) }
@@ -129,6 +129,6 @@ nonisolated enum InstanceBackup {
             process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
             do { try process.run() } catch { continuation.resume(throwing: error) }
         }
-        guard status == 0 else { throw InstanceFileError.message("Не удалось создать архив резервной копии (zip, код \(status)).") }
+        guard status == 0 else { throw InstanceFileError.message(String(appLocalized: "Не удалось создать архив резервной копии (zip, код \(status)).")) }
     }
 }

@@ -127,8 +127,8 @@ struct LauncherView: View {
     }
 
     private var renameWarning: String {
-        guard let pending = renameExit.pendingRename else { return "Переименование изменит имя папки с файлами сборки в ~/.hako." }
-        return "Папка с файлами сборки будет переименована в ~/.hako при сохранении имени «\(pending.name)»."
+        guard let pending = renameExit.pendingRename else { return String(appLocalized: "Переименование изменит имя папки с файлами сборки в ~/.hako.") }
+        return String(appLocalized: "Папка с файлами сборки будет переименована в ~/.hako при сохранении имени «\(pending.name)».")
     }
 
     private func requestTab(_ destination: LauncherTab) {
@@ -149,7 +149,7 @@ struct LauncherView: View {
         }
         do {
             guard !installations.contentBusy.contains(instance.id) else {
-                throw InstanceFileError.message("Дождитесь завершения операций с файлами перед переименованием.")
+                throw InstanceFileError.message(String(appLocalized: "Дождитесь завершения операций с файлами перед переименованием."))
             }
             try installations.store.rename(instance, to: pending.name)
             renameExit.pendingRename = nil

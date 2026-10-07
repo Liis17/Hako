@@ -22,7 +22,7 @@ nonisolated enum LaunchArguments {
                 if started { result.append(value); value = ""; started = false }
             } else { value.append(character); started = true }
         }
-        guard quote == nil, !escaped else { throw InstanceFileError.message("Проверьте кавычки и экранирование в аргументах запуска.") }
+        guard quote == nil, !escaped else { throw InstanceFileError.message(String(appLocalized: "Проверьте кавычки и экранирование в аргументах запуска.")) }
         if started { result.append(value) }
         return result
     }

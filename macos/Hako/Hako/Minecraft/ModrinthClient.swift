@@ -4,7 +4,7 @@ nonisolated enum ModrinthSort: String, CaseIterable, Identifiable, Sendable {
     case relevance, downloads, newest, updated
     var id: Self { self }
     var title: String {
-        switch self { case .relevance: "Релевантность"; case .downloads: "Загрузки"; case .newest: "Новые"; case .updated: "Обновлённые" }
+        switch self { case .relevance: String(appLocalized: "Релевантность"); case .downloads: String(appLocalized: "Загрузки"); case .newest: String(appLocalized: "Новые"); case .updated: String(appLocalized: "Обновлённые") }
     }
 }
 
@@ -113,9 +113,9 @@ actor ModrinthClient {
     }
 
     private func data(_ request: URLRequest) async throws -> Data {
-        guard request.url?.scheme == "https" else { throw MojangError.invalid("Ссылка Modrinth должна использовать HTTPS.") }
+        guard request.url?.scheme == "https" else { throw MojangError.invalid(String(appLocalized: "Ссылка Modrinth должна использовать HTTPS.")) }
         let (bytes, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid("Некорректный ответ сервера Modrinth.") }
+        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid(String(appLocalized: "Некорректный ответ сервера Modrinth.")) }
         guard (200..<300).contains(response.statusCode) else { throw MojangError.http(response.statusCode) }
         try Task.checkCancellation()
         return bytes
@@ -126,14 +126,14 @@ actor ModrinthClient {
         components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
         // URLComponents оставляет «+», а сервер читает его как пробел.
         components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
-        guard let url = components.url else { throw MojangError.invalid("Не удалось составить запрос к Modrinth.") }
+        guard let url = components.url else { throw MojangError.invalid(String(appLocalized: "Не удалось составить запрос к Modrinth.")) }
         return url
     }
 
     private func json<T: Encodable>(_ value: T) throws -> String { String(decoding: try JSONEncoder().encode(value), as: UTF8.self) }
 
     private func checkedIDs(_ ids: [String]) throws -> [String] {
-        guard ids.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) } }) else { throw MojangError.invalid("Некорректный идентификатор проекта Modrinth.") }
+        guard ids.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) } }) else { throw MojangError.invalid(String(appLocalized: "Некорректный идентификатор проекта Modrinth.")) }
         return ids
     }
 
@@ -234,10 +234,10 @@ actor ModrinthClient {
 
     /// Загружает файл в `folder` под именем из Modrinth и проверяет размер и SHA-512.
     func download(_ file: ModrinthVersion.File, into folder: URL) async throws -> URL {
-        guard file.url.scheme == "https" else { throw MojangError.invalid("Ссылка загрузки должна использовать HTTPS.") }
+        guard file.url.scheme == "https" else { throw MojangError.invalid(String(appLocalized: "Ссылка загрузки должна использовать HTTPS.")) }
         let (temporary, response) = try await session.download(for: request(file.url))
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid("Некорректный ответ сервера Modrinth.") }
+        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid(String(appLocalized: "Некорректный ответ сервера Modrinth.")) }
         guard (200..<300).contains(response.statusCode) else { throw MojangError.http(response.statusCode) }
         try Task.checkCancellation()
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -245,7 +245,7 @@ actor ModrinthClient {
         try FileManager.default.moveItem(at: temporary, to: target)
         guard try target.resourceValues(forKeys: [.fileSizeKey]).fileSize.map(Int64.init) == file.size, try FabricClient.hashFile(target) == file.sha512 else {
             try? FileManager.default.removeItem(at: target)
-            throw MojangError.invalid("Загруженный файл \(file.filename) повреждён. Повторите загрузку.")
+            throw MojangError.invalid(String(appLocalized: "Загруженный файл \(file.filename) повреждён. Повторите загрузку."))
         }
         return target
     }

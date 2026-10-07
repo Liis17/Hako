@@ -196,7 +196,7 @@ nonisolated enum MojangError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupported(let text), .invalid(let text): text
-        case .http(let code): "Сервер загрузки вернул ошибку \(code). Попробуйте ещё раз."
+        case .http(let code): String(appLocalized: "Сервер загрузки вернул ошибку \(code). Попробуйте ещё раз.")
         }
     }
 }
@@ -216,27 +216,27 @@ nonisolated enum MinecraftCompatibility {
         let nativeGroups = Set(manifest.libraries.filter { $0.isMacNativeArtifact && ($0.allowed(on: .intel) || $0.allowed(on: .appleSilicon)) }.map(\.nativeGroup))
         for group in nativeGroups {
             guard eligible.contains(where: { $0.nativeGroup == group && $0.isMacNativeArtifact && $0.nativeMatches(platform) && $0.downloads?.artifact != nil }) else {
-                throw MojangError.unsupported("Эта версия не поддерживает \(platform == .appleSilicon ? "Apple Silicon" : "Intel Mac"): подходящие библиотеки игры отсутствуют.")
+                throw MojangError.unsupported(String(appLocalized: "Эта версия не поддерживает \(platform == .appleSilicon ? "Apple Silicon" : "Intel Mac"): подходящие библиотеки игры отсутствуют."))
             }
         }
         for library in eligible {
             if library.isMacNativeArtifact && !library.nativeMatches(platform) { continue }
             if let artifact = library.downloads?.artifact {
-                guard let path = artifact.path else { throw MojangError.invalid("В описании библиотеки отсутствует путь.") }
+                guard let path = artifact.path else { throw MojangError.invalid(String(appLocalized: "В описании библиотеки отсутствует путь.")) }
                 result.append(.init(download: artifact, path: path, extractionExcludes: nil))
             }
             if let classifier = library.natives?["osx"] {
                 let key = classifier.replacingOccurrences(of: "${arch}", with: "64")
                 if platform == .appleSilicon && !key.contains("arm64") && !key.contains("aarch64") {
-                    throw MojangError.unsupported("Эта версия не поддерживает Apple Silicon: библиотеки игры доступны только для Intel.")
+                    throw MojangError.unsupported(String(appLocalized: "Эта версия не поддерживает Apple Silicon: библиотеки игры доступны только для Intel."))
                 }
                 guard let native = library.downloads?.classifiers?[key], let path = native.path else {
-                    throw MojangError.unsupported("Для этой версии отсутствуют подходящие библиотеки macOS.")
+                    throw MojangError.unsupported(String(appLocalized: "Для этой версии отсутствуют подходящие библиотеки macOS."))
                 }
                 result.append(.init(download: native, path: path, extractionExcludes: library.extract?.exclude ?? []))
             }
             if library.downloads?.artifact == nil && library.natives?["osx"] == nil && !library.isMacNativeArtifact {
-                throw MojangError.unsupported("Mojang не предоставляет файлы библиотеки \(library.name) для этой версии.")
+                throw MojangError.unsupported(String(appLocalized: "Mojang не предоставляет файлы библиотеки \(library.name) для этой версии."))
             }
         }
         return result

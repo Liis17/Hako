@@ -19,11 +19,11 @@ actor FabricClient {
     }
 
     private func data(_ url: URL, unsupportedIsEmpty: Bool = false) async throws -> Data {
-        guard url.scheme == "https" else { throw MojangError.invalid("Ссылка загрузки должна использовать HTTPS.") }
+        guard url.scheme == "https" else { throw MojangError.invalid(String(appLocalized: "Ссылка загрузки должна использовать HTTPS.")) }
         var request = URLRequest(url: url)
         request.setValue("Hako/\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0") (https://github.com/Liis17/Hako)", forHTTPHeaderField: "User-Agent")
         let (bytes, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid("Некорректный ответ сервера Fabric.") }
+        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid(String(appLocalized: "Некорректный ответ сервера Fabric.")) }
         if unsupportedIsEmpty && response.statusCode == 400 && (try? JSONSerialization.jsonObject(with: bytes) as? [Any])?.isEmpty == true { return bytes }
         guard (200..<300).contains(response.statusCode) else { throw MojangError.http(response.statusCode) }
         try Task.checkCancellation()
@@ -55,11 +55,11 @@ actor FabricClient {
             let lhs = priority[$0.version_type]!, rhs = priority[$1.version_type]!
             return lhs == rhs ? $0.date_published > $1.date_published : lhs < rhs
         }
-        guard let version = sorted.first else { throw MojangError.unsupported("Для Minecraft \(minecraft) ещё нет совместимого Fabric API. Выберите другую версию Minecraft или Vanilla.") }
+        guard let version = sorted.first else { throw MojangError.unsupported(String(appLocalized: "Для Minecraft \(minecraft) ещё нет совместимого Fabric API. Выберите другую версию Minecraft или Vanilla.")) }
         let files = version.files.filter { $0.filename.lowercased().hasSuffix(".jar") && !["sources-jar", "dev-jar", "javadoc-jar"].contains($0.file_type ?? "") }
-        guard let file = files.first(where: \.primary) ?? files.first, let sha1 = file.hashes["sha1"], let sha512 = file.hashes["sha512"], file.size > 0 else { throw MojangError.invalid("В описании Fabric API отсутствует проверяемый JAR-файл.") }
+        guard let file = files.first(where: \.primary) ?? files.first, let sha1 = file.hashes["sha1"], let sha512 = file.hashes["sha512"], file.size > 0 else { throw MojangError.invalid(String(appLocalized: "В описании Fabric API отсутствует проверяемый JAR-файл.")) }
         _ = try InstanceStorage.containedURL(file.filename, in: cache)
-        guard !file.filename.contains("/"), sha1.count == 40, sha512.count == 128, (sha1 + sha512).allSatisfy(\.isHexDigit) else { throw MojangError.invalid("Некорректное описание файла Fabric API.") }
+        guard !file.filename.contains("/"), sha1.count == 40, sha512.count == 128, (sha1 + sha512).allSatisfy(\.isHexDigit) else { throw MojangError.invalid(String(appLocalized: "Некорректное описание файла Fabric API.")) }
         return .init(projectID: version.project_id, versionID: version.id, version: version.version_number, channel: version.version_type, filename: file.filename, url: file.url, size: file.size, sha1: sha1, sha512: sha512)
     }
 
@@ -69,16 +69,16 @@ actor FabricClient {
         let metadata = try await metadata(for: api)
         var compatible: [FabricLoaderVersion] = []
         for loader in try await versions where try metadata.supports(loader: loader.version, java: java) { compatible.append(loader) }
-        guard !compatible.isEmpty else { throw MojangError.unsupported("Fabric API \(api.version) требует другую версию Java или Fabric Loader.") }
+        guard !compatible.isEmpty else { throw MojangError.unsupported(String(appLocalized: "Fabric API \(api.version) требует другую версию Java или Fabric Loader.")) }
         return .init(api: api, metadata: metadata, loaders: compatible)
     }
 
     func cachedAPI(_ api: FabricAPIDescriptor) async throws -> URL {
-        guard api.projectID == FabricAPIDescriptor.project, api.sha512.count == 128, api.sha512.allSatisfy(\.isHexDigit) else { throw MojangError.invalid("Некорректное описание Fabric API.") }
+        guard api.projectID == FabricAPIDescriptor.project, api.sha512.count == 128, api.sha512.allSatisfy(\.isHexDigit) else { throw MojangError.invalid(String(appLocalized: "Некорректное описание Fabric API.")) }
         let target = try InstanceStorage.containedURL("\(api.sha512).jar", in: cache)
         if try Self.validAPI(target, api: api) { return target }
         let bytes = try await data(api.url)
-        guard Int64(bytes.count) == api.size, Self.hash(bytes) == api.sha512.lowercased() else { throw MojangError.invalid("Загруженный Fabric API повреждён. Повторите загрузку.") }
+        guard Int64(bytes.count) == api.size, Self.hash(bytes) == api.sha512.lowercased() else { throw MojangError.invalid(String(appLocalized: "Загруженный Fabric API повреждён. Повторите загрузку.")) }
         try MojangIntegrity.check(bytes, download: .init(url: api.url, sha1: api.sha1, size: api.size))
         try Task.checkCancellation()
         try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
@@ -96,10 +96,10 @@ actor FabricClient {
     }
 
     @concurrent static func archiveEntry(_ entry: String, in archive: URL, limit: Int) async throws -> Data {
-        guard !entry.hasPrefix("/"), !entry.contains("\\"), !entry.contains(where: { "*?[]".contains($0) }), entry.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { throw MojangError.invalid("Некорректный путь внутри JAR.") }
+        guard !entry.hasPrefix("/"), !entry.contains("\\"), !entry.contains(where: { "*?[]".contains($0) }), entry.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { throw MojangError.invalid(String(appLocalized: "Некорректный путь внутри JAR.")) }
         try Task.checkCancellation()
         let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        guard FileManager.default.createFile(atPath: output.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw MojangError.invalid("Не удалось прочитать Fabric API.") }
+        guard FileManager.default.createFile(atPath: output.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw MojangError.invalid(String(appLocalized: "Не удалось прочитать Fabric API.")) }
         defer { try? FileManager.default.removeItem(at: output) }
         let handle = try FileHandle(forWritingTo: output)
         defer { try? handle.close() }
@@ -114,11 +114,11 @@ actor FabricClient {
             if Task.isCancelled || Date() > deadline || size > limit {
                 process.interrupt(); process.terminate(); kill(process.processIdentifier, SIGKILL); while process.isRunning { usleep(1_000) }
                 try Task.checkCancellation()
-                throw MojangError.invalid("Не удалось прочитать metadata Fabric API.")
+                throw MojangError.invalid(String(appLocalized: "Не удалось прочитать metadata Fabric API."))
             }
             try await Task.sleep(for: .milliseconds(20))
         }
-        guard process.terminationStatus == 0, (try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= limit else { throw MojangError.invalid("В Fabric API отсутствует fabric.mod.json.") }
+        guard process.terminationStatus == 0, (try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= limit else { throw MojangError.invalid(String(appLocalized: "В Fabric API отсутствует fabric.mod.json.")) }
         return try Data(contentsOf: output)
     }
 
@@ -138,7 +138,7 @@ actor FabricClient {
             let checksum: String
             if let sha1 = library.sha1 { checksum = sha1 }
             else { checksum = String(decoding: try await data(URL(string: url.absoluteString + ".sha1")!), as: UTF8.self).split(whereSeparator: \.isWhitespace).first.map(String.init) ?? "" }
-            guard checksum.count == 40, checksum.allSatisfy(\.isHexDigit) else { throw MojangError.invalid("Отсутствует контрольная сумма библиотеки Fabric.") }
+            guard checksum.count == 40, checksum.allSatisfy(\.isHexDigit) else { throw MojangError.invalid(String(appLocalized: "Отсутствует контрольная сумма библиотеки Fabric.")) }
             files.append(.init(download: .init(url: url, sha1: checksum, size: library.size, path: path), path: path, extractionExcludes: nil))
         }
         return files

@@ -1,9 +1,12 @@
 import AppKit
 import SwiftUI
 
-private enum VersionFilter: String, CaseIterable, Identifiable {
-    case releases = "Релизы", snapshots = "Снапшоты", historical = "История", all = "Все"
+private enum VersionFilter: CaseIterable, Identifiable {
+    case releases, snapshots, historical, all
     var id: Self { self }
+    var title: LocalizedStringKey {
+        switch self { case .releases: "Релизы"; case .snapshots: "Снапшоты"; case .historical: "История"; case .all: "Все" }
+    }
     func includes(_ version: MinecraftVersion) -> Bool {
         switch self {
         case .releases: version.type == "release"
@@ -65,7 +68,7 @@ struct InstanceCreationView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack { Text("Название").font(.headline); Spacer(); Text("\(draft.name.count)/60").font(.caption).foregroundStyle(.secondary) }
                         TextField("Например, My Vanilla Pack", text: $draft.name).textFieldStyle(.roundedBorder).accessibilityLabel("Название сборки")
-                        Text(nameError ?? "Пробелы в имени папки будут заменены на _.")
+                        Text(nameError ?? String(appLocalized: "Пробелы в имени папки будут заменены на _."))
                             .font(.caption).foregroundStyle(nameError != nil && !draft.name.isEmpty ? Color.shu : .secondary)
                     }
                     VStack(alignment: .leading, spacing: 12) {
@@ -77,7 +80,7 @@ struct InstanceCreationView: View {
                             ProgressView("Загружаем версии…")
                         } else {
                             Picker("Тип версий", selection: $filter) {
-                                ForEach(VersionFilter.allCases) { Text($0.rawValue).tag($0) }
+                                ForEach(VersionFilter.allCases) { Text($0.title).tag($0) }
                             }.pickerStyle(.segmented).labelsHidden()
                             TextField("Поиск версии", text: $search).textFieldStyle(.roundedBorder)
                             if versions.isEmpty { Text("Версии не найдены.").foregroundStyle(.secondary) }
@@ -105,7 +108,7 @@ struct InstanceCreationView: View {
                             if let preparedFabric {
                                 Picker("Версия Fabric Loader", selection: $selectedLoader) {
                                     ForEach(preparedFabric.loaders) { loader in
-                                        Text(loader.version + (loader.stable ? " — рекомендуется" : "")).tag(loader.version)
+                                        (loader.stable ? Text("\(loader.version) — рекомендуется") : Text(verbatim: loader.version)).tag(loader.version)
                                     }
                                 }.pickerStyle(.menu)
                                 Text("Fabric API \(preparedFabric.api.version)\(preparedFabric.api.channel == "release" ? "" : " · \(preparedFabric.api.channel)") установится автоматически.")

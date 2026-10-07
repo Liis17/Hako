@@ -43,6 +43,6 @@ nonisolated enum GameAppBundle {
             process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
             do { try process.run() } catch { continuation.resume(throwing: error) }
         }
-        guard status == 0 else { throw InstanceFileError.message("Не удалось подготовить запуск Java (codesign, код \(status)).") }
+        guard status == 0 else { throw InstanceFileError.message(String(appLocalized: "Не удалось подготовить запуск Java (codesign, код \(status)).")) }
     }
 }

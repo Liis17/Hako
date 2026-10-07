@@ -55,10 +55,10 @@ struct ModrinthUpdate {
     }
 
     func disabledReason(_ instance: GameInstance, mods: Bool) -> String? {
-        if installations.store.launchBusy.contains(instance.id) { return "Закройте Minecraft перед изменением файлов сборки." }
-        if installations.contentBusy.contains(instance.id) { return "Дождитесь завершения операции с файлами." }
-        if mods && instance.modLoader != .fabric { return "Моды доступны для сборок с Fabric." }
-        if mods && (instance.state == .queued || instance.state == .installing) { return "Дождитесь завершения установки Fabric." }
+        if installations.store.launchBusy.contains(instance.id) { return String(appLocalized: "Закройте Minecraft перед изменением файлов сборки.") }
+        if installations.contentBusy.contains(instance.id) { return String(appLocalized: "Дождитесь завершения операции с файлами.") }
+        if mods && instance.modLoader != .fabric { return String(appLocalized: "Моды доступны для сборок с Fabric.") }
+        if mods && (instance.state == .queued || instance.state == .installing) { return String(appLocalized: "Дождитесь завершения установки Fabric.") }
         return nil
     }
 
@@ -73,7 +73,7 @@ struct ModrinthUpdate {
                 guard mods else { throw error }
                 items = try await installations.content.list(at: folder, mods: mods, readOrigins: false)
                 guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
-                errors[instance.id] = "Не удалось прочитать реестр модов. Источники и обновления недоступны: \(error.localizedDescription)"
+                errors[instance.id] = String(appLocalized: "Не удалось прочитать реестр модов. Источники и обновления недоступны: \(error.localizedDescription)")
                 self.mods[instance.id] = items
                 return
             }
@@ -135,7 +135,7 @@ struct ModrinthUpdate {
             for source in sources {
                 do { try await installations.content.importItem(from: source, into: folder, mods: mods) }
                 catch PackImportError.exists {
-                    let allowed = await confirm(.init(title: "Заменить \(mods ? "мод" : "ресурспак")?", message: "\(source.lastPathComponent) уже существует в сборке «\(instance.name)».", action: "Заменить", destructive: true))
+                    let allowed = await confirm(.init(title: mods ? String(appLocalized: "Заменить мод?") : String(appLocalized: "Заменить ресурспак?"), message: String(appLocalized: "\(source.lastPathComponent) уже существует в сборке «\(instance.name)»."), action: String(appLocalized: "Заменить"), destructive: true))
                     if allowed {
                         do { try await installations.content.importItem(from: source, into: folder, mods: mods, replace: true) }
                         catch { failures.append("\(source.lastPathComponent): \(error.localizedDescription)") }
@@ -150,7 +150,7 @@ struct ModrinthUpdate {
     func setEnabled(_ item: InstanceContentItem, in instance: GameInstance, enabled: Bool, mods: Bool = true) {
         perform(instance, mods: mods) { [self] folder in
             if !enabled && item.origin?.projectID == FabricAPIDescriptor.project {
-                guard await confirm(.init(title: "Отключить Fabric API?", message: "Моды, зависящие от Fabric API, могут больше не давать игре запуститься.", action: "Отключить", destructive: false)) else { return }
+                guard await confirm(.init(title: String(appLocalized: "Отключить Fabric API?"), message: String(appLocalized: "Моды, зависящие от Fabric API, могут больше не давать игре запуститься."), action: String(appLocalized: "Отключить"), destructive: false)) else { return }
             }
             try await installations.content.setEnabled(item, in: folder, enabled: enabled, mods: mods)
         }
@@ -158,8 +158,10 @@ struct ModrinthUpdate {
 
     func delete(_ item: InstanceContentItem, in instance: GameInstance, mods: Bool) {
         perform(instance, mods: mods) { [self] folder in
-            let warning = item.origin?.projectID == FabricAPIDescriptor.project ? " Моды, зависящие от Fabric API, могут больше не давать игре запуститься." : ""
-            guard await confirm(.init(title: "Удалить \(mods ? "мод" : "ресурспак")?", message: "\(item.logicalName) будет перемещён в корзину.\(warning)", action: "Удалить", destructive: true)) else { return }
+            let message = item.origin?.projectID == FabricAPIDescriptor.project
+                ? String(appLocalized: "\(item.logicalName) будет перемещён в корзину. Моды, зависящие от Fabric API, могут больше не давать игре запуститься.")
+                : String(appLocalized: "\(item.logicalName) будет перемещён в корзину.")
+            guard await confirm(.init(title: mods ? String(appLocalized: "Удалить мод?") : String(appLocalized: "Удалить ресурспак?"), message: message, action: String(appLocalized: "Удалить"), destructive: true)) else { return }
             try await installations.content.trash(item, in: folder, mods: mods)
         }
     }
@@ -179,7 +181,7 @@ struct ModrinthUpdate {
             guard !Task.isCancelled else { return }
             guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else {
                 updates[instance.id] = [:]
-                updateMessages[instance.id] = "Fabric API \(latest.version) требует другой версии Loader или Java. Текущая версия сохранена."
+                updateMessages[instance.id] = String(appLocalized: "Fabric API \(latest.version) требует другой версии Loader или Java. Текущая версия сохранена.")
                 return
             }
             var available: [String: FabricAPIDescriptor] = [:]
@@ -188,16 +190,16 @@ struct ModrinthUpdate {
             }
             updates[instance.id] = available
         } catch {
-            if !Task.isCancelled { updateMessages[instance.id] = "Не удалось проверить обновление Fabric API: \(error.localizedDescription)" }
+            if !Task.isCancelled { updateMessages[instance.id] = String(appLocalized: "Не удалось проверить обновление Fabric API: \(error.localizedDescription)") }
         }
     }
 
     func update(_ item: InstanceContentItem, in instance: GameInstance) {
         guard item.origin?.api != nil, let next = updates[instance.id]?[item.logicalName.lowercased()] else { return }
         perform(instance, mods: true) { [self] folder in
-            guard let configuration = try instance.fabricConfiguration() else { throw InstanceFileError.message("Конфигурация Fabric отсутствует.") }
+            guard let configuration = try instance.fabricConfiguration() else { throw InstanceFileError.message(String(appLocalized: "Конфигурация Fabric отсутствует.")) }
             let metadata = try await installations.fabricClient.metadata(for: next)
-            guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else { throw InstanceFileError.message("Обновление Fabric API несовместимо с Loader или Java сборки.") }
+            guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else { throw InstanceFileError.message(String(appLocalized: "Обновление Fabric API несовместимо с Loader или Java сборки.")) }
             let cached = try await installations.fabricClient.cachedAPI(next)
             try await installations.content.updateAPI(item, to: next, from: cached, in: folder)
             updates[instance.id] = nil; updateMessages[instance.id] = nil
@@ -240,7 +242,7 @@ struct ModrinthUpdate {
             }
             modrinthUpdates[key] = available
         } catch {
-            if !Task.isCancelled { modrinthUpdateMessages[key] = "Не удалось проверить обновления: \(error.localizedDescription)" }
+            if !Task.isCancelled { modrinthUpdateMessages[key] = String(appLocalized: "Не удалось проверить обновления: \(error.localizedDescription)") }
         }
     }
 
@@ -249,7 +251,7 @@ struct ModrinthUpdate {
         catalogInstalling[instance.id] = update.projectID
         let started = perform(instance, mods: mods) { [self] _ in
             defer { catalogInstalling[instance.id] = nil }
-            guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message("Проект Modrinth не найден.") }
+            guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message(String(appLocalized: "Проект Modrinth не найден.")) }
             try await installFromModrinth(project, in: instance, mods: mods, version: update.version, replacing: (item, update.currentSHA512))
         }
         if !started { catalogInstalling[instance.id] = nil }
@@ -300,8 +302,18 @@ struct ModrinthUpdate {
         let minecraft = instance.versionID
         let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, mods: mods, minecraft: minecraft, channel: channel) : requested
         guard let version = latest, let file = version.file(mods: mods) else {
-            let kind = ["release": "релиза", "beta": "беты", "alpha": "альфы"][channel ?? ""] ?? "версии"
-            throw InstanceFileError.message("У «\(project.title)» нет \(kind) для Minecraft \(minecraft)\(mods ? " и Fabric" : "").")
+            let title = project.title
+            let message = switch (channel, mods) {
+            case ("release"?, true): String(appLocalized: "У «\(title)» нет релиза для Minecraft \(minecraft) и Fabric.")
+            case ("release"?, false): String(appLocalized: "У «\(title)» нет релиза для Minecraft \(minecraft).")
+            case ("beta"?, true): String(appLocalized: "У «\(title)» нет беты для Minecraft \(minecraft) и Fabric.")
+            case ("beta"?, false): String(appLocalized: "У «\(title)» нет беты для Minecraft \(minecraft).")
+            case ("alpha"?, true): String(appLocalized: "У «\(title)» нет альфы для Minecraft \(minecraft) и Fabric.")
+            case ("alpha"?, false): String(appLocalized: "У «\(title)» нет альфы для Minecraft \(minecraft).")
+            case (_, true): String(appLocalized: "У «\(title)» нет версии для Minecraft \(minecraft) и Fabric.")
+            case (_, false): String(appLocalized: "У «\(title)» нет версии для Minecraft \(minecraft).")
+            }
+            throw InstanceFileError.message(message)
         }
         let modsAvailable = instance.modLoader == .fabric && instance.state != .queued && instance.state != .installing
         var installed: [Bool: [String: [InstanceContentItem]]] = [:]
@@ -315,22 +327,22 @@ struct ModrinthUpdate {
             for dependency in try await modrinth.projects(ids.filter { seen.insert($0).inserted }) {
                 let dependencyMods = dependency.projectType == "mod"
                 let entry = { (note: String?) in ContentConfirmation.Project(id: dependency.id, title: dependency.title, iconURL: dependency.iconURL, note: note) }
-                guard dependencyMods || dependency.projectType == "resourcepack" else { listed.append(entry("Не поддерживается Hako")); continue }
-                guard !dependencyMods || modsAvailable else { listed.append(entry("Нужна сборка с Fabric")); continue }
+                guard dependencyMods || dependency.projectType == "resourcepack" else { listed.append(entry(String(appLocalized: "Не поддерживается Hako"))); continue }
+                guard !dependencyMods || modsAvailable else { listed.append(entry(String(appLocalized: "Нужна сборка с Fabric"))); continue }
                 if installed[dependencyMods] == nil { installed[dependencyMods] = try await installedProjects(instance, mods: dependencyMods) }
                 if let present = installed[dependencyMods]?[dependency.id] {
                     guard !present.contains(where: \.enabled), let disabled = present.first else { continue }
-                    enable.append((disabled, dependencyMods)); listed.append(entry("Отключён — будет включён"))
+                    enable.append((disabled, dependencyMods)); listed.append(entry(String(appLocalized: "Отключён — будет включён")))
                     continue
                 }
                 guard let next = try await modrinth.latestVersion(project: dependency.id, mods: dependencyMods, minecraft: minecraft), let nextFile = next.file(mods: dependencyMods) else {
-                    listed.append(entry("Нет совместимой версии")); continue
+                    listed.append(entry(String(appLocalized: "Нет совместимой версии"))); continue
                 }
                 downloads.append(.init(project: dependency, version: next, file: nextFile, mods: dependencyMods)); listed.append(entry(nil)); pending.append(next)
             }
         }
         if !listed.isEmpty {
-            let choice = await choose(.init(title: "Нужны зависимости", message: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:", action: downloads.isEmpty && enable.isEmpty ? nil : "Добавить с зависимостями", destructive: false, alternative: replacing != nil ? "Только обновить" : mods ? "Только мод" : "Только ресурспак", projects: listed))
+            let choice = await choose(.init(title: String(appLocalized: "Нужны зависимости"), message: String(appLocalized: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:"), action: downloads.isEmpty && enable.isEmpty ? nil : String(appLocalized: "Добавить с зависимостями"), destructive: false, alternative: replacing != nil ? String(appLocalized: "Только обновить") : mods ? String(appLocalized: "Только мод") : String(appLocalized: "Только ресурспак"), projects: listed))
             if choice == .cancel { return }
             if choice == .alternative { downloads = []; enable = [] }
         }
@@ -362,11 +374,14 @@ struct ModrinthUpdate {
             }
         }
         for conflict in try await modrinth.projects(Array(conflicts.keys)) {
-            warnings.append(.init(id: conflict.id, title: conflict.title, iconURL: conflict.iconURL, note: "Несовместим с «\(conflicts[conflict.id] ?? project.title)»"))
+            warnings.append(.init(id: conflict.id, title: conflict.title, iconURL: conflict.iconURL, note: String(appLocalized: "Несовместим с «\(conflicts[conflict.id] ?? project.title)»")))
         }
         if !warnings.isEmpty {
-            let verb = replacing == nil ? "Установить" : "Обновить"
-            guard await confirm(.init(title: "Возможна несовместимость", message: "Эти проблемы могут помешать запуску игры. \(verb) «\(project.title)» всё равно?", action: "\(verb) всё равно", destructive: true, projects: warnings)) else { return }
+            let message = replacing == nil
+                ? String(appLocalized: "Эти проблемы могут помешать запуску игры. Установить «\(project.title)» всё равно?")
+                : String(appLocalized: "Эти проблемы могут помешать запуску игры. Обновить «\(project.title)» всё равно?")
+            let action = replacing == nil ? String(appLocalized: "Установить всё равно") : String(appLocalized: "Обновить всё равно")
+            guard await confirm(.init(title: String(appLocalized: "Возможна несовместимость"), message: message, action: action, destructive: true, projects: warnings)) else { return }
         }
         for (download, url) in zip(downloads, files) {
             let target = try folder(instance, mods: download.mods)
@@ -377,7 +392,7 @@ struct ModrinthUpdate {
             }
             do { try await installations.content.importItem(from: url, into: target, mods: download.mods, origin: download.origin) }
             catch PackImportError.exists {
-                guard await confirm(.init(title: "Заменить \(download.mods ? "мод" : "ресурспак")?", message: "\(url.lastPathComponent) уже существует в сборке «\(instance.name)».", action: "Заменить", destructive: true)) else { continue }
+                guard await confirm(.init(title: download.mods ? String(appLocalized: "Заменить мод?") : String(appLocalized: "Заменить ресурспак?"), message: String(appLocalized: "\(url.lastPathComponent) уже существует в сборке «\(instance.name)»."), action: String(appLocalized: "Заменить"), destructive: true)) else { continue }
                 try await installations.content.importItem(from: url, into: target, mods: download.mods, replace: true, origin: download.origin)
             }
         }
@@ -392,10 +407,10 @@ struct ModrinthUpdate {
               let metadata = try? JSONDecoder().decode(FabricModMetadata.self, from: data) else { return [] }
         var notes: [String] = []
         if let predicate = metadata.depends?["fabricloader"], (try? predicate.matches(loader)) == false {
-            notes.append("Нужен Fabric Loader \(predicate.alternatives.joined(separator: " или ")), в сборке \(loader)")
+            notes.append(String(appLocalized: "Нужен Fabric Loader \(predicate.alternatives.formatted(.list(type: .or).locale(AppLanguage.current.locale))), в сборке \(loader)"))
         }
         if java > 0, let predicate = metadata.depends?["java"], (try? predicate.matches(String(java))) == false {
-            notes.append("Нужна Java \(predicate.alternatives.joined(separator: " или ")), в сборке \(java)")
+            notes.append(String(appLocalized: "Нужна Java \(predicate.alternatives.formatted(.list(type: .or).locale(AppLanguage.current.locale))), в сборке \(java)"))
         }
         return notes
     }

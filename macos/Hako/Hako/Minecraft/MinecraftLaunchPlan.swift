@@ -9,7 +9,7 @@ nonisolated struct MinecraftLaunchIdentity: Sendable {
     var userType = "msa"
 
     static func offline(name: String) throws -> Self {
-        guard OfflineUsername.isValid(name) else { throw InstanceFileError.message("Ник: от 3 до 16 латинских букв, цифр или _.") }
+        guard OfflineUsername.isValid(name) else { throw InstanceFileError.message(String(appLocalized: "Ник: от 3 до 16 латинских букв, цифр или _.")) }
         var bytes = Array(Insecure.MD5.hash(data: Data("OfflinePlayer:\(name)".utf8)))
         bytes[6] = (bytes[6] & 0x0f) | 0x30
         bytes[8] = (bytes[8] & 0x3f) | 0x80
@@ -24,7 +24,7 @@ nonisolated struct MinecraftLaunchPlan: Sendable {
 
     static func build(manifest: MinecraftVersionManifest, root: URL, executable: URL, identity: MinecraftLaunchIdentity, source: LaunchArgumentSource, parameters: InstanceParameters, assetIndex: MinecraftAssetIndex? = nil, platform: MinecraftPlatform = .current, clientID: String = "", launcherVersion: String = "1.0", fabric: FabricProfile? = nil) throws -> Self {
         try fabric?.validate(minecraft: manifest.id)
-        guard let mainClass = fabric?.mainClass ?? manifest.mainClass, !mainClass.isEmpty else { throw MojangError.invalid("В описании версии отсутствует главный класс Minecraft.") }
+        guard let mainClass = fabric?.mainClass ?? manifest.mainClass, !mainClass.isEmpty else { throw MojangError.invalid(String(appLocalized: "В описании версии отсутствует главный класс Minecraft.")) }
         let game = try InstanceStorage.containedURL("minecraft", in: root)
         let assets = try InstanceStorage.containedURL("assets", in: game)
         let indexID = manifest.assetIndex?.id ?? manifest.assets ?? "legacy"
@@ -75,7 +75,7 @@ nonisolated struct MinecraftLaunchPlan: Sendable {
         let extra = source == .mojang ? [] : try LaunchArguments.parse(parameters.minecraftArguments)
         let reserved = Set(["--username", "--uuid", "--accessToken", "--session", "--clientId", "--xuid", "--userType", "--userProperties", "--version", "--versionType", "--gameDir", "--assetsDir", "--assetIndex", "--width", "--height", "--fullscreen"])
         if let argument = extra.first(where: { reserved.contains($0.components(separatedBy: "=")[0]) }) {
-            throw InstanceFileError.message("Параметр \(argument.components(separatedBy: "=")[0]) задаётся отдельной настройкой или лаунчером.")
+            throw InstanceFileError.message(String(appLocalized: "Параметр \(argument.components(separatedBy: "=")[0]) задаётся отдельной настройкой или лаунчером."))
         }
         gameArguments += extra
         gameArguments = gameArguments.map { $0.replacingOccurrences(of: "${resolution_width}", with: String(parameters.windowWidth)).replacingOccurrences(of: "${resolution_height}", with: String(parameters.windowHeight)) }
@@ -87,7 +87,7 @@ nonisolated struct MinecraftLaunchPlan: Sendable {
         var result = text
         for match in expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
             let key = String(text[Range(match.range(at: 1), in: text)!])
-            guard let value = values[key] else { throw MojangError.invalid("Неизвестный параметр запуска Mojang: \(key).") }
+            guard let value = values[key] else { throw MojangError.invalid(String(appLocalized: "Неизвестный параметр запуска Mojang: \(key).")) }
             result.replaceSubrange(Range(match.range, in: result)!, with: value)
         }
         return result

@@ -41,14 +41,14 @@ nonisolated struct InstanceContentItem: Identifiable, Sendable {
 nonisolated enum PackImportError: LocalizedError {
     case exists(String)
     var errorDescription: String? {
-        switch self { case .exists(let name): "Файл \(name) уже существует." }
+        switch self { case .exists(let name): String(appLocalized: "Файл \(name) уже существует.") }
     }
 }
 
 actor InstanceContent {
     private func registry(at folder: URL) throws -> ModRegistry {
         let raw = folder.deletingLastPathComponent().appendingPathComponent(".hako-mods.json")
-        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message("Реестр модов не может быть ссылкой.") }
+        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message(String(appLocalized: "Реестр модов не может быть ссылкой.")) }
         let file = try InstanceStorage.containedURL(".hako-mods.json", in: folder.deletingLastPathComponent())
         guard FileManager.default.fileExists(atPath: file.path) else { return .init() }
         return try JSONDecoder().decode(ModRegistry.self, from: Data(contentsOf: file))
@@ -56,7 +56,7 @@ actor InstanceContent {
 
     private func saveRegistry(_ registry: ModRegistry, at folder: URL) throws {
         let raw = folder.deletingLastPathComponent().appendingPathComponent(".hako-mods.json")
-        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message("Реестр модов не может быть ссылкой.") }
+        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message(String(appLocalized: "Реестр модов не может быть ссылкой.")) }
         let file = try InstanceStorage.containedURL(".hako-mods.json", in: folder.deletingLastPathComponent())
         try JSONEncoder().encode(registry).write(to: file, options: .atomic)
     }
@@ -64,11 +64,11 @@ actor InstanceContent {
     func provisionAPI(_ api: FabricAPIDescriptor, from cached: URL, in folder: URL) throws {
         var registry = try registry(at: folder)
         guard !registry.apiProvisioned else { return }
-        guard try FabricClient.validAPI(cached, api: api) else { throw InstanceFileError.message("Файл Fabric API повреждён.") }
+        guard try FabricClient.validAPI(cached, api: api) else { throw InstanceFileError.message(String(appLocalized: "Файл Fabric API повреждён.")) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let target = try InstanceStorage.containedURL(api.filename, in: folder)
         if let existing = try existing(api.filename, in: folder, mods: true) {
-            guard try FabricClient.validAPI(existing, api: api), (try existing.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message("Файл Fabric API уже существует. Уберите конфликтующий файл и повторите установку.") }
+            guard try FabricClient.validAPI(existing, api: api), (try existing.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message(String(appLocalized: "Файл Fabric API уже существует. Уберите конфликтующий файл и повторите установку.")) }
             registry.files[api.filename.lowercased()] = ModOrigin(api: api); registry.apiProvisioned = true
             try saveRegistry(registry, at: folder)
             return
@@ -105,7 +105,7 @@ actor InstanceContent {
     private func disabledPacksFolder(_ folder: URL) throws -> URL {
         let name = ".hako-disabled-\(folder.lastPathComponent)"
         let raw = folder.deletingLastPathComponent().appendingPathComponent(name)
-        guard (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message("Папка отключённых паков не может быть ссылкой.") }
+        guard (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message(String(appLocalized: "Папка отключённых паков не может быть ссылкой.")) }
         return try InstanceStorage.containedURL(name, in: folder.deletingLastPathComponent())
     }
 
@@ -148,8 +148,8 @@ actor InstanceContent {
         let matches = files.filter {
             (mods ? InstanceContentItem.logicalName($0.lastPathComponent) : $0.lastPathComponent).lowercased() == name.lowercased()
         }
-        guard matches.count <= 1 else { throw InstanceFileError.message("Найдено несколько файлов \(name). Уберите дубликаты в папке сборки.") }
-        if let file = matches.first, try file.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true { throw InstanceFileError.message("Нельзя заменять файл-ссылку в сборке.") }
+        guard matches.count <= 1 else { throw InstanceFileError.message(String(appLocalized: "Найдено несколько файлов \(name). Уберите дубликаты в папке сборки.")) }
+        if let file = matches.first, try file.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true { throw InstanceFileError.message(String(appLocalized: "Нельзя заменять файл-ссылку в сборке.")) }
         return matches.first
     }
 
@@ -160,17 +160,17 @@ actor InstanceContent {
         let values = try source.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey])
         let accepted = mods ? values.isRegularFile == true && source.pathExtension.lowercased() == "jar" : values.isDirectory == true || values.isRegularFile == true && source.pathExtension.lowercased() == "zip"
         guard values.isSymbolicLink != true, accepted else {
-            throw InstanceFileError.message(mods ? "Выберите JAR-файл мода." : "Выберите ZIP-файл или папку ресурспака.")
+            throw InstanceFileError.message(mods ? String(appLocalized: "Выберите JAR-файл мода.") : String(appLocalized: "Выберите ZIP-файл или папку ресурспака."))
         }
         if values.isDirectory == true {
             let sourcePath = source.resolvingSymlinksInPath().standardizedFileURL.path + "/"
             guard !(folder.resolvingSymlinksInPath().standardizedFileURL.path + "/").hasPrefix(sourcePath) else {
-                throw InstanceFileError.message("Нельзя импортировать папку в неё саму. Выберите отдельную папку текстурпака.")
+                throw InstanceFileError.message(String(appLocalized: "Нельзя импортировать папку в неё саму. Выберите отдельную папку текстурпака."))
             }
             var failure: Error?
             let entries = manager.enumerator(at: source, includingPropertiesForKeys: [.isSymbolicLinkKey], errorHandler: { _, error in failure = error; return false })
             while let item = entries?.nextObject() as? URL {
-                if try item.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true { throw InstanceFileError.message("Папка текстурпака содержит ссылки. Импортируйте папку с независимыми файлами.") }
+                if try item.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true { throw InstanceFileError.message(String(appLocalized: "Папка текстурпака содержит ссылки. Импортируйте папку с независимыми файлами.")) }
             }
             if let failure { throw failure }
         }
@@ -214,10 +214,10 @@ actor InstanceContent {
 
     private func checkedFile(_ item: InstanceContentItem, in folder: URL) throws -> URL {
         let parent = item.disabledPack ? try disabledPacksFolder(folder) : folder
-        guard item.url.deletingLastPathComponent().standardizedFileURL.path == parent.standardizedFileURL.path else { throw InstanceFileError.message("Файл не принадлежит папке сборки.") }
+        guard item.url.deletingLastPathComponent().standardizedFileURL.path == parent.standardizedFileURL.path else { throw InstanceFileError.message(String(appLocalized: "Файл не принадлежит папке сборки.")) }
         let target = try InstanceStorage.containedURL(item.name, in: parent)
         let raw = parent.appendingPathComponent(item.name)
-        guard (try raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message("Файл содержимого не может быть ссылкой.") }
+        guard (try raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw InstanceFileError.message(String(appLocalized: "Файл содержимого не может быть ссылкой.")) }
         return target
     }
 
@@ -236,14 +236,14 @@ actor InstanceContent {
     func updateAPI(_ item: InstanceContentItem, to api: FabricAPIDescriptor, from cached: URL, in folder: URL) throws {
         let old = try checkedFile(item, in: folder)
         guard let origin = item.origin, origin.source == .modrinth, origin.projectID == FabricAPIDescriptor.project,
-              try FabricClient.hashFile(old) == origin.sha512, try FabricClient.validAPI(cached, api: api) else { throw InstanceFileError.message("Файл мода изменился. Обновите список и повторите действие.") }
+              try FabricClient.hashFile(old) == origin.sha512, try FabricClient.validAPI(cached, api: api) else { throw InstanceFileError.message(String(appLocalized: "Файл мода изменился. Обновите список и повторите действие.")) }
         try replaceItem(item, from: cached, filename: api.filename, in: folder, mods: true, origin: ModOrigin(api: api))
     }
 
     /// Заменяет мод или ресурспак новым файлом, сохраняя отключение; реестр модов получает новое происхождение.
     func replaceItem(_ item: InstanceContentItem, from source: URL, filename: String, in folder: URL, mods: Bool, expectedSHA512: String? = nil, origin: ModOrigin?) throws {
         let old = try checkedFile(item, in: folder)
-        if let expectedSHA512, try FabricClient.hashFile(old) != expectedSHA512.lowercased() { throw InstanceFileError.message("Файл изменился. Обновите список и повторите действие.") }
+        if let expectedSHA512, try FabricClient.hashFile(old) != expectedSHA512.lowercased() { throw InstanceFileError.message(String(appLocalized: "Файл изменился. Обновите список и повторите действие.")) }
         var registry = mods ? try registry(at: folder) : nil
         let parent = old.deletingLastPathComponent()
         let newName = filename + (mods && !item.enabled ? ".disabled" : "")

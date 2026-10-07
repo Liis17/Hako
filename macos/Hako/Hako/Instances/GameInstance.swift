@@ -28,11 +28,11 @@ nonisolated enum InstallationState: String, Codable, Sendable {
 
     var title: String {
         switch self {
-        case .queued: "В очереди"
-        case .installing: "Установка"
-        case .paused: "Загрузка остановлена"
-        case .ready: "Готова"
-        case .failed: "Ошибка установки"
+        case .queued: String(appLocalized: "В очереди")
+        case .installing: String(appLocalized: "Установка")
+        case .paused: String(appLocalized: "Загрузка остановлена")
+        case .ready: String(appLocalized: "Готова")
+        case .failed: String(appLocalized: "Ошибка установки")
         }
     }
 }
@@ -73,9 +73,9 @@ nonisolated enum InstallationState: String, Codable, Sendable {
         return "Fabric \((try? fabricConfiguration())?.loaderVersion ?? "")"
     }
     func fabricConfiguration() throws -> FabricConfiguration? {
-        guard let loader = ModLoader(rawValue: modLoaderRaw) else { throw InstanceFileError.message("Неизвестный загрузчик модов: \(modLoaderRaw).") }
+        guard let loader = ModLoader(rawValue: modLoaderRaw) else { throw InstanceFileError.message(String(appLocalized: "Неизвестный загрузчик модов: \(modLoaderRaw).")) }
         guard loader == .fabric else { return nil }
-        guard let fabricConfigurationData else { throw InstanceFileError.message("Конфигурация Fabric отсутствует. Повторите установку сборки.") }
+        guard let fabricConfigurationData else { throw InstanceFileError.message(String(appLocalized: "Конфигурация Fabric отсутствует. Повторите установку сборки.")) }
         return try JSONDecoder().decode(FabricConfiguration.self, from: fabricConfigurationData)
     }
 
@@ -195,7 +195,7 @@ nonisolated enum InstanceName {
         let name = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name.count <= 60,
               name.unicodeScalars.allSatisfy({ (65...90).contains($0.value) || (97...122).contains($0.value) || (48...57).contains($0.value) || $0.value == 32 }) else {
-            throw InstanceFileError.message("Введите от 1 до 60 символов: латинские буквы, цифры и пробелы.")
+            throw InstanceFileError.message(String(appLocalized: "Введите от 1 до 60 символов: латинские буквы, цифры и пробелы."))
         }
         return name
     }

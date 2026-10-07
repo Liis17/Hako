@@ -42,7 +42,7 @@ enum MinecraftStatus {
             if !force, case .failed = statuses[xuid] { return }
             guard var tokens = dependencies.load(xuid) else {
                 identities[xuid] = nil; expirations[xuid] = nil
-                statuses[xuid] = .failed("Данные входа недоступны. Войдите в Microsoft повторно.")
+                statuses[xuid] = .failed(String(appLocalized: "Данные входа недоступны. Войдите в Microsoft повторно."))
                 return
             }
             if let token = tokens.minecraftAccessToken, !token.isEmpty, let expiry = tokens.minecraftTokenExpiration,

@@ -36,7 +36,7 @@ import SwiftData
 
     func refresh() {
         do { try reconcile(); errorMessage = nil }
-        catch { errorMessage = "Не удалось сохранить игровое время: \(error.localizedDescription)" }
+        catch { errorMessage = String(appLocalized: "Не удалось сохранить игровое время: \(error.localizedDescription)") }
     }
 
     func reconcile() throws {
@@ -107,7 +107,7 @@ import SwiftData
 
     func credit(sessionID: UUID, elapsedSeconds: TimeInterval) throws {
         guard elapsedSeconds.isFinite, elapsedSeconds >= 0, let session = sessions[sessionID] else {
-            throw InstanceFileError.message("Не удалось прочитать игровую сессию для учёта времени.")
+            throw InstanceFileError.message(String(appLocalized: "Не удалось прочитать игровую сессию для учёта времени."))
         }
         let delta = elapsedSeconds - session.creditedSeconds
         guard delta > 0 else { return }

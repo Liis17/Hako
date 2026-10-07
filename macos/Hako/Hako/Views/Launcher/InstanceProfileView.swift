@@ -2,9 +2,12 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-private enum InstanceSection: String, CaseIterable, Identifiable {
-    case mods = "Моды", packs = "Ресурспаки", settings = "Настройки"
+private enum InstanceSection: CaseIterable, Identifiable {
+    case mods, packs, settings
     var id: Self { self }
+    var title: LocalizedStringKey {
+        switch self { case .mods: "Моды"; case .packs: "Ресурспаки"; case .settings: "Настройки" }
+    }
 }
 
 private let profileColumnWidth: CGFloat = 900
@@ -71,7 +74,7 @@ struct InstanceProfileView: View {
                 Button(renameAction?.isSectionChange == true ? "Продолжить без переименования" : "Отмена", role: .cancel) { declineRename() }
             }
         } message: {
-            Text(actionError ?? "Будет переименована папка с файлами этой сборки в ~/.hako.")
+            Text(actionError ?? String(appLocalized: "Будет переименована папка с файлами этой сборки в ~/.hako."))
         }
     }
 
@@ -112,7 +115,7 @@ struct InstanceProfileView: View {
             if instance.state != .ready { installationPanel }
             Picker("Раздел сборки", selection: Binding(get: { section }, set: requestSectionChange)) {
                 ForEach(InstanceSection.allCases) { item in
-                    Text(item.rawValue).tag(item)
+                    Text(item.title).tag(item)
                         .disabled(item == .mods && instance.modLoader != .fabric)
                         .selectionDisabled(item == .mods && instance.modLoader != .fabric)
                         .help(item == .mods && instance.modLoader != .fabric ? "Моды доступны только для сборок с выбранным модлоадером." : "")
@@ -147,15 +150,15 @@ struct InstanceProfileView: View {
     private func showActionsMenu() {
         let blocked = installations.store.managementBlockedReason(instance) != nil, ready = instance.state == .ready
         let menu = NSMenu(); menu.autoenablesItems = false
-        menu.addItem(ClosureMenuItem("Дублировать", systemImage: "plus.square.on.square", enabled: !blocked && ready, handler: duplicate))
-        menu.addItem(ClosureMenuItem("Резервная копия", systemImage: "archivebox", enabled: !blocked && ready, handler: backup))
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Дублировать"), systemImage: "plus.square.on.square", enabled: !blocked && ready, handler: duplicate))
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Резервная копия"), systemImage: "archivebox", enabled: !blocked && ready, handler: backup))
         menu.addItem(.separator())
-        menu.addItem(ClosureMenuItem("Удалить сборку…", systemImage: "trash", enabled: !blocked) { confirmingDelete = true })
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Удалить сборку…"), systemImage: "trash", enabled: !blocked) { confirmingDelete = true })
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
     private func duplicate() {
-        operation = "Копируем сборку…"
+        operation = String(appLocalized: "Копируем сборку…")
         Task {
             defer { operation = nil }
             do { _ = try await installations.store.duplicate(instance) }
@@ -164,7 +167,7 @@ struct InstanceProfileView: View {
     }
 
     private func backup() {
-        operation = "Создаём резервную копию…"
+        operation = String(appLocalized: "Создаём резервную копию…")
         Task {
             defer { operation = nil }
             do { backupURL = try await installations.store.backup(instance, content: installations.content) }
@@ -192,7 +195,7 @@ struct InstanceProfileView: View {
     private func confirmRename() {
         do {
             guard !installations.contentBusy.contains(instance.id) else {
-                throw InstanceFileError.message("Дождитесь завершения операций с файлами перед переименованием.")
+                throw InstanceFileError.message(String(appLocalized: "Дождитесь завершения операций с файлами перед переименованием."))
             }
             try installations.store.rename(instance, to: nameDraft)
             nameDraft = instance.name
@@ -324,11 +327,11 @@ private struct InstanceSettingsView: View {
     private func loadManifest() async {
         manifestError = nil
         do {
-            guard let url = URL(string: instance.metadataURL) else { throw MojangError.invalid("Не удалось прочитать ссылку описания версии.") }
+            guard let url = URL(string: instance.metadataURL) else { throw MojangError.invalid(String(appLocalized: "Не удалось прочитать ссылку описания версии.")) }
             let local = try InstanceStorage.containedURL("minecraft/versions/\(instance.versionID)/\(instance.versionID).json", in: installations.store.storage.directory(instance.folderName))
             let result = try await installations.client.manifest(.init(url: url, sha1: instance.metadataSHA1), installedAt: local)
             guard !Task.isCancelled else { return }
-            guard result.id == instance.versionID else { throw MojangError.invalid("Описание версии не соответствует сборке.") }
+            guard result.id == instance.versionID else { throw MojangError.invalid(String(appLocalized: "Описание версии не соответствует сборке.")) }
             if let configuration = try instance.fabricConfiguration() {
                 let root = try installations.store.storage.directory(instance.folderName)
                 if instance.fabricProfileSHA1 != nil { fabricProfile = try FabricProfile.installed(root: root, minecraft: instance.versionID, sha1: instance.fabricProfileSHA1) }
@@ -462,7 +465,7 @@ private struct InstanceFilesView: View {
                 }
                 if let url { urls.append(url) }
             }
-            if urls.isEmpty { content.errors[instance.id] = "Не удалось прочитать перетаскиваемые файлы." }
+            if urls.isEmpty { content.errors[instance.id] = String(appLocalized: "Не удалось прочитать перетаскиваемые файлы.") }
             else { content.importFiles(urls, into: instance, mods: mods) }
         }
         return true

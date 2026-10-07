@@ -40,7 +40,7 @@ struct ProfileView: View {
                 }
 
                 AccountRow(
-                    title: account.minecraftName ?? "Minecraft не подключён",
+                    title: account.minecraftName ?? String(appLocalized: "Minecraft не подключён"),
                     subtitle: minecraftSubtitle,
                     badge: "Java Edition"
                 ) {
@@ -80,8 +80,8 @@ struct ProfileView: View {
 
     private var minecraftStatusText: String {
         switch minecraftStatus {
-        case .idle: "Minecraft: Java Edition недоступен для этого аккаунта."
-        case .connecting: "Подключаем Minecraft…"
+        case .idle: String(appLocalized: "Minecraft: Java Edition недоступен для этого аккаунта.")
+        case .connecting: String(appLocalized: "Подключаем Minecraft…")
         case .failed(let message): message
         }
     }

@@ -37,7 +37,7 @@ actor GameProcessRunner {
 
     func start(_ plan: MinecraftLaunchPlan, id: UUID, root: URL, tracking: PlaytimeTrackingRequest? = nil, onExit: @escaping @Sendable (Int32?) async -> Void) async throws -> GameProcessRecord {
         if let previous = try GameProcessRecord.load(in: root), previous.isRunning {
-            throw InstanceFileError.message("Эта сборка уже запущена.")
+            throw InstanceFileError.message(String(appLocalized: "Эта сборка уже запущена."))
         }
         let log = try InstanceStorage.containedURL("minecraft/logs/hako-launch.log", in: root)
         try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)

@@ -14,7 +14,7 @@ actor PlaytimeHelperClient {
             let current = try PlaytimeJournal.load(from: url)
             if current.isFinished || current.helper?.isRunning == true { return }
             guard FileManager.default.isExecutableFile(atPath: executable.path) else {
-                throw InstanceFileError.message("Помощник учёта игрового времени отсутствует. Переустановите Hako.")
+                throw InstanceFileError.message(String(appLocalized: "Помощник учёта игрового времени отсутствует. Переустановите Hako."))
             }
             process.executableURL = executable; process.arguments = [url.path]
             process.standardInput = FileHandle.nullDevice
@@ -28,7 +28,7 @@ actor PlaytimeHelperClient {
                 if !process.isRunning { break }
                 try await Task.sleep(for: .milliseconds(20))
             }
-            throw InstanceFileError.message("Не удалось запустить помощник учёта игрового времени.")
+            throw InstanceFileError.message(String(appLocalized: "Не удалось запустить помощник учёта игрового времени."))
         } catch {
             if process.isRunning { process.terminate() }
             // Завершение игры могло уже сохранить время и удалить журнал во время подключения.

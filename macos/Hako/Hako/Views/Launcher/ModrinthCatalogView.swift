@@ -193,10 +193,10 @@ struct ModrinthCatalogRow: View {
     private var channelNote: String? {
         guard let channels, channels["release"] == nil else { return nil }
         switch (channels["beta"] != nil, channels["alpha"] != nil) {
-        case (true, true): return "Доступны только бета и альфа"
-        case (true, false): return "Доступна только бета"
-        case (false, true): return "Доступна только альфа"
-        case (false, false): return "Нет совместимой версии"
+        case (true, true): return String(appLocalized: "Доступны только бета и альфа")
+        case (true, false): return String(appLocalized: "Доступна только бета")
+        case (false, true): return String(appLocalized: "Доступна только альфа")
+        case (false, false): return String(appLocalized: "Нет совместимой версии")
         }
     }
 
@@ -252,9 +252,12 @@ struct ModrinthCatalogRow: View {
 
     private func showChannelMenu() {
         let menu = NSMenu(); menu.autoenablesItems = false
-        for (channel, install, missing) in [("beta", "бету", "Бета недоступна"), ("alpha", "альфу", "Альфа недоступна")] {
-            let version = channels?[channel]
-            menu.addItem(ClosureMenuItem(version.map { "Установить \(install) \($0.number)" } ?? missing, enabled: version != nil && status != .unavailable) { onAdd(channel) })
+        let beta = channels?["beta"], alpha = channels?["alpha"]
+        for (channel, version, title) in [
+            ("beta", beta, beta.map { String(appLocalized: "Установить бету \($0.number)") } ?? String(appLocalized: "Бета недоступна")),
+            ("alpha", alpha, alpha.map { String(appLocalized: "Установить альфу \($0.number)") } ?? String(appLocalized: "Альфа недоступна")),
+        ] {
+            menu.addItem(ClosureMenuItem(title, enabled: version != nil && status != .unavailable) { onAdd(channel) })
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }

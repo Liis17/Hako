@@ -16,7 +16,7 @@ struct KeychainError: LocalizedError {
     let status: OSStatus
 
     var errorDescription: String? {
-        "Не удалось сохранить данные входа в Keychain (код \(status))."
+        String(appLocalized: "Не удалось сохранить данные входа в Keychain (код \(String(status))).")
     }
 }
 

@@ -63,29 +63,29 @@ enum MicrosoftAuthError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingClientID:
-            "Укажите Client ID приложения Azure в MicrosoftAuth.clientID."
+            String(appLocalized: "Укажите Client ID приложения Azure в MicrosoftAuth.clientID.")
         case .codeExpired:
-            "Код истёк. Получите новый и попробуйте снова."
+            String(appLocalized: "Код истёк. Получите новый и попробуйте снова.")
         case .declined:
-            "Вход отклонён на странице Microsoft."
+            String(appLocalized: "Вход отклонён на странице Microsoft.")
         case .oauth(let description):
             description
         case .xbox(2148916233):
-            "У этого аккаунта нет профиля Xbox. Создайте его на xbox.com и попробуйте снова."
+            String(appLocalized: "У этого аккаунта нет профиля Xbox. Создайте его на xbox.com и попробуйте снова.")
         case .xbox(2148916235):
-            "Xbox Live недоступен в вашей стране."
+            String(appLocalized: "Xbox Live недоступен в вашей стране.")
         case .xbox(2148916236), .xbox(2148916237):
-            "Аккаунту нужно подтверждение возраста на xbox.com."
+            String(appLocalized: "Аккаунту нужно подтверждение возраста на xbox.com.")
         case .xbox(2148916238):
-            "Детский аккаунт: взрослый должен добавить его в семью Microsoft."
+            String(appLocalized: "Детский аккаунт: взрослый должен добавить его в семью Microsoft.")
         case .xbox(let code):
-            "Xbox Live отклонил вход (код \(code))."
+            String(appLocalized: "Xbox Live отклонил вход (код \(String(code))).")
         case .appNotApproved:
-            "Client ID не одобрен Mojang для Minecraft API. Заявка: aka.ms/mce-reviewappid"
+            String(appLocalized: "Client ID не одобрен Mojang для Minecraft API. Заявка: aka.ms/mce-reviewappid")
         case .noMinecraft:
-            "На этом аккаунте нет Minecraft: Java Edition."
+            String(appLocalized: "На этом аккаунте нет Minecraft: Java Edition.")
         case .unexpectedResponse(let status):
-            "Сервер ответил с ошибкой \(status). Попробуйте ещё раз."
+            String(appLocalized: "Сервер ответил с ошибкой \(status). Попробуйте ещё раз.")
         }
     }
 }

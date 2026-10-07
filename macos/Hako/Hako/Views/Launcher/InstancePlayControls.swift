@@ -42,11 +42,11 @@ struct InstancePlayControls: View {
                 }
             case nil:
                 if let reason = games.disabledReason(instance, account: account) {
-                    Text(compact && instance.state == .ready && !instance.offlineMode ? "Нужен Minecraft-вход или offline-mode." : reason)
+                    Text(compact && instance.state == .ready && !instance.offlineMode ? String(appLocalized: "Нужен Minecraft-вход или offline-mode.") : reason)
                         .font(.caption).foregroundStyle(.secondary).lineLimit(compact ? 2 : nil)
                 }
             }
         }.multilineTextAlignment(compact ? .leading : .trailing)
-        .help(games.disabledReason(instance, account: account) ?? "Запустить Minecraft")
+        .help(games.disabledReason(instance, account: account) ?? String(appLocalized: "Запустить Minecraft"))
     }
 }

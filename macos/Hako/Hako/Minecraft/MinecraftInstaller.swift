@@ -35,7 +35,7 @@ actor MinecraftInstaller {
     }
 
     func install(_ version: MinecraftVersion, at root: URL, platform: MinecraftPlatform = .current, fabric: FabricConfiguration? = nil, progress: @escaping @Sendable (InstallationProgress) async -> Void) async throws -> InstallationResult {
-        await progress(.init(stage: "Проверяем файлы версии…"))
+        await progress(.init(stage: String(appLocalized: "Проверяем файлы версии…")))
         let prepared = try await client.prepare(version, platform: platform)
         let runtimeData = try await client.data(for: prepared.runtime.manifest)
         let runtime = try JSONDecoder().decode(JavaRuntimeManifest.self, from: runtimeData)
@@ -45,17 +45,17 @@ actor MinecraftInstaller {
             _ = try InstanceStorage.containedURL(path, in: javaRoot)
             switch entry.type {
             case "file":
-                guard let raw = entry.downloads?["raw"] else { throw MojangError.invalid("В описании Java отсутствует файл загрузки.") }
+                guard let raw = entry.downloads?["raw"] else { throw MojangError.invalid(String(appLocalized: "В описании Java отсутствует файл загрузки.")) }
                 files.append(File(download: raw, path: "java/\(path)", executable: entry.executable == true))
             case "directory": break
             case "link":
-                guard let target = entry.target else { throw MojangError.invalid("В описании Java отсутствует цель ссылки.") }
+                guard let target = entry.target else { throw MojangError.invalid(String(appLocalized: "В описании Java отсутствует цель ссылки.")) }
                 _ = try Self.linkDestination(path: path, target: target, javaRoot: javaRoot)
-            default: throw MojangError.invalid("Неизвестный формат файла Java.")
+            default: throw MojangError.invalid(String(appLocalized: "Неизвестный формат файла Java."))
             }
         }
         guard let executable = runtime.files.keys.sorted().first(where: { $0.hasSuffix("/bin/java") || $0 == "bin/java" }) else {
-            throw MojangError.invalid("В комплекте Java отсутствует исполняемый файл.")
+            throw MojangError.invalid(String(appLocalized: "В комплекте Java отсутствует исполняемый файл."))
         }
         let manifest = prepared.manifest
         let versionDirectory = "minecraft/versions/\(version.id)"
@@ -64,7 +64,7 @@ actor MinecraftInstaller {
         for library in prepared.libraries { files.append(.init(download: library.download, path: "minecraft/libraries/\(library.path)")) }
         var fabricSHA1: String?
         if let fabric {
-            await progress(.init(stage: "Подготавливаем Fabric…"))
+            await progress(.init(stage: String(appLocalized: "Подготавливаем Fabric…")))
             let (profile, data) = try await fabricClient.profile(minecraft: version.id, loader: fabric.loaderVersion)
             for library in try await fabricClient.libraries(profile) { files.append(.init(download: library.download, path: "minecraft/libraries/\(library.path)")) }
             try Self.write(data, relativePath: "minecraft/.hako-fabric.json", root: root)
@@ -75,11 +75,11 @@ actor MinecraftInstaller {
         }
         var assets: MinecraftAssetIndex?
         if let index = manifest.assetIndex {
-            await progress(.init(stage: "Получаем список ресурсов…"))
+            await progress(.init(stage: String(appLocalized: "Получаем список ресурсов…")))
             let data = try await client.data(for: index.download)
             assets = try JSONDecoder().decode(MinecraftAssetIndex.self, from: data)
             for (name, object) in assets!.objects {
-                guard object.hash.count == 40, object.hash.allSatisfy({ $0.isHexDigit }), object.size >= 0 else { throw MojangError.invalid("Некорректный ресурс в описании игры.") }
+                guard object.hash.count == 40, object.hash.allSatisfy({ $0.isHexDigit }), object.size >= 0 else { throw MojangError.invalid(String(appLocalized: "Некорректный ресурс в описании игры.")) }
                 let path = "\(object.hash.prefix(2))/\(object.hash)"
                 files.append(.init(download: .init(url: assetBaseURL.appendingPathComponent(path), sha1: object.hash, size: object.size), path: "minecraft/assets/objects/\(path)"))
                 if assets?.virtual == true { _ = try InstanceStorage.containedURL("minecraft/assets/virtual/\(index.id)/\(name)", in: root) }
@@ -90,7 +90,7 @@ actor MinecraftInstaller {
         var unique: [String: File] = [:]
         for file in files {
             _ = try InstanceStorage.containedURL(file.path, in: root)
-            if let previous = unique[file.path], previous.download.sha1 != file.download.sha1 { throw MojangError.invalid("Конфликт файлов в описании версии.") }
+            if let previous = unique[file.path], previous.download.sha1 != file.download.sha1 { throw MojangError.invalid(String(appLocalized: "Конфликт файлов в описании версии.")) }
             unique[file.path] = file
         }
         try Self.write(prepared.manifestData, relativePath: "\(versionDirectory)/\(version.id).json", root: root)
@@ -98,7 +98,7 @@ actor MinecraftInstaller {
         let ordered = unique.values.sorted { $0.path < $1.path }
         let total = ordered.reduce(Int64(0)) { $0 + ($1.download.size ?? 0) }
         var completed: Int64 = 0
-        await progress(.init(stage: "Скачиваем Java и Minecraft…", totalBytes: total))
+        await progress(.init(stage: String(appLocalized: "Скачиваем Java и Minecraft…"), totalBytes: total))
         try await withThrowingTaskGroup(of: Int64.self) { group in
             var iterator = ordered.makeIterator()
             func schedule(_ file: File) {
@@ -110,12 +110,12 @@ actor MinecraftInstaller {
             for _ in 0..<4 { if let file = iterator.next() { schedule(file) } }
             while let size = try await group.next() {
                 completed += size
-                await progress(.init(stage: "Скачиваем Java и Minecraft…", completedBytes: completed, totalBytes: total))
+                await progress(.init(stage: String(appLocalized: "Скачиваем Java и Minecraft…"), completedBytes: completed, totalBytes: total))
                 try Task.checkCancellation()
                 if let file = iterator.next() { schedule(file) }
             }
         }
-        await progress(.init(stage: "Подготавливаем Java и библиотеки…", completedBytes: completed, totalBytes: total))
+        await progress(.init(stage: String(appLocalized: "Подготавливаем Java и библиотеки…"), completedBytes: completed, totalBytes: total))
         for (path, entry) in runtime.files.sorted(by: { $0.key < $1.key }) {
             try Task.checkCancellation()
             let url = try InstanceStorage.containedURL(path, in: javaRoot)
@@ -137,7 +137,7 @@ actor MinecraftInstaller {
             }
         }
         if let assets, let index = manifest.assetIndex {
-            await progress(.init(stage: "Подготавливаем ресурсы…", completedBytes: completed, totalBytes: total))
+            await progress(.init(stage: String(appLocalized: "Подготавливаем ресурсы…"), completedBytes: completed, totalBytes: total))
             for (name, object) in assets.objects {
                 try Task.checkCancellation()
                 let source = try InstanceStorage.containedURL("minecraft/assets/objects/\(object.hash.prefix(2))/\(object.hash)", in: root)
@@ -156,19 +156,19 @@ actor MinecraftInstaller {
         for path in ["minecraft/mods", "minecraft/\(manifest.legacyTexturepacks ? "texturepacks" : "resourcepacks")"] {
             try FileManager.default.createDirectory(at: try InstanceStorage.containedURL(path, in: root), withIntermediateDirectories: true)
         }
-        guard FileManager.default.isExecutableFile(atPath: try InstanceStorage.containedURL(executable, in: javaRoot).path) else { throw MojangError.invalid("Не удалось подготовить Java к запуску.") }
+        guard FileManager.default.isExecutableFile(atPath: try InstanceStorage.containedURL(executable, in: javaRoot).path) else { throw MojangError.invalid(String(appLocalized: "Не удалось подготовить Java к запуску.")) }
         if let fabric {
             let folder = try InstanceStorage.containedURL("minecraft/mods", in: root)
             if try await !content.apiWasProvisioned(in: folder) {
-                await progress(.init(stage: "Устанавливаем Fabric API…", completedBytes: completed, totalBytes: total))
+                await progress(.init(stage: String(appLocalized: "Устанавливаем Fabric API…"), completedBytes: completed, totalBytes: total))
                 let metadata = try await fabricClient.metadata(for: fabric.api)
-                guard try metadata.supports(loader: fabric.loaderVersion, java: manifest.java.majorVersion) else { throw MojangError.unsupported("Fabric API несовместим с выбранным Loader или Java.") }
+                guard try metadata.supports(loader: fabric.loaderVersion, java: manifest.java.majorVersion) else { throw MojangError.unsupported(String(appLocalized: "Fabric API несовместим с выбранным Loader или Java.")) }
                 let cached = try await fabricClient.cachedAPI(fabric.api)
                 try Task.checkCancellation()
                 try await content.provisionAPI(fabric.api, from: cached, in: folder)
             }
         }
-        await progress(.init(stage: "Готово", completedBytes: total, totalBytes: total))
+        await progress(.init(stage: String(appLocalized: "Готово"), completedBytes: total, totalBytes: total))
         return InstallationResult(javaMajorVersion: manifest.java.majorVersion, javaExecutable: executable, legacyTexturepacks: manifest.legacyTexturepacks, fabricProfileSHA1: fabricSHA1)
     }
 
@@ -179,12 +179,12 @@ actor MinecraftInstaller {
             if file.executable { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path) }
             return
         }
-        guard file.download.url.scheme == "https" else { throw MojangError.invalid("Ссылка загрузки должна использовать HTTPS.") }
+        guard file.download.url.scheme == "https" else { throw MojangError.invalid(String(appLocalized: "Ссылка загрузки должна использовать HTTPS.")) }
         let (temporary, response) = try await session.download(from: file.download.url)
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid("Некорректный ответ сервера.") }
+        guard let response = response as? HTTPURLResponse else { throw MojangError.invalid(String(appLocalized: "Некорректный ответ сервера.")) }
         guard (200..<300).contains(response.statusCode) else { throw MojangError.http(response.statusCode) }
-        guard try MojangIntegrity.validFile(temporary, download: file.download) else { throw MojangError.invalid("Загруженный файл повреждён. Повторите загрузку.") }
+        guard try MojangIntegrity.validFile(temporary, download: file.download) else { throw MojangError.invalid(String(appLocalized: "Загруженный файл повреждён. Повторите загрузку.")) }
         try Task.checkCancellation()
         let destination = try InstanceStorage.containedURL(file.path, in: root)
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -204,12 +204,12 @@ actor MinecraftInstaller {
     }
 
     private static func linkDestination(path: String, target: String, javaRoot: URL) throws -> URL {
-        guard !target.hasPrefix("/"), !target.contains("\0"), !target.contains("\\") else { throw MojangError.invalid("Некорректная ссылка в комплекте Java.") }
+        guard !target.hasPrefix("/"), !target.contains("\0"), !target.contains("\\") else { throw MojangError.invalid(String(appLocalized: "Некорректная ссылка в комплекте Java.")) }
         _ = try InstanceStorage.containedURL(path, in: javaRoot)
         let link = javaRoot.appendingPathComponent(path)
         let destination = link.deletingLastPathComponent().appendingPathComponent(target).standardizedFileURL
         let base = javaRoot.standardizedFileURL.path + "/"
-        guard destination.path.hasPrefix(base) else { throw MojangError.invalid("Ссылка выходит за пределы папки Java.") }
+        guard destination.path.hasPrefix(base) else { throw MojangError.invalid(String(appLocalized: "Ссылка выходит за пределы папки Java.")) }
         return try InstanceStorage.containedURL(String(destination.path.dropFirst(base.count)), in: javaRoot)
     }
 
@@ -224,7 +224,7 @@ actor MinecraftInstaller {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         try Task.checkCancellation()
-        guard process.terminationStatus == 0 else { throw MojangError.invalid("Не удалось распаковать библиотеки игры.") }
+        guard process.terminationStatus == 0 else { throw MojangError.invalid(String(appLocalized: "Не удалось распаковать библиотеки игры.")) }
         return String(decoding: data, as: UTF8.self)
     }
 
@@ -234,14 +234,14 @@ actor MinecraftInstaller {
         defer { try? FileManager.default.removeItem(at: temporary) }
         for entry in listing.split(separator: "\n") {
             let path = String(entry).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            guard !entry.hasPrefix("/") else { throw MojangError.invalid("Некорректный путь в библиотеке игры.") }
+            guard !entry.hasPrefix("/") else { throw MojangError.invalid(String(appLocalized: "Некорректный путь в библиотеке игры.")) }
             if !path.isEmpty { _ = try InstanceStorage.containedURL(path, in: temporary) }
         }
         _ = try run("/usr/bin/ditto", ["-x", "-k", archive.path, temporary.path])
         guard let files = FileManager.default.enumerator(at: temporary, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else { return }
         for case let file as URL in files {
             let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-            guard values.isSymbolicLink != true else { throw MojangError.invalid("В библиотеке игры обнаружена недопустимая ссылка.") }
+            guard values.isSymbolicLink != true else { throw MojangError.invalid(String(appLocalized: "В библиотеке игры обнаружена недопустимая ссылка.")) }
             guard values.isRegularFile == true else { continue }
             let path = String(file.path.dropFirst(temporary.path.count + 1))
             if excludes.contains(where: { path.hasPrefix($0) }) { continue }

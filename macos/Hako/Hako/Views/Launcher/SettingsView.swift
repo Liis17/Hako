@@ -128,8 +128,8 @@ private struct GameSettingsView: View {
                     .tint(.sakuraDeep)
 
                 HStack(alignment: .top, spacing: 20) {
-                    WindowDimensionField(title: "Ширина", value: $windowWidth)
-                    WindowDimensionField(title: "Высота", value: $windowHeight)
+                    WindowDimensionField(title: String(appLocalized: "Ширина"), value: $windowWidth)
+                    WindowDimensionField(title: String(appLocalized: "Высота"), value: $windowHeight)
                 }
                 .disabled(fullscreen)
 
@@ -142,9 +142,9 @@ private struct GameSettingsView: View {
 
     private func chooseJava() {
         let panel = NSOpenPanel()
-        panel.title = "Выбор Java"
-        panel.message = "Выберите файл java в папке bin установленной Java."
-        panel.prompt = "Выбрать"
+        panel.title = String(appLocalized: "Выбор Java")
+        panel.message = String(appLocalized: "Выберите файл java в папке bin установленной Java.")
+        panel.prompt = String(appLocalized: "Выбрать")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
@@ -213,11 +213,12 @@ private struct DiskSpace {
               let free = values.volumeAvailableCapacity, free >= 0 else {
             throw CocoaError(.fileReadUnknown)
         }
-        return DiskSpace(volumeName: values.volumeName ?? "Диск с данными Hako", total: total, free: min(free, total))
+        return DiskSpace(volumeName: values.volumeName ?? String(appLocalized: "Диск с данными Hako"), total: total, free: min(free, total))
     }
 }
 
 private struct StorageSettingsView: View {
+    @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(InstallationCoordinator.self) private var installations
     @Query private var instances: [GameInstance]
@@ -273,10 +274,10 @@ private struct StorageSettingsView: View {
                     Text("Занимают на диске")
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text(instanceBytes.map { $0.formatted(.byteCount(style: .file)) } ?? "—")
+                    Text(instanceBytes.map { $0.formatted(.byteCount(style: .file).locale(locale)) } ?? "—")
                         .fontWeight(.medium)
                 }
-                Text(storageError ?? (instances.isEmpty ? "Сборок пока нет." : "\(instances.count) сборок · ~/.hako"))
+                Text(storageError ?? (instances.isEmpty ? String(appLocalized: "Сборок пока нет.") : String(appLocalized: "\(instances.count) сборок · ~/.hako")))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -294,7 +295,7 @@ private struct StorageSettingsView: View {
         do {
             let bytes = try await Task.detached(priority: .utility) { try storage.allocatedSize() }.value
             instanceBytes = bytes; storageError = nil
-        } catch { storageError = "Не удалось получить размер сборок." }
+        } catch { storageError = String(appLocalized: "Не удалось получить размер сборок.") }
     }
 
     private func refreshDiskSpace() {
@@ -312,7 +313,7 @@ private struct StorageSettingsView: View {
     }
 
     private func formatBytes(_ bytes: Int) -> String {
-        Int64(bytes).formatted(.byteCount(style: .file).locale(Locale(identifier: "ru_RU")))
+        Int64(bytes).formatted(.byteCount(style: .file).locale(locale))
     }
 }
 

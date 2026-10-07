@@ -40,13 +40,13 @@ import SwiftData
             pump()
         } catch {
             started = false
-            queueError = "Не удалось восстановить очередь: \(error.localizedDescription)"
+            queueError = String(appLocalized: "Не удалось восстановить очередь: \(error.localizedDescription)")
         }
     }
 
     func enqueue(_ instance: GameInstance) throws {
-        guard !contentBusy.contains(instance.id) else { throw InstanceFileError.message("Дождитесь завершения операций с файлами сборки.") }
-        guard !store.launchBusy.contains(instance.id) else { throw InstanceFileError.message("Закройте Minecraft перед повторной установкой сборки.") }
+        guard !contentBusy.contains(instance.id) else { throw InstanceFileError.message(String(appLocalized: "Дождитесь завершения операций с файлами сборки.")) }
+        guard !store.launchBusy.contains(instance.id) else { throw InstanceFileError.message(String(appLocalized: "Закройте Minecraft перед повторной установкой сборки.")) }
         guard activeID != instance.id else { return }
         let oldState = instance.state
         let oldPause = instance.pauseRequested
@@ -74,7 +74,7 @@ import SwiftData
         do { try store.context.save() }
         catch { instance.state = oldState; instance.pauseRequested = oldPause; throw error }
         if activeID == instance.id {
-            progress[instance.id]?.stage = "Останавливаем загрузку…"
+            progress[instance.id]?.stage = String(appLocalized: "Останавливаем загрузку…")
             activeTask?.cancel()
         } else {
             progress[instance.id]?.stage = InstallationState.paused.title
@@ -94,7 +94,7 @@ import SwiftData
                 let fabric: FabricConfiguration?
                 do {
                     guard let url = URL(string: instance.metadataURL), url.scheme == "https" else {
-                        throw InstanceFileError.message("Не удалось прочитать описание версии.")
+                        throw InstanceFileError.message(String(appLocalized: "Не удалось прочитать описание версии."))
                     }
                     version = MinecraftVersion(id: instance.versionID, type: "release", url: url, sha1: instance.metadataSHA1)
                     root = try store.storage.directory(instance.folderName)
@@ -141,14 +141,14 @@ import SwiftData
                     do { try store.context.save() }
                     catch {
                         instance.state = .failed
-                        instance.installationError = "Не удалось сохранить состояние сборки: \(error.localizedDescription)"
+                        instance.installationError = String(appLocalized: "Не удалось сохранить состояние сборки: \(error.localizedDescription)")
                     }
                 }
                 return
             }
         } catch {
             activeID = nil
-            queueError = "Не удалось начать установку: \(error.localizedDescription)"
+            queueError = String(appLocalized: "Не удалось начать установку: \(error.localizedDescription)")
         }
     }
 

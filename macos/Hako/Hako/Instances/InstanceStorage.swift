@@ -13,11 +13,11 @@ nonisolated struct InstanceStorage: Sendable {
     }
 
     func directory(_ folder: String) throws -> URL {
-        guard !folder.contains("/") else { throw InstanceFileError.message("Недопустимая папка сборки.") }
+        guard !folder.contains("/") else { throw InstanceFileError.message(String(appLocalized: "Недопустимая папка сборки.")) }
         let target = try Self.containedURL(folder, in: root)
         do {
             if try root.appendingPathComponent(folder).resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true {
-                throw InstanceFileError.message("Папка сборки не может быть символической ссылкой.")
+                throw InstanceFileError.message(String(appLocalized: "Папка сборки не может быть символической ссылкой."))
             }
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile { }
         return target
@@ -27,14 +27,14 @@ nonisolated struct InstanceStorage: Sendable {
         let parts = path.split(separator: "/", omittingEmptySubsequences: false)
         guard !path.isEmpty, !path.contains("\0"), !path.contains("\\"),
               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
-            throw InstanceFileError.message("Недопустимый путь к файлу сборки.")
+            throw InstanceFileError.message(String(appLocalized: "Недопустимый путь к файлу сборки."))
         }
         let resolvedRoot = root.resolvingSymlinksInPath().standardizedFileURL.path + "/"
         var target = root.resolvingSymlinksInPath()
         for part in parts {
             target = target.appendingPathComponent(String(part)).resolvingSymlinksInPath().standardizedFileURL
             guard target.path.hasPrefix(resolvedRoot) else {
-                throw InstanceFileError.message("Файл выходит за пределы папки сборки.")
+                throw InstanceFileError.message(String(appLocalized: "Файл выходит за пределы папки сборки."))
             }
         }
         return target
@@ -45,7 +45,7 @@ nonisolated struct InstanceStorage: Sendable {
         guard manager.fileExists(atPath: root.path) else { return }
         let entries = try manager.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
         if entries.contains(where: { $0.lastPathComponent.lowercased() == folder.lowercased() && $0.lastPathComponent != excluding }) {
-            throw InstanceFileError.message("Сборка или папка с таким именем уже существует.")
+            throw InstanceFileError.message(String(appLocalized: "Сборка или папка с таким именем уже существует."))
         }
     }
 
@@ -85,10 +85,10 @@ nonisolated struct InstanceStorage: Sendable {
 
     func validateName(_ name: String, excluding instance: GameInstance? = nil) throws -> String {
         let folder = try InstanceName.folder(for: name)
-        guard folder.lowercased() != InstanceStorage.backupsFolder else { throw InstanceFileError.message("Имя «backups» занято папкой резервных копий.") }
+        guard folder.lowercased() != InstanceStorage.backupsFolder else { throw InstanceFileError.message(String(appLocalized: "Имя «backups» занято папкой резервных копий.")) }
         let instances = try context.fetch(FetchDescriptor<GameInstance>())
         guard !instances.contains(where: { $0.id != instance?.id && $0.folderName.lowercased() == folder.lowercased() }) else {
-            throw InstanceFileError.message("Сборка с таким именем уже существует.")
+            throw InstanceFileError.message(String(appLocalized: "Сборка с таким именем уже существует."))
         }
         try storage.ensureAvailable(folder, excluding: instance?.folderName)
         return folder
@@ -106,7 +106,7 @@ nonisolated struct InstanceStorage: Sendable {
         instance.legacyTexturepacks = legacyTexturepacks
         do {
             if draft.modLoader == .fabric {
-                guard let configuration = draft.fabricConfiguration, !configuration.loaderVersion.isEmpty else { throw InstanceFileError.message("Выберите версию Fabric Loader.") }
+                guard let configuration = draft.fabricConfiguration, !configuration.loaderVersion.isEmpty else { throw InstanceFileError.message(String(appLocalized: "Выберите версию Fabric Loader.")) }
                 instance.fabricConfigurationData = try JSONEncoder().encode(configuration)
             }
             instance.modLoaderRaw = draft.modLoader.rawValue
@@ -130,7 +130,7 @@ nonisolated struct InstanceStorage: Sendable {
         let folder = try validateName(name, excluding: instance)
         let oldFolder = instance.folderName
         guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id) && !contentBusy.contains(instance.id)) else {
-            throw InstanceFileError.message("Остановите загрузку и закройте игру перед переименованием сборки.")
+            throw InstanceFileError.message(String(appLocalized: "Остановите загрузку и закройте игру перед переименованием сборки."))
         }
         let original = try storage.directory(oldFolder)
         let destination = try storage.directory(folder)
@@ -190,7 +190,7 @@ nonisolated struct InstanceStorage: Sendable {
         let folder = try validateName(name, excluding: instance)
         let oldFolder = instance.folderName
         guard folder == oldFolder || (instance.state != .installing && instance.state != .queued && !launchBusy.contains(instance.id) && !contentBusy.contains(instance.id)) else {
-            throw InstanceFileError.message("Остановите загрузку и закройте игру перед переименованием сборки.")
+            throw InstanceFileError.message(String(appLocalized: "Остановите загрузку и закройте игру перед переименованием сборки."))
         }
 
         let original = try storage.directory(oldFolder)
@@ -214,9 +214,9 @@ nonisolated struct InstanceStorage: Sendable {
 
     /// Причина, по которой сборку сейчас нельзя удалить, дублировать или сохранить в резервную копию.
     func managementBlockedReason(_ instance: GameInstance) -> String? {
-        if instance.state == .installing || instance.state == .queued { return "Остановите загрузку сборки." }
-        if launchBusy.contains(instance.id) { return "Закройте Minecraft." }
-        if contentBusy.contains(instance.id) { return "Дождитесь завершения операций с файлами сборки." }
+        if instance.state == .installing || instance.state == .queued { return String(appLocalized: "Остановите загрузку сборки.") }
+        if launchBusy.contains(instance.id) { return String(appLocalized: "Закройте Minecraft.") }
+        if contentBusy.contains(instance.id) { return String(appLocalized: "Дождитесь завершения операций с файлами сборки.") }
         return nil
     }
 
@@ -227,13 +227,13 @@ nonisolated struct InstanceStorage: Sendable {
             let name = String(instance.name.prefix(60 - suffix.count)).trimmingCharacters(in: .whitespaces) + suffix
             if (try? validateName(name)) != nil { return name }
         }
-        throw InstanceFileError.message("Не удалось подобрать имя для копии сборки.")
+        throw InstanceFileError.message(String(appLocalized: "Не удалось подобрать имя для копии сборки."))
     }
 
     /// Копирует папку сборки вместе с Java и создаёт профиль с теми же параметрами и новым UUID.
     func duplicate(_ instance: GameInstance) async throws -> GameInstance {
         if let reason = managementBlockedReason(instance) { throw InstanceFileError.message(reason) }
-        guard instance.state == .ready else { throw InstanceFileError.message("Дождитесь завершения установки сборки.") }
+        guard instance.state == .ready else { throw InstanceFileError.message(String(appLocalized: "Дождитесь завершения установки сборки.")) }
         let source = try storage.directory(instance.folderName)
         let staged = storage.root.appendingPathComponent(".duplicate-\(UUID().uuidString)")
         contentBusy.insert(instance.id)
@@ -292,7 +292,7 @@ nonisolated struct InstanceStorage: Sendable {
     }
 
     private func validateOffline(_ draft: InstanceDraft) throws {
-        guard !draft.offlineMode || OfflineUsername.isValid(draft.offlineUsername) else { throw InstanceFileError.message("Ник: от 3 до 16 латинских букв, цифр или _.") }
+        guard !draft.offlineMode || OfflineUsername.isValid(draft.offlineUsername) else { throw InstanceFileError.message(String(appLocalized: "Ник: от 3 до 16 латинских букв, цифр или _.")) }
     }
 
     private func moveDirectory(_ from: URL, to: URL) throws {

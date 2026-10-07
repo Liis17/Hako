@@ -8,7 +8,7 @@ nonisolated enum ModLoader: String, Codable, Sendable, CaseIterable {
 nonisolated enum ModSource: String, Codable, Sendable {
     case local, modrinth, curseForge
     var title: String {
-        switch self { case .local: "Локальный"; case .modrinth: "Modrinth"; case .curseForge: "CurseForge" }
+        switch self { case .local: String(appLocalized: "Локальный"); case .modrinth: "Modrinth"; case .curseForge: "CurseForge" }
     }
     var symbol: String {
         switch self { case .local: "folder"; case .modrinth: "shippingbox"; case .curseForge: "flame" }
@@ -51,7 +51,7 @@ nonisolated struct FabricProfile: Decodable, Sendable {
             get throws {
                 let parts = name.components(separatedBy: ":")
                 guard (3...4).contains(parts.count), parts.allSatisfy({ !$0.isEmpty && $0.range(of: #"^[A-Za-z0-9_.+\-]+$"#, options: .regularExpression) != nil }) else {
-                    throw MojangError.invalid("Некорректная Maven-библиотека Fabric.")
+                    throw MojangError.invalid(String(appLocalized: "Некорректная Maven-библиотека Fabric."))
                 }
                 let suffix = parts.count == 4 ? "-\(parts[3])" : ""
                 return "\(parts[0].replacingOccurrences(of: ".", with: "/"))/\(parts[1])/\(parts[2])/\(parts[1])-\(parts[2])\(suffix).jar"
@@ -70,12 +70,12 @@ nonisolated struct FabricProfile: Decodable, Sendable {
     let libraries: [Library]
 
     func validate(minecraft: String) throws {
-        guard inheritsFrom == minecraft, !mainClass.isEmpty else { throw MojangError.invalid("Профиль Fabric не соответствует версии Minecraft.") }
+        guard inheritsFrom == minecraft, !mainClass.isEmpty else { throw MojangError.invalid(String(appLocalized: "Профиль Fabric не соответствует версии Minecraft.")) }
         _ = try InstanceStorage.containedURL(id, in: FileManager.default.temporaryDirectory)
     }
 
     static func installed(root: URL, minecraft: String, sha1: String?) throws -> Self {
-        guard let sha1 else { throw InstanceFileError.message("Профиль Fabric отсутствует. Повторите установку сборки.") }
+        guard let sha1 else { throw InstanceFileError.message(String(appLocalized: "Профиль Fabric отсутствует. Повторите установку сборки.")) }
         let url = try InstanceStorage.containedURL("minecraft/.hako-fabric.json", in: root)
         let bytes = try Data(contentsOf: url)
         try MojangIntegrity.check(bytes, download: .init(url: url, sha1: sha1))
@@ -110,7 +110,7 @@ nonisolated struct FabricVersionPredicate: Decodable, Sendable {
     func matches(_ value: String) throws -> Bool {
         for alternative in alternatives {
             let terms = alternative.split(whereSeparator: \.isWhitespace)
-            guard !terms.isEmpty else { throw MojangError.invalid("Пустое требование версии Fabric API.") }
+            guard !terms.isEmpty else { throw MojangError.invalid(String(appLocalized: "Пустое требование версии Fabric API.")) }
             var allowed = true
             for term in terms { if try !Self.matches(String(term), value) { allowed = false } }
             if allowed { return true }
@@ -130,7 +130,7 @@ nonisolated struct FabricVersionPredicate: Decodable, Sendable {
         let comparison = current.compare(reference)
         var upper = reference
         if let wildcard {
-            guard wildcard > 0, pieces.dropFirst(wildcard).allSatisfy({ $0 == "*" || $0.lowercased() == "x" }) else { throw MojangError.invalid("Некорректное требование версии Fabric API.") }
+            guard wildcard > 0, pieces.dropFirst(wildcard).allSatisfy({ $0 == "*" || $0.lowercased() == "x" }) else { throw MojangError.invalid(String(appLocalized: "Некорректное требование версии Fabric API.")) }
             upper.increment(wildcard - 1)
         } else if operation == "~" { upper.increment(reference.numbers.count > 1 ? 1 : 0) }
         else if operation == "^" { upper.increment(0) }
@@ -151,10 +151,10 @@ nonisolated struct FabricVersionPredicate: Decodable, Sendable {
             let value = text.components(separatedBy: "+")[0].split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
             let parts = value.first?.split(separator: ".", omittingEmptySubsequences: false) ?? []
             numbers = try parts.map { part in
-                guard let number = Int(part), number >= 0 else { throw MojangError.invalid("Не удалось прочитать требование версии Fabric API: \(text).") }
+                guard let number = Int(part), number >= 0 else { throw MojangError.invalid(String(appLocalized: "Не удалось прочитать требование версии Fabric API: \(text).")) }
                 return number
             }
-            guard !numbers.isEmpty else { throw MojangError.invalid("Не удалось прочитать версию Fabric.") }
+            guard !numbers.isEmpty else { throw MojangError.invalid(String(appLocalized: "Не удалось прочитать версию Fabric.")) }
             prerelease = value.count > 1 ? String(value[1]).components(separatedBy: ".") : []
         }
         mutating func increment(_ index: Int) {
