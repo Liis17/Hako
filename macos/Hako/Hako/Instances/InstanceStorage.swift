@@ -49,6 +49,13 @@ nonisolated struct InstanceStorage: Sendable {
         }
     }
 
+    /// Копия получает собственные файлы; на APFS `copyItem` клонирует их без лишнего места.
+    @concurrent static func copyInstance(_ source: URL, to destination: URL) async throws {
+        try FileManager.default.copyItem(at: source, to: destination)
+        let record = try GameProcessRecord.url(in: destination)
+        if FileManager.default.fileExists(atPath: record.path) { try FileManager.default.removeItem(at: record) }
+    }
+
     func allocatedSize() throws -> Int64 {
         guard FileManager.default.fileExists(atPath: root.path) else { return 0 }
         var failure: Error?
@@ -211,6 +218,51 @@ nonisolated struct InstanceStorage: Sendable {
         if launchBusy.contains(instance.id) { return "Закройте Minecraft." }
         if contentBusy.contains(instance.id) { return "Дождитесь завершения операций с файлами сборки." }
         return nil
+    }
+
+    /// Первое свободное имя вида «Имя 2», «Имя 3»…, укороченное до 60 символов.
+    func duplicateName(for instance: GameInstance) throws -> String {
+        for number in 2...999 {
+            let suffix = " \(number)"
+            let name = String(instance.name.prefix(60 - suffix.count)).trimmingCharacters(in: .whitespaces) + suffix
+            if (try? validateName(name)) != nil { return name }
+        }
+        throw InstanceFileError.message("Не удалось подобрать имя для копии сборки.")
+    }
+
+    /// Копирует папку сборки вместе с Java и создаёт профиль с теми же параметрами и новым UUID.
+    func duplicate(_ instance: GameInstance) async throws -> GameInstance {
+        if let reason = managementBlockedReason(instance) { throw InstanceFileError.message(reason) }
+        guard instance.state == .ready else { throw InstanceFileError.message("Дождитесь завершения установки сборки.") }
+        let source = try storage.directory(instance.folderName)
+        let staged = storage.root.appendingPathComponent(".duplicate-\(UUID().uuidString)")
+        contentBusy.insert(instance.id)
+        defer { contentBusy.remove(instance.id) }
+        var destination: URL?
+        do {
+            try await InstanceStorage.copyInstance(source, to: staged)
+            // Имя выбирается после копирования: за это время могла появиться сборка с тем же именем.
+            let name = try duplicateName(for: instance)
+            let folder = try validateName(name)
+            let target = try storage.directory(folder)
+            try FileManager.default.moveItem(at: staged, to: target)
+            destination = target
+            let copy = GameInstance(name: name, folderName: folder, versionID: instance.versionID, metadataURL: instance.metadataURL, metadataSHA1: instance.metadataSHA1)
+            apply(InstanceDraft(instance: instance), to: copy)
+            copy.state = .ready
+            copy.javaMajorVersion = instance.javaMajorVersion
+            copy.javaExecutable = instance.javaExecutable
+            copy.legacyTexturepacks = instance.legacyTexturepacks
+            copy.modLoaderRaw = instance.modLoaderRaw
+            copy.fabricConfigurationData = instance.fabricConfigurationData
+            copy.fabricProfileSHA1 = instance.fabricProfileSHA1
+            context.insert(copy)
+            do { try persist() } catch { context.rollback(); throw error }
+            return copy
+        } catch {
+            try? FileManager.default.removeItem(at: destination ?? staged)
+            throw error
+        }
     }
 
     /// Стирает папку сборки без корзины; время игры хранится отдельно и остаётся.

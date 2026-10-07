@@ -24,6 +24,7 @@ struct InstanceProfileView: View {
     @State private var nameDraft: String
     @State private var renameAction: RenameAction?
     @State private var confirmingDelete = false
+    @State private var operation: String?
 
     private enum RenameAction {
         case save
@@ -98,6 +99,9 @@ struct InstanceProfileView: View {
                     actionsMenu
                 }
             }
+            if let operation {
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text(operation).font(.callout).foregroundStyle(.secondary) }
+            }
             if instance.state != .ready { installationPanel }
             Picker("Раздел сборки", selection: Binding(get: { section }, set: requestSectionChange)) {
                 ForEach(InstanceSection.allCases) { item in
@@ -129,6 +133,9 @@ struct InstanceProfileView: View {
     private var actionsMenu: some View {
         let blocked = installations.store.managementBlockedReason(instance)
         return Menu {
+            Button("Дублировать", systemImage: "plus.square.on.square", action: duplicate)
+                .disabled(blocked != nil || instance.state != .ready)
+            Divider()
             Button("Удалить сборку…", systemImage: "trash", role: .destructive) { confirmingDelete = true }
                 .disabled(blocked != nil)
         } label: {
@@ -136,6 +143,15 @@ struct InstanceProfileView: View {
         }
         .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.glass).controlSize(.large).fixedSize()
         .help(blocked ?? "Действия со сборкой").accessibilityLabel("Действия со сборкой")
+    }
+
+    private func duplicate() {
+        operation = "Копируем сборку…"
+        Task {
+            defer { operation = nil }
+            do { _ = try await installations.store.duplicate(instance) }
+            catch { actionError = error.localizedDescription }
+        }
     }
 
     private func confirmDelete() {

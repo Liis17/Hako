@@ -13,6 +13,8 @@ import Testing
         return url
     }
 
+    private let api = FabricAPIDescriptor(projectID: FabricAPIDescriptor.project, versionID: "api", version: "0.100.0", channel: "release", filename: "fabric-api.jar", url: URL(string: "https://example.test/fabric-api.jar")!, size: 3, sha1: "sha1", sha512: "sha512")
+
     private func draft(_ name: String) -> InstanceDraft {
         var draft = InstanceDraft()
         draft.name = name
@@ -64,6 +66,64 @@ import Testing
         instance.state = .installing
         #expect(throws: InstanceFileError.self) { try store.delete(instance) }
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Running").path))
+    }
+
+    @Test func duplicateNamesTakeNextFreeNumber() throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        let instance = try store.create(draft("Pack"), versionID: "1.19", metadataURL: "url", metadataSHA1: "hash")
+        #expect(try store.duplicateName(for: instance) == "Pack 2")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("pack_2"), withIntermediateDirectories: false)
+        #expect(try store.duplicateName(for: instance) == "Pack 3")
+        let long = try store.create(draft(String(repeating: "A", count: 59) + "B"), versionID: "1.19", metadataURL: "url", metadataSHA1: "hash")
+        #expect(try store.duplicateName(for: long) == String(repeating: "A", count: 58) + " 2")
+    }
+
+    @Test func duplicateCopiesFilesAndProfileWithNewIdentity() async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        var source = draft("Fabric Pack")
+        source.iconSymbol = ""
+        source.iconData = Data("icon".utf8)
+        source.offlineMode = true
+        source.offlineUsername = "Tester"
+        source.argumentSource = .custom
+        source.parameters.javaArguments = "-Dtest=1"
+        source.modLoader = .fabric
+        source.fabricConfiguration = FabricConfiguration(loaderVersion: "0.16.5", api: api)
+        let instance = try store.create(source, versionID: "1.21.1", metadataURL: "https://example.test/v.json", metadataSHA1: "hash", javaMajorVersion: 21)
+        instance.state = .ready
+        instance.javaExecutable = "custom/bin/java"
+        instance.fabricProfileSHA1 = "profile"
+        try container.mainContext.save()
+        let folder = root.appendingPathComponent("Fabric_Pack")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("java/custom/bin"), withIntermediateDirectories: true)
+        try Data("java".utf8).write(to: folder.appendingPathComponent("java/custom/bin/java"))
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("minecraft/mods"), withIntermediateDirectories: true)
+        try Data("mod".utf8).write(to: folder.appendingPathComponent("minecraft/mods/mod.jar"))
+        try Data("{}".utf8).write(to: folder.appendingPathComponent("minecraft/.hako-running.json"))
+
+        let copy = try await store.duplicate(instance)
+        let copied = root.appendingPathComponent("Fabric_Pack_2")
+        #expect(copy.name == "Fabric Pack 2" && copy.folderName == "Fabric_Pack_2")
+        #expect(copy.id != instance.id)
+        #expect(try Data(contentsOf: copied.appendingPathComponent("java/custom/bin/java")) == Data("java".utf8))
+        #expect(try Data(contentsOf: copied.appendingPathComponent("minecraft/mods/mod.jar")) == Data("mod".utf8))
+        #expect(try Data(contentsOf: copied.appendingPathComponent("icon.png")) == Data("icon".utf8))
+        #expect(!FileManager.default.fileExists(atPath: copied.appendingPathComponent("minecraft/.hako-running.json").path))
+        #expect(copy.state == .ready && copy.versionID == "1.21.1" && copy.metadataURL == instance.metadataURL)
+        #expect(copy.modLoader == .fabric)
+        #expect(try copy.fabricConfiguration()?.loaderVersion == "0.16.5")
+        #expect(copy.javaMajorVersion == 21 && copy.javaExecutable == "custom/bin/java" && copy.fabricProfileSHA1 == "profile")
+        #expect(copy.iconSymbol.isEmpty && copy.offlineMode && copy.offlineUsername == "Tester")
+        #expect(copy.argumentSource == .custom && copy.parameters == instance.parameters)
+        #expect(store.contentBusy.isEmpty)
+        instance.state = .paused
+        await #expect(throws: InstanceFileError.self) { _ = try await store.duplicate(instance) }
     }
 
     @Test func backupsFolderNameIsReserved() throws {
