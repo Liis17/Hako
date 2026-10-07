@@ -1,5 +1,17 @@
 import Foundation
 
+nonisolated enum ModrinthContentKind: Sendable {
+    case mod, resourcePack, datapack
+    var loader: String { switch self { case .mod: "fabric"; case .resourcePack: "minecraft"; case .datapack: "datapack" } }
+    var fileExtension: String { self == .mod ? ".jar" : ".zip" }
+}
+
+nonisolated enum ModrinthInstallTarget: Hashable, Sendable {
+    case mods, packs, worldDatapacks(String)
+    var kind: ModrinthContentKind { switch self { case .mods: .mod; case .packs: .resourcePack; case .worldDatapacks: .datapack } }
+    var world: String? { if case .worldDatapacks(let folder) = self { folder } else { nil } }
+}
+
 nonisolated enum ModrinthSort: String, CaseIterable, Identifiable, Sendable {
     case relevance, downloads, newest, updated
     var id: Self { self }
@@ -15,9 +27,10 @@ nonisolated struct ModrinthProject: Decodable, Identifiable, Sendable {
     let description: String
     let iconURL: URL?
     let projectType: String
+    let allProjectTypes: [String]
     var pageURL: URL { URL(string: "https://modrinth.com")!.appendingPathComponent(projectType).appendingPathComponent(slug ?? id) }
 
-    private enum CodingKeys: String, CodingKey { case id, projectID = "project_id", slug, title, description, iconURL = "icon_url", projectType = "project_type" }
+    private enum CodingKeys: String, CodingKey { case id, projectID = "project_id", slug, title, description, iconURL = "icon_url", projectType = "project_type", allProjectTypes = "all_project_types" }
     /// Поиск отдаёт `project_id`, а `/projects` — `id`.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -27,6 +40,7 @@ nonisolated struct ModrinthProject: Decodable, Identifiable, Sendable {
         description = try values.decodeIfPresent(String.self, forKey: .description) ?? ""
         iconURL = try values.decodeIfPresent(String.self, forKey: .iconURL).flatMap { $0.isEmpty ? nil : URL(string: $0) }
         projectType = try values.decode(String.self, forKey: .projectType)
+        allProjectTypes = try values.decodeIfPresent([String].self, forKey: .allProjectTypes) ?? [projectType]
     }
 }
 
@@ -70,9 +84,13 @@ nonisolated struct ModrinthVersion: Decodable, Sendable {
 
     /// Проверяемый файл мода (`.jar`) или ресурспака (`.zip`); версии без него не устанавливаются.
     func file(mods: Bool) -> File? {
+        file(kind: mods ? .mod : .resourcePack)
+    }
+
+    func file(kind: ModrinthContentKind) -> File? {
         let files = files.filter { file in
             !file.filename.contains("/") && !file.filename.contains("\\") && !file.filename.hasPrefix(".")
-                && file.filename.lowercased().hasSuffix(mods ? ".jar" : ".zip") && file.url.scheme == "https" && file.size > 0
+                && file.filename.lowercased().hasSuffix(kind.fileExtension) && file.url.scheme == "https" && file.size > 0
                 && !["sources-jar", "dev-jar", "javadoc-jar"].contains(file.fileType ?? "")
                 && file.sha1.count == 40 && file.sha512.count == 128 && (file.sha1 + file.sha512).allSatisfy(\.isHexDigit)
         }
@@ -138,9 +156,17 @@ actor ModrinthClient {
     }
 
     func search(_ query: String, mods: Bool, minecraft: String, sort: ModrinthSort, offset: Int) async throws -> ModrinthSearchPage {
-        var facets = mods ? [["project_type:mod"], ["categories:fabric"]] : [["project_type:resourcepack"]]
+        try await search(query, kind: mods ? .mod : .resourcePack, minecraft: minecraft, sort: sort, offset: offset)
+    }
+
+    func search(_ query: String, kind: ModrinthContentKind, minecraft: String, sort: ModrinthSort, offset: Int) async throws -> ModrinthSearchPage {
+        var facets: [[String]] = switch kind {
+        case .mod: [["project_type:mod"], ["categories:fabric"]]
+        case .resourcePack: [["project_type:resourcepack"]]
+        case .datapack: [["all_project_types:datapack"], ["categories:datapack"]]
+        }
         facets.append(["versions:\(minecraft)"])
-        if mods { facets.append(["environment!=dedicated_server_only"]) }
+        if kind == .mod { facets.append(["environment!=dedicated_server_only"]) }
         var parameters = ["facets": try json(facets), "index": sort.rawValue, "offset": String(offset), "limit": "20"]
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !query.isEmpty { parameters["query"] = query }
@@ -150,16 +176,24 @@ actor ModrinthClient {
     /// Последняя версия для Minecraft и загрузчика: release, затем beta, затем alpha; внутри канала — новейшая.
     /// С `channel` — новейшая версия только этого канала.
     func latestVersion(project: String, mods: Bool, minecraft: String, channel: String? = nil) async throws -> ModrinthVersion? {
-        try await compatibleVersions(project: project, mods: mods, minecraft: minecraft).first { channel == nil || $0.channel == channel }
+        try await latestVersion(project: project, kind: mods ? .mod : .resourcePack, minecraft: minecraft, channel: channel)
+    }
+
+    func latestVersion(project: String, kind: ModrinthContentKind, minecraft: String, channel: String? = nil) async throws -> ModrinthVersion? {
+        try await compatibleVersions(project: project, kind: kind, minecraft: minecraft).first { channel == nil || $0.channel == channel }
     }
 
     /// Устанавливаемые версии для Minecraft и загрузчика: release, затем beta, затем alpha; внутри канала — новейшие первыми.
     func compatibleVersions(project: String, mods: Bool, minecraft: String) async throws -> [ModrinthVersion] {
-        let loader = mods ? "fabric" : "minecraft"
+        try await compatibleVersions(project: project, kind: mods ? .mod : .resourcePack, minecraft: minecraft)
+    }
+
+    func compatibleVersions(project: String, kind: ModrinthContentKind, minecraft: String) async throws -> [ModrinthVersion] {
+        let loader = kind.loader
         let path = "project/\(try checkedIDs([project])[0])/version"
         let versions = try JSONDecoder().decode([ModrinthVersion].self, from: await data(request(url(path, ["game_versions": try json([minecraft]), "loaders": try json([loader]), "include_changelog": "false"]))))
         let priority = ["release": 0, "beta": 1, "alpha": 2]
-        return versions.filter { $0.projectID == project && $0.gameVersions.contains(minecraft) && $0.loaders.contains(loader) && priority[$0.channel] != nil && $0.file(mods: mods) != nil }.sorted {
+        return versions.filter { $0.projectID == project && $0.gameVersions.contains(minecraft) && $0.loaders.contains(loader) && priority[$0.channel] != nil && $0.file(kind: kind) != nil }.sorted {
             let lhs = priority[$0.channel]!, rhs = priority[$1.channel]!
             return lhs == rhs ? $0.published > $1.published : lhs < rhs
         }

@@ -32,6 +32,8 @@ struct ModrinthUpdate {
     let installations: InstallationCoordinator
     var mods: [UUID: [InstanceContentItem]] = [:]
     var packs: [UUID: [InstanceContentItem]] = [:]
+    var datapacks: [UUID: [String: [InstanceContentItem]]] = [:]
+    var worldInstallMessages: [UUID: [String: String]] = [:]
     var errors: [UUID: String] = [:]
     var updates: [UUID: [String: FabricAPIDescriptor]] = [:]
     var updateMessages: [UUID: String] = [:]
@@ -43,7 +45,9 @@ struct ModrinthUpdate {
     private(set) var confirmations: [ContentConfirmation] = []
     /// Проект Modrinth, который сейчас устанавливается в сборку.
     private(set) var catalogInstalling: [UUID: String] = [:]
+    private(set) var catalogInstallTargets: [UUID: ModrinthInstallTarget] = [:]
     let modrinth: ModrinthClient
+    let worlds = InstanceWorlds()
     @ObservationIgnored private var answers: [UUID: CheckedContinuation<ContentChoice, Never>] = [:]
     @ObservationIgnored private var reloads: [String: UUID] = [:]
 
@@ -52,6 +56,41 @@ struct ModrinthUpdate {
 
     func folder(_ instance: GameInstance, mods: Bool) throws -> URL {
         try InstanceStorage.containedURL("minecraft/\(mods ? "mods" : instance.legacyTexturepacks ? "texturepacks" : "resourcepacks")", in: installations.store.storage.directory(instance.folderName))
+    }
+
+    func folder(_ instance: GameInstance, target: ModrinthInstallTarget) throws -> URL {
+        if let world = target.world {
+            return try InstanceWorlds.datapacksFolder(world: world, in: installations.store.storage.directory(instance.folderName))
+        }
+        return try folder(instance, mods: target == .mods)
+    }
+
+    func items(_ instance: GameInstance, target: ModrinthInstallTarget) -> [InstanceContentItem] {
+        if let world = target.world { return datapacks[instance.id]?[world] ?? [] }
+        return (target == .mods ? mods : packs)[instance.id] ?? []
+    }
+
+    func disabledReason(_ instance: GameInstance, target: ModrinthInstallTarget) -> String? {
+        if let reason = disabledReason(instance, mods: target == .mods) { return reason }
+        if target.world != nil {
+            do { _ = try folder(instance, target: target) }
+            catch { return error.localizedDescription }
+        }
+        return nil
+    }
+
+    func reload(_ instance: GameInstance, target: ModrinthInstallTarget, clearError: Bool = true) async {
+        guard let world = target.world else { await reload(instance, mods: target == .mods, clearError: clearError); return }
+        let key = "\(instance.id):world:\(world)", request = UUID(), folderName = instance.folderName
+        reloads[key] = request
+        do {
+            let items = try await installations.content.list(at: folder(instance, target: target), mods: false, includeDisabledPacks: false)
+            guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
+            datapacks[instance.id, default: [:]][world] = items
+            if clearError { errors[instance.id] = nil }
+        } catch {
+            if !Task.isCancelled, reloads[key] == request, instance.folderName == folderName { errors[instance.id] = error.localizedDescription }
+        }
     }
 
     func disabledReason(_ instance: GameInstance, mods: Bool) -> String? {
@@ -109,15 +148,19 @@ struct ModrinthUpdate {
     }
 
     @discardableResult private func perform(_ instance: GameInstance, mods: Bool, operation: @escaping @MainActor (URL) async throws -> Void) -> Bool {
-        if let reason = disabledReason(instance, mods: mods) { errors[instance.id] = reason; return false }
+        perform(instance, target: mods ? .mods : .packs, operation: operation)
+    }
+
+    @discardableResult private func perform(_ instance: GameInstance, target: ModrinthInstallTarget, operation: @escaping @MainActor (URL) async throws -> Void) -> Bool {
+        if let reason = disabledReason(instance, target: target) { errors[instance.id] = reason; return false }
         let folder: URL
-        do { folder = try self.folder(instance, mods: mods) }
+        do { folder = try self.folder(instance, target: target) }
         catch { errors[instance.id] = error.localizedDescription; return false }
         installations.contentBusy.insert(instance.id); errors[instance.id] = nil
         Task {
             defer { installations.contentBusy.remove(instance.id); installations.scheduleQueuedInstallations() }
-            do { try await operation(folder); await reload(instance, mods: mods, clearError: false) }
-            catch { errors[instance.id] = error.localizedDescription; await reload(instance, mods: mods, clearError: false) }
+            do { try await operation(folder); await reload(instance, target: target, clearError: false) }
+            catch { errors[instance.id] = error.localizedDescription; await reload(instance, target: target, clearError: false) }
         }
         return true
     }
@@ -249,17 +292,22 @@ struct ModrinthUpdate {
     func updateFromModrinth(_ item: InstanceContentItem, in instance: GameInstance, mods: Bool) {
         guard let update = modrinthUpdate(for: item, in: instance, mods: mods), catalogInstalling[instance.id] == nil else { return }
         catalogInstalling[instance.id] = update.projectID
+        catalogInstallTargets[instance.id] = mods ? .mods : .packs
         let started = perform(instance, mods: mods) { [self] _ in
-            defer { catalogInstalling[instance.id] = nil }
+            defer { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
             guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message(String(appLocalized: "Проект Modrinth не найден.")) }
-            try await installFromModrinth(project, in: instance, mods: mods, version: update.version, replacing: (item, update.currentSHA512))
+            _ = try await installFromModrinth(project, in: instance, target: mods ? .mods : .packs, version: update.version, replacing: (item, update.currentSHA512))
         }
-        if !started { catalogInstalling[instance.id] = nil }
+        if !started { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
     }
 
     /// Установленные проекты Modrinth: происхождения из реестра и совпадения SHA-512 остальных файлов.
     func installedProjects(_ instance: GameInstance, mods: Bool) async throws -> [String: [InstanceContentItem]] {
-        let items = try await installations.content.list(at: folder(instance, mods: mods), mods: mods)
+        try await installedProjects(instance, target: mods ? .mods : .packs)
+    }
+
+    func installedProjects(_ instance: GameInstance, target: ModrinthInstallTarget) async throws -> [String: [InstanceContentItem]] {
+        let items = try await installations.content.list(at: folder(instance, target: target), mods: target == .mods, includeDisabledPacks: target.world == nil)
         var result: [String: [InstanceContentItem]] = [:], unknown: [InstanceContentItem] = []
         for item in items {
             if let origin = item.origin, origin.source == .modrinth { result[origin.projectID, default: []].append(item) }
@@ -272,20 +320,30 @@ struct ModrinthUpdate {
 
     /// `channel` — канал Modrinth (`release`, `beta`, `alpha`) устанавливаемой версии проекта; зависимости его не наследуют.
     func install(_ project: ModrinthProject, in instance: GameInstance, mods: Bool, channel: String = "release") {
+        install(project, in: instance, target: mods ? .mods : .packs, channel: channel)
+    }
+
+    func install(_ project: ModrinthProject, in instance: GameInstance, target: ModrinthInstallTarget, channel: String = "release") {
         guard catalogInstalling[instance.id] == nil else { return }
         catalogInstalling[instance.id] = project.id
-        let started = perform(instance, mods: mods) { [self] _ in
-            defer { catalogInstalling[instance.id] = nil }
-            try await installFromModrinth(project, in: instance, mods: mods, channel: channel)
+        catalogInstallTargets[instance.id] = target
+        let started = perform(instance, target: target) { [self] _ in
+            defer { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
+            if let world = target.world { worldInstallMessages[instance.id]?[world] = nil }
+            let added = try await installFromModrinth(project, in: instance, target: target, channel: channel)
+            if added, let world = target.world {
+                worldInstallMessages[instance.id, default: [:]][world] = String(appLocalized: "Датапак «\(project.title)» добавлен. Он будет доступен при следующем открытии мира.")
+            }
         }
-        if !started { catalogInstalling[instance.id] = nil }
+        if !started { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
     }
 
     private struct CatalogDownload {
         let project: ModrinthProject
         let version: ModrinthVersion
         let file: ModrinthVersion.File
-        let mods: Bool
+        let target: ModrinthInstallTarget
+        var mods: Bool { target == .mods }
 
         var origin: ModOrigin? {
             guard mods else { return nil }
@@ -298,10 +356,11 @@ struct ModrinthUpdate {
     }
 
     /// С `replacing` новая версия заменяет файл сборки вместо импорта рядом с ним.
-    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, mods: Bool, channel: String? = nil, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil) async throws {
+    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, target: ModrinthInstallTarget, channel: String? = nil, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil) async throws -> Bool {
+        let mods = target == .mods
         let minecraft = instance.versionID
-        let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, mods: mods, minecraft: minecraft, channel: channel) : requested
-        guard let version = latest, let file = version.file(mods: mods) else {
+        let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, kind: target.kind, minecraft: minecraft, channel: channel) : requested
+        guard let version = latest, let file = version.file(kind: target.kind) else {
             let title = project.title
             let message = switch (channel, mods) {
             case ("release"?, true): String(appLocalized: "У «\(title)» нет релиза для Minecraft \(minecraft) и Fabric.")
@@ -316,8 +375,8 @@ struct ModrinthUpdate {
             throw InstanceFileError.message(message)
         }
         let modsAvailable = instance.modLoader == .fabric && instance.state != .queued && instance.state != .installing
-        var installed: [Bool: [String: [InstanceContentItem]]] = [:]
-        var downloads: [CatalogDownload] = [], enable: [(item: InstanceContentItem, mods: Bool)] = [], listed: [ContentConfirmation.Project] = []
+        var installed: [ModrinthInstallTarget: [String: [InstanceContentItem]]] = [:]
+        var downloads: [CatalogDownload] = [], enable: [(item: InstanceContentItem, target: ModrinthInstallTarget)] = [], listed: [ContentConfirmation.Project] = []
         var pending = [version], seen: Set<String> = [project.id]
         // Обязательные зависимости обходятся в ширину, включая зависимости зависимостей.
         while !pending.isEmpty && seen.count < 30 {
@@ -325,28 +384,39 @@ struct ModrinthUpdate {
             var ids = required.compactMap(\.projectID)
             ids += try await modrinth.versions(required.filter { $0.projectID == nil }.compactMap(\.versionID)).map(\.projectID)
             for dependency in try await modrinth.projects(ids.filter { seen.insert($0).inserted }) {
-                let dependencyMods = dependency.projectType == "mod"
                 let entry = { (note: String?) in ContentConfirmation.Project(id: dependency.id, title: dependency.title, iconURL: dependency.iconURL, note: note) }
-                guard dependencyMods || dependency.projectType == "resourcepack" else { listed.append(entry(String(appLocalized: "Не поддерживается Hako"))); continue }
-                guard !dependencyMods || modsAvailable else { listed.append(entry(String(appLocalized: "Нужна сборка с Fabric"))); continue }
-                if installed[dependencyMods] == nil { installed[dependencyMods] = try await installedProjects(instance, mods: dependencyMods) }
-                if let present = installed[dependencyMods]?[dependency.id] {
+                var dependencyTarget: ModrinthInstallTarget?, next: ModrinthVersion?
+                if target.world != nil, dependency.projectType == "mod" || dependency.projectType == "datapack" || dependency.allProjectTypes.contains("datapack") {
+                    next = try await modrinth.latestVersion(project: dependency.id, kind: .datapack, minecraft: minecraft)
+                    if next != nil || dependency.projectType == "datapack" || dependency.allProjectTypes.contains("datapack") { dependencyTarget = target }
+                }
+                if dependencyTarget == nil {
+                    if dependency.projectType == "mod" { dependencyTarget = .mods }
+                    if dependency.projectType == "resourcepack" { dependencyTarget = .packs }
+                }
+                guard let dependencyTarget else { listed.append(entry(String(appLocalized: "Не поддерживается Hako"))); continue }
+                guard dependencyTarget != .mods || modsAvailable else { listed.append(entry(String(appLocalized: "Нужна сборка с Fabric"))); continue }
+                if installed[dependencyTarget] == nil { installed[dependencyTarget] = try await installedProjects(instance, target: dependencyTarget) }
+                if let present = installed[dependencyTarget]?[dependency.id] {
                     guard !present.contains(where: \.enabled), let disabled = present.first else { continue }
-                    enable.append((disabled, dependencyMods)); listed.append(entry(String(appLocalized: "Отключён — будет включён")))
+                    enable.append((disabled, dependencyTarget)); listed.append(entry(String(appLocalized: "Отключён — будет включён")))
                     continue
                 }
-                guard let next = try await modrinth.latestVersion(project: dependency.id, mods: dependencyMods, minecraft: minecraft), let nextFile = next.file(mods: dependencyMods) else {
+                if next == nil { next = try await modrinth.latestVersion(project: dependency.id, kind: dependencyTarget.kind, minecraft: minecraft) }
+                guard let next, let nextFile = next.file(kind: dependencyTarget.kind) else {
                     listed.append(entry(String(appLocalized: "Нет совместимой версии"))); continue
                 }
-                downloads.append(.init(project: dependency, version: next, file: nextFile, mods: dependencyMods)); listed.append(entry(nil)); pending.append(next)
+                downloads.append(.init(project: dependency, version: next, file: nextFile, target: dependencyTarget)); listed.append(entry(nil)); pending.append(next)
             }
         }
         if !listed.isEmpty {
-            let choice = await choose(.init(title: String(appLocalized: "Нужны зависимости"), message: String(appLocalized: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:"), action: downloads.isEmpty && enable.isEmpty ? nil : String(appLocalized: "Добавить с зависимостями"), destructive: false, alternative: replacing != nil ? String(appLocalized: "Только обновить") : mods ? String(appLocalized: "Только мод") : String(appLocalized: "Только ресурспак"), projects: listed))
-            if choice == .cancel { return }
+            let alternative = replacing != nil ? String(appLocalized: "Только обновить") : target.kind == .datapack ? String(appLocalized: "Только датапак") : mods ? String(appLocalized: "Только мод") : String(appLocalized: "Только ресурспак")
+            let message = if let world = target.world { String(appLocalized: "Для работы «\(project.title)» в мире «\(world)» сборки «\(instance.name)» нужны:") } else { String(appLocalized: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:") }
+            let choice = await choose(.init(title: String(appLocalized: "Нужны зависимости"), message: message, action: downloads.isEmpty && enable.isEmpty ? nil : String(appLocalized: "Добавить с зависимостями"), destructive: false, alternative: alternative, projects: listed))
+            if choice == .cancel { return false }
             if choice == .alternative { downloads = []; enable = [] }
         }
-        downloads.append(.init(project: project, version: version, file: file, mods: mods))
+        downloads.append(.init(project: project, version: version, file: file, target: target))
         // Все файлы загружаются и проверяются до того, как сборка изменится.
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("Hako-Modrinth-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: staging) }
@@ -354,6 +424,15 @@ struct ModrinthUpdate {
         var files: [URL] = [], warnings: [ContentConfirmation.Project] = []
         for download in downloads {
             let url = try await modrinth.download(download.file, into: staging.appendingPathComponent(UUID().uuidString))
+            if download.target.kind == .datapack {
+                do {
+                    let metadata = try await FabricClient.archiveEntry("pack.mcmeta", in: url, limit: 1_048_576)
+                    guard let json = try JSONSerialization.jsonObject(with: metadata) as? [String: Any], json["pack"] is [String: Any] else { throw CocoaError(.fileReadCorruptFile) }
+                } catch is CancellationError { throw CancellationError() }
+                catch {
+                    throw InstanceFileError.message(String(appLocalized: "В датапаке «\(download.project.title)» нет корректного pack.mcmeta."))
+                }
+            }
             if download.mods, let loader {
                 let notes = await compatibilityNotes(url, loader: loader, java: instance.javaMajorVersion)
                 if !notes.isEmpty { warnings.append(.init(id: download.project.id, title: download.project.title, iconURL: download.project.iconURL, note: notes.joined(separator: "; "))) }
@@ -367,8 +446,9 @@ struct ModrinthUpdate {
             var ids = incompatible.compactMap(\.projectID)
             ids += try await modrinth.versions(incompatible.filter { $0.projectID == nil }.compactMap(\.versionID)).map(\.projectID)
             for id in ids {
-                for kind in [true, false] {
-                    if installed[kind] == nil { installed[kind] = try await installedProjects(instance, mods: kind) }
+                let targets: [ModrinthInstallTarget] = [.mods, .packs] + (target.world == nil ? [] : [target])
+                for kind in targets {
+                    if installed[kind] == nil { installed[kind] = try await installedProjects(instance, target: kind) }
                     if installed[kind]?[id]?.contains(where: \.enabled) == true { conflicts[id] = download.project.title }
                 }
             }
@@ -381,23 +461,38 @@ struct ModrinthUpdate {
                 ? String(appLocalized: "Эти проблемы могут помешать запуску игры. Установить «\(project.title)» всё равно?")
                 : String(appLocalized: "Эти проблемы могут помешать запуску игры. Обновить «\(project.title)» всё равно?")
             let action = replacing == nil ? String(appLocalized: "Установить всё равно") : String(appLocalized: "Обновить всё равно")
-            guard await confirm(.init(title: String(appLocalized: "Возможна несовместимость"), message: message, action: action, destructive: true, projects: warnings)) else { return }
+            guard await confirm(.init(title: String(appLocalized: "Возможна несовместимость"), message: message, action: action, destructive: true, projects: warnings)) else { return false }
         }
+        _ = try folder(instance, target: target)
+        var added = false
         for (download, url) in zip(downloads, files) {
-            let target = try folder(instance, mods: download.mods)
+            let destination = try folder(instance, target: download.target)
             if let replacing, download.project.id == project.id, download.mods == mods {
-                try await installations.content.replaceItem(replacing.item, from: url, filename: url.lastPathComponent, in: target, mods: mods, expectedSHA512: replacing.sha512, origin: download.origin)
+                try await installations.content.replaceItem(replacing.item, from: url, filename: url.lastPathComponent, in: destination, mods: mods, expectedSHA512: replacing.sha512, origin: download.origin)
                 modrinthUpdates[updateKey(instance, mods: mods)]?.removeValue(forKey: replacing.item.logicalName.lowercased())
                 continue
             }
-            do { try await installations.content.importItem(from: url, into: target, mods: download.mods, origin: download.origin) }
+            do { try await publish(download, from: url, in: instance) }
             catch PackImportError.exists {
-                guard await confirm(.init(title: download.mods ? String(appLocalized: "Заменить мод?") : String(appLocalized: "Заменить ресурспак?"), message: String(appLocalized: "\(url.lastPathComponent) уже существует в сборке «\(instance.name)»."), action: String(appLocalized: "Заменить"), destructive: true)) else { continue }
-                try await installations.content.importItem(from: url, into: target, mods: download.mods, replace: true, origin: download.origin)
+                let title = download.target.kind == .datapack ? String(appLocalized: "Заменить датапак?") : download.mods ? String(appLocalized: "Заменить мод?") : String(appLocalized: "Заменить ресурспак?")
+                let message = if let world = download.target.world { String(appLocalized: "\(url.lastPathComponent) уже существует в мире «\(world)» сборки «\(instance.name)».") } else { String(appLocalized: "\(url.lastPathComponent) уже существует в сборке «\(instance.name)».") }
+                guard await confirm(.init(title: title, message: message, action: String(appLocalized: "Заменить"), destructive: true)) else { continue }
+                try await publish(download, from: url, in: instance, replace: true)
             }
+            if download.project.id == project.id { added = true }
         }
-        for (item, itemMods) in enable { try await installations.content.setEnabled(item, in: folder(instance, mods: itemMods), enabled: true, mods: itemMods) }
-        if !mods && (downloads.contains(where: \.mods) || enable.contains(where: \.mods)) { await reload(instance, mods: true, clearError: false) }
+        for (item, itemTarget) in enable { try await installations.content.setEnabled(item, in: folder(instance, target: itemTarget), enabled: true, mods: itemTarget == .mods) }
+        let changed = Set(downloads.map(\.target) + enable.map(\.target))
+        for other in changed where other != target { await reload(instance, target: other, clearError: false) }
+        return added
+    }
+
+    private func publish(_ download: CatalogDownload, from url: URL, in instance: GameInstance, replace: Bool = false) async throws {
+        if let world = download.target.world {
+            try await installations.content.importDatapack(from: url, world: world, in: installations.store.storage.directory(instance.folderName), replace: replace)
+        } else {
+            try await installations.content.importItem(from: url, into: folder(instance, target: download.target), mods: download.mods, replace: replace, origin: download.origin)
+        }
     }
 
     /// Требования fabric.mod.json к Loader и Java, которым сборка не отвечает.

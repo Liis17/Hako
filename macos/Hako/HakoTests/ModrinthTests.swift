@@ -50,6 +50,30 @@ import Testing
         await #expect(throws: MojangError.self) { try await client.latestVersion(project: "../root", mods: true, minecraft: "test") }
     }
 
+    @Test func datapacksSearchAllProjectTypesAndSelectOnlyCompatibleZIPs() async throws {
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let bytes = Data("datapack".utf8)
+        ModrinthTestProtocol.prepare([
+            "\(api)/search": Data(#"{"hits":[{"project_id":"root","title":"Root","project_type":"mod","all_project_types":["mod","datapack"]}],"total_hits":1}"#.utf8),
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [
+                Self.version("release", project: "root", loader: "datapack", file: ("pack.zip", bytes)),
+                Self.version("beta", project: "root", channel: "beta", loader: "datapack", file: ("beta.zip", bytes)),
+                Self.version("mod", project: "root", loader: "fabric", file: ("mod.jar", bytes)),
+                Self.version("jar", project: "root", loader: "datapack", file: ("pack.jar", bytes)),
+                Self.version("wrong-game", project: "root", minecraft: "other", loader: "datapack", file: ("wrong.zip", bytes))
+            ])
+        ])
+        let client = ModrinthClient(session: session)
+        let result = try await client.search("", kind: .datapack, minecraft: "test", sort: .relevance, offset: 0)
+        #expect(result.hits.first?.projectType == "mod")
+        #expect(try await client.compatibleVersions(project: "root", kind: .datapack, minecraft: "test").map(\.id) == ["release", "beta"])
+        #expect(try await client.latestVersion(project: "root", kind: .datapack, minecraft: "test", channel: "beta")?.id == "beta")
+        let urls = ModrinthTestProtocol.requests.compactMap { URLComponents(url: $0.url!, resolvingAgainstBaseURL: false) }
+        let facets = try #require(urls[0].queryItems?.first { $0.name == "facets" }?.value)
+        #expect(try JSONDecoder().decode([[String]].self, from: Data(facets.utf8)) == [["all_project_types:datapack"], ["categories:datapack"], ["versions:test"]])
+        #expect(urls[1].queryItems?.first { $0.name == "loaders" }?.value == "[\"datapack\"]")
+    }
+
     @Test func fileVersionsAreCachedOnDiskAndRefreshedAfterChange() async throws {
         let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
         let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
@@ -302,6 +326,160 @@ import Testing
         try await Self.settle(installations, instance)
         #expect(controller.errors[instance.id] == nil)
         #expect(controller.mods[instance.id]?.map(\.name) == ["root-alpha.jar"])
+    }
+
+    @Test func installsDatapackOnlyInSelectedWorldAndRecognizesItThere() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        instance.modLoaderRaw = ModLoader.vanilla.rawValue
+        let world = try Self.world("First", in: instance, installations: installations)
+        _ = try Self.world("Second", in: instance, installations: installations)
+        let bytes = try Self.datapackZIP(in: root)
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [Self.version("v", project: "root", loader: "datapack", file: ("pack.zip", bytes))]),
+            "fixtures.test/pack.zip": bytes,
+            "\(api)/version_files": try JSONSerialization.data(withJSONObject: [FabricClient.hash(bytes): ["id": "v", "project_id": "root", "date_published": "2026-10-01"]])
+        ])
+        let level = try Data(contentsOf: world.appendingPathComponent("level.dat"))
+        controller.install(try Self.project("root"), in: instance, target: .worldDatapacks("First"))
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(try Data(contentsOf: world.appendingPathComponent("datapacks/pack.zip")) == bytes)
+        #expect(try Data(contentsOf: world.appendingPathComponent("level.dat")) == level)
+        #expect(controller.worldInstallMessages[instance.id]?["First"] != nil)
+        #expect(controller.items(instance, target: .worldDatapacks("First")).map(\.name) == ["pack.zip"])
+        #expect(try await controller.installedProjects(instance, target: .worldDatapacks("First")).keys.sorted() == ["root"])
+        #expect(try await controller.installedProjects(instance, target: .worldDatapacks("Second")).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: world.deletingLastPathComponent().appendingPathComponent("Second/datapacks").path))
+        var draft = InstanceDraft(); draft.name = "Other"
+        let other = try installations.store.create(draft, versionID: "test", metadataURL: "https://fixtures.test/version", metadataSHA1: "sha")
+        _ = try Self.world("First", in: other, installations: installations)
+        #expect(try await controller.installedProjects(other, target: .worldDatapacks("First")).isEmpty)
+        #expect(try await installations.content.list(at: controller.folder(instance, mods: true), mods: true).isEmpty)
+        #expect(try await installations.content.list(at: controller.folder(instance, mods: false), mods: false).isEmpty)
+    }
+
+    @Test(arguments: ["primary", "alternative", "cancel"])
+    func offersDatapackDependenciesAndRoutesEachKind(choice: String) async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let world = try Self.world("First", in: instance, installations: installations)
+        let bytes = try Self.datapackZIP(in: root), dependency = try Self.datapackZIP(in: root, name: "dep.zip"), mod = Data("mod".utf8), pack = Data("pack".utf8)
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [Self.version("root-v", project: "root", loader: "datapack", file: ("pack.zip", bytes), dependencies: [("data", "required"), ("resource", "required"), ("mod", "required")])]),
+            "\(api)/projects": Data(#"[{"id":"data","title":"Data","project_type":"mod","all_project_types":["mod","datapack"]},{"id":"resource","title":"Resource","project_type":"resourcepack"},{"id":"mod","title":"Mod","project_type":"mod"}]"#.utf8),
+            "\(api)/project/data/version": try JSONSerialization.data(withJSONObject: [Self.version("data-v", project: "data", loader: "datapack", file: ("dep.zip", dependency))]),
+            "\(api)/project/resource/version": try JSONSerialization.data(withJSONObject: [Self.version("resource-v", project: "resource", loader: "minecraft", file: ("resource.zip", pack))]),
+            "\(api)/project/mod/version": try JSONSerialization.data(withJSONObject: [Self.version("mod-v", project: "mod", loader: "fabric", file: ("dep.jar", mod))]),
+            "fixtures.test/pack.zip": bytes, "fixtures.test/dep.zip": dependency, "fixtures.test/resource.zip": pack, "fixtures.test/dep.jar": mod
+        ])
+        controller.install(try Self.project("root"), in: instance, target: .worldDatapacks("First"))
+        let confirmation = try await Self.confirmation(controller, installations, instance)
+        #expect(confirmation.projects.map(\.title) == ["Data", "Resource", "Mod"])
+        #expect(confirmation.alternative == "Только датапак" && confirmation.message.contains("First"))
+        controller.resolveConfirmation(confirmation.id, choice: choice == "primary" ? .primary : choice == "alternative" ? .alternative : .cancel)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(FileManager.default.fileExists(atPath: world.appendingPathComponent("datapacks/pack.zip").path) == (choice != "cancel"))
+        #expect(FileManager.default.fileExists(atPath: world.appendingPathComponent("datapacks/dep.zip").path) == (choice == "primary"))
+        #expect(try await installations.content.list(at: controller.folder(instance, mods: true), mods: true).count == (choice == "primary" ? 1 : 0))
+        #expect(try await installations.content.list(at: controller.folder(instance, mods: false), mods: false).count == (choice == "primary" ? 1 : 0))
+        if choice == "cancel" { #expect(controller.worldInstallMessages[instance.id]?["First"] == nil) }
+    }
+
+    @Test(arguments: [true, false]) func replacingDatapackRequiresConsent(accepted: Bool) async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let world = try Self.world("First", in: instance, installations: installations)
+        let folder = world.appendingPathComponent("datapacks")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        let old = Data("old".utf8), bytes = try Self.datapackZIP(in: root)
+        try old.write(to: folder.appendingPathComponent("pack.zip"))
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [Self.version("v", project: "root", loader: "datapack", file: ("pack.zip", bytes))]),
+            "fixtures.test/pack.zip": bytes
+        ])
+        controller.install(try Self.project("root"), in: instance, target: .worldDatapacks("First"))
+        let confirmation = try await Self.confirmation(controller, installations, instance)
+        #expect(confirmation.title == "Заменить датапак?" && confirmation.message.contains("First"))
+        controller.resolveConfirmation(confirmation.id, accepted: accepted)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(try Data(contentsOf: folder.appendingPathComponent("pack.zip")) == (accepted ? bytes : old))
+        #expect((controller.worldInstallMessages[instance.id]?["First"] != nil) == accepted)
+    }
+
+    @Test(arguments: ["hash", "metadata", "missing-world", "running"])
+    func failedDatapackInstallLeavesWorldUntouched(failure: String) async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let world = try Self.world("First", in: instance, installations: installations)
+        let bytes = try Self.datapackZIP(in: root, valid: failure != "metadata")
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [Self.version("v", project: "root", loader: "datapack", file: ("pack.zip", bytes))]),
+            "fixtures.test/pack.zip": failure == "hash" ? Data("bad".utf8) : bytes
+        ])
+        if failure == "missing-world" { try FileManager.default.removeItem(at: world) }
+        if failure == "running" { installations.store.launchBusy.insert(instance.id) }
+        controller.install(try Self.project("root"), in: instance, target: .worldDatapacks("First"))
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] != nil)
+        #expect(!FileManager.default.fileExists(atPath: world.appendingPathComponent("datapacks").path))
+        #expect(controller.worldInstallMessages[instance.id]?["First"] == nil)
+        if failure == "missing-world" { #expect(!FileManager.default.fileExists(atPath: world.path)) }
+        if failure == "running" { #expect(ModrinthTestProtocol.requests.isEmpty) }
+        if failure == "metadata" { #expect(controller.errors[instance.id]?.contains("pack.mcmeta") == true) }
+    }
+
+    @Test func disappearingWorldDuringConfirmationIsNotRecreated() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let world = try Self.world("First", in: instance, installations: installations)
+        let folder = world.appendingPathComponent("datapacks")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        try Data("old".utf8).write(to: folder.appendingPathComponent("pack.zip"))
+        let bytes = try Self.datapackZIP(in: root)
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [Self.version("v", project: "root", loader: "datapack", file: ("pack.zip", bytes))]),
+            "fixtures.test/pack.zip": bytes
+        ])
+        controller.install(try Self.project("root"), in: instance, target: .worldDatapacks("First"))
+        let confirmation = try await Self.confirmation(controller, installations, instance)
+        try FileManager.default.removeItem(at: world)
+        controller.resolveConfirmation(confirmation.id, accepted: true)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] != nil)
+        #expect(!FileManager.default.fileExists(atPath: world.path))
+    }
+
+    private static func world(_ name: String, in instance: GameInstance, installations: InstallationCoordinator) throws -> URL {
+        let root = try installations.store.storage.directory(instance.folderName)
+        let world = root.appendingPathComponent("minecraft/saves/\(name)")
+        try FileManager.default.createDirectory(at: world, withIntermediateDirectories: true)
+        try WorldTestFixture.level(name: name).write(to: world.appendingPathComponent("level.dat"))
+        return world
+    }
+
+    private static func datapackZIP(in root: URL, name: String = "pack.zip", valid: Bool = true) throws -> Data {
+        let source = root.appendingPathComponent(UUID().uuidString), archive = root.appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        let file = valid ? "pack.mcmeta" : "wrong.json"
+        try JSONSerialization.data(withJSONObject: ["pack": ["pack_format": 48, "description": name]]).write(to: source.appendingPathComponent(file))
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        process.currentDirectoryURL = source; process.arguments = ["-q", archive.path, file]
+        try process.run(); process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        return try Data(contentsOf: archive)
     }
 
     private static func project(_ id: String) throws -> ModrinthProject {

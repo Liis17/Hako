@@ -1,12 +1,14 @@
 import AppKit
 import SwiftUI
 
-/// Каталог Modrinth для сборки: проекты, совместимые с её версией Minecraft (для модов — и с Fabric).
+/// Каталог для сборки или её мира: точная версия Minecraft и загрузчик выбранного типа содержимого.
 struct ModrinthCatalogView: View {
     let instance: GameInstance
-    let mods: Bool
+    let target: ModrinthInstallTarget
+    var worldName: String? = nil
     let onBack: () -> Void
     @Environment(InstanceContentController.self) private var content
+    @Environment(\.scenePhase) private var scenePhase
     @State private var query = ""
     @State private var sort = ModrinthSort.relevance
     @State private var searchedQuery = ""
@@ -23,18 +25,37 @@ struct ModrinthCatalogView: View {
     @FocusState private var searchFocused: Bool
 
     private struct SearchKey: Equatable { let query: String; let sort: ModrinthSort }
-    private var installing: String? { content.catalogInstalling[instance.id] }
-    private var disabledReason: String? { installing == nil ? content.disabledReason(instance, mods: mods) : nil }
-    private var installedKey: [String] { ((mods ? content.mods : content.packs)[instance.id] ?? []).map { "\($0.name):\($0.enabled)" } }
+    private var mods: Bool { target == .mods }
+    private var title: LocalizedStringKey {
+        switch target.kind { case .mod: "Моды с Modrinth"; case .resourcePack: "Ресурспаки с Modrinth"; case .datapack: "Датапаки с Modrinth" }
+    }
+    private var searchPlaceholder: LocalizedStringKey {
+        switch target.kind { case .mod: "Поиск модов"; case .resourcePack: "Поиск ресурспаков"; case .datapack: "Поиск датапаков" }
+    }
+    private var installing: String? { content.catalogInstallTargets[instance.id] == target ? content.catalogInstalling[instance.id] : nil }
+
+    init(instance: GameInstance, target: ModrinthInstallTarget, worldName: String? = nil, onBack: @escaping () -> Void) {
+        self.instance = instance; self.target = target; self.worldName = worldName; self.onBack = onBack
+    }
+
+    init(instance: GameInstance, mods: Bool, onBack: @escaping () -> Void) {
+        self.init(instance: instance, target: mods ? .mods : .packs, onBack: onBack)
+    }
+    private var disabledReason: String? { installing == nil ? content.disabledReason(instance, target: target) : nil }
+    private var installedKey: [String] { content.items(instance, target: target).map { "\($0.name):\($0.enabled)" } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Button("Назад к сборке", systemImage: "chevron.left", action: onBack)
+            Button(target.world == nil ? "Назад к сборке" : "Назад к мирам", systemImage: "chevron.left", action: onBack)
                 .buttonStyle(.plain).foregroundStyle(.secondary)
-                .keyboardShortcut("[", modifiers: .command).help("Назад к сборке (⌘[)")
+                .keyboardShortcut("[", modifiers: .command).help(target.world == nil ? "Назад к сборке (⌘[)" : "Назад к мирам (⌘[)")
             VStack(alignment: .leading, spacing: 6) {
-                Text(mods ? "Моды с Modrinth" : "Ресурспаки с Modrinth").font(.system(size: 44, weight: .heavy)).tracking(-1).lineLimit(1).minimumScaleFactor(0.55)
-                Text("\(instance.name) · Minecraft \(instance.versionID)\(mods ? " · \(instance.loaderTitle)" : "")").lineLimit(1).foregroundStyle(.secondary)
+                Text(title).font(.system(size: 44, weight: .heavy)).tracking(-1).lineLimit(1).minimumScaleFactor(0.55)
+                if let world = target.world {
+                    Text("\(worldName ?? world) · \(instance.name) · Minecraft \(instance.versionID)").lineLimit(1).foregroundStyle(.secondary)
+                } else {
+                    Text("\(instance.name) · Minecraft \(instance.versionID)\(mods ? " · \(instance.loaderTitle)" : "")").lineLimit(1).foregroundStyle(.secondary)
+                }
             }
             HStack(spacing: 12) {
                 searchField
@@ -47,6 +68,9 @@ struct ModrinthCatalogView: View {
             }
             if let disabledReason { Text(disabledReason).font(.callout).foregroundStyle(.secondary) }
             if let error = content.errors[instance.id] { Text(error).font(.callout).foregroundStyle(Color.shu).textSelection(.enabled) }
+            if let world = target.world, let message = content.worldInstallMessages[instance.id]?[world] {
+                Label(message, systemImage: "checkmark.circle").font(.callout).foregroundStyle(.secondary)
+            }
             ScrollView {
                 feed.padding(2).padding(.bottom, 32)
             }
@@ -57,6 +81,10 @@ struct ModrinthCatalogView: View {
             Button("Поиск") { searchFocused = true }.keyboardShortcut("f").opacity(0).allowsHitTesting(false).accessibilityHidden(true)
         }
         .onAppear { searchFocused = true }
+        .task { await content.reload(instance, target: target) }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await content.reload(instance, target: target); await refreshInstalled() } }
+        }
         .task(id: SearchKey(query: query, sort: sort)) { await search() }
         .task(id: installedKey) { await refreshInstalled() }
         .onChange(of: installing) { finished, current in
@@ -70,7 +98,7 @@ struct ModrinthCatalogView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-            TextField(mods ? "Поиск модов" : "Поиск ресурспаков", text: $query)
+            TextField(searchPlaceholder, text: $query)
                 .textFieldStyle(.plain).focused($searchFocused)
                 .onExitCommand { query = "" }
             if loading && !projects.isEmpty {
@@ -105,7 +133,7 @@ struct ModrinthCatalogView: View {
             }
             LazyVStack(spacing: 8) {
                 ForEach(projects) { project in
-                    ModrinthCatalogRow(project: project, mods: mods, status: status(project), channels: channels[project.id]) { content.install(project, in: instance, mods: mods, channel: $0) }
+                    ModrinthCatalogRow(project: project, kind: target.kind, status: status(project), channels: channels[project.id]) { content.install(project, in: instance, target: target, channel: $0) }
                         .task(id: project.id) { await loadChannels(project) }
                 }
                 if !projects.isEmpty && projects.count < total { footer }
@@ -142,7 +170,7 @@ struct ModrinthCatalogView: View {
         }
         loading = true; loadError = nil
         do {
-            let page = try await content.modrinth.search(query, mods: mods, minecraft: instance.versionID, sort: sort, offset: 0)
+            let page = try await content.modrinth.search(query, kind: target.kind, minecraft: instance.versionID, sort: sort, offset: 0)
             guard !Task.isCancelled else { return }
             projects = page.hits; total = page.total; searchedQuery = query; moreError = nil
             position.scrollTo(edge: .top)
@@ -157,7 +185,7 @@ struct ModrinthCatalogView: View {
     private func loadMore() async {
         let key = SearchKey(query: searchedQuery, sort: sort)
         do {
-            let page = try await content.modrinth.search(key.query, mods: mods, minecraft: instance.versionID, sort: key.sort, offset: projects.count)
+            let page = try await content.modrinth.search(key.query, kind: target.kind, minecraft: instance.versionID, sort: key.sort, offset: projects.count)
             guard !Task.isCancelled, key == SearchKey(query: searchedQuery, sort: sort) else { return }
             // Порядок выдачи может сместиться между страницами.
             let known = Set(projects.map(\.id))
@@ -170,12 +198,12 @@ struct ModrinthCatalogView: View {
 
     /// Ошибка не запоминается: при следующем появлении строки версии запросятся снова.
     private func loadChannels(_ project: ModrinthProject) async {
-        guard channels[project.id] == nil, let versions = try? await content.modrinth.compatibleVersions(project: project.id, mods: mods, minecraft: instance.versionID) else { return }
+        guard channels[project.id] == nil, let versions = try? await content.modrinth.compatibleVersions(project: project.id, kind: target.kind, minecraft: instance.versionID) else { return }
         channels[project.id] = versions.reduce(into: [:]) { if $0[$1.channel] == nil { $0[$1.channel] = $1 } }
     }
 
     private func refreshInstalled() async {
-        guard let found = try? await content.installedProjects(instance, mods: mods) else { return }
+        guard let found = try? await content.installedProjects(instance, target: target) else { return }
         installed = Set(found.keys)
     }
 }
@@ -183,7 +211,7 @@ struct ModrinthCatalogView: View {
 struct ModrinthCatalogRow: View {
     enum Status { case available, unavailable, installing, installed }
     let project: ModrinthProject
-    let mods: Bool
+    let kind: ModrinthContentKind
     let status: Status
     /// `nil`, пока версии проекта загружаются.
     let channels: [String: ModrinthVersion]?
@@ -205,7 +233,7 @@ struct ModrinthCatalogRow: View {
             Button(action: openPage) {
                 AsyncImage(url: project.iconURL) { phase in
                     if let image = phase.image { image.resizable().scaledToFit() }
-                    else { Image(systemName: mods ? "puzzlepiece.extension.fill" : "photo.fill").font(.title2).foregroundStyle(Color.sakuraDeep) }
+                    else { Image(systemName: kind == .mod ? "puzzlepiece.extension.fill" : kind == .datapack ? "shippingbox.fill" : "photo.fill").font(.title2).foregroundStyle(Color.sakuraDeep) }
                 }
                 .frame(width: 44, height: 44)
                 .background(.white.opacity(0.35), in: .rect(cornerRadius: 10))

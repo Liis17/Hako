@@ -83,9 +83,9 @@ actor InstanceContent {
     }
 
     func apiWasProvisioned(in folder: URL) throws -> Bool { try registry(at: folder).apiProvisioned }
-    func list(at folder: URL, mods: Bool, readOrigins: Bool = true) throws -> [InstanceContentItem] {
+    func list(at folder: URL, mods: Bool, readOrigins: Bool = true, includeDisabledPacks: Bool = true) throws -> [InstanceContentItem] {
         let origins = mods && readOrigins ? try registry(at: folder).files : [:]
-        let disabledFolder = mods ? nil : try disabledPacksFolder(folder)
+        let disabledFolder = mods || !includeDisabledPacks ? nil : try disabledPacksFolder(folder)
         let folders = [folder] + (disabledFolder.map { [$0] } ?? [])
         let urls = try folders.flatMap { directory in
             FileManager.default.fileExists(atPath: directory.path) ? try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey, .contentModificationDateKey], options: .skipsHiddenFiles) : []
@@ -140,8 +140,8 @@ actor InstanceContent {
         try importItem(from: source, into: folder, mods: false, replace: replace)
     }
 
-    private func existing(_ name: String, in folder: URL, mods: Bool) throws -> URL? {
-        let folders = mods ? [folder] : [folder, try disabledPacksFolder(folder)]
+    private func existing(_ name: String, in folder: URL, mods: Bool, includeDisabledPacks: Bool = true) throws -> URL? {
+        let folders = mods || !includeDisabledPacks ? [folder] : [folder, try disabledPacksFolder(folder)]
         let files = try folders.flatMap { directory in
             FileManager.default.fileExists(atPath: directory.path) ? try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) : []
         }
@@ -153,7 +153,13 @@ actor InstanceContent {
         return matches.first
     }
 
-    func importItem(from source: URL, into folder: URL, mods: Bool, replace: Bool = false, origin: ModOrigin? = nil) throws {
+    /// Проверка мира и публикация идут на одном акторе; исчезнувшие родительские папки не создаются заново.
+    func importDatapack(from source: URL, world: String, in instanceRoot: URL, replace: Bool = false) throws {
+        let folder = try InstanceWorlds.datapacksFolder(world: world, in: instanceRoot)
+        try importItem(from: source, into: folder, mods: false, replace: replace, createIntermediateDirectories: false, includeDisabledPacks: false)
+    }
+
+    func importItem(from source: URL, into folder: URL, mods: Bool, replace: Bool = false, origin: ModOrigin? = nil, createIntermediateDirectories: Bool = true, includeDisabledPacks: Bool = true) throws {
         let manager = FileManager.default
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
@@ -175,8 +181,10 @@ actor InstanceContent {
             if let failure { throw failure }
         }
         var registry = mods ? try registry(at: folder) : nil
-        try manager.createDirectory(at: folder, withIntermediateDirectories: true)
-        let existing = try existing(source.lastPathComponent, in: folder, mods: mods)
+        if createIntermediateDirectories || !manager.fileExists(atPath: folder.path) {
+            try manager.createDirectory(at: folder, withIntermediateDirectories: createIntermediateDirectories)
+        }
+        let existing = try existing(source.lastPathComponent, in: folder, mods: mods, includeDisabledPacks: includeDisabledPacks)
         if existing != nil && !replace { throw PackImportError.exists(source.lastPathComponent) }
         let disabled = mods && existing?.lastPathComponent.lowercased().hasSuffix(".jar.disabled") == true
         let destinationFolder = !mods && existing != nil ? existing!.deletingLastPathComponent() : folder
