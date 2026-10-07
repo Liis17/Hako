@@ -20,7 +20,7 @@ Parent: [[Index]]
 ## Контракты
 
 - `InstanceWorlds.list(in:)` — actor; принимает корень одной сборки, читает непосредственные папки
-  `minecraft/saves` с `level.dat` или `level.dat_old`. Отсутствующие saves дают пустой список без создания файлов.
+  `minecraft/saves` с `level.dat` или `level.dat_old`, включая скрытые папки. Отсутствующие saves дают пустой список без создания файлов.
 - `InstanceWorld.id` — имя папки относительно saves, поэтому полное назначение включает UUID сборки.
   Имя мира — `Data/LevelName`, версия — `Data/Version/Name`, режим — `Data/GameType`, последняя игра —
   `Data/LastPlayed` (миллисекунды Unix). Отсутствующие поля остаются неизвестными; имя заменяется именем папки.

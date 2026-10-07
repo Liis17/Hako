@@ -17,7 +17,7 @@ actor InstanceWorlds {
         let saves = try Self.checkedURL("minecraft/saves", in: instanceRoot)
         let manager = FileManager.default
         guard manager.fileExists(atPath: saves.path) else { return [] }
-        let folders = try manager.contentsOfDirectory(at: saves, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: .skipsHiddenFiles)
+        let folders = try manager.contentsOfDirectory(at: saves, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         var worlds: [InstanceWorld] = []
         for folder in folders {
             try Task.checkCancellation()

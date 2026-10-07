@@ -72,6 +72,23 @@ struct InstanceWorldsTests {
         #expect(!FileManager.default.fileExists(atPath: root.path))
     }
 
+    @Test func findsWorldsInHiddenFolders() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let saves = root.appendingPathComponent("minecraft/saves")
+        for folder in [".World", "Hidden", ".Unrelated"] {
+            try FileManager.default.createDirectory(at: saves.appendingPathComponent(folder), withIntermediateDirectories: true)
+        }
+        try WorldTestFixture.level(name: "Dot world").write(to: saves.appendingPathComponent(".World/level.dat"))
+        try WorldTestFixture.level(name: "Flagged world").write(to: saves.appendingPathComponent("Hidden/level.dat"))
+        var hidden = saves.appendingPathComponent("Hidden"), values = URLResourceValues()
+        values.isHidden = true
+        try hidden.setResourceValues(values)
+        let worlds = try await InstanceWorlds().list(in: root)
+        #expect(Set(worlds.map(\.id)) == [".World", "Hidden"])
+        #expect(try InstanceWorlds.datapacksFolder(world: ".World", in: root) == saves.appendingPathComponent(".World/datapacks"))
+    }
+
     @Test func skipsUnknownTagsAndDecodesJavaSurrogatePairs() throws {
         let extra = Data([8, 0, 9]) + Data("LevelName".utf8) + Data([0, 6, 0xED, 0xA0, 0xBC, 0xED, 0xBC, 0xB8])
         let arrays = Data([11, 0, 1, 97, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 2])
