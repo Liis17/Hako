@@ -268,12 +268,13 @@ struct ModrinthUpdate {
         return result
     }
 
-    func install(_ project: ModrinthProject, in instance: GameInstance, mods: Bool) {
+    /// `channel` — канал Modrinth (`release`, `beta`, `alpha`) устанавливаемой версии проекта; зависимости его не наследуют.
+    func install(_ project: ModrinthProject, in instance: GameInstance, mods: Bool, channel: String = "release") {
         guard catalogInstalling[instance.id] == nil else { return }
         catalogInstalling[instance.id] = project.id
         let started = perform(instance, mods: mods) { [self] _ in
             defer { catalogInstalling[instance.id] = nil }
-            try await installFromModrinth(project, in: instance, mods: mods)
+            try await installFromModrinth(project, in: instance, mods: mods, channel: channel)
         }
         if !started { catalogInstalling[instance.id] = nil }
     }
@@ -295,11 +296,12 @@ struct ModrinthUpdate {
     }
 
     /// С `replacing` новая версия заменяет файл сборки вместо импорта рядом с ним.
-    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, mods: Bool, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil) async throws {
+    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, mods: Bool, channel: String? = nil, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil) async throws {
         let minecraft = instance.versionID
-        let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, mods: mods, minecraft: minecraft) : requested
+        let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, mods: mods, minecraft: minecraft, channel: channel) : requested
         guard let version = latest, let file = version.file(mods: mods) else {
-            throw InstanceFileError.message("У «\(project.title)» нет версии для Minecraft \(minecraft)\(mods ? " и Fabric" : "").")
+            let kind = ["release": "релиза", "beta": "беты", "alpha": "альфы"][channel ?? ""] ?? "версии"
+            throw InstanceFileError.message("У «\(project.title)» нет \(kind) для Minecraft \(minecraft)\(mods ? " и Fabric" : "").")
         }
         let modsAvailable = instance.modLoader == .fabric && instance.state != .queued && instance.state != .installing
         var installed: [Bool: [String: [InstanceContentItem]]] = [:]

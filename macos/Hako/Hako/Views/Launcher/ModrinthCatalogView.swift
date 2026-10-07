@@ -16,6 +16,8 @@ struct ModrinthCatalogView: View {
     @State private var loadError: String?
     @State private var moreError: String?
     @State private var installed: Set<String> = []
+    /// Проект → канал → новейшая совместимая версия; нет записи, пока версии не загружены.
+    @State private var channels: [String: [String: ModrinthVersion]] = [:]
     @State private var settling: String?
     @State private var position = ScrollPosition(edge: .top)
     @FocusState private var searchFocused: Bool
@@ -103,7 +105,8 @@ struct ModrinthCatalogView: View {
             }
             LazyVStack(spacing: 8) {
                 ForEach(projects) { project in
-                    ModrinthCatalogRow(project: project, mods: mods, status: status(project)) { content.install(project, in: instance, mods: mods) }
+                    ModrinthCatalogRow(project: project, mods: mods, status: status(project), channels: channels[project.id]) { content.install(project, in: instance, mods: mods, channel: $0) }
+                        .task(id: project.id) { await loadChannels(project) }
                 }
                 if !projects.isEmpty && projects.count < total { footer }
             }
@@ -165,6 +168,12 @@ struct ModrinthCatalogView: View {
         }
     }
 
+    /// Ошибка не запоминается: при следующем появлении строки версии запросятся снова.
+    private func loadChannels(_ project: ModrinthProject) async {
+        guard channels[project.id] == nil, let versions = try? await content.modrinth.compatibleVersions(project: project.id, mods: mods, minecraft: instance.versionID) else { return }
+        channels[project.id] = versions.reduce(into: [:]) { if $0[$1.channel] == nil { $0[$1.channel] = $1 } }
+    }
+
     private func refreshInstalled() async {
         guard let found = try? await content.installedProjects(instance, mods: mods) else { return }
         installed = Set(found.keys)
@@ -176,8 +185,20 @@ struct ModrinthCatalogRow: View {
     let project: ModrinthProject
     let mods: Bool
     let status: Status
-    let onAdd: () -> Void
+    /// `nil`, пока версии проекта загружаются.
+    let channels: [String: ModrinthVersion]?
+    let onAdd: (String) -> Void
     @State private var hovered = false
+
+    private var channelNote: String? {
+        guard let channels, channels["release"] == nil else { return nil }
+        switch (channels["beta"] != nil, channels["alpha"] != nil) {
+        case (true, true): return "Доступны только бета и альфа"
+        case (true, false): return "Доступна только бета"
+        case (false, true): return "Доступна только альфа"
+        case (false, false): return "Нет совместимой версии"
+        }
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -201,6 +222,7 @@ struct ModrinthCatalogRow: View {
                 if !project.description.isEmpty {
                     Text(project.description).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                 }
+                if let channelNote { Text(channelNote).font(.caption).foregroundStyle(.secondary) }
             }
             Spacer(minLength: 12)
             Group {
@@ -210,16 +232,33 @@ struct ModrinthCatalogRow: View {
                 case .installed:
                     Label("Установлен", systemImage: "checkmark.circle.fill").foregroundStyle(.secondary)
                 case .available, .unavailable:
-                    Button("Добавить", systemImage: "plus", action: onAdd).buttonStyle(.glass)
-                        .disabled(status == .unavailable).accessibilityLabel("Добавить «\(project.title)»")
+                    HStack(spacing: 8) {
+                        Button("Добавить", systemImage: "plus") { onAdd("release") }.buttonStyle(.glass)
+                            .disabled(status == .unavailable || channels != nil && channels?["release"] == nil)
+                            .accessibilityLabel("Добавить «\(project.title)»")
+                        Menu {
+                            channelButton("beta", install: "бету", missing: "Бета недоступна")
+                            channelButton("alpha", install: "альфу", missing: "Альфа недоступна")
+                        } label: { Image(systemName: "ellipsis") }
+                            .menuStyle(.button).buttonStyle(.glass).menuIndicator(.hidden).fixedSize()
+                            .help("Другие версии").accessibilityLabel("Другие версии «\(project.title)»")
+                    }
                 }
             }
-            .frame(width: 130, alignment: .trailing)
+            .frame(width: 180, alignment: .trailing)
             .transition(.opacity)
         }
         .padding(14)
         .background(.white.opacity(0.45), in: .rect(cornerRadius: 12))
         .animation(.smooth(duration: 0.25), value: status)
+    }
+
+    @ViewBuilder private func channelButton(_ channel: String, install: String, missing: String) -> some View {
+        if let version = channels?[channel] {
+            Button("Установить \(install) \(version.number)") { onAdd(channel) }.disabled(status == .unavailable)
+        } else {
+            Button(missing) {}.disabled(true)
+        }
     }
 
     private func openPage() { NSWorkspace.shared.open(project.pageURL) }

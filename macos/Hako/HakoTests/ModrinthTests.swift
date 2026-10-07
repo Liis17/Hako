@@ -41,6 +41,9 @@ import Testing
         ModrinthTestProtocol.prepare(["\(api)/project/root/version": try JSONSerialization.data(withJSONObject: versions)])
         let client = ModrinthClient(session: session)
         #expect(try await client.latestVersion(project: "root", mods: true, minecraft: "test")?.id == "release")
+        #expect(try await client.latestVersion(project: "root", mods: true, minecraft: "test", channel: "beta")?.id == "beta")
+        #expect(try await client.latestVersion(project: "root", mods: true, minecraft: "test", channel: "alpha") == nil)
+        #expect(try await client.compatibleVersions(project: "root", mods: true, minecraft: "test").map(\.id) == ["release", "beta"])
         let packs = [Self.version("pack", project: "root", loader: "minecraft", file: ("pack.zip", bytes)), Self.version("jar", project: "root", loader: "minecraft", file: ("pack.jar", bytes))]
         ModrinthTestProtocol.prepare(["\(api)/project/root/version": try JSONSerialization.data(withJSONObject: packs)])
         #expect(try await client.latestVersion(project: "root", mods: false, minecraft: "test")?.id == "pack")
@@ -279,6 +282,26 @@ import Testing
         ["id": id, "project_id": project, "version_number": id, "version_type": channel, "date_published": date, "game_versions": [minecraft], "loaders": [loader],
          "files": [["filename": file.name, "url": "https://fixtures.test/\(file.name)", "size": file.bytes.count, "primary": true, "hashes": ["sha1": sha1(file.bytes), "sha512": FabricClient.hash(file.bytes)]]],
          "dependencies": dependencies.map { ["project_id": $0.project, "version_id": NSNull(), "file_name": NSNull(), "dependency_type": $0.type] }]
+    }
+
+    @Test func catalogChannelInstallsOnlyThatChannel() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let bytes = Data("alpha".utf8)
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [Self.version("root-alpha", project: "root", channel: "alpha", file: ("root-alpha.jar", bytes))]),
+            "fixtures.test/root-alpha.jar": bytes
+        ])
+        controller.install(try Self.project("root"), in: instance, mods: true)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == "У «Root» нет релиза для Minecraft test и Fabric.")
+        #expect(controller.mods[instance.id]?.isEmpty != false)
+        controller.install(try Self.project("root"), in: instance, mods: true, channel: "alpha")
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(controller.mods[instance.id]?.map(\.name) == ["root-alpha.jar"])
     }
 
     private static func project(_ id: String) throws -> ModrinthProject {

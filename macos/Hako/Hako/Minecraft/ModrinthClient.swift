@@ -148,7 +148,13 @@ actor ModrinthClient {
     }
 
     /// Последняя версия для Minecraft и загрузчика: release, затем beta, затем alpha; внутри канала — новейшая.
-    func latestVersion(project: String, mods: Bool, minecraft: String) async throws -> ModrinthVersion? {
+    /// С `channel` — новейшая версия только этого канала.
+    func latestVersion(project: String, mods: Bool, minecraft: String, channel: String? = nil) async throws -> ModrinthVersion? {
+        try await compatibleVersions(project: project, mods: mods, minecraft: minecraft).first { channel == nil || $0.channel == channel }
+    }
+
+    /// Устанавливаемые версии для Minecraft и загрузчика: release, затем beta, затем alpha; внутри канала — новейшие первыми.
+    func compatibleVersions(project: String, mods: Bool, minecraft: String) async throws -> [ModrinthVersion] {
         let loader = mods ? "fabric" : "minecraft"
         let path = "project/\(try checkedIDs([project])[0])/version"
         let versions = try JSONDecoder().decode([ModrinthVersion].self, from: await data(request(url(path, ["game_versions": try json([minecraft]), "loaders": try json([loader]), "include_changelog": "false"]))))
@@ -156,7 +162,7 @@ actor ModrinthClient {
         return versions.filter { $0.projectID == project && $0.gameVersions.contains(minecraft) && $0.loaders.contains(loader) && priority[$0.channel] != nil && $0.file(mods: mods) != nil }.sorted {
             let lhs = priority[$0.channel]!, rhs = priority[$1.channel]!
             return lhs == rhs ? $0.published > $1.published : lhs < rhs
-        }.first
+        }
     }
 
     func projects(_ ids: [String]) async throws -> [ModrinthProject] {
