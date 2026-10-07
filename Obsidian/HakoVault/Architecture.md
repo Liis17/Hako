@@ -26,7 +26,8 @@ CocoaPods, Carthage не используются) нет.
 | SwiftUI | UI и жизненный цикл приложения (`@main` `App`) | `macos/Hako/Hako/HakoApp.swift` |
 | RealityKit / `RealityView` | Нативное 3D-превью скина | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift`, `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` |
 | SwiftData | Аккаунт, профили сборок и игровое время | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Playtime/PlaytimeModels.swift` |
-| UserDefaults / `@AppStorage` | Глобальные параметры игры | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift` |
+| UserDefaults / `@AppStorage` | Глобальные параметры игры, язык интерфейса | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift`, `macos/Hako/Hako/AppLanguage.swift` |
+| String Catalog | Русский и английский интерфейс | `macos/Hako/Hako/Localizable.xcstrings` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
 | URLSession | Авторизация, Minecraft/Java, Fabric Meta, Fabric API и каталог Modrinth | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
@@ -58,6 +59,7 @@ CocoaPods, Carthage не используются) нет.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
 - [[UI/Launcher]] — главная страница: рейл вкладок, профиль, аватары, автоподключение Minecraft.
 - [[UI/MinecraftSkin]] — модель скина, ходьба, вращение, загрузка и резервный Стив.
+- [[UI/Localization]] — каталог строк, выбор языка и правила для новых строк.
 
 ## Основные потоки
 
@@ -122,8 +124,9 @@ CocoaPods, Carthage не используются) нет.
 - Конкурентность: `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`,
   `SWIFT_APPROACHABLE_CONCURRENCY = YES` — код модуля по умолчанию изолирован на главном акторе.
 - Подпись автоматическая (`CODE_SIGN_STYLE = Automatic`), команда `DEVELOPMENT_TEAM = 9Y935NYUP9`.
-- Локализация: включены String Catalogs (`LOCALIZATION_PREFERS_STRING_CATALOGS`,
-  `SWIFT_EMIT_LOC_STRINGS`), но файла `.xcstrings` в проекте пока нет; `developmentRegion = en`.
+- Локализация: String Catalog `macos/Hako/Hako/Localizable.xcstrings` (`LOCALIZATION_PREFERS_STRING_CATALOGS`,
+  `SWIFT_EMIT_LOC_STRINGS`) с исходным языком `ru` и переводом `en`; `developmentRegion = en`,
+  `knownRegions` содержит `ru`. Устройство и правила — [[UI/Localization]].
 
 Сборка из командной строки без подписи:
 
@@ -169,8 +172,10 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
   Java: голова персонажа, ник); аватар в рейле — голова Minecraft, иначе аватар Xbox; узкий рейл
   из иконок; автоподключение Minecraft при запуске — решения пользователя.
 - Вход по коду через microsoft.com/link, токены в Keychain
-  и профиль в SwiftData, окно 1280×720 (растягиваемое, минимум 960×540), русский интерфейс
+  и профиль в SwiftData, окно 1280×720 (растягиваемое, минимум 960×540), русский и английский интерфейс
   с японскими акцентами — решения пользователя.
+- Язык выбирается на приветствии и в разделе настроек «Основные» и меняется без перезапуска;
+  меню macOS и системные панели при этом следуют языку системы — решения пользователя ([[UI/Localization]]).
 - Анимированный скин справа в профиле, ходьба на месте и вращение мышью; встроенный классический
   Стив при недоступном Minecraft или загрузке — решения пользователя ([[UI/MinecraftSkin]]).
 - Обычная связка ключей вместо Data Protection Keychain — из-за отсутствия `application-identifier`

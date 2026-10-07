@@ -15,6 +15,7 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/Theme.swift` | `Color.sakuraDeep`, `Color.shu`, `Color(hex:)`, `Text.heroTitle()`, `JapaneseCaption`, `HankoSeal`, `View.reveal(_:order:)` | Общие цвета, типографика, декоративные элементы, анимация появления |
 | `macos/Hako/Hako/Views/SakuraBackground.swift` | `SakuraBackground` | Фон окна |
 | `macos/Hako/Hako/Views/WelcomeView.swift` | `WelcomeView` | Экран приветствия |
+| `macos/Hako/Hako/Views/AppLanguagePicker.swift` | `AppLanguagePicker` | Выбор языка на приветствии и в настройках |
 | `macos/Hako/Hako/Views/LoginView.swift` | `LoginView` | Вход в Microsoft по коду |
 
 ## Стиль
@@ -44,6 +45,7 @@ Parent: [[Index]]
 «Добро пожаловать в Hako», подзаголовок «Лаунчер Minecraft для macOS», кнопка «Начать»
 (`.keyboardShortcut(.defaultAction)` — срабатывает по Return) вызывает `onStart`.
 Рядом «Продолжить без аккаунта» вызывает `onContinueWithoutAccount` и открывает гостевой лаунчер.
+В правом верхнем углу — `AppLanguagePicker` «Русский / English»: язык меняется сразу ([[UI/Localization]]).
 В правом нижнем углу — дисклеймер «Hako is not affiliated with or endorsed by Mojang or Microsoft.
 Minecraft is a trademark of Microsoft.» (`.caption`, `.tertiary`). Элементы появляются через `reveal`.
 

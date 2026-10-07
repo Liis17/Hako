@@ -59,4 +59,5 @@ Parent: [[Index]]
 
 - `.preferredColorScheme(.light)`: интерфейс рассчитан на белый фон; в тёмной теме
   системные цвета текста стали бы светлыми на белом.
-- Строки интерфейса — русские литералы; файла String Catalog в проекте нет.
+- `.environment(\.locale, language.locale)` по `@AppStorage(AppLanguage.storageKey)` задаёт язык интерфейса
+  всему окну; смена языка не пересоздаёт экраны — см. [[UI/Localization]].

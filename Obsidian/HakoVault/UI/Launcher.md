@@ -23,7 +23,7 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/Launcher/InstanceComponents.swift` | `InstanceIconPicker`, `InstanceParametersEditor` | Общие поля создания и редактирования |
 | `macos/Hako/Hako/Instances/InstanceContent.swift` | `InstanceContent` | Локальные списки, независимый импорт и корзина |
 | `macos/Hako/Hako/Instances/InstanceRenameExitCoordinator.swift` | `InstanceRenameExitCoordinator`, `InstanceRenameWindowCloseGuard` | Защита незавершённого переименования при закрытии окна или приложения |
-| `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Глобальные параметры игры, место на диске и сведения о приложении |
+| `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Язык интерфейса, глобальные параметры игры, место на диске и сведения о приложении |
 | `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView`, `GuestProfileView` | Профиль аккаунта, повтор подключения Minecraft, выход и предложение входа гостю |
 | `macos/Hako/Hako/Views/Launcher/PlaytimeSummaryView.swift` | `PlaytimeSummaryView` | Общее игровое время аккаунта или гостя и ошибка сохранения |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView` | Анимированная модель скина справа в профиле |
@@ -62,7 +62,7 @@ Parent: [[Index]]
 |---------|---------|------------|
 | `InstancesView` | パック | «Сборки», центрированный блок создания первой сборки либо адаптивная сетка карточек |
 | `InstanceProfileView` | — | Профиль выбранной сборки: установка, моды, текстурпаки и настройки |
-| `SettingsView` | 設定 | Разделы «Игра», «Хранилище», «О приложении» |
+| `SettingsView` | 設定 | Разделы «Основные», «Игра», «Хранилище», «О приложении» |
 | `ProfileView` | プロフィール | «Профиль»: строки Xbox и Java Edition, общее время Minecraft, кнопка «Выйти», 3D-скин и активный плащ справа |
 | `GuestProfileView` | プロフィール | Гостевое время, пояснение о переносе при входе и кнопка Microsoft-входа |
 
@@ -225,8 +225,11 @@ Microsoft/Xbox-вход сам по себе не разрешает онлай�
 ## Настройки
 
 `SettingsView` использует `LauncherPage`; под заголовком — сегментированный переключатель
-«Игра», «Хранилище», «О приложении» и прокручиваемое содержимое. Начальный раздел — «Игра».
+«Основные», «Игра», «Хранилище», «О приложении» и прокручиваемое содержимое. Начальный раздел — «Основные».
 При смене раздела прокрутка сбрасывается к началу.
+
+«Основные» — карточка «Язык» с `AppLanguagePicker` и пояснением, что меню и системные окна macOS
+используют язык системы. Выбор применяется сразу, страница и раздел остаются открытыми ([[UI/Localization]]).
 
 Параметры игры сгруппированы в стеклянные карточки «Java», «Minecraft», «Окно»:
 путь к Java, аргументы Java и Minecraft, предел Java heap, полноэкранный режим, ширина и высота окна.
@@ -251,7 +254,7 @@ Java проверяется только при подготовке запус�
 `volumeNameKey`, `volumeTotalCapacityKey`, `volumeAvailableCapacityKey`.
 Данные читаются при открытии раздела и переходе `scenePhase` в `.active`.
 Занятое место — разность общей ёмкости и свободного места, полоса заполнения — его доля
-в общей ёмкости. Объёмы форматируются по-русски в единицах байтов.
+в общей ёмкости. Объёмы форматируются по `\.locale` окружения, то есть на языке интерфейса.
 Во время чтения — индикатор, при ошибке — «Не удалось получить данные».
 Объём сборок — фактически занятые файлы в `~/.hako`, включая резервные копии в `backups/`, подсчитанные через `InstanceStorage.allocatedSize()`
 в `Task.detached`. Пересчёт происходит при открытии, возвращении приложения в активное состояние,
