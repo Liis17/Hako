@@ -61,7 +61,7 @@ final class MinecraftSkinLoader {
             }
         }
 
-        guard let url = source.skinURL.flatMap(Self.secureURL) ?? profile?.skinURL else { return nil }
+        guard let url = profile?.skinURL ?? source.skinURL.flatMap(Self.secureURL) else { return nil }
         let variant = source.variant ?? profile?.variant ?? .classic
         let capeData: Data?
         if source.loadCape, let capeURL = profile?.capeURL {
