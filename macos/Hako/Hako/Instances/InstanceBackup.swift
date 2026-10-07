@@ -112,7 +112,7 @@ nonisolated enum InstanceBackup {
         try InstanceBackupManifest.encoder().encode(manifest).write(to: data)
         try await zip(["-q", "-j", partial.path, data.path], in: staging)
         // -y сохраняет ссылки внутри jre.bundle ссылками, а не копиями их целей.
-        try await zip(["-q", "-r", "-y", partial.path, ".", "-x", "minecraft/.hako-running.json"], in: source)
+        try await zip(["-q", "-r", "-y", partial.path, ".", "-x", "minecraft/.hako-running.json", ".hako-game/*"], in: source)
         try manager.moveItem(at: partial, to: target)
         return target
     }

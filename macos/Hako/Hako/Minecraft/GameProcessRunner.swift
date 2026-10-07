@@ -46,7 +46,7 @@ actor GameProcessRunner {
         defer { try? output.close() }
         try output.truncate(atOffset: 0)
         let process = Process()
-        process.executableURL = plan.executable; process.arguments = plan.arguments
+        process.executableURL = try await GameAppBundle.prepare(java: plan.executable, in: root); process.arguments = plan.arguments
         process.currentDirectoryURL = plan.workingDirectory
         process.environment = JavaLaunchValidation.environment()
         process.standardOutput = output; process.standardError = output

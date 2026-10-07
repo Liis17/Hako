@@ -7,6 +7,7 @@ Parent: [[Index]]
 `macos/Hako/Hako/Minecraft/MinecraftLaunchPlan.swift` — построение команды и offline-идентичность.
 `macos/Hako/Hako/Instances/GameLaunchCoordinator.swift` — общий координатор подготовки и состояния игр.
 `macos/Hako/Hako/Minecraft/GameProcessRunner.swift` — процессы, журнал и восстановление.
+`macos/Hako/Hako/Minecraft/GameAppBundle.swift` — обёртка `.app` для игрового режима macOS.
 `macos/Hako/Hako/Minecraft/JavaLaunchValidation.swift` — проверка исполняемой Java.
 `macos/Hako/Hako/Playtime/PlaytimeJournal.swift` — журнал сессии и идентичность процесса.
 `macos/Hako/Hako/Playtime/PlaytimeHelperClient.swift` — подключение фонового помощника.
@@ -55,6 +56,16 @@ Java сборки. Ошибка выбранной Java не включает с
 `GameProcessRunner` использует Foundation `Process`, без shell. Stdout/stderr направлены непосредственно
 в `minecraft/logs/hako-launch.log` (новый файл — 0600); pipe с жизнью лаунчера не используется.
 Закрытие Hako не завершает Minecraft. Команда с токенами не записывается в диагностику Hako.
+
+Java запускается не напрямую, а из `.hako-game/Minecraft.app` в корне сборки: `GameAppBundle.prepare`
+пересоздаёт его перед каждым стартом. `Contents/MacOS/java` — копия выбранной Java (сборки или глобальной),
+`Contents/lib` — symlink на `<JAVA_HOME>/lib` (`bin/java` грузит `libjli` через `@loader_path/../lib`,
+JAVA_HOME определяется по realpath библиотеки). `Info.plist` задаёт `LSApplicationCategoryType`
+`public.app-category.games`, `GCSupportsGameMode` и `LSSupportsGameMode`: macOS берёт категорию из главного
+bundle процесса, у голого `java` его нет, и игровой режим не включается. Ключи в plist самого Hako
+на дочерний процесс не действуют. Исходная подпись `java` не покрывает `Info.plist`, и AMFI убивает процесс
+(SIGKILL, код 9), поэтому bundle переподписывается ad-hoc через `/usr/bin/codesign` без hardened runtime —
+иначе library validation отклонит `libjli` с чужим Team ID. Проверка Java выполняется на исходном файле.
 
 `minecraft/.hako-running.json` хранит UUID сборки, PID, точное время рождения процесса из BSD и
 необязательный `sessionID`; прежний JSON без сессии продолжает читаться.
