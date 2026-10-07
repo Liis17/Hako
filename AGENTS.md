@@ -6,6 +6,7 @@
 создание и фоновая установка Vanilla- и Fabric-сборок с независимой Java и Fabric API, профили сборок,
 локальные моды и ресурспаки. Fabric API обновляется из Modrinth; каталог Modrinth ставит моды и ресурспаки с зависимостями, CurseForge пока не реализован.
 Реализованы запуск Minecraft, offline-mode и вход в лаунчер без аккаунта.
+Сборки можно удалять, дублировать и сохранять в резервные копии `.hakobackup`; восстановление пока не реализовано.
 Время игры учитывается по аккаунтам и сборкам, включая работу при закрытом лаунчере; гостевая статистика переносится при входе.
 Проект Xcode: `macos/Hako/Hako.xcodeproj`, исходники: `macos/Hako/Hako/`.
 
@@ -20,13 +21,14 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 | `Obsidian/HakoVault/Index.md` | Навигация по базе знаний |
 | `Obsidian/HakoVault/Architecture.md` | Архитектура, конфигурация сборки, основные потоки и ограничения |
 | `Obsidian/HakoVault/Data/Persistence.md` | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; токены, параметры и папки сборок |
+| `Obsidian/HakoVault/Data/Backups.md` | Резервные копии `.hakobackup`: состав архива и схема `data.json` для восстановления |
 | `Obsidian/HakoVault/Minecraft/Installation.md` | Официальный каталог Mojang, совместимость, независимая установка Minecraft и Java |
 | `Obsidian/HakoVault/Minecraft/Launching.md` | Аргументы запуска, память, offline-сессии и процессы игры |
 | `Obsidian/HakoVault/Minecraft/Modrinth.md` | Каталог Modrinth: поиск, выбор версии, зависимости, проверка загрузок и Loader/Java |
 | `Obsidian/HakoVault/Auth/MicrosoftAuth.md` | Вход через Microsoft device code flow и Minecraft |
 | `Obsidian/HakoVault/UI/ContentView.md` | Корень окна, настройки окна, выбор экрана |
 | `Obsidian/HakoVault/UI/Screens.md` | Экраны и общий стиль |
-| `Obsidian/HakoVault/UI/Launcher.md` | Главная страница: рейл, создание и профили сборок, текстурпаки, каталог Modrinth, настройки и аккаунт |
+| `Obsidian/HakoVault/UI/Launcher.md` | Главная страница: рейл, создание и профили сборок, удаление, дублирование и копии, текстурпаки, каталог Modrinth, настройки и аккаунт |
 
 ### Чтение памяти
 

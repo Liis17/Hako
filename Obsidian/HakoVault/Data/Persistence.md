@@ -14,7 +14,7 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 |------|-----------------|------|
 | `macos/Hako/Hako/HakoApp.swift` | `HakoApp.sharedModelContainer` | Схема, конфигурация и создание контейнера; подключение к сцене |
 | `macos/Hako/Hako/Instances/GameInstance.swift` | `GameInstance`, `InstanceParameters`, `InstanceDraft` | Профиль сборки, параметры и черновик формы |
-| `macos/Hako/Hako/Instances/InstanceStorage.swift` | `InstanceStorage`, `InstanceStore` | Файловые пути, создание и транзакционное редактирование |
+| `macos/Hako/Hako/Instances/InstanceStorage.swift` | `InstanceStorage`, `InstanceStore` | Файловые пути, создание, транзакционное редактирование, дублирование и удаление |
 | `macos/Hako/Hako/AppDataLocation.swift` | `AppDataLocation.storeURL` | Сохранение прежнего store и перенос глобальных параметров |
 | `macos/Hako/Hako/Account.swift` | `Account` | Аккаунт Microsoft/Xbox и профиль Minecraft |
 | `macos/Hako/Hako/Auth/TokenKeychain.swift` | `TokenKeychain`, `AccountTokens`, `KeychainError` | Токены аккаунта в Keychain |
@@ -125,6 +125,11 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `GameLaunchDefaults.load(from:) -> GameLaunchDefaults` | Не изменяет хранилище; возвращает независимый снимок параметров игры из переданного `UserDefaults` |
 | `InstanceStore.updateSettings(_:with:) throws` | Сохраняет иконку и параметры сборки, не меняя имя или папку |
 | `InstanceStore.rename(_:to:) throws` | Проверяет новое имя, перемещает папку сборки и сохраняет имя и `folderName` одной операцией |
+| `InstanceStore.managementBlockedReason(_:) -> String?` | Причина запрета удаления, дублирования и резервной копии: очередь/установка, `launchBusy`, `contentBusy` |
+| `InstanceStore.delete(_:) throws` | Стирает папку сборки без корзины и удаляет `GameInstance`; при ошибке сохранения возвращает папку и запись |
+| `InstanceStore.duplicateName(for:) throws -> String` | Первое свободное имя «Имя 2», «Имя 3»… (до 999), основа укорачивается до 60 символов |
+| `async InstanceStore.duplicate(_:) throws -> GameInstance` | Копирует папку готовой сборки и создаёт профиль с теми же параметрами, новым UUID и `createdAt` |
+| `async InstanceStore.backup(_:content:) throws -> URL` | Создаёт `.hakobackup` в `~/.hako/backups` ([[Data/Backups]]) |
 
 ## Зависимости и взаимодействия
 
@@ -175,6 +180,16 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 общий `contentBusy` также блокирует файловое переименование, запуск и повторную установку. `InstanceStore.updateSettings`
 автоматически сохраняет иконку и параметры отдельно от черновика имени. `InstanceStore.update` поддерживает
 транзакционное обновление всех полей.
+Удаление, дублирование и резервная копия запрещены для очереди/установки, подготовки/работы игры
+и файловых операций; дублирование и копия требуют `ready`, удалить можно и `failed`/`paused`.
+`InstanceStore.delete` переносит папку в `~/.hako/.delete-{UUID}`, удаляет запись и сохраняет контекст;
+после успеха временная папка стирается в фоне, при ошибке папка и запись восстанавливаются.
+Отсутствующая папка не мешает удалить запись. Время игры удалённой сборки сохраняется.
+`InstanceStore.duplicate` ставит `contentBusy`, вне главного потока копирует папку в `~/.hako/.duplicate-{UUID}`
+(`InstanceStorage.copyInstance`, на APFS — клонирование) без `minecraft/.hako-running.json`, после копирования
+выбирает имя и перемещает папку на место. Профиль копии переносит параметры, иконку, offline-режим,
+загрузчик, Fabric, Java и состояние `ready`; время игры копии начинается с нуля. Ошибка удаляет скопированные файлы.
+Имя `backups` зарезервировано за папкой резервных копий ([[Data/Backups]]).
 `InstanceStorage.directory` запрещает symlink самого каталога сборки, чтобы одна сборка не писала в другую.
 `containedURL` запрещает traversal и выход через симлинки. `allocatedSize()` суммирует фактически
 занятый объём обычных файлов без повторного учёта ссылок; сканирование выполняется вне главного потока.
