@@ -40,10 +40,10 @@
 		F7B0000000000000000000B1 /* Hako/Instances/InstanceBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7B0000000000000000000B2 /* Hako/Instances/InstanceBackup.swift */; };
 		F7C0000000000000000000A1 /* Hako/AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C0000000000000000000A2 /* Hako/AppLanguage.swift */; };
 		F7C0000000000000000000B1 /* Hako/Minecraft/GameAppBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C0000000000000000000B2 /* Hako/Minecraft/GameAppBundle.swift */; };
-		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
-		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 		F7D0000000000000000000A1 /* Hako/Instances/InstanceWorlds.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D0000000000000000000B1 /* Hako/Instances/InstanceWorlds.swift */; };
 		F7D0000000000000000000A2 /* Hako/Minecraft/WorldMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */; };
+		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
+		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -170,6 +170,8 @@
 		90AD16F7D5E045B89C203407 /* Skin Test Sources */ = {
 			isa = PBXGroup;
 			children = (
+				F7D0000000000000000000B1 /* Hako/Instances/InstanceWorlds.swift */,
+				F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */,
 				480885C4F1990E806A222314 /* Hako/Instances/InstanceContentController.swift */,
 				1144EB16EEA816036B6A215B /* Hako/Minecraft/FabricClient.swift */,
 				D451EB603BA15CEF3FDC6D8E /* Hako/Minecraft/FabricModels.swift */,

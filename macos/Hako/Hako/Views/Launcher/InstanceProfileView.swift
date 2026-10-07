@@ -3,10 +3,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private enum InstanceSection: CaseIterable, Identifiable {
-    case mods, packs, settings
+    case mods, packs, settings, worlds
     var id: Self { self }
     var title: LocalizedStringKey {
-        switch self { case .mods: "Моды"; case .packs: "Ресурспаки"; case .settings: "Настройки" }
+        switch self { case .mods: "Моды"; case .packs: "Ресурспаки"; case .settings: "Настройки"; case .worlds: "Миры" }
     }
 }
 
@@ -22,13 +22,18 @@ struct InstanceProfileView: View {
     @Environment(PlaytimeCoordinator.self) private var playtime
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section = InstanceSection.packs
-    @State private var catalog: InstanceSection?
+    @State private var catalog: CatalogDestination?
     @State private var actionError: String?
     @State private var nameDraft: String
     @State private var renameAction: RenameAction?
     @State private var confirmingDelete = false
     @State private var operation: String?
     @State private var backupURL: URL?
+
+    private struct CatalogDestination {
+        let target: ModrinthInstallTarget
+        var worldName: String? = nil
+    }
 
     private enum RenameAction {
         case save
@@ -52,7 +57,8 @@ struct InstanceProfileView: View {
     var body: some View {
         Group {
             if let catalog {
-                ModrinthCatalogView(instance: instance, mods: catalog == .mods, onBack: { withAnimation(.smooth) { self.catalog = nil } })
+                ModrinthCatalogView(instance: instance, target: catalog.target, worldName: catalog.worldName, onBack: { withAnimation(.smooth) { self.catalog = nil } })
+                    .id(catalog.target)
                     .transition(pageTransition)
             } else {
                 profile.transition(pageTransition)
@@ -127,6 +133,9 @@ struct InstanceProfileView: View {
                 case .mods: InstanceFilesView(instance: instance, mods: true, onCatalog: { openCatalog(.mods) })
                 case .packs: InstanceFilesView(instance: instance, mods: false, onCatalog: { openCatalog(.packs) })
                     case .settings: InstanceSettingsView(instance: instance, name: $nameDraft, onSaveName: { renameAction = .save })
+                    case .worlds: InstanceWorldsView(instance: instance) { world in
+                        withAnimation(.smooth) { catalog = .init(target: .worldDatapacks(world.id), worldName: world.name) }
+                    }
                 }
                 }.padding(2).padding(.bottom, 32)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,8 +191,8 @@ struct InstanceProfileView: View {
 
     private var pageTransition: AnyTransition { reduceMotion ? .opacity : AnyTransition(.blurReplace) }
 
-    private func openCatalog(_ section: InstanceSection) {
-        withAnimation(.smooth) { catalog = section }
+    private func openCatalog(_ target: ModrinthInstallTarget) {
+        withAnimation(.smooth) { catalog = .init(target: target) }
     }
 
     private func requestSectionChange(_ newSection: InstanceSection) {

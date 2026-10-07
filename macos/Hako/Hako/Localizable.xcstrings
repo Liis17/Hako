@@ -36,6 +36,22 @@
         }
       }
     },
+    "%@ · %@ · Minecraft %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · Minecraft %3$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · Minecraft %3$@"
+          }
+        }
+      }
+    },
     "%@ · Minecraft %@%@" : {
       "localizations" : {
         "en" : {
@@ -112,6 +128,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ окна в пикселях"
+          }
+        }
+      }
+    },
+    "%@ уже существует в мире «%@» сборки «%@»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ already exists in the world “%2$@” of instance “%3$@”."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ уже существует в мире «%2$@» сборки «%3$@»."
           }
         }
       }
@@ -568,6 +600,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Minecraft"
+          }
+        }
+      }
+    },
+    "Minecraft %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft %@"
           }
         }
       }
@@ -1100,6 +1148,22 @@
         }
       }
     },
+    "В датапаке «%@» нет корректного pack.mcmeta." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The data pack “%@” does not contain a valid pack.mcmeta."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В датапаке «%@» нет корректного pack.mcmeta."
+          }
+        }
+      }
+    },
     "В игре: %@" : {
       "localizations" : {
         "en" : {
@@ -1368,6 +1432,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Версия Minecraft"
+          }
+        }
+      }
+    },
+    "Версия неизвестна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown version"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия неизвестна"
           }
         }
       }
@@ -1692,6 +1772,22 @@
         }
       }
     },
+    "Выживание" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Survival"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выживание"
+          }
+        }
+      }
+    },
     "Выйти" : {
       "localizations" : {
         "en" : {
@@ -1836,6 +1932,54 @@
         }
       }
     },
+    "Дата последней игры неизвестна" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played date unknown"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата последней игры неизвестна"
+          }
+        }
+      }
+    },
+    "Датапак «%@» добавлен. Он будет доступен при следующем открытии мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data pack “%@” added. It will be available the next time you open the world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Датапак «%@» добавлен. Он будет доступен при следующем открытии мира."
+          }
+        }
+      }
+    },
+    "Датапаки с Modrinth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data packs from Modrinth"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Датапаки с Modrinth"
+          }
+        }
+      }
+    },
     "Действия с файлом" : {
       "localizations" : {
         "en" : {
@@ -1932,6 +2076,22 @@
         }
       }
     },
+    "Для работы «%@» в мире «%@» сборки «%@» нужны:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” requires these projects in the world “%2$@” of instance “%3$@”:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для работы «%1$@» в мире «%2$@» сборки «%3$@» нужны:"
+          }
+        }
+      }
+    },
     "Для работы «%@» в сборке «%@» нужны:" : {
       "localizations" : {
         "en" : {
@@ -2024,6 +2184,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Добавить «%@»"
+          }
+        }
+      }
+    },
+    "Добавить датапак" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add data pack"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить датапак"
+          }
+        }
+      }
+    },
+    "Добавить датапак в мир «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a data pack to world “%@”"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить датапак в мир «%@»"
           }
         }
       }
@@ -2620,6 +2812,22 @@
         }
       }
     },
+    "Заменить датапак?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace data pack?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить датапак?"
+          }
+        }
+      }
+    },
     "Заменить мод?" : {
       "localizations" : {
         "en" : {
@@ -2712,6 +2920,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Запустить Minecraft"
+          }
+        }
+      }
+    },
+    "Здесь появятся миры, созданные в этой сборке Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worlds created in this Minecraft instance will appear here."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появятся миры, созданные в этой сборке Minecraft."
           }
         }
       }
@@ -3260,6 +3484,54 @@
         }
       }
     },
+    "Мир больше не существует. Обновите список миров." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world no longer exists. Refresh the world list."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мир больше не существует. Обновите список миров."
+          }
+        }
+      }
+    },
+    "Миров пока нет" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No worlds yet"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Миров пока нет"
+          }
+        }
+      }
+    },
+    "Миры" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worlds"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Миры"
+          }
+        }
+      }
+    },
     "Моды" : {
       "localizations" : {
         "en" : {
@@ -3372,6 +3644,22 @@
         }
       }
     },
+    "Наблюдатель" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spectator"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наблюдатель"
+          }
+        }
+      }
+    },
     "Назад" : {
       "localizations" : {
         "en" : {
@@ -3384,6 +3672,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Назад"
+          }
+        }
+      }
+    },
+    "Назад к мирам" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to worlds"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Назад к мирам"
+          }
+        }
+      }
+    },
+    "Назад к мирам (⌘[)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to worlds (⌘[)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Назад к мирам (⌘[)"
           }
         }
       }
@@ -4028,6 +4348,22 @@
         }
       }
     },
+    "Не удалось прочитать сведения о мире: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read world information: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать сведения о мире: %@"
+          }
+        }
+      }
+    },
     "Не удалось прочитать ссылку описания версии." : {
       "localizations" : {
         "en" : {
@@ -4184,6 +4520,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось удалить сборку"
+          }
+        }
+      }
+    },
+    "Недопустимая папка мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid world folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимая папка мира."
           }
         }
       }
@@ -4712,6 +5064,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ОК"
+          }
+        }
+      }
+    },
+    "Обновить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить"
           }
         }
       }
@@ -5820,6 +6188,22 @@
         }
       }
     },
+    "Поиск датапаков" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search data packs"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск датапаков"
+          }
+        }
+      }
+    },
     "Поиск модов" : {
       "localizations" : {
         "en" : {
@@ -5980,6 +6364,22 @@
         }
       }
     },
+    "Последняя игра: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последняя игра: %@"
+          }
+        }
+      }
+    },
     "Предел Java heap. Общий расход процесса может быть выше. На Mac: %.0f ГиБ." : {
       "localizations" : {
         "en" : {
@@ -6008,6 +6408,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "При входе гостевое время будет добавлено к вашему аккаунту."
+          }
+        }
+      }
+    },
+    "Приключение" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adventure"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приключение"
           }
         }
       }
@@ -6396,6 +6812,22 @@
         }
       }
     },
+    "Размер недоступен" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size unavailable"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер недоступен"
+          }
+        }
+      }
+    },
     "Размер окна указан в пикселях и применяется в оконном режиме." : {
       "localizations" : {
         "en" : {
@@ -6424,6 +6856,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Реестр модов не может быть ссылкой."
+          }
+        }
+      }
+    },
+    "Режим неизвестен" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown game mode"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режим неизвестен"
           }
         }
       }
@@ -6940,6 +7388,22 @@
         }
       }
     },
+    "Творческий" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creative"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Творческий"
+          }
+        }
+      }
+    },
     "Тип версий" : {
       "localizations" : {
         "en" : {
@@ -6952,6 +7416,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Тип версий"
+          }
+        }
+      }
+    },
+    "Только датапак" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data pack only"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Только датапак"
           }
         }
       }
@@ -7532,6 +8012,22 @@
         }
       }
     },
+    "Файлы мира не могут быть символическими ссылками." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World files cannot be symbolic links."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлы мира не могут быть символическими ссылками."
+          }
+        }
+      }
+    },
     "Хранилище" : {
       "localizations" : {
         "en" : {
@@ -7544,6 +8040,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Хранилище"
+          }
+        }
+      }
+    },
+    "Читаем миры…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading worlds…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читаем миры…"
           }
         }
       }

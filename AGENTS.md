@@ -4,7 +4,7 @@
 с авторизацией через Microsoft и интеграцией Modrinth и CurseForge. Пока реализованы приветствие, вход в Microsoft, главная страница с вкладками и выход.
 Готовы глобальные настройки игры, сведения о месте на диске и раздел «О приложении»,
 создание и фоновая установка Vanilla- и Fabric-сборок с независимой Java и Fabric API, профили сборок,
-локальные моды и ресурспаки. Fabric API обновляется из Modrinth; каталог Modrinth ставит моды и ресурспаки с зависимостями, CurseForge пока не реализован.
+локальные моды и ресурспаки. Fabric API обновляется из Modrinth; каталог Modrinth ставит моды и ресурспаки в сборку и датапаки в выбранный локальный мир с зависимостями, CurseForge пока не реализован.
 Реализованы запуск Minecraft, offline-mode и вход в лаунчер без аккаунта.
 Сборки можно удалять, дублировать и сохранять в резервные копии `.hakobackup`; восстановление пока не реализовано.
 Время игры учитывается по аккаунтам и сборкам, включая работу при закрытом лаунчере; гостевая статистика переносится при входе.
@@ -25,6 +25,7 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 | `Obsidian/HakoVault/Data/Backups.md` | Резервные копии `.hakobackup`: состав архива и схема `data.json` для восстановления |
 | `Obsidian/HakoVault/Minecraft/Installation.md` | Официальный каталог Mojang, совместимость, независимая установка Minecraft и Java |
 | `Obsidian/HakoVault/Minecraft/Launching.md` | Аргументы запуска, память, offline-сессии и процессы игры |
+| `Obsidian/HakoVault/Minecraft/Worlds.md` | Локальные миры: чтение gzip/NBT, сведения, размер, миниатюры и назначение датапаков |
 | `Obsidian/HakoVault/Minecraft/Modrinth.md` | Каталог Modrinth: поиск, выбор версии, зависимости, проверка загрузок и Loader/Java |
 | `Obsidian/HakoVault/Auth/MicrosoftAuth.md` | Вход через Microsoft device code flow и Minecraft |
 | `Obsidian/HakoVault/UI/ContentView.md` | Корень окна, настройки окна, выбор экрана |

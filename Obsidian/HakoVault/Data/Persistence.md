@@ -137,6 +137,9 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `async InstanceStore.duplicate(_:) throws -> GameInstance` | Копирует папку готовой сборки и создаёт профиль с теми же параметрами, новым UUID и `createdAt` |
 | `async InstanceStore.backup(_:content:) throws -> URL` | Создаёт `.hakobackup` в `~/.hako/backups` ([[Data/Backups]]) |
 
+Локальные миры и их датапаки не являются SwiftData-моделями: читаются из `minecraft/saves`,
+датапаки копируются в папку выбранного мира ([[Minecraft/Worlds]]).
+
 ## Зависимости и взаимодействия
 
 - [[UI/ContentView]] читает аккаунты через `@Query`.
