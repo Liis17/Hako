@@ -50,6 +50,8 @@ enum InstanceRenameExitRequest: Equatable {
 @MainActor final class HakoApplicationDelegate: NSObject, NSApplicationDelegate {
     weak var renameExit: InstanceRenameExitCoordinator?
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let renameExit, renameExit.pendingRename != nil else { return .terminateNow }
         renameExit.requestExit(.terminateApplication)

@@ -123,6 +123,17 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
 
     func logURL(_ instance: GameInstance) -> URL? { try? InstanceStorage.containedURL("minecraft/logs/hako-launch.log", in: store.storage.directory(instance.folderName)) }
 
+    /// Завершается после подготовки и старта процесса; не ждёт завершения игры.
+    func launchAndWait(_ instance: GameInstance, account: Account?) async throws {
+        if states[instance.id] == .running { return }
+        if tasks[instance.id] == nil {
+            if let reason = disabledReason(instance, account: account) { throw InstanceFileError.message(reason) }
+            launch(instance, account: account)
+        }
+        if let task = tasks[instance.id] { await task.value }
+        if case .failed(let message) = states[instance.id] { throw InstanceFileError.message(message) }
+    }
+
     private func finished(_ id: UUID, attempt: UUID, status: Int32?) {
         guard attempts[id] == attempt else { return }
         store.launchBusy.remove(id)

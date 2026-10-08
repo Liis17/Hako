@@ -1,6 +1,38 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "Не удалось запустить сборку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could Not Launch Instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось запустить сборку"
+          }
+        }
+      }
+    },
+    "Сборка больше не существует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance no longer exists."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка больше не существует."
+          }
+        }
+      }
+    },
     "" : {
 
     },

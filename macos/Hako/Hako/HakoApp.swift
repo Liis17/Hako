@@ -11,48 +11,23 @@ import SwiftData
 @main
 struct HakoApp: App {
     @NSApplicationDelegateAdaptor(HakoApplicationDelegate.self) private var appDelegate
-    let sharedModelContainer: ModelContainer
-    @State private var installations: InstallationCoordinator
-    @State private var content: InstanceContentController
-    @State private var sessions: MinecraftSessionCoordinator
-    @State private var games: GameLaunchCoordinator
-    @State private var playtime: PlaytimeCoordinator
-    @State private var renameExit = InstanceRenameExitCoordinator()
-
-    init() {
-        let schema = HakoSchema.schema
-        do {
-            let modelConfiguration = ModelConfiguration(schema: schema, url: try AppDataLocation.storeURL())
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            try LaunchSettingsMigration.run(context: container.mainContext)
-            sharedModelContainer = container
-            let installations = InstallationCoordinator(context: container.mainContext)
-            let sessions = MinecraftSessionCoordinator(context: container.mainContext)
-            let playtime = try PlaytimeCoordinator(context: container.mainContext)
-            _installations = State(initialValue: installations)
-            _content = State(initialValue: InstanceContentController(installations: installations))
-            _sessions = State(initialValue: sessions)
-            _games = State(initialValue: GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime))
-            _playtime = State(initialValue: playtime)
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }
+    private let services = HakoServices.shared
 
     var body: some Scene {
-        WindowGroup {
+        Window("Hako", id: "main") {
             ContentView()
-                .environment(installations)
-                .environment(content)
-                .environment(sessions)
-                .environment(games)
-                .environment(playtime)
-                .environment(renameExit)
-                .background(InstanceRenameWindowCloseGuard(coordinator: renameExit))
-                .onAppear { appDelegate.renameExit = renameExit }
-                .task { games.start(); installations.start() }
+                .environment(services.installations)
+                .environment(services.content)
+                .environment(services.sessions)
+                .environment(services.games)
+                .environment(services.playtime)
+                .environment(services.renameExit)
+                .environment(services.quickLaunch)
+                .background(InstanceRenameWindowCloseGuard(coordinator: services.renameExit))
+                .onAppear { appDelegate.renameExit = services.renameExit }
+                .task { services.start() }
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(services.modelContainer)
         .defaultSize(width: 1280, height: 720)
         .windowResizability(.contentMinSize)
         .windowStyle(.hiddenTitleBar)

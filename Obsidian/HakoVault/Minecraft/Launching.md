@@ -6,6 +6,7 @@ Parent: [[Index]]
 
 `macos/Hako/Hako/Minecraft/MinecraftLaunchPlan.swift` — построение команды и offline-идентичность.
 `macos/Hako/Hako/Instances/GameLaunchCoordinator.swift` — общий координатор подготовки и состояния игр.
+`macos/Hako/Hako/Instances/QuickLaunchCoordinator.swift` — запуск по UUID из системных точек входа ([[UI/SystemIntegration]]).
 `macos/Hako/Hako/Minecraft/GameProcessRunner.swift` — процессы, журнал и восстановление.
 `macos/Hako/Hako/Minecraft/GameAppBundle.swift` — обёртка `.app` для игрового режима macOS.
 `macos/Hako/Hako/Minecraft/JavaLaunchValidation.swift` — проверка исполняемой Java.
@@ -50,6 +51,10 @@ Java сборки. Ошибка выбранной Java не включает с
 Разные сборки запускаются независимо. `InstanceStore.launchBusy` блокирует переименование во время
 подготовки/игры и повторную установку. Нормальное завершение освобождает сборку; ненулевой код
 показывается как ошибка с доступом к журналу.
+
+`GameLaunchCoordinator.launchAndWait` использует ту же попытку, что обычная кнопка «Играть»,
+объединяет ожидание уже начатой подготовки и возвращается после старта процесса, не после завершения игры.
+Ошибку подготовки или старта передаёт вызывающему коду; обычный `launch` сохраняет прежний контракт.
 
 ## Процессы и журнал
 

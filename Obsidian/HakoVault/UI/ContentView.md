@@ -20,7 +20,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator` и `InstanceRenameExitCoordinator`: в приложении их создаёт `HakoApp`, превью получает отдельные контейнер и координаторы |
+| `ContentView()` | Без параметров. Требует в окружении `modelContainer` со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator` и `InstanceRenameExitCoordinator`, а также `QuickLaunchCoordinator`: в приложении их создаёт `HakoServices.shared`, превью получает отдельные контейнер и координаторы |
 
 ## Выбор экрана
 
@@ -37,11 +37,14 @@ Parent: [[Index]]
 После выхода очищаются гостевой выбор и сервис сессий, показывается приветствие.
 Смена экрана — `.transition(.blurReplace)` с анимацией `.smooth` по состояниям входа, аккаунта и гостя.
 `.task(id: accounts.first?.xuid)` наблюдает и обновляет Minecraft-сессию через общий сервис.
-Подробности экранов — [[UI/Screens]].
+Быстрый запуск переключает окно в лаунчер, в том числе гостевой, и открывает нужный профиль через
+`QuickLaunchCoordinator.presentation`. Презентер использует существующее окно или `openWindow(id: "main")`;
+запрос сохраняется до готовности интерфейса. Ошибки быстрого запуска показывает корневой alert.
+Подробности экранов — [[UI/Screens]], системного запуска — [[UI/SystemIntegration]].
 
 ## Окно
 
-Настройки сцены `WindowGroup` в `HakoApp.body`:
+Настройки единственной сцены `Window("Hako", id: "main")` в `HakoApp.body`:
 
 | Модификатор | Эффект |
 |-------------|--------|
@@ -54,6 +57,9 @@ Parent: [[Index]]
 Если в настройках сборки введено новое имя, `InstanceRenameWindowCloseGuard` перехватывает закрытие окна,
 а `HakoApplicationDelegate.applicationShouldTerminate` — завершение приложения. Согласие переименовывает
 сборку и затем продолжает закрытие; отказ закрывает окно или приложение без изменения имени.
+
+Закрытие последнего окна не завершает Hako: `applicationShouldTerminateAfterLastWindowClosed` возвращает `false`.
+Закрытие окна отменяет ещё не разрешённые запросы навигации; уже начавшаяся подготовка игры продолжается.
 
 ## Ограничения и важные детали
 

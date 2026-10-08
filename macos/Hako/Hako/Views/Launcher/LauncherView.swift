@@ -22,6 +22,7 @@ struct LauncherView: View {
     @Environment(InstanceContentController.self) private var content
     @Environment(MinecraftSessionCoordinator.self) private var sessions
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
+    @Environment(QuickLaunchCoordinator.self) private var quickLaunch
     @Query(sort: \GameInstance.createdAt) private var instances: [GameInstance]
     @State private var tab = LauncherTab.instances
     @State private var creatingInstance = false
@@ -62,6 +63,13 @@ struct LauncherView: View {
             }
         }
         .animation(.smooth, value: tab)
+        .task(id: quickLaunch.presentation?.id) {
+            if let request = quickLaunch.presentation {
+                requestTab(.instance(request.instanceID))
+                completeQuickLaunchNavigation()
+            }
+        }
+        .onChange(of: tab) { completeQuickLaunchNavigation() }
         .sheet(isPresented: $creatingInstance) {
             InstanceCreationView(onCreated: { requestTab(.instances) })
                 .environment(installations)
@@ -141,6 +149,11 @@ struct LauncherView: View {
         }
     }
 
+    private func completeQuickLaunchNavigation() {
+        guard let request = quickLaunch.presentation, tab == .instance(request.instanceID) else { return }
+        quickLaunch.completePresentation(request.id)
+    }
+
     private func confirmPendingRename() {
         guard let pending = renameExit.pendingRename,
               let instance = instances.first(where: { $0.id == pending.instanceID }) else {
@@ -163,7 +176,8 @@ struct LauncherView: View {
         } catch {
             pendingTab = nil
             renameExit.cancelExit()
-            navigationError = error.localizedDescription
+            if let request = quickLaunch.presentation { quickLaunch.completePresentation(request.id, error: error) }
+            else { navigationError = error.localizedDescription }
         }
     }
 
@@ -204,6 +218,7 @@ struct LauncherView: View {
     let sessions = MinecraftSessionCoordinator(context: container.mainContext)
     let playtime = try! PlaytimeCoordinator(context: container.mainContext)
     container.mainContext.insert(account)
+    let games = GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime)
 
     return LauncherView(account: account)
         .modelContainer(container)
@@ -212,7 +227,8 @@ struct LauncherView: View {
         .environment(InstanceContentController(installations: installations))
         .environment(sessions)
         .environment(playtime)
-        .environment(GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime))
+        .environment(games)
+        .environment(QuickLaunchCoordinator(store: installations.store, games: games))
         .background { SakuraBackground() }
         .frame(width: 1280, height: 720)
 }

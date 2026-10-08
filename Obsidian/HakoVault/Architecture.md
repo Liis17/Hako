@@ -25,7 +25,7 @@ CocoaPods, Carthage не используются) нет.
 | Swift, режим языка 5.0 | Язык приложения | `macos/Hako/Hako.xcodeproj/project.pbxproj` (`SWIFT_VERSION`) |
 | SwiftUI | UI и жизненный цикл приложения (`@main` `App`) | `macos/Hako/Hako/HakoApp.swift` |
 | RealityKit / `RealityView` | Нативное 3D-превью скина | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift`, `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` |
-| SwiftData | Аккаунт, профили сборок и игровое время | `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/Playtime/PlaytimeModels.swift` |
+| SwiftData | Аккаунт, профили сборок и игровое время | `macos/Hako/Hako/HakoServices.swift`, `macos/Hako/Hako/Playtime/PlaytimeModels.swift` |
 | UserDefaults / `@AppStorage` | Глобальные параметры игры, язык интерфейса | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift`, `macos/Hako/Hako/AppLanguage.swift` |
 | String Catalog | Русский и английский интерфейс | `macos/Hako/Hako/Localizable.xcstrings` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
@@ -45,10 +45,12 @@ CocoaPods, Carthage не используются) нет.
 
 ## Компоненты
 
-- `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: создаёт общий
-  `ModelContainer`, общие `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator`
-  и `PlaytimeCoordinator`, затем сцену `WindowGroup` с `ContentView`.
-  Устройство контейнера описано в [[Data/Persistence]].
+- `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: получает `HakoServices.shared`
+  (`macos/Hako/Hako/HakoServices.swift`) и создаёт единственную сцену `Window("Hako", id: "main")`.
+  `HakoServices` владеет единственными `ModelContainer`, `InstallationCoordinator`, `InstanceContentController`,
+  `MinecraftSessionCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator`, `InstanceRenameExitCoordinator`
+  и `QuickLaunchCoordinator`. Интерфейс и системные команды используют те же объекты.
+  Устройство контейнера описано в [[Data/Persistence]], быстрый запуск — в [[UI/SystemIntegration]].
 - [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками и игровым временем, контейнер хранилища, токены в Keychain,
   глобальные параметры игры, независимые папки сборок и статистика времени по XUID.
 - [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
@@ -66,12 +68,12 @@ CocoaPods, Carthage не используются) нет.
 
 ### Запуск
 
-1. При инициализации `HakoApp` вычисляется `sharedModelContainer`:
+1. При первом обращении к `HakoServices.shared` создаётся `modelContainer`:
    `HakoSchema.schema` + `ModelConfiguration(schema:url:)` с URL из `AppDataLocation` → `ModelContainer`.
    `LaunchSettingsMigration.run` сохраняет прежние режимы аргументов, фиксирует окна и переносит предел heap в ползунки.
    Ошибка создания контейнера или миграции завершает приложение через `fatalError`.
-2. `WindowGroup { ContentView() }` получает контейнер через
-   `.modelContainer(sharedModelContainer)`, который помещает `modelContext` в окружение окна.
+2. `Window("Hako", id: "main") { ContentView() }` получает контейнер через
+   `.modelContainer(services.modelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. `ContentView`
    показывает поверх фона с сакурой `LauncherView`, если в SwiftData есть `Account` либо выбран гостевой вход,
    иначе приветствие. Гостевой выбор действует до закрытия Hako; сборки сохраняются независимо.
@@ -81,7 +83,7 @@ CocoaPods, Carthage не используются) нет.
    Общий координатор из окружения восстанавливает очередь независимо от аккаунта; сохранённая пауза остаётся паузой.
    Настройки окна и выбор экрана — в [[UI/ContentView]].
 
-Источники: `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/ContentView.swift`.
+Источники: `macos/Hako/Hako/HakoApp.swift`, `macos/Hako/Hako/HakoServices.swift`, `macos/Hako/Hako/ContentView.swift`.
 
 ### Вход
 

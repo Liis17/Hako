@@ -7,6 +7,7 @@ struct InstancePlayControls: View {
     var compact = false
     var playtime: String?
     @Environment(GameLaunchCoordinator.self) private var games
+    @Environment(QuickLaunchCoordinator.self) private var quickLaunch: QuickLaunchCoordinator?
 
     var body: some View {
         VStack(alignment: compact ? .leading : .trailing, spacing: 8) {
@@ -19,7 +20,7 @@ struct InstancePlayControls: View {
                 }
                 Button("Играть", systemImage: "play.fill") { games.launch(instance, account: account) }
                     .buttonStyle(.glassProminent).tint(.sakuraDeep).controlSize(compact ? .regular : .large)
-                    .disabled(games.disabledReason(instance, account: account) != nil)
+                    .disabled(games.disabledReason(instance, account: account) != nil || quickLaunch?.preparingIDs.contains(instance.id) == true)
                     .accessibilityLabel("Играть в \(instance.name)")
                 if instance.offlineMode && !compact {
                     Label(instance.offlineUsername, systemImage: "wifi.slash").font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -41,7 +42,9 @@ struct InstancePlayControls: View {
                     Button("Журнал запуска", systemImage: "doc.text") { NSWorkspace.shared.open(url) }.buttonStyle(.plain).font(.caption)
                 }
             case nil:
-                if let reason = games.disabledReason(instance, account: account) {
+                if quickLaunch?.preparingIDs.contains(instance.id) == true {
+                    HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Подготавливаем запуск…").font(.caption) }
+                } else if let reason = games.disabledReason(instance, account: account) {
                     Text(compact && instance.state == .ready && !instance.offlineMode ? String(appLocalized: "Нужен Minecraft-вход или offline-mode.") : reason)
                         .font(.caption).foregroundStyle(.secondary).lineLimit(compact ? 2 : nil)
                 }
