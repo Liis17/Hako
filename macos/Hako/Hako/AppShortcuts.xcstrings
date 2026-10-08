@@ -18,6 +18,7 @@
       }
     },
     "Запусти сборку в ${applicationName}" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
