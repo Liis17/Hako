@@ -49,6 +49,11 @@
 		F7F0000000000000000000A1 /* Hako/Instances/QuickLaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B1 /* Hako/Instances/QuickLaunchCoordinator.swift */; };
 		F7F0000000000000000000A2 /* Hako/Instances/DockLaunchMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */; };
 		F7F0000000000000000000A3 /* Hako/Views/Launcher/ClosureMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */; };
+		F7F0000000000000000000A4 /* Hako/HakoServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B4 /* Hako/HakoServices.swift */; };
+		F7F0000000000000000000A5 /* Hako/Instances/InstanceRenameExitCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B5 /* Hako/Instances/InstanceRenameExitCoordinator.swift */; };
+		F7F0000000000000000000A6 /* Hako/Instances/GameInstanceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B6 /* Hako/Instances/GameInstanceEntity.swift */; };
+		F7F0000000000000000000A7 /* Hako/Instances/InstanceSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B7 /* Hako/Instances/InstanceSpotlightIndexer.swift */; };
+		F7F0000000000000000000A8 /* Hako/Instances/LaunchGameInstanceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B8 /* Hako/Instances/LaunchGameInstanceIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +122,11 @@
 		F7F0000000000000000000B1 /* Hako/Instances/QuickLaunchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/QuickLaunchCoordinator.swift; sourceTree = SOURCE_ROOT; };
 		F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/DockLaunchMenu.swift; sourceTree = SOURCE_ROOT; };
 		F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Views/Launcher/ClosureMenuItem.swift; sourceTree = SOURCE_ROOT; };
+		F7F0000000000000000000B4 /* Hako/HakoServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/HakoServices.swift; sourceTree = SOURCE_ROOT; };
+		F7F0000000000000000000B5 /* Hako/Instances/InstanceRenameExitCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceRenameExitCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		F7F0000000000000000000B6 /* Hako/Instances/GameInstanceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/GameInstanceEntity.swift; sourceTree = SOURCE_ROOT; };
+		F7F0000000000000000000B7 /* Hako/Instances/InstanceSpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceSpotlightIndexer.swift; sourceTree = SOURCE_ROOT; };
+		F7F0000000000000000000B8 /* Hako/Instances/LaunchGameInstanceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/LaunchGameInstanceIntent.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -184,6 +194,11 @@
 				F7D0000000000000000000B3 /* Hako/Instances/InstanceScreenshots.swift */,
 				F7E0000000000000000000B1 /* Hako/Instances/WorldBackup.swift */,
 				F7F0000000000000000000B1 /* Hako/Instances/QuickLaunchCoordinator.swift */,
+				F7F0000000000000000000B8 /* Hako/Instances/LaunchGameInstanceIntent.swift */,
+				F7F0000000000000000000B7 /* Hako/Instances/InstanceSpotlightIndexer.swift */,
+				F7F0000000000000000000B6 /* Hako/Instances/GameInstanceEntity.swift */,
+				F7F0000000000000000000B5 /* Hako/Instances/InstanceRenameExitCoordinator.swift */,
+				F7F0000000000000000000B4 /* Hako/HakoServices.swift */,
 				F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */,
 				F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */,
 				F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */,
@@ -352,6 +367,11 @@
 				F7D0000000000000000000A3 /* Hako/Instances/InstanceScreenshots.swift in Sources */,
 				F7E0000000000000000000A1 /* Hako/Instances/WorldBackup.swift in Sources */,
 				F7F0000000000000000000A1 /* Hako/Instances/QuickLaunchCoordinator.swift in Sources */,
+				F7F0000000000000000000A8 /* Hako/Instances/LaunchGameInstanceIntent.swift in Sources */,
+				F7F0000000000000000000A7 /* Hako/Instances/InstanceSpotlightIndexer.swift in Sources */,
+				F7F0000000000000000000A6 /* Hako/Instances/GameInstanceEntity.swift in Sources */,
+				F7F0000000000000000000A5 /* Hako/Instances/InstanceRenameExitCoordinator.swift in Sources */,
+				F7F0000000000000000000A4 /* Hako/HakoServices.swift in Sources */,
 				F7F0000000000000000000A3 /* Hako/Views/Launcher/ClosureMenuItem.swift in Sources */,
 				F7F0000000000000000000A2 /* Hako/Instances/DockLaunchMenu.swift in Sources */,
 				384D5AE25096F2046BCB9D66 /* Hako/Instances/InstanceContentController.swift in Sources */,

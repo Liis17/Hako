@@ -26,6 +26,7 @@ CocoaPods, Carthage не используются) нет.
 | SwiftUI | UI и жизненный цикл приложения (`@main` `App`) | `macos/Hako/Hako/HakoApp.swift` |
 | RealityKit / `RealityView` | Нативное 3D-превью скина | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift`, `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` |
 | SwiftData | Аккаунт, профили сборок и игровое время | `macos/Hako/Hako/HakoServices.swift`, `macos/Hako/Hako/Playtime/PlaytimeModels.swift` |
+| AppKit, App Intents, Core Spotlight | Меню Dock, поиск сборок и запуск через Siri/Shortcuts | [[UI/SystemIntegration]] |
 | UserDefaults / `@AppStorage` | Глобальные параметры игры, язык интерфейса | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift`, `macos/Hako/Hako/AppLanguage.swift` |
 | String Catalog | Русский и английский интерфейс | `macos/Hako/Hako/Localizable.xcstrings` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
@@ -59,6 +60,7 @@ CocoaPods, Carthage не используются) нет.
 - [[Minecraft/Worlds]] — локальные сохранения, чтение gzip/NBT через системный zlib, копирование, корзина и управление датапаками; `.hakoworld` описан в [[Data/Backups]].
 - [[Minecraft/Modrinth]] — каталог модов, ресурспаков и датапаков мира, зависимости и проверка загрузок.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
+- [[UI/SystemIntegration]] — единые сервисы и быстрый запуск сборок из Dock, Spotlight и Siri.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
 - [[UI/Launcher]] — главная страница: рейл вкладок, профиль, аватары, автоподключение Minecraft.
 - [[UI/MinecraftSkin]] — модель скина, ходьба, вращение, загрузка и резервный Стив.

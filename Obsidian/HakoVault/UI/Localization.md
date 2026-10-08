@@ -14,6 +14,7 @@ Parent: [[Index]]
 | `macos/Hako/Hako/AppLanguage.swift` | `AppLanguage`, `String(appLocalized:)` | Выбранный язык и строки вне View |
 | `macos/Hako/Hako/Views/AppLanguagePicker.swift` | `AppLanguagePicker` | Сегментный выбор «Русский / English» |
 | `macos/Hako/Hako/Localizable.xcstrings` | — | Каталог строк: ключи — русский текст, перевод `en` |
+| `macos/Hako/Hako/AppShortcuts.xcstrings` | — | Фразы запуска через Siri с токенами `${target}` и `${applicationName}` |
 | `macos/Hako/Hako/ContentView.swift` | `ContentView` | `.environment(\.locale, language.locale)` для всего окна |
 
 ## Публичные контракты
@@ -49,6 +50,9 @@ Parent: [[Index]]
 - Английские формы числа — вариации `one`/`other` в каталоге (например, `%lld сборок`).
 - После `%` в переводе не должна идти буква спецификатора формата (`70% of` даёт `%o`).
 - Японские подписи (`JapaneseCaption`, `HankoSeal`) и самоназвания языков — `Text(verbatim:)`, не переводятся.
+- App Intents задают метаданные и диалоги через `LocalizedStringResource`/`IntentDialog` без
+  `String(appLocalized:)`: их переводит система на язык Siri/Shortcuts. Фразы `AppShortcuts` хранятся
+  в отдельном каталоге с сохранением токенов параметра и имени приложения.
 
 ## Каталог
 
@@ -68,6 +72,9 @@ Parent: [[Index]]
 
 - Меню macOS и системные кнопки (`NSOpenPanel`) следуют языку системы: для `ru` и `en` — своему,
   для остальных — английскому по `developmentRegion`.
+- Собственные пункты Dock строятся заново через `String(appLocalized:)` на языке Hako.
+  Названия сборок не переводятся. Подробности ошибок запуска, переданные Siri, используют язык
+  игрового координатора; статические заголовки и ответы intent — язык системы/Siri.
 - Строки, уже лежащие в состоянии (ошибки, этапы установки, `installationError` в SwiftData, открытые
   подтверждения), не переводятся заново; новые сообщения приходят на выбранном языке.
 - Русские формы числа в каталоге не заданы: `%lld сборок` по-русски не склоняется.

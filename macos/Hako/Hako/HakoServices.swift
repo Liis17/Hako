@@ -15,6 +15,8 @@ import SwiftData
     let playtime: PlaytimeCoordinator
     let renameExit = InstanceRenameExitCoordinator()
     let quickLaunch: QuickLaunchCoordinator
+    let instanceCatalog: InstanceEntityCatalog
+    let spotlight: InstanceSpotlightIndexer
 
     private init() throws {
         let schema = HakoSchema.schema
@@ -28,6 +30,9 @@ import SwiftData
         playtime = try PlaytimeCoordinator(context: container.mainContext)
         games = GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime)
         quickLaunch = QuickLaunchCoordinator(store: installations.store, games: games)
+        instanceCatalog = InstanceEntityCatalog(store: installations.store)
+        spotlight = InstanceSpotlightIndexer(catalog: instanceCatalog)
+        spotlight.start()
     }
 
     func start() {

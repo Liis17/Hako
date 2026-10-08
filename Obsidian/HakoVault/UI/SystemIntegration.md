@@ -29,8 +29,8 @@ Offline не вызывает авторизацию и не включаетс�
 
 ## Dock
 
-`HakoApplicationDelegate.applicationDockMenu` в `Instances/InstanceRenameExitCoordinator.swift`
-восстанавливает сервисы и строит меню через `Instances/DockLaunchMenu.swift` (`DockLaunchMenu.makeMenu`).
+`HakoApplicationDelegate.applicationDockMenu` в `macos/Hako/Hako/Instances/InstanceRenameExitCoordinator.swift`
+восстанавливает сервисы и строит меню через `macos/Hako/Hako/Instances/DockLaunchMenu.swift` (`DockLaunchMenu.makeMenu`).
 Каждое открытие заново читает SwiftData: все `ready`-сборки по имени, пользовательская иконка либо SF Symbol.
 Пустой список имеет неактивную строку. `autoenablesItems = false` сохраняет явные блокировки
 для `launchBusy`, `contentBusy` и ожидающего быстрого запуска.
@@ -39,3 +39,40 @@ Offline не вызывает авторизацию и не включаетс�
 отсутствие загруженного токена само по себе не скрывает и не блокирует пункт меню.
 Язык берётся из `AppLanguage.current` при открытии меню. После полного выхода из Hako динамические
 пункты недоступны; закрытие главного окна оставляет процесс и меню Dock работающими.
+
+## Spotlight и Siri
+
+`macos/Hako/Hako/Instances/GameInstanceEntity.swift` — `GameInstanceEntity: IndexedEntity`
+с UUID сборки, текущим именем, версией, загрузчиком и иконкой. `InstanceEntityCatalog` читает тот же
+`InstanceStore` на главном акторе. `GameInstanceQuery` реализует `EntityStringQuery`, `EnumerableEntityQuery`
+и `IndexedEntityQuery`: поиск по имени без учёта регистра, предложения только для `ready`, восстановление
+по UUID даже для временно неготовой сборки, системные запросы полной или частичной переиндексации.
+Удалённый UUID не возвращается. Имя не является идентификатором: переименование сохраняет команды.
+
+`macos/Hako/Hako/Instances/LaunchGameInstanceIntent.swift` — `LaunchGameInstanceIntent: OpenIntent`
+с обязательным `target`, `.foreground(.immediate)` и `allowedExecutionTargets = .main`.
+Выбор результата Spotlight открывает профиль и запускает игру через общий `QuickLaunchCoordinator`.
+Intent возвращается после старта процесса, сообщает об уже работающей игре или передаёт ошибку.
+Отдельного расширения App Intents, второго контейнера, URL-схемы и отдельного запуска Java нет.
+
+`HakoShortcuts: AppShortcutsProvider` публикует «Запусти [название] в Hako» и общий вариант без названия:
+система запрашивает сборку через обязательный параметр и query. Фразы имеют английские варианты в
+`macos/Hako/Hako/AppShortcuts.xcstrings`. Заголовки, параметры и ответы intent — `Localizable.xcstrings`
+и язык системы/Siri; детали ошибок игрового координатора следуют выбранному языку Hako.
+
+`macos/Hako/Hako/Instances/InstanceSpotlightIndexer.swift` — `InstanceSpotlightIndexer` с именованным
+`CSSearchableIndex(name: "com.Launcher.Hako.instances")`. `HakoServices` запускает наблюдение за
+`ModelContext.didSave` основного контекста независимо от окна. Первое обновление заменяет записи этого типа
+в собственном индексе; следующие сравнивают снимки и удаляют исчезнувшие/неготовые UUID, обновляют
+переименованные сборки, сведения и иконки. Сохранения статистики без изменений сборок не переписывают индекс.
+
+Обычные обновления и системная переиндексация выполняются одной последовательной цепочкой задач,
+поэтому запоздавшая запись не возвращает удалённую сборку. Ошибка сбрасывает локальный снимок:
+следующий запрос или сохранение повторяет полную синхронизацию, даже если модели не изменились.
+`updateAppShortcutParameters` вызывается при изменении списка до операций индекса, поэтому недоступность
+Spotlight не препятствует обновлению выбора в App Shortcuts. Ошибки индекса пишутся через `Logger`;
+установка и запуск игры не ждут индексацию.
+
+Spotlight и Siri могут открыть полностью закрытый Hako через foreground-intent. Для появления готовых
+сборок приложение должно хотя бы один раз опубликовать индекс; доступность поиска и Siri зависит от
+системных настроек пользователя. В индекс попадают только сведения сборок, без аккаунтов и токенов.
