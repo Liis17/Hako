@@ -42,6 +42,7 @@
 		F7C0000000000000000000B1 /* Hako/Minecraft/GameAppBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C0000000000000000000B2 /* Hako/Minecraft/GameAppBundle.swift */; };
 		F7D0000000000000000000A1 /* Hako/Instances/InstanceWorlds.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D0000000000000000000B1 /* Hako/Instances/InstanceWorlds.swift */; };
 		F7D0000000000000000000A2 /* Hako/Minecraft/WorldMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */; };
+		F7D0000000000000000000A3 /* Hako/Instances/InstanceScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D0000000000000000000B3 /* Hako/Instances/InstanceScreenshots.swift */; };
 		F7E0000000000000000000A1 /* Hako/Instances/WorldBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E0000000000000000000B1 /* Hako/Instances/WorldBackup.swift */; };
 		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
 		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
@@ -108,6 +109,7 @@
 		F7C0000000000000000000B2 /* Hako/Minecraft/GameAppBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/GameAppBundle.swift; sourceTree = SOURCE_ROOT; };
 		F7D0000000000000000000B1 /* Hako/Instances/InstanceWorlds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceWorlds.swift; sourceTree = SOURCE_ROOT; };
 		F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/WorldMetadata.swift; sourceTree = SOURCE_ROOT; };
+		F7D0000000000000000000B3 /* Hako/Instances/InstanceScreenshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceScreenshots.swift; sourceTree = SOURCE_ROOT; };
 		F7E0000000000000000000B1 /* Hako/Instances/WorldBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/WorldBackup.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -173,6 +175,7 @@
 			isa = PBXGroup;
 			children = (
 				F7D0000000000000000000B1 /* Hako/Instances/InstanceWorlds.swift */,
+				F7D0000000000000000000B3 /* Hako/Instances/InstanceScreenshots.swift */,
 				F7E0000000000000000000B1 /* Hako/Instances/WorldBackup.swift */,
 				F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */,
 				480885C4F1990E806A222314 /* Hako/Instances/InstanceContentController.swift */,
@@ -337,6 +340,7 @@
 			files = (
 				F7D0000000000000000000A2 /* Hako/Minecraft/WorldMetadata.swift in Sources */,
 				F7D0000000000000000000A1 /* Hako/Instances/InstanceWorlds.swift in Sources */,
+				F7D0000000000000000000A3 /* Hako/Instances/InstanceScreenshots.swift in Sources */,
 				F7E0000000000000000000A1 /* Hako/Instances/WorldBackup.swift in Sources */,
 				384D5AE25096F2046BCB9D66 /* Hako/Instances/InstanceContentController.swift in Sources */,
 				E38E63D0F70D7344DFBE6E28 /* Hako/Minecraft/FabricClient.swift in Sources */,

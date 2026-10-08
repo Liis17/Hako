@@ -3,10 +3,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private enum InstanceSection: CaseIterable, Identifiable {
-    case mods, packs, settings, worlds
+    case mods, packs, worlds, screenshots, settings
     var id: Self { self }
     var title: LocalizedStringKey {
-        switch self { case .mods: "Моды"; case .packs: "Ресурспаки"; case .settings: "Настройки"; case .worlds: "Миры" }
+        switch self { case .mods: "Моды"; case .packs: "Ресурспаки"; case .worlds: "Миры"; case .screenshots: "Скриншоты"; case .settings: "Настройки" }
     }
 }
 
@@ -136,6 +136,7 @@ struct InstanceProfileView: View {
                     case .worlds: InstanceWorldsView(instance: instance) { world in
                         withAnimation(.smooth) { catalog = .init(target: .worldDatapacks(world.id), worldName: world.name) }
                     }
+                    case .screenshots: InstanceScreenshotsView(instance: instance)
                 }
                 }.padding(2).padding(.bottom, 32)
                     .frame(maxWidth: .infinity, alignment: .leading)

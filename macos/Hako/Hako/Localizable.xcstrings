@@ -1772,6 +1772,22 @@
         }
       }
     },
+    "Выбранные скриншоты (%lld) будут перемещены в корзину." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected screenshots (%lld) will be moved to the Trash."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбранные скриншоты (%lld) будут перемещены в корзину."
+          }
+        }
+      }
+    },
     "Выбрано более 70% памяти. Java может повлиять на работу других приложений и системы." : {
       "localizations" : {
         "en" : {
@@ -1784,6 +1800,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выбрано более 70% памяти. Java может повлиять на работу других приложений и системы."
+          }
+        }
+      }
+    },
+    "Выбрано: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрано: %lld"
           }
         }
       }
@@ -3836,6 +3868,22 @@
         }
       }
     },
+    "Нажмите F2 в игре — снимок появится здесь." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press F2 in the game — the screenshot will appear here."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите F2 в игре — снимок появится здесь."
+          }
+        }
+      }
+    },
     "Назад" : {
       "localizations" : {
         "en" : {
@@ -5868,6 +5916,22 @@
         }
       }
     },
+    "Папка скриншотов не может быть символической ссылкой." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The screenshots folder cannot be a symbolic link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка скриншотов не может быть символической ссылкой."
+          }
+        }
+      }
+    },
     "Папка текстурпака содержит ссылки. Импортируйте папку с независимыми файлами." : {
       "localizations" : {
         "en" : {
@@ -6104,6 +6168,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Перетащите ZIP-архивы ресурспаков"
+          }
+        }
+      }
+    },
+    "Перетащите скриншоты в Finder, чтобы скопировать их. Двойной щелчок или пробел — просмотр." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag screenshots to Finder to copy them. Double-click or press Space to preview."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перетащите скриншоты в Finder, чтобы скопировать их. Двойной щелчок или пробел — просмотр."
           }
         }
       }
@@ -6876,6 +6956,22 @@
         }
       }
     },
+    "Просмотр" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Просмотр"
+          }
+        }
+      }
+    },
     "Профиль" : {
       "localizations" : {
         "en" : {
@@ -7468,6 +7564,54 @@
         }
       }
     },
+    "Скриншот «%@» будет перемещён в корзину." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshot “%@” will be moved to the Trash."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скриншот «%@» будет перемещён в корзину."
+          }
+        }
+      }
+    },
+    "Скриншотов пока нет" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Screenshots Yet"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скриншотов пока нет"
+          }
+        }
+      }
+    },
+    "Скриншоты" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screenshots"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скриншоты"
+          }
+        }
+      }
+    },
     "Снапшоты" : {
       "localizations" : {
         "en" : {
@@ -8028,6 +8172,54 @@
         }
       }
     },
+    "Удалить скриншот?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Screenshot?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить скриншот?"
+          }
+        }
+      }
+    },
+    "Удалить скриншоты?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Screenshots?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить скриншоты?"
+          }
+        }
+      }
+    },
+    "Удалить…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить…"
+          }
+        }
+      }
+    },
     "Удаляем мир…" : {
       "localizations" : {
         "en" : {
@@ -8332,6 +8524,22 @@
         }
       }
     },
+    "Файл не является скриншотом этой сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file is not a screenshot of this instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл не является скриншотом этой сборки."
+          }
+        }
+      }
+    },
     "Файл содержимого не может быть ссылкой." : {
       "localizations" : {
         "en" : {
@@ -8424,6 +8632,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Читаем миры…"
+          }
+        }
+      }
+    },
+    "Читаем скриншоты…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading screenshots…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Читаем скриншоты…"
           }
         }
       }

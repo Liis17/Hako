@@ -52,6 +52,7 @@ struct ModrinthUpdate {
     private(set) var catalogInstallTargets: [UUID: ModrinthInstallTarget] = [:]
     let modrinth: ModrinthClient
     let worlds = InstanceWorlds()
+    let screenshots = InstanceScreenshots()
     @ObservationIgnored private var answers: [UUID: CheckedContinuation<ContentChoice, Never>] = [:]
     @ObservationIgnored private var reloads: [String: UUID] = [:]
 
