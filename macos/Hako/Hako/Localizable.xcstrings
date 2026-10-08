@@ -1,6 +1,54 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "Не удалось загрузить сборки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could Not Load Instances"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить сборки"
+          }
+        }
+      }
+    },
+    "Нет установленных сборок" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Installed Instances"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет установленных сборок"
+          }
+        }
+      }
+    },
+    "Запустить сборку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Launch Instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запустить сборку"
+          }
+        }
+      }
+    },
     "Не удалось запустить сборку" : {
       "localizations" : {
         "en" : {

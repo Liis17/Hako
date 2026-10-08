@@ -52,6 +52,12 @@ enum InstanceRenameExitRequest: Equatable {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let services = HakoServices.shared
+        services.start()
+        return DockLaunchMenu(store: services.installations.store, quickLaunch: services.quickLaunch).makeMenu()
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let renameExit, renameExit.pendingRename != nil else { return .terminateNow }
         renameExit.requestExit(.terminateApplication)

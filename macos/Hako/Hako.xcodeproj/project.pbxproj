@@ -47,6 +47,8 @@
 		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
 		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 		F7F0000000000000000000A1 /* Hako/Instances/QuickLaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B1 /* Hako/Instances/QuickLaunchCoordinator.swift */; };
+		F7F0000000000000000000A2 /* Hako/Instances/DockLaunchMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */; };
+		F7F0000000000000000000A3 /* Hako/Views/Launcher/ClosureMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +115,8 @@
 		F7D0000000000000000000B3 /* Hako/Instances/InstanceScreenshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceScreenshots.swift; sourceTree = SOURCE_ROOT; };
 		F7E0000000000000000000B1 /* Hako/Instances/WorldBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/WorldBackup.swift; sourceTree = SOURCE_ROOT; };
 		F7F0000000000000000000B1 /* Hako/Instances/QuickLaunchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/QuickLaunchCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/DockLaunchMenu.swift; sourceTree = SOURCE_ROOT; };
+		F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Views/Launcher/ClosureMenuItem.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -180,6 +184,8 @@
 				F7D0000000000000000000B3 /* Hako/Instances/InstanceScreenshots.swift */,
 				F7E0000000000000000000B1 /* Hako/Instances/WorldBackup.swift */,
 				F7F0000000000000000000B1 /* Hako/Instances/QuickLaunchCoordinator.swift */,
+				F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */,
+				F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */,
 				F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */,
 				480885C4F1990E806A222314 /* Hako/Instances/InstanceContentController.swift */,
 				1144EB16EEA816036B6A215B /* Hako/Minecraft/FabricClient.swift */,
@@ -346,6 +352,8 @@
 				F7D0000000000000000000A3 /* Hako/Instances/InstanceScreenshots.swift in Sources */,
 				F7E0000000000000000000A1 /* Hako/Instances/WorldBackup.swift in Sources */,
 				F7F0000000000000000000A1 /* Hako/Instances/QuickLaunchCoordinator.swift in Sources */,
+				F7F0000000000000000000A3 /* Hako/Views/Launcher/ClosureMenuItem.swift in Sources */,
+				F7F0000000000000000000A2 /* Hako/Instances/DockLaunchMenu.swift in Sources */,
 				384D5AE25096F2046BCB9D66 /* Hako/Instances/InstanceContentController.swift in Sources */,
 				E38E63D0F70D7344DFBE6E28 /* Hako/Minecraft/FabricClient.swift in Sources */,
 				B4588F83C3B9F0485A2B8929 /* Hako/Minecraft/FabricModels.swift in Sources */,
