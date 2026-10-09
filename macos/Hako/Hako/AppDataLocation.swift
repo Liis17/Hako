@@ -7,12 +7,19 @@ enum AppDataLocation {
         let sandboxStore = container.appendingPathComponent("Application Support/default.store")
         let existingStore = home.appendingPathComponent("Library/Application Support/default.store")
         let newStore = home.appendingPathComponent("Library/Application Support/Hako/default.store")
-        let selected: URL
-        if let pinned = defaults.string(forKey: "hako.modelStorePath") {
-            selected = URL(fileURLWithPath: pinned)
-        } else if try filePresent(sandboxStore) { selected = sandboxStore }
-        else if try filePresent(existingStore) { selected = existingStore }
-        else { selected = newStore }
+        let pinned = defaults.string(forKey: "hako.modelStorePath").map { URL(fileURLWithPath: $0) }
+        if !(try filePresent(newStore)) {
+            for legacy in [pinned, sandboxStore, existingStore].compactMap({ $0 }) where legacy != newStore {
+                guard try filePresent(legacy) else { continue }
+                try manager.createDirectory(at: newStore.deletingLastPathComponent(), withIntermediateDirectories: true)
+                for suffix in ["", "-wal", "-shm"] {
+                    let source = URL(fileURLWithPath: legacy.path + suffix)
+                    if manager.fileExists(atPath: source.path) { try manager.copyItem(at: source, to: URL(fileURLWithPath: newStore.path + suffix)) }
+                }
+                break
+            }
+        }
+        defaults.removeObject(forKey: "hako.modelStorePath")
 
         if !defaults.bool(forKey: "hako.didMigrateGameDefaults") {
             let preferences = container.appendingPathComponent("Preferences/com.Launcher.Hako.plist")
@@ -25,9 +32,8 @@ enum AppDataLocation {
             }
             defaults.set(true, forKey: "hako.didMigrateGameDefaults")
         }
-        try manager.createDirectory(at: selected.deletingLastPathComponent(), withIntermediateDirectories: true)
-        defaults.set(selected.path, forKey: "hako.modelStorePath")
-        return selected
+        try manager.createDirectory(at: newStore.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return newStore
     }
 
     private static func filePresent(_ url: URL) throws -> Bool {
