@@ -223,7 +223,7 @@ private struct StorageSettingsView: View {
     @Environment(InstallationCoordinator.self) private var installations
     @Query private var instances: [GameInstance]
     @State private var diskSpace: Result<DiskSpace, Error>?
-    @State private var instanceBytes: Int64?
+    @State private var usage: InstanceStorageUsage?
     @State private var storageError: String?
 
     var body: some View {
@@ -233,8 +233,12 @@ private struct StorageSettingsView: View {
                 case .success(let space):
                     Text(space.volumeName)
                         .foregroundStyle(.secondary)
-                    ProgressView(value: space.fractionUsed)
-                        .tint(.sakuraDeep)
+                    let instanceBytes = min(usage?.total ?? 0, Int64(space.used))
+                    StorageBar(segments: [
+                        .init(color: .sakuraDeep, bytes: instanceBytes),
+                        .init(color: .secondary.opacity(0.45), bytes: Int64(space.used) - instanceBytes)
+                    ], total: Int64(space.total))
+                        .accessibilityElement()
                         .accessibilityLabel("Занято на диске")
                         .accessibilityValue("\(formatBytes(space.used)) из \(formatBytes(space.total))")
                     HStack(alignment: .top) {
@@ -243,6 +247,18 @@ private struct StorageSettingsView: View {
                         diskAmount("Свободно", bytes: space.free)
                         Spacer()
                         diskAmount("Всего", bytes: space.total)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Сборки Minecraft")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let usage {
+                            let share = percent(Double(usage.total) / Double(space.total))
+                            Text("\(formatBytes(usage.total)) · \(share) диска")
+                                .fontWeight(.medium)
+                        } else {
+                            Text("—").fontWeight(.medium)
+                        }
                     }
                 case .failure:
                     Text("Не удалось получить данные")
@@ -274,8 +290,31 @@ private struct StorageSettingsView: View {
                     Text("Занимают на диске")
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text(instanceBytes.map { $0.formatted(.byteCount(style: .file).locale(locale)) } ?? "—")
+                    Text(usage.map { formatBytes($0.total) } ?? "—")
                         .fontWeight(.medium)
+                }
+                if let usage, usage.total > 0 {
+                    StorageBar(segments: InstanceStorageUsage.Category.allCases.map { .init(color: $0.color, bytes: usage[$0]) }, total: usage.total)
+                        .accessibilityHidden(true)
+                    VStack(spacing: 10) {
+                        ForEach(InstanceStorageUsage.Category.allCases, id: \.self) { category in
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(category.color)
+                                    .frame(width: 10, height: 10)
+                                Text(category.title)
+                                Spacer()
+                                Text(percent(Double(usage[category]) / Double(usage.total)))
+                                    .foregroundStyle(.secondary)
+                                    .frame(minWidth: 56, alignment: .trailing)
+                                Text(formatBytes(usage[category]))
+                                    .fontWeight(.medium)
+                                    .frame(minWidth: 80, alignment: .trailing)
+                            }
+                            .font(.callout.monospacedDigit())
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
                 }
                 Text(storageError ?? (instances.isEmpty ? String(appLocalized: "Сборок пока нет.") : String(appLocalized: "\(instances.count) сборок · ~/.hako")))
                     .font(.callout)
@@ -293,8 +332,8 @@ private struct StorageSettingsView: View {
     private func refreshInstanceSize() async {
         let storage = installations.store.storage
         do {
-            let bytes = try await Task.detached(priority: .utility) { try storage.allocatedSize() }.value
-            instanceBytes = bytes; storageError = nil
+            usage = try await Task.detached(priority: .utility) { try storage.usage() }.value
+            storageError = nil
         } catch { storageError = String(appLocalized: "Не удалось получить размер сборок.") }
     }
 
@@ -312,8 +351,68 @@ private struct StorageSettingsView: View {
         }
     }
 
-    private func formatBytes(_ bytes: Int) -> String {
+    private func formatBytes(_ bytes: some BinaryInteger) -> String {
         Int64(bytes).formatted(.byteCount(style: .file).locale(locale))
+    }
+
+    private func percent(_ fraction: Double) -> String {
+        fraction.formatted(.percent.precision(.fractionLength(0...1)).locale(locale))
+    }
+}
+
+private extension InstanceStorageUsage.Category {
+    var title: LocalizedStringKey {
+        switch self {
+        case .worlds: "Миры"
+        case .minecraft: "Файлы Minecraft"
+        case .screenshots: "Скриншоты"
+        case .java: "Java"
+        case .mods: "Моды"
+        case .datapacks: "Датапаки"
+        case .resourcepacks: "Ресурспаки"
+        case .backups: "Резервные копии"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .worlds: .sakuraDeep
+        case .minecraft: Color(hex: 0x7C8DB5)
+        case .screenshots: Color(hex: 0xF2884B)
+        case .java: Color(hex: 0xE5B93C)
+        case .mods: Color(hex: 0x4FA37A)
+        case .datapacks: Color(hex: 0x3FA7B8)
+        case .resourcepacks: Color(hex: 0x8E6BBF)
+        case .backups: Color(hex: 0x9A9A9A)
+        }
+    }
+}
+
+/// Сегментированная полоса: ширина сегмента — доля `bytes` от `total`, остаток остаётся пустым.
+private struct StorageBar: View {
+    struct Segment: Identifiable {
+        let id = UUID()
+        let color: Color
+        let bytes: Int64
+    }
+
+    let segments: [Segment]
+    let total: Int64
+
+    var body: some View {
+        GeometryReader { proxy in
+            HStack(spacing: 0) {
+                ForEach(segments.filter { $0.bytes > 0 }) { segment in
+                    Rectangle()
+                        .fill(segment.color)
+                        .frame(width: max(2, proxy.size.width * Double(segment.bytes) / Double(max(total, 1))))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: 12)
+        .background(.quaternary, in: Capsule())
+        .clipShape(Capsule())
     }
 }
 

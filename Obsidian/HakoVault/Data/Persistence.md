@@ -203,6 +203,14 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 `containedURL` запрещает traversal и выход через симлинки. `allocatedSize()` суммирует фактически
 занятый объём обычных файлов без повторного учёта ссылок; сканирование выполняется вне главного потока.
 
+`InstanceStorage.usage()` (`macos/Hako/Hako/Instances/InstanceStorageUsage.swift`) за один обход `~/.hako` с теми же
+правилами подсчёта раскладывает объём по `InstanceStorageUsage.Category` по пути относительно корня:
+`backups/` и `worlds/` → резервные копии; `<сборка>/java` → Java; `<сборка>/minecraft/…`: `saves/<мир>/datapacks` и
+`saves/<мир>/.hako-disabled-datapacks` → датапаки, остальной `saves` → миры, `mods` → моды, `resourcepacks`/`texturepacks`
+(и их `.hako-disabled-*`) → ресурспаки, `screenshots` → скриншоты, всё прочее (в том числе `icon.png` и временные папки) → файлы Minecraft.
+Датапаки не входят в категорию миров. Результат используется карточками «Хранилища» в настройках.
+Тесты: `InstanceStorageUsageTests`.
+
 ## Загрузчик сборки
 
 `GameInstance.modLoaderRaw` хранит `vanilla` (значение по умолчанию для прежнего store) или `fabric`.
