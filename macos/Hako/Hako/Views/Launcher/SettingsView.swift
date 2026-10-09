@@ -326,7 +326,16 @@ private struct AboutSettingsView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
     }
 
+    @Environment(AppUpdateCoordinator.self) private var updates
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            aboutCard
+            AppUpdateCard()
+        }
+    }
+
+    private var aboutCard: some View {
         SettingsCard(title: "Hako", systemImage: "info.circle") {
             HStack(spacing: 20) {
                 Image(nsImage: NSApplication.shared.applicationIconImage)
@@ -338,9 +347,15 @@ private struct AboutSettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Лаунчер Minecraft для macOS")
                         .font(.title3)
-                    Text("Версия \(version) · сборка \(buildNumber)")
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+                    Group {
+                        if let commit = updates.currentCommit {
+                            Text("Версия \(version) · сборка \(buildNumber) · \(String(commit.prefix(7)))")
+                        } else {
+                            Text("Версия \(version) · сборка \(buildNumber) · локальная сборка")
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
                 }
             }
 
@@ -354,6 +369,78 @@ private struct AboutSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+        }
+    }
+}
+
+private struct AppUpdateCard: View {
+    @Environment(\.locale) private var locale
+    @Environment(AppUpdateCoordinator.self) private var updates
+    @AppStorage(AppUpdateCoordinator.automaticCheckKey) private var checkAutomatically = true
+
+    var body: some View {
+        SettingsCard(title: "Обновления", systemImage: "arrow.down.circle") {
+            if updates.isLocalBuild {
+                Text("Эта копия Hako собрана локально. Обновления приходят только в сборки из GitHub Releases.")
+                    .foregroundStyle(.secondary)
+                Link(destination: AppReleaseClient.releasesPage) {
+                    Label("Открыть релизы", systemImage: "arrow.up.right")
+                }
+                .buttonStyle(.glass)
+            } else {
+                status
+                if let error = updates.error {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
+                }
+                HStack(spacing: 12) {
+                    if let release = updates.release {
+                        Button("Обновить и перезапустить") { Task { await updates.install() } }
+                            .buttonStyle(.glassProminent)
+                            .tint(.sakuraDeep)
+                        Link(destination: release.pageURL) {
+                            Label("Открыть релиз", systemImage: "arrow.up.right")
+                        }
+                        .buttonStyle(.glass)
+                    }
+                    Button("Проверить сейчас") { Task { await updates.check() } }
+                        .buttonStyle(.glass)
+                }
+                .controlSize(.large)
+                .disabled(updates.activity != .idle)
+                Toggle("Проверять обновления автоматически", isOn: $checkAutomatically)
+                Text("Hako проверяет обновления при запуске и раз в 6 часов.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        switch updates.activity {
+        case .checking:
+            ProgressView("Проверяем обновления…")
+        case .downloading(let fraction):
+            ProgressView("Загружаем обновление…", value: fraction)
+                .tint(.sakuraDeep)
+        case .installing:
+            ProgressView("Устанавливаем обновление…")
+        case .idle:
+            if let release = updates.release {
+                if let date = release.publishedAt {
+                    Text("Доступна новая версия Hako: \(release.shortCommit) от \(date.formatted(.dateTime.day().month().hour().minute().locale(locale))).")
+                } else {
+                    Text("Доступна новая версия Hako: \(release.shortCommit).")
+                }
+            } else if updates.lastChecked != nil {
+                Text("Установлена последняя версия Hako.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Обновления ещё не проверялись.")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -385,6 +472,7 @@ private struct SettingsCard<Content: View>: View {
     return SettingsView()
         .modelContainer(container)
         .environment(InstallationCoordinator(context: container.mainContext))
+        .environment(AppUpdateCoordinator(store: InstanceStore(context: container.mainContext)))
         .defaultAppStorage(UserDefaults(suiteName: "com.Launcher.Hako.settings.preview")!)
         .padding(.horizontal, 56)
         .padding(.top, 40)

@@ -52,6 +52,9 @@
 		F7F0000000000000000000A6 /* Hako/Instances/GameInstanceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B6 /* Hako/Instances/GameInstanceEntity.swift */; };
 		F7F0000000000000000000A7 /* Hako/Instances/InstanceSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B7 /* Hako/Instances/InstanceSpotlightIndexer.swift */; };
 		F7F0000000000000000000A8 /* Hako/Instances/LaunchGameInstanceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B8 /* Hako/Instances/LaunchGameInstanceIntent.swift */; };
+		F7F1000000000000000000A1 /* Hako/Updates/AppRelease.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F1000000000000000000B1 /* Hako/Updates/AppRelease.swift */; };
+		F7F1000000000000000000A2 /* Hako/Updates/AppUpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F1000000000000000000B2 /* Hako/Updates/AppUpdateInstaller.swift */; };
+		F7F1000000000000000000A3 /* Hako/Updates/AppUpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F1000000000000000000B3 /* Hako/Updates/AppUpdateCoordinator.swift */; };
 		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
 		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 /* End PBXBuildFile section */
@@ -127,6 +130,9 @@
 		F7F0000000000000000000B6 /* Hako/Instances/GameInstanceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/GameInstanceEntity.swift; sourceTree = SOURCE_ROOT; };
 		F7F0000000000000000000B7 /* Hako/Instances/InstanceSpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceSpotlightIndexer.swift; sourceTree = SOURCE_ROOT; };
 		F7F0000000000000000000B8 /* Hako/Instances/LaunchGameInstanceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/LaunchGameInstanceIntent.swift; sourceTree = SOURCE_ROOT; };
+		F7F1000000000000000000B1 /* Hako/Updates/AppRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Updates/AppRelease.swift; sourceTree = SOURCE_ROOT; };
+		F7F1000000000000000000B2 /* Hako/Updates/AppUpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Updates/AppUpdateInstaller.swift; sourceTree = SOURCE_ROOT; };
+		F7F1000000000000000000B3 /* Hako/Updates/AppUpdateCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Updates/AppUpdateCoordinator.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -201,6 +207,9 @@
 				F7F0000000000000000000B4 /* Hako/HakoServices.swift */,
 				F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */,
 				F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */,
+				F7F1000000000000000000B1 /* Hako/Updates/AppRelease.swift */,
+				F7F1000000000000000000B2 /* Hako/Updates/AppUpdateInstaller.swift */,
+				F7F1000000000000000000B3 /* Hako/Updates/AppUpdateCoordinator.swift */,
 				F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */,
 				480885C4F1990E806A222314 /* Hako/Instances/InstanceContentController.swift */,
 				1144EB16EEA816036B6A215B /* Hako/Minecraft/FabricClient.swift */,
@@ -374,6 +383,9 @@
 				F7F0000000000000000000A4 /* Hako/HakoServices.swift in Sources */,
 				F7F0000000000000000000A3 /* Hako/Views/Launcher/ClosureMenuItem.swift in Sources */,
 				F7F0000000000000000000A2 /* Hako/Instances/DockLaunchMenu.swift in Sources */,
+				F7F1000000000000000000A1 /* Hako/Updates/AppRelease.swift in Sources */,
+				F7F1000000000000000000A2 /* Hako/Updates/AppUpdateInstaller.swift in Sources */,
+				F7F1000000000000000000A3 /* Hako/Updates/AppUpdateCoordinator.swift in Sources */,
 				384D5AE25096F2046BCB9D66 /* Hako/Instances/InstanceContentController.swift in Sources */,
 				E38E63D0F70D7344DFBE6E28 /* Hako/Minecraft/FabricClient.swift in Sources */,
 				B4588F83C3B9F0485A2B8929 /* Hako/Minecraft/FabricModels.swift in Sources */,

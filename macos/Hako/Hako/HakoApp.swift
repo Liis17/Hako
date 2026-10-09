@@ -23,6 +23,7 @@ struct HakoApp: App {
                 .environment(services.playtime)
                 .environment(services.renameExit)
                 .environment(services.quickLaunch)
+                .environment(services.updates)
                 .background(InstanceRenameWindowCloseGuard(coordinator: services.renameExit))
                 .onAppear { appDelegate.renameExit = services.renameExit }
                 .task { services.start() }

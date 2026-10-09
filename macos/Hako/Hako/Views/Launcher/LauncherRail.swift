@@ -12,6 +12,7 @@ struct LauncherRail: View {
     @Binding var selection: LauncherTab
     let onCreate: () -> Void
     @Environment(InstallationCoordinator.self) private var installations
+    @Environment(AppUpdateCoordinator.self) private var updates
 
     var body: some View {
         VStack(spacing: 10) {
@@ -52,7 +53,7 @@ struct LauncherRail: View {
 
             Spacer()
 
-            RailButton(title: "Настройки", systemImage: "gearshape.fill", isSelected: selection == .settings) {
+            RailButton(title: "Настройки", systemImage: "gearshape.fill", isSelected: selection == .settings, showsBadge: updates.release != nil) {
                 selection = .settings
             }
 
@@ -87,6 +88,7 @@ private struct RailButton: View {
     let title: LocalizedStringKey
     let systemImage: String
     let isSelected: Bool
+    var showsBadge = false
     let action: () -> Void
 
     @State private var isHovered = false
@@ -99,11 +101,21 @@ private struct RailButton: View {
                 .frame(width: 44, height: 44)
                 .background(background, in: .rect(cornerRadius: 12))
                 .contentShape(.rect(cornerRadius: 12))
+                .overlay(alignment: .topTrailing) {
+                    if showsBadge {
+                        Circle()
+                            .fill(Color.sakuraDeep)
+                            .stroke(.white, lineWidth: 1.5)
+                            .frame(width: 10, height: 10)
+                            .offset(x: -4, y: 4)
+                    }
+                }
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .help(title)
         .accessibilityLabel(title)
+        .accessibilityValue(showsBadge ? Text("Доступно обновление") : Text(verbatim: ""))
     }
 
     private var background: Color {

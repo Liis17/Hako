@@ -33,6 +33,182 @@
         }
       }
     },
+    "Загруженное обновление повреждено. Повторите загрузку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded update is damaged. Try downloading it again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загруженное обновление повреждено. Повторите загрузку."
+          }
+        }
+      }
+    },
+    "Загруженное обновление не подходит для этой копии Hako." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded update doesn't match this copy of Hako."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загруженное обновление не подходит для этой копии Hako."
+          }
+        }
+      }
+    },
+    "Загружаем обновление…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading the update…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загружаем обновление…"
+          }
+        }
+      }
+    },
+    "Доступно обновление" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update available"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступно обновление"
+          }
+        }
+      }
+    },
+    "Доступна новая версия Hako: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new Hako version is available: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступна новая версия Hako: %@."
+          }
+        }
+      }
+    },
+    "Доступна новая версия Hako: %@ от %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new Hako version is available: %1$@ from %2$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступна новая версия Hako: %1$@ от %2$@."
+          }
+        }
+      }
+    },
+    "Дождитесь завершения операций с файлами сборок." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for instance file operations to finish."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дождитесь завершения операций с файлами сборок."
+          }
+        }
+      }
+    },
+    "Версия %@ · сборка %@ · локальная сборка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %1$@ · build %2$@ · local build"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия %1$@ · сборка %2$@ · локальная сборка"
+          }
+        }
+      }
+    },
+    "Версия %@ · сборка %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %1$@ · build %2$@ · %3$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия %1$@ · сборка %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "Hako проверяет обновления при запуске и раз в 6 часов." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hako checks for updates at launch and every 6 hours."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hako проверяет обновления при запуске и раз в 6 часов."
+          }
+        }
+      }
+    },
+    "GitHub не сообщил контрольную сумму обновления." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub didn't provide a checksum for the update."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub не сообщил контрольную сумму обновления."
+          }
+        }
+      }
+    },
     "Запустить ${target}" : {
       "localizations" : {
         "en" : {
@@ -1592,22 +1768,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Версия"
-          }
-        }
-      }
-    },
-    "Версия %@ · сборка %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Version %1$@ · build %2$@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Версия %1$@ · сборка %2$@"
           }
         }
       }
@@ -4956,6 +5116,22 @@
         }
       }
     },
+    "Не удалось установить обновление (%@, код %@)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't install the update (%1$@, code %2$@)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось установить обновление (%1$@, код %2$@)."
+          }
+        }
+      }
+    },
     "Недопустимая папка мира." : {
       "localizations" : {
         "en" : {
@@ -5148,6 +5324,22 @@
         }
       }
     },
+    "Некорректный ответ GitHub." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid response from GitHub."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Некорректный ответ GitHub."
+          }
+        }
+      }
+    },
     "Некорректный ответ сервера Fabric." : {
       "localizations" : {
         "en" : {
@@ -5336,6 +5528,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ничего не найдено"
+          }
+        }
+      }
+    },
+    "Новая версия Hako сейчас публикуется. Повторите проверку через несколько минут." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new Hako version is being published right now. Check again in a few minutes."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новая версия Hako сейчас публикуется. Повторите проверку через несколько минут."
           }
         }
       }
@@ -5564,6 +5772,22 @@
         }
       }
     },
+    "Обновить и перезапустить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update and Relaunch"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить и перезапустить"
+          }
+        }
+      }
+    },
     "Обновление Fabric API несовместимо с Loader или Java сборки." : {
       "localizations" : {
         "en" : {
@@ -5576,6 +5800,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Обновление Fabric API несовместимо с Loader или Java сборки."
+          }
+        }
+      }
+    },
+    "Обновления ещё не проверялись." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates haven't been checked yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновления ещё не проверялись."
+          }
+        }
+      }
+    },
+    "Обновления" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновления"
           }
         }
       }
@@ -5896,6 +6152,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Открыть папку"
+          }
+        }
+      }
+    },
+    "Открыть релизы" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Releases"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть релизы"
+          }
+        }
+      }
+    },
+    "Открыть релиз" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Release"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть релиз"
           }
         }
       }
@@ -6328,6 +6616,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Переименовать сборку?"
+          }
+        }
+      }
+    },
+    "Переместите Hako в папку «Программы» и откройте его оттуда, чтобы обновлять автоматически." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move Hako to the Applications folder and open it from there to update automatically."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переместите Hako в папку «Программы» и откройте его оттуда, чтобы обновлять автоматически."
           }
         }
       }
@@ -6956,6 +7260,22 @@
         }
       }
     },
+    "Проверить сейчас" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Now"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверить сейчас"
+          }
+        }
+      }
+    },
     "Проверка Java превысила время ожидания. Выберите другой исполняемый файл java." : {
       "localizations" : {
         "en" : {
@@ -7064,6 +7384,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Проверяем файлы версии…"
+          }
+        }
+      }
+    },
+    "Проверять обновления автоматически" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for updates automatically"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверять обновления автоматически"
           }
         }
       }
@@ -8460,6 +8796,22 @@
         }
       }
     },
+    "Устанавливаем обновление…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing the update…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Устанавливаем обновление…"
+          }
+        }
+      }
+    },
     "Установить альфу %@" : {
       "localizations" : {
         "en" : {
@@ -8536,6 +8888,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Установлен"
+          }
+        }
+      }
+    },
+    "Установлена последняя версия Hako." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have the latest version of Hako."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установлена последняя версия Hako."
           }
         }
       }
@@ -8888,6 +9256,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Эта версия не поддерживает Apple Silicon: библиотеки игры доступны только для Intel."
+          }
+        }
+      }
+    },
+    "Эта копия Hako собрана локально. Обновления приходят только в сборки из GitHub Releases." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy of Hako was built locally. Updates are delivered only to builds from GitHub Releases."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта копия Hako собрана локально. Обновления приходят только в сборки из GitHub Releases."
           }
         }
       }

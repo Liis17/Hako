@@ -17,6 +17,7 @@ import SwiftData
     let quickLaunch: QuickLaunchCoordinator
     let instanceCatalog: InstanceEntityCatalog
     let spotlight: InstanceSpotlightIndexer
+    let updates: AppUpdateCoordinator
 
     private init() throws {
         let schema = HakoSchema.schema
@@ -33,10 +34,12 @@ import SwiftData
         instanceCatalog = InstanceEntityCatalog(store: installations.store)
         spotlight = InstanceSpotlightIndexer(catalog: instanceCatalog)
         spotlight.start()
+        updates = AppUpdateCoordinator(store: installations.store)
     }
 
     func start() {
         games.start()
         installations.start()
+        updates.start()
     }
 }

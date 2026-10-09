@@ -30,7 +30,7 @@ CocoaPods, Carthage не используются) нет.
 | UserDefaults / `@AppStorage` | Глобальные параметры игры, язык интерфейса | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift`, `macos/Hako/Hako/AppLanguage.swift` |
 | String Catalog | Русский и английский интерфейс | `macos/Hako/Hako/Localizable.xcstrings` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
-| URLSession | Авторизация, Minecraft/Java, Fabric Meta, Fabric API и каталог Modrinth | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
+| URLSession | Авторизация, Minecraft/Java, Fabric Meta, Fabric API, каталог Modrinth и обновления Hako | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
 
 ## Структура репозитория
@@ -50,7 +50,7 @@ CocoaPods, Carthage не используются) нет.
   (`macos/Hako/Hako/HakoServices.swift`) и создаёт единственную сцену `Window("Hako", id: "main")`.
   `HakoServices` владеет единственными `ModelContainer`, `InstallationCoordinator`, `InstanceContentController`,
   `MinecraftSessionCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator`, `InstanceRenameExitCoordinator`
-  и `QuickLaunchCoordinator`. Интерфейс и системные команды используют те же объекты.
+  `QuickLaunchCoordinator` и `AppUpdateCoordinator`. Интерфейс и системные команды используют те же объекты.
   Устройство контейнера описано в [[Data/Persistence]], быстрый запуск — в [[UI/SystemIntegration]].
 - [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками и игровым временем, контейнер хранилища, токены в Keychain,
   глобальные параметры игры, независимые папки сборок и статистика времени по XUID.
@@ -59,6 +59,7 @@ CocoaPods, Carthage не используются) нет.
 - [[Minecraft/Launching]] — построение аргументов, проверка Java, процессы и восстановление игр.
 - [[Minecraft/Worlds]] — локальные сохранения, чтение gzip/NBT через системный zlib, копирование, корзина и управление датапаками; `.hakoworld` описан в [[Data/Backups]].
 - [[Minecraft/Modrinth]] — каталог модов, ресурспаков и датапаков мира, зависимости и проверка загрузок.
+- [[App/Updates]] — проверка релиза `nightly`, загрузка DMG, замена бандла и перезапуск.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/SystemIntegration]] — единые сервисы и быстрый запуск сборок из Dock, Spotlight и Siri.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
@@ -122,7 +123,8 @@ CocoaPods, Carthage не используются) нет.
 - Provisioning profile не встраивается, поэтому у подписанной сборки нет entitlement
   `application-identifier` (важно для Keychain — см. [[Data/Persistence]]).
 - Info.plist генерируется (`GENERATE_INFOPLIST_FILE = YES`); ключи задаются через
-  `INFOPLIST_KEY_*` в настройках таргета.
+  `INFOPLIST_KEY_*` в настройках таргета. Частичный `macos/Hako/Hako-Info.plist` (`INFOPLIST_FILE`) добавляет
+  `HakoCommit = $(HAKO_COMMIT)` — коммит сборки для обновлений ([[App/Updates]]).
 - `macos/Hako/Hako/PrivacyInfo.xcprivacy` включён в ресурсы приложения и объявляет использование
   `UserDefaults` для собственных настроек (`CA92.1`) и API ёмкости диска для отображения места (`85F4.1`).
   System Boot Time (`35F9.1`) используется для длительностей игры без учёта системного сна.
@@ -155,7 +157,8 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 CI: `.github/workflows/release.yml` на каждый пуш в `main` собирает Release на раннере GitHub `xcode-27`
 (preview-образ macOS 27 с Xcode 27) с ad-hoc подписью (`CODE_SIGN_IDENTITY=-`, без Developer ID и нотаризации),
 упаковывает `Hako.app` в `Hako.dmg` и публикует его в pre-release `nightly`: прежний релиз и тег удаляются,
-новый создаётся на текущем коммите. Ad-hoc подпись меняется с каждой сборкой, поэтому после обновления
+новый создаётся на текущем коммите. Сборка получает `HAKO_COMMIT=$GITHUB_SHA`, по нему приложение находит
+обновления ([[App/Updates]]). Ad-hoc подпись меняется с каждой сборкой, поэтому после обновления
 macOS может снова спросить доступ к записи токенов в Keychain.
 
 ## Ограничения и инварианты
