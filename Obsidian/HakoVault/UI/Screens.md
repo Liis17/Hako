@@ -27,6 +27,8 @@ Parent: [[Index]]
   повёрнута на −4°. «Хако» по-японски — «коробка».
 - Основная кнопка — `.buttonStyle(.glassProminent)`, `.tint(.sakuraDeep)`, `.controlSize(.extraLarge)`;
   второстепенные — `.buttonStyle(.glass)`. Ошибки — цвет `Color.shu`.
+- Акцент окна — `.tint(.sakuraDeep)` на корне `ContentView` и цвет #E0607E в `AccentColor.colorset`:
+  segmented-пикеры, переключатели и меню остаются розовыми без точечного `.tint`.
 - Экраны выровнены по левому краю с горизонтальным отступом 96 pt.
 - `reveal(_:order:)` — поочерёдное появление: opacity + сдвиг на 16 pt, задержка 0.08 с × `order`.
   При Reduce Motion сдвига нет, остаётся только fade.
