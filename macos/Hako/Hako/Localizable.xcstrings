@@ -7996,6 +7996,54 @@
         }
       }
     },
+    "%@ · %@ диска" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ of disk"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ диска"
+          }
+        }
+      }
+    },
+    "Файлы Minecraft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft files"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлы Minecraft"
+          }
+        }
+      }
+    },
+    "Резервные копии" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backups"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Резервные копии"
+          }
+        }
+      }
+    },
     "Сборки Minecraft" : {
       "localizations" : {
         "en" : {
