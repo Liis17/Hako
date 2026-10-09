@@ -44,8 +44,6 @@
 		F7D0000000000000000000A2 /* Hako/Minecraft/WorldMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D0000000000000000000B2 /* Hako/Minecraft/WorldMetadata.swift */; };
 		F7D0000000000000000000A3 /* Hako/Instances/InstanceScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D0000000000000000000B3 /* Hako/Instances/InstanceScreenshots.swift */; };
 		F7E0000000000000000000A1 /* Hako/Instances/WorldBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E0000000000000000000B1 /* Hako/Instances/WorldBackup.swift */; };
-		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
-		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 		F7F0000000000000000000A1 /* Hako/Instances/QuickLaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B1 /* Hako/Instances/QuickLaunchCoordinator.swift */; };
 		F7F0000000000000000000A2 /* Hako/Instances/DockLaunchMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B2 /* Hako/Instances/DockLaunchMenu.swift */; };
 		F7F0000000000000000000A3 /* Hako/Views/Launcher/ClosureMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B3 /* Hako/Views/Launcher/ClosureMenuItem.swift */; };
@@ -54,6 +52,8 @@
 		F7F0000000000000000000A6 /* Hako/Instances/GameInstanceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B6 /* Hako/Instances/GameInstanceEntity.swift */; };
 		F7F0000000000000000000A7 /* Hako/Instances/InstanceSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B7 /* Hako/Instances/InstanceSpotlightIndexer.swift */; };
 		F7F0000000000000000000A8 /* Hako/Instances/LaunchGameInstanceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000000B8 /* Hako/Instances/LaunchGameInstanceIntent.swift */; };
+		F9020B2D5D95794ED92A9111 /* Hako/Instances/InstallationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A80A6C3FF05F6427E4DD757 /* Hako/Instances/InstallationCoordinator.swift */; };
+		FB69CA22D4CD43ACAAA7D04F /* Hako/Auth/TokenKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B64FAA21A8A4B4FBC8E1FC5 /* Hako/Auth/TokenKeychain.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -583,6 +583,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HAKO_COMMIT = "";
+				INFOPLIST_FILE = "Hako-Info.plist";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -616,6 +618,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HAKO_COMMIT = "";
+				INFOPLIST_FILE = "Hako-Info.plist";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
