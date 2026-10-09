@@ -15,7 +15,7 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `macos/Hako/Hako/HakoApp.swift` | `HakoApp.sharedModelContainer` | Схема, конфигурация и создание контейнера; подключение к сцене |
 | `macos/Hako/Hako/Instances/GameInstance.swift` | `GameInstance`, `InstanceParameters`, `InstanceDraft` | Профиль сборки, параметры и черновик формы |
 | `macos/Hako/Hako/Instances/InstanceStorage.swift` | `InstanceStorage`, `InstanceStore` | Файловые пути, создание, транзакционное редактирование, дублирование и удаление |
-| `macos/Hako/Hako/AppDataLocation.swift` | `AppDataLocation.storeURL` | Сохранение прежнего store и перенос глобальных параметров |
+| `macos/Hako/Hako/AppDataLocation.swift` | `AppDataLocation.storeURL` | Перенос прежнего store в `Application Support/Hako` и глобальных параметров |
 | `macos/Hako/Hako/Account.swift` | `Account` | Аккаунт Microsoft/Xbox и профиль Minecraft |
 | `macos/Hako/Hako/Auth/TokenKeychain.swift` | `TokenKeychain`, `AccountTokens`, `KeychainError` | Токены аккаунта в Keychain |
 | `macos/Hako/Hako/GameLaunchDefaults.swift` | `GameLaunchDefaults` | Ключи, значения по умолчанию и снимок параметров игры |
@@ -162,10 +162,12 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 - Новую модель нужно добавить в `Schema([...])` в `HakoApp` и в контейнеры превью
   представлений, которые её используют (`.modelContainer(for:inMemory: true)` в `#Preview`).
 - App Sandbox отключён: игровые файлы пишутся в настоящий `~/.hako` без выбора папки.
-  SwiftData сохраняет прежний URL: приоритет — store в `Library/Containers/com.Launcher.Hako/Data/Library/Application Support`,
-  затем прежний несандбоксированный `Library/Application Support/default.store`; для новой установки —
-  `Library/Application Support/Hako/default.store`. Выбранный URL закрепляется в `hako.modelStorePath`,
-  чтобы последующие запуски не переключались между существующими store. Ошибка доступа к прежнему store
+  Store всегда лежит в `Library/Application Support/Hako/default.store`: если его нет, `AppDataLocation` копирует
+  (с `-wal`/`-shm`, оригинал остаётся) прежний store — из `hako.modelStorePath`, затем из
+  `Library/Containers/com.Launcher.Hako/Data/Library/Application Support`, затем из `Library/Application Support/default.store`.
+  Копия вне контейнера нужна, потому что бандл без подписи разработчика (ad-hoc сборка CI) не может открыть чужой контейнер
+  (SQLite 23, `Operation not permitted`) и падал бы при запуске; перенос выполняет сборка, которой контейнер доступен
+  (подписанная командой разработчика). Ключ `hako.modelStorePath` больше не используется и удаляется. Ошибка доступа к прежнему store
   не трактуется как отсутствие файла. Старые глобальные параметры импортируются один раз (`hako.didMigrateGameDefaults`);
   имена сервиса и ключей Keychain сохраняются.
 

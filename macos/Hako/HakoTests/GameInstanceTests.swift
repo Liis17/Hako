@@ -109,7 +109,7 @@ import Testing
         #expect(try updated.mainContext.fetch(FetchDescriptor<Account>()).first?.xuid == "preserved")
     }
 
-    @Test func sandboxLocationAndPreferencesArePreservedOnce() throws {
+    @Test func sandboxStoreIsCopiedOutOfContainerAndPreferencesArePreservedOnce() throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }
         let suite = "hako.tests.\(UUID().uuidString)"
@@ -120,13 +120,22 @@ import Testing
         let preferences = library.appendingPathComponent("Preferences/com.Launcher.Hako.plist")
         try FileManager.default.createDirectory(at: oldStore.deletingLastPathComponent(), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: preferences.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data().write(to: oldStore)
+        try Data("store".utf8).write(to: oldStore)
+        try Data("wal".utf8).write(to: URL(fileURLWithPath: oldStore.path + "-wal"))
+        defaults.set(oldStore.path, forKey: "hako.modelStorePath")
         let plist = try PropertyListSerialization.data(fromPropertyList: [GameLaunchDefaults.Key.javaArguments: "-Xmx3G"], format: .binary, options: 0)
         try plist.write(to: preferences)
-        #expect(try AppDataLocation.storeURL(home: root, defaults: defaults) == oldStore)
+        let newStore = root.appendingPathComponent("Library/Application Support/Hako/default.store")
+        #expect(try AppDataLocation.storeURL(home: root, defaults: defaults) == newStore)
+        #expect(try Data(contentsOf: newStore) == Data("store".utf8))
+        #expect(try Data(contentsOf: URL(fileURLWithPath: newStore.path + "-wal")) == Data("wal".utf8))
+        #expect(FileManager.default.fileExists(atPath: oldStore.path))
+        #expect(defaults.string(forKey: "hako.modelStorePath") == nil)
         #expect(defaults.string(forKey: GameLaunchDefaults.Key.javaArguments) == "-Xmx3G")
         defaults.set("-Xmx5G", forKey: GameLaunchDefaults.Key.javaArguments)
+        try Data("changed".utf8).write(to: newStore)
         _ = try AppDataLocation.storeURL(home: root, defaults: defaults)
+        #expect(try Data(contentsOf: newStore) == Data("changed".utf8))
         #expect(defaults.string(forKey: GameLaunchDefaults.Key.javaArguments) == "-Xmx5G")
     }
 

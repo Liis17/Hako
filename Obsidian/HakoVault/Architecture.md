@@ -169,7 +169,7 @@ macOS может снова спросить доступ к записи ток
   исходники приложения явным списком: файл, от которого зависят уже включённые исходники, добавляется
   в фазу Sources этого таргета в `project.pbxproj`.
 - Новые `@Model`-типы регистрируются в схеме контейнера — см. [[Data/Persistence]].
-- `AppDataLocation` сохраняет прежнее расположение SwiftData при отключении Sandbox. Игровые файлы
+- `AppDataLocation` переносит SwiftData-store из контейнера Sandbox в `Library/Application Support/Hako/`. Игровые файлы
   каждой сборки находятся в настоящем `~/.hako/{имя}/java` и `minecraft`; общих бинарных файлов нет.
 - Вход в Minecraft требует Client ID Azure, одобренного Mojang; Client ID проекта задан в
   `MicrosoftAuth.clientID`, заявка на одобрение подана, но ещё не одобрена — см. [[Auth/MicrosoftAuth]].
