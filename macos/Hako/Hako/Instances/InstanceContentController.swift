@@ -303,14 +303,16 @@ struct ModrinthUpdate {
 
     func update(_ item: InstanceContentItem, in instance: GameInstance) {
         guard item.origin?.api != nil, let next = updates[instance.id]?[item.logicalName.lowercased()] else { return }
-        perform(instance, mods: true) { [self] folder in
-            guard let configuration = try instance.fabricConfiguration() else { throw InstanceFileError.message(String(appLocalized: "Конфигурация Fabric отсутствует.")) }
-            let metadata = try await installations.fabricClient.metadata(for: next)
-            guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else { throw InstanceFileError.message(String(appLocalized: "Обновление Fabric API несовместимо с Loader или Java сборки.")) }
-            let cached = try await installations.fabricClient.cachedAPI(next)
-            try await installations.content.updateAPI(item, to: next, from: cached, in: folder)
-            updates[instance.id] = nil; updateMessages[instance.id] = nil
-        }
+        perform(instance, mods: true) { [self] folder in try await applyAPIUpdate(item, to: next, in: instance, folder: folder) }
+    }
+
+    private func applyAPIUpdate(_ item: InstanceContentItem, to next: FabricAPIDescriptor, in instance: GameInstance, folder: URL) async throws {
+        guard let configuration = try instance.fabricConfiguration() else { throw InstanceFileError.message(String(appLocalized: "Конфигурация Fabric отсутствует.")) }
+        let metadata = try await installations.fabricClient.metadata(for: next)
+        guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else { throw InstanceFileError.message(String(appLocalized: "Обновление Fabric API несовместимо с Loader или Java сборки.")) }
+        let cached = try await installations.fabricClient.cachedAPI(next)
+        try await installations.content.updateAPI(item, to: next, from: cached, in: folder)
+        updates[instance.id] = nil; updateMessages[instance.id] = nil
     }
 
     private func updateKey(_ instance: GameInstance, mods: Bool) -> String { "\(instance.id):\(mods)" }
@@ -361,6 +363,42 @@ struct ModrinthUpdate {
             defer { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
             guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message(String(appLocalized: "Проект Modrinth не найден.")) }
             _ = try await installFromModrinth(project, in: instance, target: mods ? .mods : .packs, version: update.version, replacing: (item, update.currentSHA512))
+        }
+        if !started { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
+    }
+
+    func hasUpdates(_ instance: GameInstance, mods: Bool) -> Bool {
+        modrinthUpdates[updateKey(instance, mods: mods)]?.isEmpty == false || mods && updates[instance.id]?.isEmpty == false
+    }
+
+    /// Ставит все доступные обновления раздела подряд; обновления, которым нужны подтверждения, пропускаются.
+    func updateAll(_ instance: GameInstance, mods: Bool) {
+        guard catalogInstalling[instance.id] == nil else { return }
+        let current = (mods ? self.mods : packs)[instance.id] ?? []
+        let apiUpdates = mods ? current.compactMap { item in
+            item.origin?.api == nil ? nil : updates[instance.id]?[item.logicalName.lowercased()].map { (item, $0) }
+        } : []
+        let modrinthUpdates = current.compactMap { item in modrinthUpdate(for: item, in: instance, mods: mods).map { (item, $0) } }
+        guard let first = apiUpdates.first.map({ _ in FabricAPIDescriptor.project }) ?? modrinthUpdates.first?.1.projectID else { return }
+        catalogInstalling[instance.id] = first
+        catalogInstallTargets[instance.id] = mods ? .mods : .packs
+        let started = perform(instance, mods: mods) { [self] folder in
+            defer { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
+            var failures: [String] = []
+            for (item, next) in apiUpdates {
+                do { try await applyAPIUpdate(item, to: next, in: instance, folder: folder) }
+                catch is CancellationError { throw CancellationError() }
+                catch { failures.append("\(item.logicalName): \(error.localizedDescription)") }
+            }
+            for (item, update) in modrinthUpdates {
+                catalogInstalling[instance.id] = update.projectID
+                do {
+                    guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message(String(appLocalized: "Проект Modrinth не найден.")) }
+                    _ = try await installFromModrinth(project, in: instance, target: mods ? .mods : .packs, version: update.version, replacing: (item, update.currentSHA512), interactive: false)
+                } catch is CancellationError { throw CancellationError() }
+                catch { failures.append("\(item.logicalName): \(error.localizedDescription)") }
+            }
+            if !failures.isEmpty { throw InstanceFileError.message(failures.joined(separator: "\n")) }
         }
         if !started { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
     }
@@ -420,7 +458,8 @@ struct ModrinthUpdate {
     }
 
     /// С `replacing` новая версия заменяет файл сборки вместо импорта рядом с ним.
-    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, target: ModrinthInstallTarget, channel: String? = nil, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil) async throws -> Bool {
+    /// Без `interactive` вместо диалогов подтверждения установка отменяется ошибкой до изменения сборки.
+    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, target: ModrinthInstallTarget, channel: String? = nil, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil, interactive: Bool = true) async throws -> Bool {
         let mods = target == .mods
         let minecraft = instance.versionID
         let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, kind: target.kind, minecraft: minecraft, channel: channel) : requested
@@ -474,6 +513,7 @@ struct ModrinthUpdate {
             }
         }
         if !listed.isEmpty {
+            guard interactive else { throw InstanceFileError.message(String(appLocalized: "«\(project.title)» требует подтверждения — обновите отдельно.")) }
             let alternative = replacing != nil ? String(appLocalized: "Только обновить") : target.kind == .datapack ? String(appLocalized: "Только датапак") : mods ? String(appLocalized: "Только мод") : String(appLocalized: "Только ресурспак")
             let message = if let world = target.world { String(appLocalized: "Для работы «\(project.title)» в мире «\(world)» сборки «\(instance.name)» нужны:") } else { String(appLocalized: "Для работы «\(project.title)» в сборке «\(instance.name)» нужны:") }
             let choice = await choose(.init(title: String(appLocalized: "Нужны зависимости"), message: message, action: downloads.isEmpty && enable.isEmpty ? nil : String(appLocalized: "Добавить с зависимостями"), destructive: false, alternative: alternative, projects: listed))
@@ -521,6 +561,7 @@ struct ModrinthUpdate {
             warnings.append(.init(id: conflict.id, title: conflict.title, iconURL: conflict.iconURL, note: String(appLocalized: "Несовместим с «\(conflicts[conflict.id] ?? project.title)»")))
         }
         if !warnings.isEmpty {
+            guard interactive else { throw InstanceFileError.message(String(appLocalized: "«\(project.title)» требует подтверждения — обновите отдельно.")) }
             let message = replacing == nil
                 ? String(appLocalized: "Эти проблемы могут помешать запуску игры. Установить «\(project.title)» всё равно?")
                 : String(appLocalized: "Эти проблемы могут помешать запуску игры. Обновить «\(project.title)» всё равно?")

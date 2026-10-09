@@ -5756,6 +5756,70 @@
         }
       }
     },
+    "Обновить все" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update All"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить все"
+          }
+        }
+      }
+    },
+    "Обновить все моды" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update all mods"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить все моды"
+          }
+        }
+      }
+    },
+    "Обновить все ресурспаки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update all resource packs"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить все ресурспаки"
+          }
+        }
+      }
+    },
+    "«%@» требует подтверждения — обновите отдельно." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” needs confirmation — update it separately."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«%@» требует подтверждения — обновите отдельно."
+          }
+        }
+      }
+    },
     "Обновить до %@" : {
       "localizations" : {
         "en" : {

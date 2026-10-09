@@ -298,6 +298,72 @@ import Testing
         #expect(controller.packs[instance.id]?.count == 1 && updated.name == "new.zip" && !updated.enabled)
     }
 
+    @Test func updateAllReplacesEveryAvailableFile() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let (oldA, oldB) = (Data("old-a".utf8), Data("old-b".utf8))
+        try await Self.importMods(["a.jar": oldA, "b.jar": oldB], root: root, controller: controller, installations: installations, instance: instance)
+        try Self.prepareUpdates(oldA: oldA, oldB: oldB, dependencyOfA: false)
+        await controller.checkModrinthUpdates(instance, mods: true)
+        #expect(controller.hasUpdates(instance, mods: true))
+        controller.updateAll(instance, mods: true)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(Set((controller.mods[instance.id] ?? []).map(\.name)) == ["new-a.jar", "new-b.jar"])
+        #expect(!controller.hasUpdates(instance, mods: true))
+    }
+
+    @Test func updateAllSkipsUpdateNeedingConfirmation() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let (oldA, oldB) = (Data("old-a".utf8), Data("old-b".utf8))
+        try await Self.importMods(["a.jar": oldA, "b.jar": oldB], root: root, controller: controller, installations: installations, instance: instance)
+        try Self.prepareUpdates(oldA: oldA, oldB: oldB, dependencyOfA: true)
+        await controller.checkModrinthUpdates(instance, mods: true)
+        controller.updateAll(instance, mods: true)
+        try await Self.settle(installations, instance)
+        #expect(controller.confirmation == nil)
+        #expect(Set((controller.mods[instance.id] ?? []).map(\.name)) == ["a.jar", "new-b.jar"])
+        #expect(controller.errors[instance.id]?.hasPrefix("a.jar") == true)
+        #expect(controller.hasUpdates(instance, mods: true))
+    }
+
+    private static func importMods(_ files: [String: Data], root: URL, controller: InstanceContentController, installations: InstallationCoordinator, instance: GameInstance) async throws {
+        let folder = try controller.folder(instance, mods: true)
+        for (name, bytes) in files {
+            let source = root.appendingPathComponent(name)
+            try bytes.write(to: source)
+            try await installations.content.importItem(from: source, into: folder, mods: true)
+        }
+        await controller.reload(instance, mods: true)
+    }
+
+    /// Проекты `p` (a.jar) и `q` (b.jar) получают новые версии; с `dependencyOfA` новой версии `p` нужен отсутствующий мод `dep`.
+    private static func prepareUpdates(oldA: Data, oldB: Data, dependencyOfA: Bool) throws {
+        let (newA, newB) = (Data("new-a".utf8), Data("new-b".utf8))
+        let matches = try JSONSerialization.data(withJSONObject: [
+            FabricClient.hash(oldA): ["id": "old-a", "project_id": "p", "date_published": "2026-10-01"],
+            FabricClient.hash(oldB): ["id": "old-b", "project_id": "q", "date_published": "2026-10-01"]
+        ])
+        let latest = try JSONSerialization.data(withJSONObject: [
+            FabricClient.hash(oldA): version("new-a-v", project: "p", date: "2026-10-05", file: ("new-a.jar", newA), dependencies: dependencyOfA ? [(project: "dep", type: "required")] : []),
+            FabricClient.hash(oldB): version("new-b-v", project: "q", date: "2026-10-05", file: ("new-b.jar", newB))
+        ])
+        let projects = ["p", "q", "dep"].map { ["id": $0, "slug": $0, "title": $0.uppercased(), "description": "", "icon_url": NSNull(), "project_type": "mod"] }
+        ModrinthTestProtocol.prepare(["\(Self.apiHost)/version_files": matches, "\(Self.apiHost)/version_files/update": latest, "fixtures.test/new-a.jar": newA, "fixtures.test/new-b.jar": newB]) { url, _ in
+            guard url.path.hasSuffix("/projects"),
+                  let ids = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "ids" })?.value,
+                  let requested = try? JSONDecoder().decode([String].self, from: Data(ids.utf8)) else { return nil }
+            return try? JSONSerialization.data(withJSONObject: projects.filter { requested.contains($0["id"] as? String ?? "") })
+        }
+    }
+
+    private static let apiHost = "api.modrinth.com/v2"
+
     private static func temporaryRoot() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString) }
 
     private static func sha1(_ data: Data) -> String { Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined() }

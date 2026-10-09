@@ -379,6 +379,11 @@ private struct InstanceFilesView: View {
                 Spacer()
                 Button("Проверить обновления", systemImage: "arrow.clockwise") { Task { await content.reload(instance, mods: mods); await content.checkAllUpdates(instance, mods: mods) } }
                     .buttonStyle(.glass).disabled(content.isCheckingUpdates(instance, mods: mods))
+                if content.hasUpdates(instance, mods: mods) {
+                    Button("Обновить все", systemImage: "arrow.down.circle") { content.updateAll(instance, mods: mods) }
+                        .buttonStyle(.glass).disabled(disabledReason != nil)
+                        .help(mods ? "Обновить все моды" : "Обновить все ресурспаки")
+                }
                 Button("Modrinth", systemImage: ModSource.modrinth.symbol, action: onCatalog)
                     .buttonStyle(.glass).help(mods ? "Найти моды на Modrinth" : "Найти ресурспаки на Modrinth")
                 Button("Открыть папку", systemImage: "folder") {
