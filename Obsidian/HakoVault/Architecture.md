@@ -152,6 +152,12 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 
 `xcuserdata/` исключён в `.gitignore`.
 
+CI: `.github/workflows/release.yml` на каждый пуш в `main` собирает Release на раннере GitHub `xcode-27`
+(preview-образ macOS 27 с Xcode 27) с ad-hoc подписью (`CODE_SIGN_IDENTITY=-`, без Developer ID и нотаризации),
+упаковывает `Hako.app` в `Hako.dmg` и публикует его в pre-release `nightly`: прежний релиз и тег удаляются,
+новый создаётся на текущем коммите. Ad-hoc подпись меняется с каждой сборкой, поэтому после обновления
+macOS может снова спросить доступ к записи токенов в Keychain.
+
 ## Ограничения и инварианты
 
 - Группа `Hako` в проекте — `PBXFileSystemSynchronizedRootGroup`: всё содержимое

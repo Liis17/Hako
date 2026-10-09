@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build
+        run: |
+          xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath build build \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
+
+      - name: Create DMG
+        run: |
+          mkdir dmg
+          cp -R build/Build/Products/Release/Hako.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname Hako -srcfolder dmg -format UDZO -ov Hako.dmg
+
+      - name: Publish nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --cleanup-tag --yes || true
+          gh release create nightly Hako.dmg --prerelease --target "$GITHUB_SHA" \
+            --title "Nightly ${GITHUB_SHA::7}" \
+            --notes "Сборка из main ${GITHUB_SHA::7}. Приложение не подписано Developer ID: при первом запуске разрешите его в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть» или выполните xattr -dr com.apple.quarantine /Applications/Hako.app."
