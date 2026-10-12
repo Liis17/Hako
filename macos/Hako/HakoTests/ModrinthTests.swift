@@ -235,6 +235,81 @@ import Testing
         #expect(bodies.values.last?["hashes"] as? [String] == [second])
     }
 
+    @Test func worldDatapackUpdatesStayScopedAndUseDatapackLoader() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        instance.modLoaderRaw = ModLoader.vanilla.rawValue
+        let firstWorld = try Self.world("First", in: instance, installations: installations)
+        let secondWorld = try Self.world("Second", in: instance, installations: installations)
+        let oldFirst = try Self.datapackZIP(in: root, name: "first-old.zip")
+        let oldSecond = try Self.datapackZIP(in: root, name: "second-old.zip")
+        let newFirst = try Self.datapackZIP(in: root, name: "first-new.zip")
+        let newSecond = try Self.datapackZIP(in: root, name: "second-new.zip")
+        try await installations.content.importDatapack(from: root.appendingPathComponent("first-old.zip"), world: "First", in: installations.store.storage.directory(instance.folderName))
+        try await installations.content.importDatapack(from: root.appendingPathComponent("second-old.zip"), world: "Second", in: installations.store.storage.directory(instance.folderName))
+        let firstHash = FabricClient.hash(oldFirst), secondHash = FabricClient.hash(oldSecond)
+        let matches: [String: [String: String]] = [
+            firstHash: ["id": "oldfirst", "project_id": "firstproject", "date_published": "2026-10-01"],
+            secondHash: ["id": "oldsecond", "project_id": "secondproject", "date_published": "2026-10-01"]
+        ]
+        let oldVersions = [
+            Self.version("oldfirst", project: "firstproject", date: "2026-10-01", loader: "datapack", file: ("first-old.zip", oldFirst)),
+            Self.version("oldsecond", project: "secondproject", date: "2026-10-01", loader: "datapack", file: ("second-old.zip", oldSecond))
+        ]
+        let latestVersions: [String: [String: Any]] = [
+            firstHash: Self.version("newfirst", project: "firstproject", date: "2026-10-08", loader: "datapack", file: ("first-new.zip", newFirst)),
+            secondHash: Self.version("newsecond", project: "secondproject", date: "2026-10-08", loader: "datapack", file: ("second-new.zip", newSecond))
+        ]
+        let projects = [
+            ["id": "firstproject", "slug": "first-project", "title": "First project", "description": "", "icon_url": "https://cdn.test/first.png", "project_type": "datapack"],
+            ["id": "secondproject", "slug": "second-project", "title": "Second project", "description": "", "icon_url": NSNull(), "project_type": "datapack"]
+        ] as [[String: Any]]
+        let updateRequests = BodyLog(), updateResponse = try JSONSerialization.data(withJSONObject: latestVersions)
+        ModrinthTestProtocol.prepare([
+            "\(api)/version_files": try JSONSerialization.data(withJSONObject: matches),
+            "\(api)/versions": try JSONSerialization.data(withJSONObject: oldVersions),
+            "\(api)/projects": try JSONSerialization.data(withJSONObject: projects),
+            "fixtures.test/first-new.zip": newFirst,
+            "fixtures.test/second-new.zip": newSecond
+        ]) { url, body in
+            guard url.path.hasSuffix("/version_files/update") else { return nil }
+            guard let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return Data("{}".utf8) }
+            updateRequests.append(json)
+            return json["loaders"] as? [String] == ["datapack"] ? updateResponse : Data("{}".utf8)
+        }
+        await controller.reload(instance, target: .worldDatapacks("First"))
+        await controller.reload(instance, target: .worldDatapacks("Second"))
+        await controller.checkAllUpdates(instance, target: .worldDatapacks("First"))
+        #expect(controller.hasUpdates(instance, target: .worldDatapacks("First")))
+        #expect(!controller.hasUpdates(instance, target: .worldDatapacks("Second")))
+        let firstItem = try #require(controller.items(instance, target: .worldDatapacks("First")).first)
+        #expect(firstItem.origin?.versionNumber == "oldfirst")
+        #expect(firstItem.origin?.iconURL == URL(string: "https://cdn.test/first.png"))
+        #expect(FileManager.default.fileExists(atPath: firstWorld.appendingPathComponent(".hako-datapacks.json").path))
+        let secondRegistry = try Data(contentsOf: secondWorld.appendingPathComponent(".hako-datapacks.json"))
+        #expect(try JSONDecoder().decode(ModRegistry.self, from: secondRegistry).files.isEmpty)
+
+        await controller.checkAllUpdates(instance, target: .worldDatapacks("Second"))
+        #expect(controller.hasUpdates(instance, target: .worldDatapacks("Second")))
+        controller.updateFromModrinth(firstItem, in: instance, target: .worldDatapacks("First"))
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(try Data(contentsOf: firstWorld.appendingPathComponent("datapacks/first-new.zip")) == newFirst)
+        #expect(try Data(contentsOf: secondWorld.appendingPathComponent("datapacks/second-old.zip")) == oldSecond)
+        #expect(!controller.hasUpdates(instance, target: .worldDatapacks("First")))
+        #expect(controller.hasUpdates(instance, target: .worldDatapacks("Second")))
+
+        controller.updateAll(instance, target: .worldDatapacks("Second"))
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(try Data(contentsOf: secondWorld.appendingPathComponent("datapacks/second-new.zip")) == newSecond)
+        #expect(!controller.hasUpdates(instance, target: .worldDatapacks("Second")))
+        #expect(!updateRequests.values.isEmpty)
+        #expect(updateRequests.values.allSatisfy { $0["loaders"] as? [String] == ["datapack"] })
+    }
+
     @Test func modUpdateReplacesFileKeepsItDisabledAndRecordsOrigin() async throws {
         let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
         let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
@@ -615,6 +690,26 @@ import Testing
         #expect(decoded.resourcePacks.map(\.filename) == ["resource.zip"])
         version["files"] = [resource]
         #expect(try JSONDecoder().decode(ModrinthVersion.self, from: JSONSerialization.data(withJSONObject: version)).file(kind: .datapack) == nil)
+    }
+
+    @Test func updatesRetainAttachedResourcePackVariantAndSkipAmbiguousTypes() throws {
+        let data = Data("datapack".utf8), required = Data("required".utf8), optional = Data("optional".utf8), other = Data("other".utf8)
+        var version = Self.version("v", project: "root", loader: "datapack", file: ("data.zip", data))
+        func attached(_ name: String, _ bytes: Data, _ type: String) -> [String: Any] {
+            var file = (Self.version("v", project: "root", file: (name, bytes))["files"] as! [[String: Any]])[0]
+            file["primary"] = false; file["file_type"] = type
+            return file
+        }
+        version["files"] = (version["files"] as! [[String: Any]]) + [
+            attached("regular.zip", required, "required-resource-pack"),
+            attached("Recolourful.zip", optional, "optional-resource-pack"),
+            attached("alternate.zip", other, "optional-resource-pack")
+        ]
+        let decoded = try JSONDecoder().decode(ModrinthVersion.self, from: JSONSerialization.data(withJSONObject: version))
+        #expect(decoded.file(kind: .datapack)?.filename == "data.zip")
+        #expect(decoded.updateFile(kind: .resourcePack, matchingFileType: "required-resource-pack", matchingFilename: "old-regular.zip")?.filename == "regular.zip")
+        #expect(decoded.updateFile(kind: .resourcePack, matchingFileType: "optional-resource-pack", matchingFilename: "Recolourful.zip")?.filename == "Recolourful.zip")
+        #expect(decoded.updateFile(kind: .resourcePack, matchingFileType: "optional-resource-pack", matchingFilename: "old.zip") == nil)
     }
 
     private static func world(_ name: String, in instance: GameInstance, installations: InstallationCoordinator) throws -> URL {

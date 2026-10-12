@@ -9,6 +9,56 @@ struct InstanceContentTests {
         return root
     }
 
+    @Test func oldModOriginJSONDecodesWithoutPackMetadata() throws {
+        let data = Data(#"{"source":"modrinth","projectID":"project","versionID":"version","pageURL":"https://modrinth.com/resourcepack/project","sha512":"abc","api":null}"#.utf8)
+        let origin = try JSONDecoder().decode(ModOrigin.self, from: data)
+        #expect(origin.source == .modrinth)
+        #expect(origin.projectID == "project" && origin.versionID == "version")
+        #expect(origin.versionNumber == nil && origin.iconURL == nil && origin.fileType == nil)
+    }
+
+    @Test func resourcePackOriginSurvivesDisabledUpdateAndLocalReplacementClearsIt() async throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("Instance/minecraft/resourcepacks")
+        let content = InstanceContent(), initial = Data("initial pack".utf8), next = Data("next pack".utf8), local = Data("local replacement".utf8)
+        let source = root.appendingPathComponent("Pack.zip")
+        try initial.write(to: source)
+        let initialOrigin = ModOrigin(source: .modrinth, projectID: "project", versionID: "v1", pageURL: URL(string: "https://modrinth.com/resourcepack/project")!, sha512: FabricClient.hash(initial), versionNumber: "1.0", iconURL: URL(string: "https://cdn.test/icon.png"), fileType: "required-resource-pack")
+        try await content.importItem(from: source, into: folder, mods: false, origin: initialOrigin)
+        let registry = folder.deletingLastPathComponent().appendingPathComponent(".hako-resourcepacks.json")
+        #expect(FileManager.default.fileExists(atPath: registry.path))
+
+        let active = try #require(await content.list(at: folder, mods: false).first)
+        #expect(active.origin?.versionNumber == "1.0" && active.origin?.fileType == "required-resource-pack")
+        #expect(active.origin?.iconURL == initialOrigin.iconURL)
+        try await content.setEnabled(active, in: folder, enabled: false, mods: false)
+        let disabled = try #require(await content.list(at: folder, mods: false).first)
+        #expect(!disabled.enabled && disabled.origin?.versionID == "v1")
+
+        let update = root.appendingPathComponent("Next.zip")
+        try next.write(to: update)
+        let nextOrigin = ModOrigin(source: .modrinth, projectID: "project", versionID: "v2", pageURL: initialOrigin.pageURL, sha512: FabricClient.hash(next), versionNumber: "2.0", iconURL: initialOrigin.iconURL, fileType: initialOrigin.fileType)
+        await #expect(throws: InstanceFileError.self) {
+            try await content.replaceItem(disabled, from: update, filename: "Next.zip", in: folder, mods: false, expectedSHA512: FabricClient.hash(Data("stale".utf8)), origin: nextOrigin)
+        }
+        let badOrigin = ModOrigin(source: .modrinth, projectID: "project", versionID: "wrong-hash", pageURL: initialOrigin.pageURL, sha512: FabricClient.hash(Data("stale".utf8)), versionNumber: "bad", fileType: initialOrigin.fileType)
+        await #expect(throws: InstanceFileError.self) {
+            try await content.replaceItem(disabled, from: update, filename: "Next.zip", in: folder, mods: false, expectedSHA512: FabricClient.hash(initial), origin: badOrigin)
+        }
+        #expect(try Data(contentsOf: disabled.url) == initial)
+        #expect(try await content.list(at: folder, mods: false).first?.origin?.versionID == "v1")
+
+        try await content.replaceItem(disabled, from: update, filename: "Next.zip", in: folder, mods: false, expectedSHA512: FabricClient.hash(initial), origin: nextOrigin)
+        let updated = try #require(await content.list(at: folder, mods: false).first)
+        #expect(updated.name == "Next.zip" && !updated.enabled && updated.origin?.versionID == "v2")
+
+        let localSource = root.appendingPathComponent("Next.zip")
+        try local.write(to: localSource)
+        try await content.importItem(from: localSource, into: folder, mods: false, replace: true)
+        let replacedLocally = try #require(await content.list(at: folder, mods: false).first)
+        #expect(!replacedLocally.enabled && replacedLocally.source == .local && replacedLocally.origin?.projectID == nil)
+    }
+
     @Test(arguments: [false, true]) func readsModIconFromEnabledAndDisabledJAR(sized: Bool) async throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }

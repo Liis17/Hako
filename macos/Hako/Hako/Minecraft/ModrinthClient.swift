@@ -101,6 +101,16 @@ nonisolated struct ModrinthVersion: Decodable, Sendable {
         return files.first(where: \.primary) ?? files.first
     }
 
+    /// Updates must retain the installed file variant. Datapack versions may also carry one or more resourcepack ZIPs.
+    func updateFile(kind: ModrinthContentKind, matchingFileType fileType: String?, matchingFilename filename: String) -> File? {
+        if kind == .mod { return file(kind: .mod) }
+        let candidates = files.filter { $0.isInstallable(kind: kind) && (kind != .datapack || !$0.isResourcePack) }
+        let matching = candidates.filter { $0.fileType == fileType }
+        if let exact = matching.first(where: { $0.filename.caseInsensitiveCompare(filename) == .orderedSame }) { return exact }
+        if matching.count == 1 { return matching.first }
+        return nil
+    }
+
     var resourcePacks: [File] {
         files.filter { $0.isResourcePack && $0.isInstallable(kind: .resourcePack) }.sorted {
             if $0.fileType != $1.fileType { return $0.fileType == "required-resource-pack" }
@@ -265,12 +275,16 @@ actor ModrinthClient {
 
     /// Новейшие версии проектов по SHA-512 их файлов с тем же приоритетом каналов, что у `latestVersion`.
     func latestVersions(for hashes: [String], mods: Bool, minecraft: String) async throws -> [String: ModrinthVersion] {
-        let loader = mods ? "fabric" : "minecraft"
+        try await latestVersions(for: hashes, kind: mods ? .mod : .resourcePack, minecraft: minecraft)
+    }
+
+    func latestVersions(for hashes: [String], kind: ModrinthContentKind, minecraft: String) async throws -> [String: ModrinthVersion] {
+        let loader = kind.loader
         var remaining = Set(hashes), result: [String: ModrinthVersion] = [:]
         for channel in ["release", "beta", "alpha"] where !remaining.isEmpty {
             let body: [String: Any] = ["hashes": Array(remaining), "algorithm": "sha512", "loaders": [loader], "game_versions": [minecraft], "version_types": [channel]]
             let found = try JSONDecoder().decode([String: ModrinthVersion].self, from: await data(post("version_files/update", body)))
-            for (hash, version) in found where remaining.contains(hash) && version.channel == channel && version.gameVersions.contains(minecraft) && version.loaders.contains(loader) && version.file(mods: mods) != nil {
+            for (hash, version) in found where remaining.contains(hash) && version.channel == channel && version.gameVersions.contains(minecraft) && version.loaders.contains(loader) && version.file(kind: kind) != nil {
                 result[hash] = version; remaining.remove(hash)
             }
         }

@@ -24,6 +24,18 @@ import Testing
         #expect(!controller.installations.contentBusy.contains(instance.id))
     }
 
+    private func datapackArchive(in root: URL, description: String) throws -> Data {
+        let folder = root.appendingPathComponent(UUID().uuidString), archive = root.appendingPathComponent("\(UUID().uuidString).zip")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["pack": ["pack_format": 48, "description": description]]).write(to: folder.appendingPathComponent("pack.mcmeta"))
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        process.currentDirectoryURL = folder; process.arguments = ["-q", archive.path, "pack.mcmeta"]
+        try process.run(); process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        defer { try? FileManager.default.removeItem(at: folder); try? FileManager.default.removeItem(at: archive) }
+        return try Data(contentsOf: archive)
+    }
+
     @Test func datapackDisablingIsReversibleAndWorldScoped() async throws {
         let (container, root, instance, controller) = try fixture()
         defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
@@ -159,16 +171,18 @@ import Testing
         let (container, root, instance, controller) = try fixture()
         defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
         let source = root.appendingPathComponent("Source"), world = source.appendingPathComponent("minecraft/saves/World")
-        let zip = root.appendingPathComponent("pack.zip"); try Data("first".utf8).write(to: zip)
+        let zip = root.appendingPathComponent("pack.zip"), original = try datapackArchive(in: root, description: "first")
+        try original.write(to: zip)
         try await controller.installations.content.importDatapack(from: zip, world: "World", in: source)
         await controller.reload(instance, target: .worldDatapacks("World"))
         let item = try #require(controller.datapacks[instance.id]?["World"]?.first { $0.name == "pack.zip" })
         controller.setDatapackEnabled(item, world: "World", in: instance, enabled: false)
         try await wait(controller, instance)
-        try Data("replacement".utf8).write(to: zip)
+        let replacement = try datapackArchive(in: root, description: "replacement")
+        try replacement.write(to: zip)
         await #expect(throws: PackImportError.self) { try await controller.installations.content.importDatapack(from: zip, world: "World", in: source) }
         try await controller.installations.content.importDatapack(from: zip, world: "World", in: source, replace: true)
-        #expect(try Data(contentsOf: world.appendingPathComponent(".hako-disabled-datapacks/pack.zip")) == Data("replacement".utf8))
+        #expect(try Data(contentsOf: world.appendingPathComponent(".hako-disabled-datapacks/pack.zip")) == replacement)
         await controller.reload(instance, target: .worldDatapacks("World"))
         let disabled = try #require(controller.datapacks[instance.id]?["World"]?.first { $0.name == "pack.zip" })
         try Data("collision".utf8).write(to: world.appendingPathComponent("datapacks/PACK.zip"))
@@ -178,5 +192,41 @@ import Testing
         controller.setDatapackEnabled(disabled, world: "World", in: instance, enabled: true)
         try await wait(controller, instance)
         #expect(controller.datapacks[instance.id]?["World"]?.first { $0.name == "pack.zip" }?.enabled == true)
+    }
+
+    @Test func localDatapackFolderRequiresRootMetadataAndCopiesItsContents() async throws {
+        let (container, root, instance, controller) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let source = root.appendingPathComponent("Source"), world = source.appendingPathComponent("minecraft/saves/World")
+        let folder = root.appendingPathComponent("LocalPack")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["pack": ["pack_format": 48, "description": "local"]]).write(to: folder.appendingPathComponent("pack.mcmeta"))
+        try Data("data".utf8).write(to: folder.appendingPathComponent("data.json"))
+        try await controller.installations.content.importDatapack(from: folder, world: "World", in: source)
+        await controller.reload(instance, target: .worldDatapacks("World"))
+        let imported = try #require(controller.datapacks[instance.id]?["World"]?.first { $0.name == "LocalPack" })
+        #expect(imported.isDirectory && FileManager.default.fileExists(atPath: imported.url.appendingPathComponent("data.json").path))
+
+        let invalid = root.appendingPathComponent("InvalidPack")
+        try FileManager.default.createDirectory(at: invalid, withIntermediateDirectories: true)
+        await #expect(throws: InstanceFileError.self) {
+            try await controller.installations.content.importDatapack(from: invalid, world: "World", in: source)
+        }
+        #expect(FileManager.default.fileExists(atPath: world.appendingPathComponent("datapacks/LocalPack/data.json").path))
+        #expect(!FileManager.default.fileExists(atPath: world.appendingPathComponent("datapacks/InvalidPack").path))
+    }
+
+    @Test func datapackReplacementDoesNotRecreateWorldRemovedBeforePublication() async throws {
+        let (container, root, _, controller) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let source = root.appendingPathComponent("Source"), world = source.appendingPathComponent("minecraft/saves/World")
+        let replacement = root.appendingPathComponent("replacement.zip")
+        try datapackArchive(in: root, description: "replacement").write(to: replacement)
+        let item = InstanceContentItem(url: world.appendingPathComponent("datapacks/pack.zip"), isDirectory: false)
+        try FileManager.default.removeItem(at: world)
+        await #expect(throws: InstanceFileError.self) {
+            try await controller.installations.content.replaceDatapack(item, from: replacement, filename: "pack.zip", world: "World", in: source, expectedSHA512: String(repeating: "0", count: 128), origin: nil)
+        }
+        #expect(!FileManager.default.fileExists(atPath: world.path))
     }
 }

@@ -27,6 +27,7 @@ struct ModrinthUpdate {
     let projectID: String
     let version: ModrinthVersion
     let currentSHA512: String
+    let file: ModrinthVersion.File
 }
 
 /// Lives with the launcher, not with the currently selected content tab.
@@ -56,6 +57,7 @@ struct ModrinthUpdate {
     let screenshots = InstanceScreenshots()
     @ObservationIgnored private var answers: [UUID: CheckedContinuation<ContentChoice, Never>] = [:]
     @ObservationIgnored private var reloads: [String: UUID] = [:]
+    @ObservationIgnored private var modrinthCheckRequests: [String: UUID] = [:]
 
     init(installations: InstallationCoordinator, modrinth: ModrinthClient = .init()) { self.installations = installations; self.modrinth = modrinth }
     var confirmation: ContentConfirmation? { confirmations.first }
@@ -77,6 +79,7 @@ struct ModrinthUpdate {
     }
 
     func disabledReason(_ instance: GameInstance, target: ModrinthInstallTarget) -> String? {
+        if target.world != nil, let reason = worldBlockedReason(instance) { return reason }
         if let reason = disabledReason(instance, mods: target == .mods) { return reason }
         if target.world != nil {
             do { _ = try folder(instance, target: target) }
@@ -90,9 +93,23 @@ struct ModrinthUpdate {
         let key = "\(instance.id):world:\(world)", request = UUID(), folderName = instance.folderName
         reloads[key] = request
         do {
-            let items = try await installations.content.list(at: folder(instance, target: target), mods: false)
+            let contentFolder = try folder(instance, target: target)
+            let items: [InstanceContentItem]
+            do { items = try await installations.content.list(at: contentFolder, mods: false) }
+            catch {
+                items = try await installations.content.list(at: contentFolder, mods: false, readOrigins: false)
+                guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
+                datapacks[instance.id, default: [:]][world] = items
+                await retainUpdates(updateKey(instance, target: target), items: items, at: contentFolder)
+                guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
+                errors[instance.id] = String(appLocalized: "Не удалось прочитать реестр происхождения содержимого. Источники и обновления недоступны: \(error.localizedDescription)")
+                return
+            }
             guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
             datapacks[instance.id, default: [:]][world] = items
+            let updatesKey = updateKey(instance, target: target)
+            await retainUpdates(updatesKey, items: items, at: contentFolder)
+            guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
             if clearError { errors[instance.id] = nil }
         } catch {
             if !Task.isCancelled, reloads[key] == request, instance.folderName == folderName { errors[instance.id] = error.localizedDescription }
@@ -115,11 +132,12 @@ struct ModrinthUpdate {
             let items: [InstanceContentItem]
             do { items = try await installations.content.list(at: folder, mods: mods) }
             catch {
-                guard mods else { throw error }
                 items = try await installations.content.list(at: folder, mods: mods, readOrigins: false)
                 guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
-                errors[instance.id] = String(appLocalized: "Не удалось прочитать реестр модов. Источники и обновления недоступны: \(error.localizedDescription)")
-                self.mods[instance.id] = items
+                if mods { self.mods[instance.id] = items } else { self.packs[instance.id] = items }
+                await retainUpdates(updateKey(instance, mods: mods), items: items, at: folder)
+                guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
+                errors[instance.id] = String(appLocalized: "Не удалось прочитать реестр происхождения содержимого. Источники и обновления недоступны: \(error.localizedDescription)")
                 return
             }
             guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
@@ -129,12 +147,24 @@ struct ModrinthUpdate {
                 updates[instance.id] = updates[instance.id]?.filter { key, api in eligible.contains { $0.logicalName.lowercased() == key && $0.origin?.versionID != api.versionID } }
                 if eligible.isEmpty { updateMessages[instance.id] = nil }
             } else { packs[instance.id] = items }
-            let key = updateKey(instance, mods: mods)
-            modrinthUpdates[key] = modrinthUpdates[key]?.filter { name, _ in items.contains { $0.logicalName.lowercased() == name } }
+            let updatesKey = updateKey(instance, mods: mods)
+            await retainUpdates(updatesKey, items: items, at: folder)
+            guard !Task.isCancelled, reloads[key] == request, instance.folderName == folderName else { return }
             if clearError { errors[instance.id] = nil }
         } catch {
             if !Task.isCancelled && reloads[key] == request && instance.folderName == folderName { errors[instance.id] = error.localizedDescription }
         }
+    }
+
+    private func retainUpdates(_ key: String, items: [InstanceContentItem], at folder: URL) async {
+        guard let available = modrinthUpdates[key] else { return }
+        var retained: [String: ModrinthUpdate] = [:]
+        for (name, update) in available {
+            guard let item = items.first(where: { !$0.isDirectory && $0.logicalName.lowercased() == name }),
+                  (try? await installations.content.hasHash(item, update.currentSHA512, in: folder)) == true else { continue }
+            retained[name] = update
+        }
+        modrinthUpdates[key] = retained
     }
 
     private func choose(_ confirmation: ContentConfirmation) async -> ContentChoice {
@@ -162,6 +192,7 @@ struct ModrinthUpdate {
         let folder: URL
         do { folder = try self.folder(instance, target: target) }
         catch { errors[instance.id] = error.localizedDescription; return false }
+        invalidateModrinthUpdates(instance, target: target)
         installations.contentBusy.insert(instance.id); errors[instance.id] = nil
         Task {
             defer { installations.contentBusy.remove(instance.id); installations.scheduleQueuedInstallations() }
@@ -172,24 +203,48 @@ struct ModrinthUpdate {
     }
 
     func importFiles(_ sources: [URL], into instance: GameInstance, mods: Bool) {
+        importFiles(sources, into: instance, target: mods ? .mods : .packs)
+    }
+
+    func importFiles(_ sources: [URL], into instance: GameInstance, target: ModrinthInstallTarget) {
         guard !sources.isEmpty else { return }
         // Keep file-picker grants alive while the batch waits for a replacement decision.
         let scoped = sources.filter { $0.startAccessingSecurityScopedResource() }
-        if let reason = disabledReason(instance, mods: mods) {
+        if let reason = disabledReason(instance, target: target) {
             scoped.forEach { $0.stopAccessingSecurityScopedResource() }; errors[instance.id] = reason; return
         }
-        let started = perform(instance, mods: mods) { [self] folder in
+        let started = perform(instance, target: target) { [self] folder in
             defer { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
-            var failures: [String] = []
+            var failures: [String] = [], imported = 0
             for source in sources {
-                do { try await installations.content.importItem(from: source, into: folder, mods: mods) }
+                do {
+                    if let world = target.world {
+                        try await installations.content.importDatapack(from: source, world: world, in: installations.store.storage.directory(instance.folderName))
+                    } else {
+                        try await installations.content.importItem(from: source, into: folder, mods: target == .mods)
+                    }
+                    imported += 1
+                }
                 catch PackImportError.exists {
-                    let allowed = await confirm(.init(title: mods ? String(appLocalized: "Заменить мод?") : String(appLocalized: "Заменить ресурспак?"), message: String(appLocalized: "\(source.lastPathComponent) уже существует в сборке «\(instance.name)»."), action: String(appLocalized: "Заменить"), destructive: true))
+                    let title = target.world != nil ? String(appLocalized: "Заменить датапак?") : target == .mods ? String(appLocalized: "Заменить мод?") : String(appLocalized: "Заменить ресурспак?")
+                    let message = if let world = target.world { String(appLocalized: "\(source.lastPathComponent) уже существует в мире «\(world)» сборки «\(instance.name)».") }
+                        else { String(appLocalized: "\(source.lastPathComponent) уже существует в сборке «\(instance.name)».") }
+                    let allowed = await confirm(.init(title: title, message: message, action: String(appLocalized: "Заменить"), destructive: true))
                     if allowed {
-                        do { try await installations.content.importItem(from: source, into: folder, mods: mods, replace: true) }
+                        do {
+                            if let world = target.world {
+                                try await installations.content.importDatapack(from: source, world: world, in: installations.store.storage.directory(instance.folderName), replace: true)
+                            } else {
+                                try await installations.content.importItem(from: source, into: folder, mods: target == .mods, replace: true)
+                            }
+                            imported += 1
+                        }
                         catch { failures.append("\(source.lastPathComponent): \(error.localizedDescription)") }
                     }
                 } catch { failures.append("\(source.lastPathComponent): \(error.localizedDescription)") }
+            }
+            if imported > 0, let world = target.world {
+                worldInstallMessages[instance.id, default: [:]][world] = String(appLocalized: "Изменения датапаков применятся при следующем открытии мира.")
             }
             if !failures.isEmpty { errors[instance.id] = failures.joined(separator: "\n") }
         }
@@ -245,6 +300,8 @@ struct ModrinthUpdate {
                 switch action {
                 case .delete:
                     guard await confirm(.init(title: String(appLocalized: "Удалить мир?"), message: String(appLocalized: "Мир «\(world.name)» и его датапаки будут перемещены в корзину."), action: String(appLocalized: "Удалить"), destructive: true)) else { return }
+                    let target = ModrinthInstallTarget.worldDatapacks(world.id), key = updateKey(instance, target: target)
+                    invalidateModrinthUpdates(instance, target: target); modrinthUpdates[key] = nil; modrinthUpdateMessages[key] = nil
                     try await worlds.trash(world.id, in: root)
                     datapacks[instance.id]?[world.id] = nil; worldInstallMessages[instance.id]?[world.id] = nil
                 case .duplicate:
@@ -266,7 +323,7 @@ struct ModrinthUpdate {
 
     func delete(_ item: InstanceContentItem, in instance: GameInstance, mods: Bool) {
         perform(instance, mods: mods) { [self] folder in
-            let message = item.origin?.projectID == FabricAPIDescriptor.project
+            let message = mods && item.origin?.projectID == FabricAPIDescriptor.project
                 ? String(appLocalized: "\(item.logicalName) будет перемещён в корзину. Моды, зависящие от Fabric API, могут больше не давать игре запуститься.")
                 : String(appLocalized: "\(item.logicalName) будет перемещён в корзину.")
             guard await confirm(.init(title: mods ? String(appLocalized: "Удалить мод?") : String(appLocalized: "Удалить ресурспак?"), message: message, action: String(appLocalized: "Удалить"), destructive: true)) else { return }
@@ -318,72 +375,161 @@ struct ModrinthUpdate {
 
     private func updateKey(_ instance: GameInstance, mods: Bool) -> String { "\(instance.id):\(mods)" }
 
+    private func updateKey(_ instance: GameInstance, target: ModrinthInstallTarget) -> String {
+        if target == .mods { return updateKey(instance, mods: true) }
+        if target == .packs { return updateKey(instance, mods: false) }
+        return "\(instance.id):world:\(target.world ?? "")"
+    }
+
+    private func invalidateModrinthUpdates(_ instance: GameInstance, target: ModrinthInstallTarget) {
+        let key = updateKey(instance, target: target)
+        modrinthCheckRequests[key] = nil
+        checkingModrinth.remove(key)
+        modrinthUpdateMessages[key] = nil
+    }
+
     func isCheckingUpdates(_ instance: GameInstance, mods: Bool) -> Bool {
-        checkingModrinth.contains(updateKey(instance, mods: mods)) || mods && checkingUpdates.contains(instance.id)
+        isCheckingUpdates(instance, target: mods ? .mods : .packs)
+    }
+
+    func isCheckingUpdates(_ instance: GameInstance, target: ModrinthInstallTarget) -> Bool {
+        checkingModrinth.contains(updateKey(instance, target: target)) || target == .mods && checkingUpdates.contains(instance.id)
     }
 
     func modrinthUpdate(for item: InstanceContentItem, in instance: GameInstance, mods: Bool) -> ModrinthUpdate? {
-        modrinthUpdates[updateKey(instance, mods: mods)]?[item.logicalName.lowercased()]
+        modrinthUpdate(for: item, in: instance, target: mods ? .mods : .packs)
     }
 
-    /// Fabric API проверяется прежним путём, остальные файлы раздела — через Modrinth.
+    func modrinthUpdate(for item: InstanceContentItem, in instance: GameInstance, target: ModrinthInstallTarget) -> ModrinthUpdate? {
+        modrinthUpdates[updateKey(instance, target: target)]?[item.logicalName.lowercased()]
+    }
+
+    func updateMessage(_ instance: GameInstance, target: ModrinthInstallTarget) -> String? {
+        modrinthUpdateMessages[updateKey(instance, target: target)] ?? (target == .mods ? updateMessages[instance.id] : nil)
+    }
+
+    /// Fabric API остаётся на прежнем пути; остальные файлы назначения проверяются через Modrinth.
     func checkAllUpdates(_ instance: GameInstance, mods: Bool) async {
-        if mods { await checkUpdates(instance) }
-        await checkModrinthUpdates(instance, mods: mods)
+        await checkAllUpdates(instance, target: mods ? .mods : .packs)
     }
 
-    /// Обновление предлагается, если новая версия содержит другой файл и опубликована позже текущей.
+    func checkAllUpdates(_ instance: GameInstance, target: ModrinthInstallTarget) async {
+        if target == .mods { await checkUpdates(instance) }
+        await checkModrinthUpdates(instance, target: target)
+    }
+
     func checkModrinthUpdates(_ instance: GameInstance, mods: Bool) async {
-        let key = updateKey(instance, mods: mods)
+        await checkModrinthUpdates(instance, target: mods ? .mods : .packs)
+    }
+
+    /// Обновление предлагается, если новая версия содержит соответствующий файл и опубликована позже текущей.
+    func checkModrinthUpdates(_ instance: GameInstance, target: ModrinthInstallTarget) async {
+        let key = updateKey(instance, target: target)
         guard !checkingModrinth.contains(key) else { return }
-        let items = ((mods ? self.mods : packs)[instance.id] ?? []).filter { !$0.isDirectory && $0.origin?.api == nil }
-        guard !items.isEmpty else { modrinthUpdates[key] = [:]; return }
-        checkingModrinth.insert(key); modrinthUpdateMessages[key] = nil
-        defer { checkingModrinth.remove(key) }
-        do {
-            let matches = try await modrinth.versions(of: items.map(\.url))
-            let latest = try await modrinth.latestVersions(for: Array(Set(matches.values.map(\.sha512))), mods: mods, minecraft: instance.versionID)
-            guard !Task.isCancelled else { return }
-            var available: [String: ModrinthUpdate] = [:]
-            for item in items {
-                guard let match = matches[item.url], let next = latest[match.sha512], next.projectID == match.projectID,
-                      let file = next.file(mods: mods), file.sha512 != match.sha512, next.published > match.published else { continue }
-                available[item.logicalName.lowercased()] = .init(projectID: match.projectID, version: next, currentSHA512: match.sha512)
+        let request = UUID(), folderName = instance.folderName
+        modrinthCheckRequests[key] = request; checkingModrinth.insert(key)
+        modrinthUpdateMessages[key] = nil
+        defer {
+            if modrinthCheckRequests[key] == request {
+                modrinthCheckRequests[key] = nil
+                checkingModrinth.remove(key)
             }
+        }
+        do {
+            let contentFolder = try folder(instance, target: target)
+            let items = try await installations.content.list(at: contentFolder, mods: target == .mods).filter { !$0.isDirectory && $0.origin?.api == nil }
+            guard !Task.isCancelled, modrinthCheckRequests[key] == request else { return }
+            guard !items.isEmpty else { modrinthUpdates[key] = [:]; return }
+            let matches = try await modrinth.versions(of: items.map(\.url))
+            guard !Task.isCancelled, modrinthCheckRequests[key] == request else { return }
+            guard !matches.isEmpty else { modrinthUpdates[key] = [:]; return }
+
+            // Metadata enriches the local registry when a manually installed ZIP is recognized by hash.
+            let versions = (try? await modrinth.versions(Array(Set(matches.values.map(\.versionID))))) ?? []
+            let projects = (try? await modrinth.projects(Array(Set(matches.values.map(\.projectID))))) ?? []
+            let versionsByID = Dictionary(versions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let projectsByID = Dictionary(projects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let attachedPackHashes = Set(items.compactMap { item -> String? in
+                guard target == .packs, let match = matches[item.url] else { return nil }
+                let fileType = item.origin?.fileType ?? versionsByID[match.versionID]?.files.first(where: { $0.sha512 == match.sha512 })?.fileType
+                return fileType == "required-resource-pack" || fileType == "optional-resource-pack" ? match.sha512 : nil
+            })
+            let ordinaryHashes = Set(matches.values.map(\.sha512)).subtracting(attachedPackHashes)
+            var latest: [String: ModrinthVersion] = [:]
+            if !ordinaryHashes.isEmpty {
+                latest.merge(try await modrinth.latestVersions(for: Array(ordinaryHashes), kind: target.kind, minecraft: instance.versionID), uniquingKeysWith: { _, next in next })
+            }
+            if !attachedPackHashes.isEmpty {
+                latest.merge(try await modrinth.latestVersions(for: Array(attachedPackHashes), kind: .datapack, minecraft: instance.versionID), uniquingKeysWith: { _, next in next })
+            }
+            guard !Task.isCancelled, modrinthCheckRequests[key] == request, instance.folderName == folderName else { return }
+            let currentFolder = try folder(instance, target: target)
+            let currentItems = try await installations.content.list(at: currentFolder, mods: target == .mods)
+            guard !Task.isCancelled, modrinthCheckRequests[key] == request, instance.folderName == folderName else { return }
+            var available: [String: ModrinthUpdate] = [:], recordedOrigins = false
+            for item in items {
+                guard let match = matches[item.url], let current = currentItems.first(where: { $0.url == item.url }),
+                      try await installations.content.hasHash(current, match.sha512, in: currentFolder) else { continue }
+                let oldVersion = versionsByID[match.versionID]
+                let oldFileType = item.origin?.fileType ?? oldVersion?.files.first(where: { $0.sha512 == match.sha512 })?.fileType
+                if let oldVersion, let project = projectsByID[match.projectID] {
+                    let origin = ModOrigin(source: .modrinth, projectID: match.projectID, versionID: oldVersion.id, pageURL: project.pageURL, sha512: match.sha512, versionNumber: oldVersion.number, iconURL: project.iconURL, fileType: oldFileType)
+                    try await installations.content.recordOrigin(origin, for: current, in: currentFolder, mods: target == .mods)
+                    recordedOrigins = true
+                }
+                guard let next = latest[match.sha512], next.projectID == match.projectID, next.published > match.published else { continue }
+                let fileKind: ModrinthContentKind = attachedPackHashes.contains(match.sha512) ? .resourcePack : target.kind
+                guard let file = next.updateFile(kind: fileKind, matchingFileType: oldFileType, matchingFilename: current.logicalName), file.sha512 != match.sha512 else { continue }
+                available[item.logicalName.lowercased()] = .init(projectID: match.projectID, version: next, currentSHA512: match.sha512, file: file)
+            }
+            guard !Task.isCancelled, modrinthCheckRequests[key] == request, instance.folderName == folderName else { return }
+            _ = try folder(instance, target: target)
+            if recordedOrigins { await reload(instance, target: target, clearError: false) }
+            guard !Task.isCancelled, modrinthCheckRequests[key] == request, instance.folderName == folderName else { return }
             modrinthUpdates[key] = available
         } catch {
-            if !Task.isCancelled { modrinthUpdateMessages[key] = String(appLocalized: "Не удалось проверить обновления: \(error.localizedDescription)") }
+            if !Task.isCancelled, modrinthCheckRequests[key] == request { modrinthUpdateMessages[key] = String(appLocalized: "Не удалось проверить обновления: \(error.localizedDescription)") }
         }
     }
 
     func updateFromModrinth(_ item: InstanceContentItem, in instance: GameInstance, mods: Bool) {
-        guard let update = modrinthUpdate(for: item, in: instance, mods: mods), catalogInstalling[instance.id] == nil else { return }
-        catalogInstalling[instance.id] = update.projectID
-        catalogInstallTargets[instance.id] = mods ? .mods : .packs
-        let started = perform(instance, mods: mods) { [self] _ in
+        updateFromModrinth(item, in: instance, target: mods ? .mods : .packs)
+    }
+
+    func updateFromModrinth(_ item: InstanceContentItem, in instance: GameInstance, target: ModrinthInstallTarget) {
+        guard let update = modrinthUpdate(for: item, in: instance, target: target), catalogInstalling[instance.id] == nil else { return }
+        catalogInstalling[instance.id] = update.projectID; catalogInstallTargets[instance.id] = target
+        let started = perform(instance, target: target) { [self] _ in
             defer { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
             guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message(String(appLocalized: "Проект Modrinth не найден.")) }
-            _ = try await installFromModrinth(project, in: instance, target: mods ? .mods : .packs, version: update.version, replacing: (item, update.currentSHA512))
+            _ = try await installFromModrinth(project, in: instance, target: target, version: update.version, requestedFile: update.file, replacing: (item, update.currentSHA512))
         }
         if !started { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
     }
 
     func hasUpdates(_ instance: GameInstance, mods: Bool) -> Bool {
-        modrinthUpdates[updateKey(instance, mods: mods)]?.isEmpty == false || mods && updates[instance.id]?.isEmpty == false
+        hasUpdates(instance, target: mods ? .mods : .packs)
     }
 
-    /// Ставит все доступные обновления раздела подряд; обновления, которым нужны подтверждения, пропускаются.
+    func hasUpdates(_ instance: GameInstance, target: ModrinthInstallTarget) -> Bool {
+        modrinthUpdates[updateKey(instance, target: target)]?.isEmpty == false || target == .mods && updates[instance.id]?.isEmpty == false
+    }
+
+    /// Ставит доступные обновления только в выбранном назначении.
     func updateAll(_ instance: GameInstance, mods: Bool) {
+        updateAll(instance, target: mods ? .mods : .packs)
+    }
+
+    func updateAll(_ instance: GameInstance, target: ModrinthInstallTarget) {
         guard catalogInstalling[instance.id] == nil else { return }
-        let current = (mods ? self.mods : packs)[instance.id] ?? []
-        let apiUpdates = mods ? current.compactMap { item in
+        let current = items(instance, target: target)
+        let apiUpdates = target == .mods ? current.compactMap { item in
             item.origin?.api == nil ? nil : updates[instance.id]?[item.logicalName.lowercased()].map { (item, $0) }
         } : []
-        let modrinthUpdates = current.compactMap { item in modrinthUpdate(for: item, in: instance, mods: mods).map { (item, $0) } }
+        let modrinthUpdates = current.compactMap { item in modrinthUpdate(for: item, in: instance, target: target).map { (item, $0) } }
         guard let first = apiUpdates.first.map({ _ in FabricAPIDescriptor.project }) ?? modrinthUpdates.first?.1.projectID else { return }
-        catalogInstalling[instance.id] = first
-        catalogInstallTargets[instance.id] = mods ? .mods : .packs
-        let started = perform(instance, mods: mods) { [self] folder in
+        catalogInstalling[instance.id] = first; catalogInstallTargets[instance.id] = target
+        let started = perform(instance, target: target) { [self] folder in
             defer { catalogInstalling[instance.id] = nil; catalogInstallTargets[instance.id] = nil }
             var failures: [String] = []
             for (item, next) in apiUpdates {
@@ -395,7 +541,7 @@ struct ModrinthUpdate {
                 catalogInstalling[instance.id] = update.projectID
                 do {
                     guard let project = try await modrinth.projects([update.projectID]).first else { throw InstanceFileError.message(String(appLocalized: "Проект Modrinth не найден.")) }
-                    _ = try await installFromModrinth(project, in: instance, target: mods ? .mods : .packs, version: update.version, replacing: (item, update.currentSHA512), interactive: false)
+                    _ = try await installFromModrinth(project, in: instance, target: target, version: update.version, requestedFile: update.file, replacing: (item, update.currentSHA512), interactive: false)
                 } catch is CancellationError { throw CancellationError() }
                 catch { failures.append("\(item.logicalName): \(error.localizedDescription)") }
             }
@@ -449,22 +595,21 @@ struct ModrinthUpdate {
         var mods: Bool { target == .mods }
 
         var origin: ModOrigin? {
-            guard mods else { return nil }
             // Fabric API сохраняет дескриптор, чтобы работала проверка его обновлений.
             if project.id == FabricAPIDescriptor.project {
                 return ModOrigin(api: .init(projectID: project.id, versionID: version.id, version: version.number, channel: version.channel, filename: file.filename, url: file.url, size: file.size, sha1: file.sha1, sha512: file.sha512))
             }
-            return ModOrigin(source: .modrinth, projectID: project.id, versionID: version.id, pageURL: project.pageURL, sha512: file.sha512)
+            return ModOrigin(source: .modrinth, projectID: project.id, versionID: version.id, pageURL: project.pageURL, sha512: file.sha512, versionNumber: version.number, iconURL: project.iconURL, fileType: file.fileType)
         }
     }
 
     /// С `replacing` новая версия заменяет файл сборки вместо импорта рядом с ним.
     /// Без `interactive` вместо диалогов подтверждения установка отменяется ошибкой до изменения сборки.
-    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, target: ModrinthInstallTarget, channel: String? = nil, version requested: ModrinthVersion? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil, interactive: Bool = true) async throws -> Bool {
+    private func installFromModrinth(_ project: ModrinthProject, in instance: GameInstance, target: ModrinthInstallTarget, channel: String? = nil, version requested: ModrinthVersion? = nil, requestedFile: ModrinthVersion.File? = nil, replacing: (item: InstanceContentItem, sha512: String)? = nil, interactive: Bool = true) async throws -> Bool {
         let mods = target == .mods
         let minecraft = instance.versionID
         let latest = requested == nil ? try await modrinth.latestVersion(project: project.id, kind: target.kind, minecraft: minecraft, channel: channel) : requested
-        guard let version = latest, let file = version.file(kind: target.kind) else {
+        guard let version = latest, let file = requestedFile ?? version.file(kind: target.kind), file.isInstallable(kind: target.kind) else {
             let title = project.title
             let message = switch (channel, mods) {
             case ("release"?, true): String(appLocalized: "У «\(title)» нет релиза для Minecraft \(minecraft) и Fabric.")
@@ -600,8 +745,12 @@ struct ModrinthUpdate {
         for (download, url) in zip(downloads, files) {
             let destination = try folder(instance, target: download.target)
             if let replacing, download.project.id == project.id, download.target == target {
-                try await installations.content.replaceItem(replacing.item, from: url, filename: url.lastPathComponent, in: destination, mods: mods, expectedSHA512: replacing.sha512, origin: download.origin)
-                modrinthUpdates[updateKey(instance, mods: mods)]?.removeValue(forKey: replacing.item.logicalName.lowercased())
+                if let world = target.world {
+                    try await installations.content.replaceDatapack(replacing.item, from: url, filename: url.lastPathComponent, world: world, in: installations.store.storage.directory(instance.folderName), expectedSHA512: replacing.sha512, origin: download.origin)
+                } else {
+                    try await installations.content.replaceItem(replacing.item, from: url, filename: url.lastPathComponent, in: destination, mods: mods, expectedSHA512: replacing.sha512, origin: download.origin)
+                }
+                modrinthUpdates[updateKey(instance, target: target)]?.removeValue(forKey: replacing.item.logicalName.lowercased())
                 continue
             }
             do { try await publish(download, from: url, in: instance) }
@@ -624,7 +773,7 @@ struct ModrinthUpdate {
 
     private func publish(_ download: CatalogDownload, from url: URL, in instance: GameInstance, replace: Bool = false) async throws {
         if let world = download.target.world {
-            try await installations.content.importDatapack(from: url, world: world, in: installations.store.storage.directory(instance.folderName), replace: replace)
+            try await installations.content.importDatapack(from: url, world: world, in: installations.store.storage.directory(instance.folderName), replace: replace, origin: download.origin)
         } else {
             try await installations.content.importItem(from: url, into: folder(instance, target: download.target), mods: download.mods, replace: replace, origin: download.origin)
         }

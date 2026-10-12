@@ -7,15 +7,20 @@ nonisolated struct ModOrigin: Codable, Sendable {
     let pageURL: URL
     let sha512: String
     let api: FabricAPIDescriptor?
+    let versionNumber: String?
+    let iconURL: URL?
+    let fileType: String?
 
-    init(source: ModSource, projectID: String, versionID: String, pageURL: URL, sha512: String, api: FabricAPIDescriptor? = nil) {
+    init(source: ModSource, projectID: String, versionID: String, pageURL: URL, sha512: String, api: FabricAPIDescriptor? = nil, versionNumber: String? = nil, iconURL: URL? = nil, fileType: String? = nil) {
         self.source = source; self.projectID = projectID; self.versionID = versionID
         self.pageURL = pageURL; self.sha512 = sha512; self.api = api
+        self.versionNumber = versionNumber; self.iconURL = iconURL; self.fileType = fileType
     }
 
     init(api: FabricAPIDescriptor) {
         source = .modrinth; projectID = api.projectID; versionID = api.versionID
         pageURL = api.pageURL; sha512 = api.sha512; self.api = api
+        versionNumber = api.version; iconURL = nil; fileType = nil
     }
 }
 
@@ -46,18 +51,23 @@ nonisolated enum PackImportError: LocalizedError {
 }
 
 actor InstanceContent {
-    private func registry(at folder: URL) throws -> ModRegistry {
-        let raw = folder.deletingLastPathComponent().appendingPathComponent(".hako-mods.json")
-        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message(String(appLocalized: "Реестр модов не может быть ссылкой.")) }
-        let file = try InstanceStorage.containedURL(".hako-mods.json", in: folder.deletingLastPathComponent())
+    private func registryName(at folder: URL, mods: Bool) -> String {
+        if mods { return ".hako-mods.json" }
+        return folder.lastPathComponent.lowercased() == "datapacks" ? ".hako-datapacks.json" : ".hako-resourcepacks.json"
+    }
+
+    private func registry(at folder: URL, name: String = ".hako-mods.json") throws -> ModRegistry {
+        let raw = folder.deletingLastPathComponent().appendingPathComponent(name)
+        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message(String(appLocalized: "Реестр происхождения содержимого не может быть ссылкой.")) }
+        let file = try InstanceStorage.containedURL(name, in: folder.deletingLastPathComponent())
         guard FileManager.default.fileExists(atPath: file.path) else { return .init() }
         return try JSONDecoder().decode(ModRegistry.self, from: Data(contentsOf: file))
     }
 
-    private func saveRegistry(_ registry: ModRegistry, at folder: URL) throws {
-        let raw = folder.deletingLastPathComponent().appendingPathComponent(".hako-mods.json")
-        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message(String(appLocalized: "Реестр модов не может быть ссылкой.")) }
-        let file = try InstanceStorage.containedURL(".hako-mods.json", in: folder.deletingLastPathComponent())
+    private func saveRegistry(_ registry: ModRegistry, at folder: URL, name: String = ".hako-mods.json") throws {
+        let raw = folder.deletingLastPathComponent().appendingPathComponent(name)
+        if (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { throw InstanceFileError.message(String(appLocalized: "Реестр происхождения содержимого не может быть ссылкой.")) }
+        let file = try InstanceStorage.containedURL(name, in: folder.deletingLastPathComponent())
         try JSONEncoder().encode(registry).write(to: file, options: .atomic)
     }
 
@@ -84,7 +94,7 @@ actor InstanceContent {
 
     func apiWasProvisioned(in folder: URL) throws -> Bool { try registry(at: folder).apiProvisioned }
     func list(at folder: URL, mods: Bool, readOrigins: Bool = true, includeDisabledPacks: Bool = true) throws -> [InstanceContentItem] {
-        let origins = mods && readOrigins ? try registry(at: folder).files : [:]
+        let origins = readOrigins ? try registry(at: folder, name: registryName(at: folder, mods: mods)).files : [:]
         let disabledFolder = mods || !includeDisabledPacks ? nil : try disabledPacksFolder(folder)
         let folders = [folder] + (disabledFolder.map { [$0] } ?? [])
         let urls = try folders.flatMap { directory in
@@ -96,7 +106,7 @@ actor InstanceContent {
             let directory = values.isDirectory == true
             let name = InstanceContentItem.logicalName(url.lastPathComponent)
             guard mods ? (values.isRegularFile == true && name.lowercased().hasSuffix(".jar")) : (directory || (values.isRegularFile == true && url.pathExtension.lowercased() == "zip")) else { return nil }
-            var origin = origins[name.lowercased()]
+            var origin = directory ? nil : origins[name.lowercased()]
             if let known = origin, try FabricClient.hashFile(url) != known.sha512.lowercased() { origin = nil }
             return InstanceContentItem(url: url, isDirectory: directory, origin: origin, modificationDate: values.contentModificationDate, disabledPack: !mods && url.deletingLastPathComponent().standardizedFileURL.path == disabledFolder?.standardizedFileURL.path)
         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
@@ -154,9 +164,30 @@ actor InstanceContent {
     }
 
     /// Проверка мира и публикация идут на одном акторе; исчезнувшие родительские папки не создаются заново.
-    func importDatapack(from source: URL, world: String, in instanceRoot: URL, replace: Bool = false) throws {
+    func importDatapack(from source: URL, world: String, in instanceRoot: URL, replace: Bool = false, origin: ModOrigin? = nil) async throws {
+        _ = try InstanceWorlds.datapacksFolder(world: world, in: instanceRoot)
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        let values = try source.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey])
+        let isZIP = values.isRegularFile == true && source.pathExtension.lowercased() == "zip"
+        guard values.isSymbolicLink != true, values.isDirectory == true || isZIP else {
+            throw InstanceFileError.message(String(appLocalized: "Выберите ZIP-файл или папку датапака."))
+        }
+        do {
+            let metadata: Data
+            if isZIP {
+                metadata = try await FabricClient.archiveEntry("pack.mcmeta", in: source, limit: 1_048_576)
+            } else {
+                let raw = source.appendingPathComponent("pack.mcmeta")
+                let metadataValues = try raw.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+                guard metadataValues.isSymbolicLink != true, metadataValues.isRegularFile == true, (metadataValues.fileSize ?? 0) <= 1_048_576 else { throw CocoaError(.fileReadCorruptFile) }
+                metadata = try Data(contentsOf: InstanceStorage.containedURL("pack.mcmeta", in: source))
+            }
+            guard let json = try JSONSerialization.jsonObject(with: metadata) as? [String: Any], json["pack"] is [String: Any] else { throw CocoaError(.fileReadCorruptFile) }
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw InstanceFileError.message(String(appLocalized: "В датапаке нет корректного pack.mcmeta.")) }
         let folder = try InstanceWorlds.datapacksFolder(world: world, in: instanceRoot)
-        try importItem(from: source, into: folder, mods: false, replace: replace, createIntermediateDirectories: false)
+        try importItem(from: source, into: folder, mods: false, replace: replace, origin: origin, createIntermediateDirectories: false)
     }
 
     func setDatapackEnabled(_ item: InstanceContentItem, world: String, in instanceRoot: URL, enabled: Bool) throws {
@@ -199,7 +230,8 @@ actor InstanceContent {
             }
             if let failure { throw failure }
         }
-        var registry = mods ? try registry(at: folder) : nil
+        let name = registryName(at: folder, mods: mods)
+        var registry = try registry(at: folder, name: name)
         if createIntermediateDirectories || !manager.fileExists(atPath: folder.path) {
             try manager.createDirectory(at: folder, withIntermediateDirectories: createIntermediateDirectories)
         }
@@ -212,13 +244,14 @@ actor InstanceContent {
         let backup = folder.appendingPathComponent(".replace-\(UUID().uuidString)")
         defer { try? manager.removeItem(at: staged) }
         try manager.copyItem(at: source, to: staged)
+        if let origin, try FabricClient.hashFile(staged) != origin.sha512.lowercased() {
+            throw InstanceFileError.message(String(appLocalized: "Хеш файла не совпадает с происхождением Modrinth."))
+        }
         if let existing { try manager.moveItem(at: existing, to: backup) }
         do {
             try manager.moveItem(at: staged, to: destination)
-            if registry != nil {
-                registry?.files[source.lastPathComponent.lowercased()] = origin
-                try saveRegistry(registry!, at: folder)
-            }
+            registry.files[source.lastPathComponent.lowercased()] = origin
+            try saveRegistry(registry, at: folder, name: name)
         } catch {
             if manager.fileExists(atPath: destination.path) { try? manager.removeItem(at: destination) }
             if let existing { try? manager.moveItem(at: backup, to: existing) }
@@ -252,12 +285,13 @@ actor InstanceContent {
 
     func trash(_ item: InstanceContentItem, in folder: URL, mods: Bool = false) throws {
         let target = try checkedFile(item, in: folder)
-        var registry = mods ? try registry(at: folder) : nil
+        let name = registryName(at: folder, mods: mods)
+        var registry = try registry(at: folder, name: name)
         var trashed: NSURL?
         try FileManager.default.trashItem(at: target, resultingItemURL: &trashed)
-        if registry != nil {
-            registry?.files.removeValue(forKey: item.logicalName.lowercased())
-            do { try saveRegistry(registry!, at: folder) }
+        if !registry.files.isEmpty || FileManager.default.fileExists(atPath: folder.deletingLastPathComponent().appendingPathComponent(name).path) {
+            registry.files.removeValue(forKey: item.logicalName.lowercased())
+            do { try saveRegistry(registry, at: folder, name: name) }
             catch { if let trashed { try? FileManager.default.moveItem(at: trashed as URL, to: target) }; throw error }
         }
     }
@@ -273,7 +307,8 @@ actor InstanceContent {
     func replaceItem(_ item: InstanceContentItem, from source: URL, filename: String, in folder: URL, mods: Bool, expectedSHA512: String? = nil, origin: ModOrigin?) throws {
         let old = try checkedFile(item, in: folder)
         if let expectedSHA512, try FabricClient.hashFile(old) != expectedSHA512.lowercased() { throw InstanceFileError.message(String(appLocalized: "Файл изменился. Обновите список и повторите действие.")) }
-        var registry = mods ? try registry(at: folder) : nil
+        let name = registryName(at: folder, mods: mods)
+        var registry = try registry(at: folder, name: name)
         let parent = old.deletingLastPathComponent()
         let newName = filename + (mods && !item.enabled ? ".disabled" : "")
         if let other = try existing(filename, in: folder, mods: mods), other.standardizedFileURL.path != old.standardizedFileURL.path { throw PackImportError.exists(filename) }
@@ -282,19 +317,40 @@ actor InstanceContent {
         let backup = parent.appendingPathComponent(".backup-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: staged) }
         try FileManager.default.copyItem(at: source, to: staged)
+        if let origin, try FabricClient.hashFile(staged) != origin.sha512.lowercased() {
+            throw InstanceFileError.message(String(appLocalized: "Хеш файла не совпадает с происхождением Modrinth."))
+        }
         try Task.checkCancellation()
         try FileManager.default.moveItem(at: old, to: backup)
         do {
             try FileManager.default.moveItem(at: staged, to: target)
-            if registry != nil {
-                registry?.files.removeValue(forKey: item.logicalName.lowercased())
-                registry?.files[filename.lowercased()] = origin
-                try saveRegistry(registry!, at: folder)
-            }
+            registry.files.removeValue(forKey: item.logicalName.lowercased())
+            registry.files[filename.lowercased()] = origin
+            try saveRegistry(registry, at: folder, name: name)
         } catch {
             try? FileManager.default.removeItem(at: target); try? FileManager.default.moveItem(at: backup, to: old)
             throw error
         }
         try FileManager.default.removeItem(at: backup)
+    }
+
+    func replaceDatapack(_ item: InstanceContentItem, from source: URL, filename: String, world: String, in instanceRoot: URL, expectedSHA512: String, origin: ModOrigin?) throws {
+        let folder = try InstanceWorlds.datapacksFolder(world: world, in: instanceRoot)
+        try replaceItem(item, from: source, filename: filename, in: folder, mods: false, expectedSHA512: expectedSHA512, origin: origin)
+    }
+
+    func recordOrigin(_ origin: ModOrigin, for item: InstanceContentItem, in folder: URL, mods: Bool) throws {
+        guard !item.isDirectory else { return }
+        let file = try checkedFile(item, in: folder)
+        guard try FabricClient.hashFile(file) == origin.sha512.lowercased() else { return }
+        let name = registryName(at: folder, mods: mods)
+        var registry = try registry(at: folder, name: name)
+        registry.files[item.logicalName.lowercased()] = origin
+        try saveRegistry(registry, at: folder, name: name)
+    }
+
+    func hasHash(_ item: InstanceContentItem, _ expectedSHA512: String, in folder: URL) throws -> Bool {
+        guard !item.isDirectory else { return false }
+        return try FabricClient.hashFile(checkedFile(item, in: folder)) == expectedSHA512.lowercased()
     }
 }
