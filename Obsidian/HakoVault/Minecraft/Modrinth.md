@@ -14,7 +14,7 @@ Parent: [[Index]]
 |------|-----------------|------|
 | `macos/Hako/Hako/Minecraft/ModrinthClient.swift` | `ModrinthClient`, `ModrinthProject`, `ModrinthVersion`, `ModrinthSort` | API v2: поиск, версии, проекты, распознавание по хешу, загрузка |
 | `macos/Hako/Hako/Instances/InstanceContentController.swift` | `install(_:in:target:channel:)`, `installedProjects(_:target:)`, `ContentConfirmation` | Установка, зависимости, проверка Loader/Java, модалки |
-| `macos/Hako/Hako/Instances/InstanceContent.swift` | `importItem(from:into:mods:replace:origin:)` | Публикация файла и запись происхождения мода |
+| `macos/Hako/Hako/Instances/InstanceContent.swift` | `importItem(from:into:mods:replace:origin:)` | Публикация файла и запись происхождения модов и паков |
 | `macos/Hako/Hako/Views/Launcher/ModrinthCatalogView.swift` | `ModrinthCatalogView`, `ModrinthCatalogRow` | Страница каталога |
 | `macos/Hako/HakoTests/ModrinthTests.swift` | `ModrinthTests` | Фасеты, выбор версии, зависимости, повреждённая загрузка, несовместимый Loader |
 
@@ -31,7 +31,7 @@ Parent: [[Index]]
 | `latestVersion(project:kind:minecraft:channel:)` | то же | Первая из `compatibleVersions`; с `channel` — новейшая только этого канала |
 | `projects(_:)` / `versions(_:)` | `GET /projects`, `GET /versions` | Названия, иконки и типы зависимостей; проект по `version_id` |
 | `versions(of:)` | `POST /version_files` (`sha512`) | `URL → ModrinthFileMatch` (проект, версия, дата, SHA-512); хеши и известные версии берутся из кеша |
-| `latestVersions(for:mods:minecraft:)` | `POST /version_files/update` | Новейшие версии по хешам; `version_types` запрашиваются по очереди release → beta → alpha только для ненайденных хешей |
+| `latestVersions(for:kind:minecraft:)` | `POST /version_files/update` | Новейшие версии по хешам с загрузчиком выбранного вида; `version_types` запрашиваются по очереди release → beta → alpha только для ненайденных хешей; прежний адаптер `mods:` сохранён |
 | `download(_:into:)` | URL файла | Временный файл переносится под именем из Modrinth; размер и SHA-512 обязаны совпасть |
 
 Фасеты модов: `project_type:mod`, `categories:fabric`, `versions:<mc>`, `environment!=dedicated_server_only` —
@@ -81,8 +81,11 @@ Parent: [[Index]]
 6. Публикуются зависимости, выбранный проект и выбранные связанные ресурспаки; коллизия имени проходит через подтверждение замены.
    Отключённые зависимости включаются. Перечитываются все затронутые назначения.
 
-Моды записываются в `minecraft/.hako-mods.json` с происхождением Modrinth (проект, версия, страница, SHA-512):
-в списке появляются бейдж «Modrinth» и ссылка на страницу. Fabric API сохраняет `FabricAPIDescriptor`,
+Моды записываются в `minecraft/.hako-mods.json`, ресурспаки — в `minecraft/.hako-resourcepacks.json`
+(также для старой папки `texturepacks`), датапаки — в `.hako-datapacks.json` внутри выбранного мира.
+`ModOrigin` содержит происхождение Modrinth: проект, ID и номер версии, страницу, иконку и SHA-512;
+новые необязательные поля совместимы с прежним реестром модов.
+В списке появляются источник, установленная версия и ссылка на страницу. Fabric API сохраняет `FabricAPIDescriptor`,
 поэтому продолжает получать обновления. Локальный импорт стирает происхождение файла.
 
 Датапаки публикуются через `InstanceContent.importDatapack` в `minecraft/saves/<мир>/datapacks`,
@@ -92,18 +95,25 @@ ZIP остаётся архивом. Перед публикацией мир п
 
 ## Обновления
 
-`checkAllUpdates(_:mods:)` вызывается при открытии раздела и кнопкой «Проверить обновления». Для модов Fabric API
+`checkAllUpdates(_:target:)` вызывается при открытии раздела, раскрытии мира и кнопкой «Проверить обновления»;
+адаптер `mods:` сохранён. Для модов Fabric API
 проверяется прежним `checkUpdates`; остальные файлы раздела (кроме папок и API) — `checkModrinthUpdates`:
 `versions(of:)` → `latestVersions`. Обновление предлагается, если файл новой версии отличается по SHA-512
 и версия опубликована позже текущей — так установленная beta не сменяется более старым release.
-Результат — `modrinthUpdates[«сборка:раздел»][имя файла]`; ошибки сети — `modrinthUpdateMessages`, список остаётся.
+Результат — `modrinthUpdates[«сборка:раздел»][имя файла]`, для датапаков ключ включает имя папки мира;
+ошибки сети — `modrinthUpdateMessages`, список остаётся. Распознанные прежние файлы получают сохранённые
+источник, номер версии и иконку проекта. Датапаки запрашиваются с загрузчиком `datapack`, ресурспаки — `minecraft`.
+Для связанных ресурспаков из файлов датапака используется загрузчик `datapack`, затем выбирается ZIP
+ресурспака с тем же `file_type`: точное имя или единственный подходящий файл. Несколько вариантов
+без точного совпадения имени не обновляются автоматически.
 
 `updateFromModrinth` идёт тем же конвейером, что установка (зависимости, загрузка, совместимость), но вместо
 импорта вызывает `InstanceContent.replaceItem`: старый файл сверяется с ожидаемым SHA-512, новый занимает его место
-с сохранением отключения (`.jar.disabled` либо папка отключённых паков), реестр модов получает происхождение
-Modrinth; ошибки откатывают замену. `updateAPI` после своих проверок использует тот же `replaceItem`.
+с сохранением отключения (`.jar.disabled` либо папка отключённых паков), соответствующий реестр получает
+происхождение Modrinth; ошибки откатывают замену. Для датапаков `replaceDatapack` повторно проверяет существование мира
+на файловом акторе. `updateAPI` после своих проверок использует тот же `replaceItem`.
 
-`updateAll(_:mods:)` применяет все доступные обновления раздела подряд одним `perform`: сначала Fabric API
+`updateAll(_:target:)` (с адаптером `mods:`) применяет все доступные обновления раздела или выбранного мира подряд одним `perform`: сначала Fabric API
 (`applyAPIUpdate`), затем файлы Modrinth через `installFromModrinth(..., interactive: false)`. Без `interactive`
 вместо диалогов зависимостей и несовместимости обновление до изменения сборки отменяется ошибкой «требует
 подтверждения — обновите отдельно»; ошибки по файлам собираются в `errors[instance.id]`, остальные обновления
@@ -118,7 +128,7 @@ Modrinth; ошибки откатывают замену. `updateAPI` после
 
 ## Распознавание установленного
 
-`installedProjects` возвращает `projectID → файлы`: моды с происхождением Modrinth из реестра и
+`installedProjects` возвращает `projectID → файлы`: моды и паки с происхождением Modrinth из реестров и
 остальные файлы (кроме папок-паков), распознанные через `versions(of:)` по SHA-512 с кешем. Поэтому вручную
 скачанные с Modrinth файлы тоже считаются установленными. Отключённые файлы входят в результат. Для датапаков проверяются только файлы выбранного мира;
 включая отключённые ZIP в `.hako-disabled-datapacks` этого же мира. Папки датапаков по хешу не распознаются. Включение зависимости направляется в тот же мир с повторной проверкой его существования.
