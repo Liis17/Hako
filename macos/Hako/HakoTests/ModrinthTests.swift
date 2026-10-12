@@ -528,6 +528,95 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: world.path))
     }
 
+    @Test func attachedResourcePackIsOfferedWithDatapack() async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let world = try Self.world("First", in: instance, installations: installations)
+        let bytes = try Self.datapackZIP(in: root), pack = try Self.datapackZIP(in: root, name: "resource.zip")
+        var version = Self.version("v", project: "root", loader: "datapack", file: ("pack.zip", bytes))
+        var resource = try #require(Self.version("v", project: "root", file: ("resource.zip", pack))["files"] as? [[String: Any]]).first!
+        resource["primary"] = false; resource["file_type"] = "required-resource-pack"
+        version["files"] = (version["files"] as! [[String: Any]]) + [resource]
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [version]),
+            "fixtures.test/pack.zip": bytes, "fixtures.test/resource.zip": pack
+        ])
+        controller.install(try Self.project("root"), in: instance, target: .worldDatapacks("First"))
+        let confirmation = try await Self.confirmation(controller, installations, instance)
+        controller.resolveConfirmation(confirmation.id, choice: .primary)
+        try await Self.settle(installations, instance)
+        #expect(controller.errors[instance.id] == nil)
+        #expect(try Data(contentsOf: controller.folder(instance, mods: false).appendingPathComponent("resource.zip")) == pack)
+        #expect(try Data(contentsOf: world.appendingPathComponent("datapacks/pack.zip")) == bytes)
+        #expect(controller.packs[instance.id]?.map(\.name) == ["resource.zip"])
+    }
+
+    @Test(arguments: ["primary", "variant", "skip", "cancel", "corrupt", "disabled"])
+    func attachedResourcePackVariantsInstallOnlySelectedFile(choice: String) async throws {
+        let root = Self.temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModrinthTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let (container, installations, controller, instance) = try Self.instance(root: root, session: session)
+        _ = container
+        let world = try Self.world("First", in: instance, installations: installations)
+        let bytes = try Self.datapackZIP(in: root), regular = try Self.datapackZIP(in: root, name: "regular.zip"), variant = try Self.datapackZIP(in: root, name: "Recolourful.zip")
+        var version = Self.version("v", project: "root", loader: "datapack", file: ("pack.zip", bytes))
+        func resource(_ name: String, bytes: Data, type: String) -> [String: Any] {
+            var file = (Self.version("v", project: "root", file: (name, bytes))["files"] as! [[String: Any]])[0]
+            file["primary"] = false; file["file_type"] = type
+            return file
+        }
+        // Как в BiomeVisible: вариант совместимости идёт перед обязательным основным ресурспаком.
+        version["files"] = (version["files"] as! [[String: Any]]) + [
+            resource("Recolourful.zip", bytes: variant, type: "optional-resource-pack"),
+            resource("regular.zip", bytes: regular, type: "required-resource-pack")
+        ]
+        if choice == "disabled" {
+            let source = root.appendingPathComponent("local.zip"); try regular.write(to: source)
+            let folder = try controller.folder(instance, mods: false)
+            try await installations.content.importItem(from: source, into: folder, mods: false)
+            let item = try #require(try await installations.content.list(at: folder, mods: false).first)
+            try await installations.content.setEnabled(item, in: folder, enabled: false, mods: false)
+        }
+        ModrinthTestProtocol.prepare([
+            "\(api)/project/root/version": try JSONSerialization.data(withJSONObject: [version]),
+            "\(api)/version_files": try JSONSerialization.data(withJSONObject: [FabricClient.hash(regular): ["id": "v", "project_id": "root", "date_published": "2026-10-06"]]),
+            "fixtures.test/pack.zip": bytes, "fixtures.test/regular.zip": choice == "corrupt" ? Data("corrupt".utf8) : regular,
+            "fixtures.test/Recolourful.zip": variant
+        ])
+        controller.install(try Self.project("root"), in: instance, target: .worldDatapacks("First"))
+        let confirmation = try await Self.confirmation(controller, installations, instance)
+        #expect(confirmation.resourcePacks.map(\.id) == ["regular.zip", "Recolourful.zip"])
+        #expect(confirmation.alternative == "Без ресурспака")
+        controller.resolveConfirmation(confirmation.id, choice: choice == "cancel" ? .cancel : choice == "skip" ? .alternative : choice == "variant" ? .resourcePack("Recolourful.zip") : .primary)
+        try await Self.settle(installations, instance)
+        #expect((controller.errors[instance.id] != nil) == (choice == "corrupt"))
+        let items = try await installations.content.list(at: controller.folder(instance, mods: false), mods: false)
+        let expected = choice == "variant" ? ["Recolourful.zip"] : choice == "primary" ? ["regular.zip"] : choice == "disabled" ? ["local.zip"] : []
+        #expect(items.map(\.name) == expected)
+        #expect(items.allSatisfy { $0.enabled })
+        #expect(FileManager.default.fileExists(atPath: world.appendingPathComponent("datapacks/pack.zip").path) == !["cancel", "corrupt"].contains(choice))
+        let downloaded = ModrinthTestProtocol.requests.compactMap(\.url).filter { $0.host == "fixtures.test" }.map(\.lastPathComponent)
+        #expect(!downloaded.contains(choice == "variant" ? "regular.zip" : "Recolourful.zip"))
+        if choice == "disabled" { #expect(!downloaded.contains("regular.zip")) }
+    }
+
+    @Test func datapackFileSelectionExcludesAttachedResourcePacks() throws {
+        let bytes = Data("zip".utf8)
+        var version = Self.version("v", project: "root", loader: "datapack", file: ("data.zip", bytes))
+        let data = version["files"] as! [[String: Any]]
+        var resource = data[0]
+        resource["filename"] = "resource.zip"; resource["file_type"] = "required-resource-pack"
+        var invalid = resource; invalid["filename"] = "../unsafe.zip"
+        version["files"] = [resource, invalid] + data.map { var file = $0; file["primary"] = false; return file }
+        let decoded = try JSONDecoder().decode(ModrinthVersion.self, from: JSONSerialization.data(withJSONObject: version))
+        #expect(decoded.file(kind: .datapack)?.filename == "data.zip")
+        #expect(decoded.resourcePacks.map(\.filename) == ["resource.zip"])
+        version["files"] = [resource]
+        #expect(try JSONDecoder().decode(ModrinthVersion.self, from: JSONSerialization.data(withJSONObject: version)).file(kind: .datapack) == nil)
+    }
+
     private static func world(_ name: String, in instance: GameInstance, installations: InstallationCoordinator) throws -> URL {
         let root = try installations.store.storage.directory(instance.folderName)
         let world = root.appendingPathComponent("minecraft/saves/\(name)")

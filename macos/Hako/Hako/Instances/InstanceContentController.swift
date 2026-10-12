@@ -17,9 +17,10 @@ import SwiftData
     let destructive: Bool
     var alternative: String? = nil
     var projects: [Project] = []
+    var resourcePacks: [Project] = []
 }
 
-enum ContentChoice { case cancel, primary, alternative }
+enum ContentChoice: Equatable { case cancel, primary, alternative, resourcePack(String) }
 
 /// Новая версия Modrinth для файла сборки.
 struct ModrinthUpdate {
@@ -521,6 +522,32 @@ struct ModrinthUpdate {
             if choice == .alternative { downloads = []; enable = [] }
         }
         downloads.append(.init(project: project, version: version, file: file, target: target))
+        for datapack in downloads where datapack.target.kind == .datapack {
+            let resources = datapack.version.resourcePacks
+            guard !resources.isEmpty else { continue }
+            guard interactive else { throw InstanceFileError.message(String(appLocalized: "«\(project.title)» требует подтверждения — обновите отдельно.")) }
+            let options = resources.map { resource in
+                ContentConfirmation.Project(id: resource.filename, title: resource.filename, iconURL: nil, note: resource.fileType == "required-resource-pack" ? String(appLocalized: "Обязательный ресурспак") : String(appLocalized: "Необязательный ресурспак"))
+            }
+            let choice = await choose(.init(
+                title: String(appLocalized: "Ресурспак для датапака"),
+                message: String(appLocalized: "У «\(datapack.project.title)» есть связанные ресурспаки. Выберите один вариант для сборки «\(instance.name)». После установки включите его в настройках Minecraft."),
+                action: String(appLocalized: "Добавить с ресурспаком"), destructive: false,
+                alternative: String(appLocalized: "Без ресурспака"), resourcePacks: options))
+            if choice == .cancel { return false }
+            if choice == .alternative { continue }
+            let selected: ModrinthVersion.File?
+            if case .resourcePack(let filename) = choice { selected = resources.first { $0.filename == filename } }
+            else { selected = resources.first }
+            guard let selected else { return false }
+            let present = try await installations.content.list(at: folder(instance, mods: false), mods: false)
+            let matches = try await modrinth.versions(of: present.filter { !$0.isDirectory }.map(\.url))
+            if let matching = present.first(where: { matches[$0.url]?.sha512 == selected.sha512 }) {
+                if !matching.enabled { enable.append((matching, .packs)) }
+            } else {
+                downloads.append(.init(project: datapack.project, version: datapack.version, file: selected, target: .packs))
+            }
+        }
         // Все файлы загружаются и проверяются до того, как сборка изменится.
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("Hako-Modrinth-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: staging) }
@@ -572,7 +599,7 @@ struct ModrinthUpdate {
         var added = false
         for (download, url) in zip(downloads, files) {
             let destination = try folder(instance, target: download.target)
-            if let replacing, download.project.id == project.id, download.mods == mods {
+            if let replacing, download.project.id == project.id, download.target == target {
                 try await installations.content.replaceItem(replacing.item, from: url, filename: url.lastPathComponent, in: destination, mods: mods, expectedSHA512: replacing.sha512, origin: download.origin)
                 modrinthUpdates[updateKey(instance, mods: mods)]?.removeValue(forKey: replacing.item.logicalName.lowercased())
                 continue
@@ -584,7 +611,7 @@ struct ModrinthUpdate {
                 guard await confirm(.init(title: title, message: message, action: String(appLocalized: "Заменить"), destructive: true)) else { continue }
                 try await publish(download, from: url, in: instance, replace: true)
             }
-            if download.project.id == project.id { added = true }
+            if download.project.id == project.id, download.target == target { added = true }
         }
         for (item, itemTarget) in enable {
             if let world = itemTarget.world { try await installations.content.setDatapackEnabled(item, world: world, in: installations.store.storage.directory(instance.folderName), enabled: true) }

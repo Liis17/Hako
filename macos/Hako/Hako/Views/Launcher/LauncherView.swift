@@ -17,6 +17,7 @@ enum LauncherTab: Hashable {
 struct LauncherView: View {
     let account: Account?
     var onSignIn: () -> Void = {}
+    @State private var selectedResourcePack: String?
 
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(InstanceContentController.self) private var content
@@ -78,6 +79,19 @@ struct LauncherView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text(confirmation.title).font(.title2.bold())
                 Text(confirmation.message).fixedSize(horizontal: false, vertical: true)
+                if let first = confirmation.resourcePacks.first {
+                    Picker("Ресурспак", selection: Binding(
+                        get: { selectedResourcePack ?? first.id },
+                        set: { selectedResourcePack = $0 }
+                    )) {
+                        ForEach(confirmation.resourcePacks) { resource in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(resource.title)
+                                if let note = resource.note { Text(note).font(.caption).foregroundStyle(.secondary) }
+                            }.tag(resource.id)
+                        }
+                    }.pickerStyle(.radioGroup)
+                }
                 if !confirmation.projects.isEmpty {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
@@ -103,11 +117,15 @@ struct LauncherView: View {
                         Button(alternative) { content.resolveConfirmation(confirmation.id, choice: .alternative) }.buttonStyle(.glass)
                     }
                     if let action = confirmation.action {
-                        Button(action, role: confirmation.destructive ? .destructive : nil) { content.resolveConfirmation(confirmation.id, choice: .primary) }
+                        Button(action, role: confirmation.destructive ? .destructive : nil) {
+                            let resource = confirmation.resourcePacks.isEmpty ? nil : selectedResourcePack ?? confirmation.resourcePacks.first?.id
+                            content.resolveConfirmation(confirmation.id, choice: resource.map(ContentChoice.resourcePack) ?? .primary)
+                        }
                             .buttonStyle(.glassProminent).tint(.sakuraDeep).keyboardShortcut(.defaultAction)
                     }
                 }
             }.padding(28).frame(width: confirmation.alternative == nil ? 460 : 560).interactiveDismissDisabled()
+                .onChange(of: confirmation.id, initial: true) { selectedResourcePack = nil }
         }
         .alert(navigationError == nil ? "Переименовать сборку?" : "Не удалось переименовать сборку", isPresented: renamePromptPresented) {
             if navigationError != nil {

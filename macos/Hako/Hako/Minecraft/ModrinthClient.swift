@@ -60,6 +60,13 @@ nonisolated struct ModrinthVersion: Decodable, Sendable {
         let fileType: String?
         var sha1: String { hashes["sha1"]?.lowercased() ?? "" }
         var sha512: String { hashes["sha512"]?.lowercased() ?? "" }
+        var isResourcePack: Bool { ["required-resource-pack", "optional-resource-pack"].contains(fileType ?? "") }
+        func isInstallable(kind: ModrinthContentKind) -> Bool {
+            !filename.contains("/") && !filename.contains("\\") && !filename.hasPrefix(".")
+                && filename.lowercased().hasSuffix(kind.fileExtension) && url.scheme == "https" && size > 0
+                && !["sources-jar", "dev-jar", "javadoc-jar"].contains(fileType ?? "")
+                && sha1.count == 40 && sha512.count == 128 && (sha1 + sha512).allSatisfy(\.isHexDigit)
+        }
         private enum CodingKeys: String, CodingKey { case filename, url, size, hashes, primary, fileType = "file_type" }
     }
     struct Dependency: Decodable, Sendable {
@@ -89,12 +96,16 @@ nonisolated struct ModrinthVersion: Decodable, Sendable {
 
     func file(kind: ModrinthContentKind) -> File? {
         let files = files.filter { file in
-            !file.filename.contains("/") && !file.filename.contains("\\") && !file.filename.hasPrefix(".")
-                && file.filename.lowercased().hasSuffix(kind.fileExtension) && file.url.scheme == "https" && file.size > 0
-                && !["sources-jar", "dev-jar", "javadoc-jar"].contains(file.fileType ?? "")
-                && file.sha1.count == 40 && file.sha512.count == 128 && (file.sha1 + file.sha512).allSatisfy(\.isHexDigit)
+            file.isInstallable(kind: kind) && (kind != .datapack || !file.isResourcePack)
         }
         return files.first(where: \.primary) ?? files.first
+    }
+
+    var resourcePacks: [File] {
+        files.filter { $0.isResourcePack && $0.isInstallable(kind: .resourcePack) }.sorted {
+            if $0.fileType != $1.fileType { return $0.fileType == "required-resource-pack" }
+            return $0.filename < $1.filename
+        }
     }
 }
 
