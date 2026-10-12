@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct InstanceWorldsView: View {
     let instance: GameInstance
@@ -20,6 +21,14 @@ struct InstanceWorldsView: View {
                 Text("Миры").font(.title3.weight(.semibold))
                 if !worlds.isEmpty { Text(worlds.count, format: .number).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
                 Spacer()
+                Button("Открыть папку", systemImage: "folder") {
+                    do {
+                        let root = try content.installations.store.storage.directory(instance.folderName)
+                        let folder = try InstanceStorage.containedURL("minecraft/saves", in: root)
+                        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                        NSWorkspace.shared.open(folder)
+                    } catch { content.errors[instance.id] = error.localizedDescription }
+                }.buttonStyle(.glass)
                 Button("Обновить", systemImage: "arrow.clockwise") { Task { await reload() } }
                     .buttonStyle(.glass).disabled(loading)
             }
@@ -85,8 +94,11 @@ private struct InstanceWorldRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
     @State private var loading = false
+    @State private var importing = false
+    @State private var dropTargeted = false
 
     private var items: [InstanceContentItem] { content.datapacks[instance.id]?[world.id] ?? [] }
+    private var target: ModrinthInstallTarget { .worldDatapacks(world.id) }
     private var blockedReason: String? { content.worldBlockedReason(instance) }
     private var message: String? { content.worldInstallMessages[instance.id]?[world.id] }
 
@@ -111,7 +123,7 @@ private struct InstanceWorldRow: View {
                 VStack(alignment: .trailing, spacing: 12) {
                     Button(action: showMenu) { Image(systemName: "ellipsis").foregroundStyle(.primary).frame(width: 24, height: 24) }
                         .buttonStyle(.glass).fixedSize()
-                        .disabled(blockedReason != nil).help(blockedReason ?? String(appLocalized: "Действия с миром"))
+                        .help("Действия с миром")
                         .accessibilityLabel("Действия с миром «\(world.name)»")
                     if let size = world.size { Text(size, format: .byteCount(style: .file)).font(.callout.monospacedDigit()).foregroundStyle(.secondary) }
                     else { Text("Размер недоступен").font(.caption).foregroundStyle(.secondary) }
@@ -126,9 +138,35 @@ private struct InstanceWorldRow: View {
                     Text("Датапаки").font(.headline)
                     if !items.isEmpty { Text(items.count, format: .number).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
                     Spacer()
-                    Button("Добавить датапак", systemImage: "plus", action: onDatapacks).buttonStyle(.glass)
+                    Button("Modrinth", systemImage: ModSource.modrinth.symbol, action: onDatapacks).buttonStyle(.glass)
                         .accessibilityLabel("Добавить датапак в мир «\(world.name)»")
+                    Button("Добавить…", systemImage: "plus") { importing = true }
+                        .buttonStyle(.glass).disabled(blockedReason != nil)
                 }
+                HStack {
+                    Button("Проверить обновления", systemImage: "arrow.clockwise") {
+                        Task { await reloadPacks() }
+                    }.buttonStyle(.glass).disabled(loading || content.isCheckingUpdates(instance, target: target))
+                    if content.hasUpdates(instance, target: target) {
+                        Button("Обновить все", systemImage: "arrow.down.circle") { content.updateAll(instance, target: target) }
+                            .buttonStyle(.glass).disabled(blockedReason != nil)
+                            .help("Обновить все датапаки этого мира")
+                    }
+                }
+                VStack(spacing: 8) {
+                    Image(systemName: "square.and.arrow.down").font(.title2).foregroundStyle(Color.sakuraDeep)
+                    Text("Перетащите ZIP-архивы датапаков").font(.callout.weight(.medium))
+                    Text("Файлы будут скопированы в этот мир.").font(.caption).foregroundStyle(.secondary)
+                    Text("Также можно добавить папку датапака через кнопку «Добавить».").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity).padding(22)
+                .background(dropTargeted ? Color.sakuraDeep.opacity(0.12) : .white.opacity(0.25), in: .rect(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(dropTargeted ? Color.sakuraDeep : .secondary.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])) }
+                .opacity(blockedReason == nil ? 1 : 0.6)
+                .onDrop(of: [UTType.fileURL.identifier], isTargeted: $dropTargeted, perform: receiveDrop)
+                if content.installations.contentBusy.contains(instance.id) { ProgressView("Обрабатываем файлы…").font(.callout) }
+                if content.isCheckingUpdates(instance, target: target) { ProgressView("Проверяем обновления…").font(.caption) }
+                if let message = content.updateMessage(instance, target: target) { Text(message).font(.caption).foregroundStyle(.secondary) }
                 if loading && items.isEmpty { ProgressView("Читаем датапаки…").frame(maxWidth: .infinity).padding(.vertical, 12) }
                 else if items.isEmpty { Text("В этом мире пока нет датапаков.").font(.callout).foregroundStyle(.secondary).padding(.vertical, 8) }
                 ForEach(items) { item in
@@ -136,12 +174,29 @@ private struct InstanceWorldRow: View {
                         InstanceFileIcon(item: item, mods: false)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(item.name).font(.callout.weight(.medium)).lineLimit(2)
-                            Text(item.enabled ? "Включён" : "Отключён").font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                Label(item.source.title, systemImage: item.source.symbol).font(.caption)
+                                if let version = item.origin?.versionNumber { Text(version).font(.caption).foregroundStyle(.secondary) }
+                                Text(item.enabled ? "Включён" : "Отключён").font(.caption).foregroundStyle(.secondary)
+                            }
                         }
                         Spacer()
+                        if let update = content.modrinthUpdate(for: item, in: instance, target: target) {
+                            if content.catalogInstalling[instance.id] == update.projectID && content.catalogInstallTargets[instance.id] == target {
+                                ProgressView().controlSize(.small).frame(width: 24)
+                            } else {
+                                Button { content.updateFromModrinth(item, in: instance, target: target) } label: {
+                                    Image(systemName: "arrow.down.circle.fill").font(.title2).foregroundStyle(.orange)
+                                }.buttonStyle(.plain).disabled(blockedReason != nil)
+                                    .help("Обновить до \(update.version.number)").accessibilityLabel("Обновить \(item.name)")
+                            }
+                        }
                         Toggle("Включён", isOn: Binding(get: { item.enabled }, set: { content.setDatapackEnabled(item, world: world.id, in: instance, enabled: $0) }))
                             .toggleStyle(.switch).labelsHidden().disabled(blockedReason != nil)
                             .accessibilityLabel("Включить датапак «\(item.name)»")
+                        Button { showDatapackMenu(item) } label: { Image(systemName: "ellipsis").frame(width: 24, height: 24) }
+                            .buttonStyle(.glass).fixedSize().help("Действия с файлом")
+                            .accessibilityLabel("Действия с датапаком «\(item.name)»")
                     }
                     .padding(10)
                     .background(.white.opacity(0.3), in: .rect(cornerRadius: 10))
@@ -155,21 +210,60 @@ private struct InstanceWorldRow: View {
         .background(.white.opacity(0.45), in: .rect(cornerRadius: 14))
         .task(id: "\(expanded):\(refreshID)") { if expanded { await reloadPacks() } }
         .onChange(of: scenePhase) { _, phase in if phase == .active && expanded { Task { await reloadPacks() } } }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.zip, .folder], allowsMultipleSelection: true) { result in
+            do { content.importFiles(try result.get(), into: instance, target: target) }
+            catch { content.errors[instance.id] = error.localizedDescription }
+        }
     }
 
     private func reloadPacks() async {
         loading = true
         await content.reload(instance, target: .worldDatapacks(world.id), clearError: false)
+        await content.checkAllUpdates(instance, target: target)
         loading = false
     }
 
     private func showMenu() {
         let menu = NSMenu(); menu.autoenablesItems = false
-        menu.addItem(ClosureMenuItem(String(appLocalized: "Сделать копию"), systemImage: "doc.on.doc") { content.manageWorld(world, in: instance, action: .duplicate) })
-        menu.addItem(ClosureMenuItem(String(appLocalized: "Создать резервную копию"), systemImage: "archivebox") { content.manageWorld(world, in: instance, action: .backup) })
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Открыть в Finder"), systemImage: "folder") {
+            do {
+                let root = try content.installations.store.storage.directory(instance.folderName)
+                NSWorkspace.shared.open(try InstanceWorlds.worldFolder(world: world.id, in: root))
+            } catch { content.errors[instance.id] = error.localizedDescription }
+        })
         menu.addItem(.separator())
-        menu.addItem(ClosureMenuItem(String(appLocalized: "Удалить мир…"), systemImage: "trash") { content.manageWorld(world, in: instance, action: .delete) })
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Сделать копию"), systemImage: "doc.on.doc", enabled: blockedReason == nil) { content.manageWorld(world, in: instance, action: .duplicate) })
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Создать резервную копию"), systemImage: "archivebox", enabled: blockedReason == nil) { content.manageWorld(world, in: instance, action: .backup) })
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Удалить мир…"), systemImage: "trash", enabled: blockedReason == nil) { content.manageWorld(world, in: instance, action: .delete) })
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private func showDatapackMenu(_ item: InstanceContentItem) {
+        let menu = NSMenu(); menu.autoenablesItems = false
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Показать в Finder"), systemImage: "folder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) })
+        if let origin = item.origin {
+            menu.addItem(ClosureMenuItem(String(appLocalized: "Открыть страницу на \(origin.source.title)"), systemImage: "arrow.up.right.square") { NSWorkspace.shared.open(origin.pageURL) })
+        }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    private func receiveDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard blockedReason == nil else { return false }
+        Task {
+            var urls: [URL] = []
+            for provider in providers {
+                let url: URL? = await withCheckedContinuation { continuation in
+                    provider.loadObject(ofClass: NSURL.self) { item, _ in
+                        continuation.resume(returning: (item as? NSURL).map { $0 as URL })
+                    }
+                }
+                if let url { urls.append(url) }
+            }
+            if urls.isEmpty { content.errors[instance.id] = String(appLocalized: "Не удалось прочитать перетаскиваемые файлы.") }
+            else { content.importFiles(urls, into: instance, target: target) }
+        }
+        return true
     }
 
     private var header: some View {

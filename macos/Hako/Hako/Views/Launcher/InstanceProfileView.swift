@@ -420,14 +420,12 @@ private struct InstanceFilesView: View {
                     InstanceFileIcon(item: item, mods: mods)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(item.logicalName).lineLimit(2).textSelection(.enabled).foregroundStyle(item.enabled ? .primary : .secondary)
-                        if mods {
-                            HStack(spacing: 8) {
-                                Label(item.source.title, systemImage: item.source.symbol).font(.caption).padding(.horizontal, 7).padding(.vertical, 3)
-                                    .background(.white.opacity(0.6), in: Capsule())
-                                if let api = item.origin?.api { Text(api.version).font(.caption).foregroundStyle(.secondary) }
-                                if item.source == .local && content.modrinthUpdate(for: item, in: instance, mods: mods) == nil { Text("Обновляется вручную").font(.caption).foregroundStyle(.secondary) }
-                                if !item.enabled { Text("Отключён").font(.caption).foregroundStyle(.secondary) }
-                            }
+                        HStack(spacing: 8) {
+                            Label(item.source.title, systemImage: item.source.symbol).font(.caption).padding(.horizontal, 7).padding(.vertical, 3)
+                                .background(.white.opacity(0.6), in: Capsule())
+                            if let version = item.origin?.versionNumber ?? item.origin?.api?.version { Text(version).font(.caption).foregroundStyle(.secondary) }
+                            if item.source == .local && content.modrinthUpdate(for: item, in: instance, mods: mods) == nil { Text("Обновляется вручную").font(.caption).foregroundStyle(.secondary) }
+                            if !item.enabled { Text("Отключён").font(.caption).foregroundStyle(.secondary) }
                         }
                     }
                     Spacer(minLength: 8)
@@ -496,7 +494,12 @@ struct InstanceFileIcon: View {
     var body: some View {
         Group {
             if let image { Image(nsImage: image).resizable().scaledToFit() }
-            else { Image(systemName: mods ? "puzzlepiece.extension.fill" : "photo.fill").font(.title2).foregroundStyle(Color.sakuraDeep) }
+            else if let url = item.origin?.iconURL {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image { image.resizable().scaledToFit() }
+                    else { placeholder }
+                }
+            } else { placeholder }
         }
         .frame(width: 40, height: 40)
         .background(.white.opacity(0.35), in: .rect(cornerRadius: 8))
@@ -508,5 +511,9 @@ struct InstanceFileIcon: View {
             let data = try? await (mods ? content.installations.content.modIconData(item) : content.installations.content.packIconData(item))
             if let data, !Task.isCancelled { image = NSImage(data: data) }
         }
+    }
+
+    private var placeholder: some View {
+        Image(systemName: mods ? "puzzlepiece.extension.fill" : "photo.fill").font(.title2).foregroundStyle(Color.sakuraDeep)
     }
 }

@@ -1,6 +1,182 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "Не удалось прочитать реестр происхождения содержимого. Источники и обновления недоступны: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the content origin registry. Sources and updates are unavailable: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать реестр происхождения содержимого. Источники и обновления недоступны: %@"
+          }
+        }
+      }
+    },
+    "Хеш файла не совпадает с происхождением Modrinth." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file hash does not match its Modrinth origin."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Хеш файла не совпадает с происхождением Modrinth."
+          }
+        }
+      }
+    },
+    "В датапаке нет корректного pack.mcmeta." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The data pack does not contain a valid pack.mcmeta."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В датапаке нет корректного pack.mcmeta."
+          }
+        }
+      }
+    },
+    "Выберите ZIP-файл или папку датапака." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a data pack ZIP file or folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите ZIP-файл или папку датапака."
+          }
+        }
+      }
+    },
+    "Реестр происхождения содержимого не может быть ссылкой." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The content origin registry cannot be a symbolic link."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Реестр происхождения содержимого не может быть ссылкой."
+          }
+        }
+      }
+    },
+    "Также можно добавить папку датапака через кнопку «Добавить»." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can also add a data pack folder using the Add button."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Также можно добавить папку датапака через кнопку «Добавить»."
+          }
+        }
+      }
+    },
+    "Открыть в Finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Finder"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть в Finder"
+          }
+        }
+      }
+    },
+    "Действия с датапаком «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actions for data pack “%@”"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Действия с датапаком «%@»"
+          }
+        }
+      }
+    },
+    "Обновить все датапаки этого мира" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update all data packs in this world"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить все датапаки этого мира"
+          }
+        }
+      }
+    },
+    "Перетащите ZIP-архивы датапаков" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop data pack ZIP archives here"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перетащите ZIP-архивы датапаков"
+          }
+        }
+      }
+    },
+    "Файлы будут скопированы в этот мир." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files will be copied into this world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлы будут скопированы в этот мир."
+          }
+        }
+      }
+    },
     "" : {
 
     },
