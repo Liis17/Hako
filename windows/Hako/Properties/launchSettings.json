@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Hako (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Hako (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
