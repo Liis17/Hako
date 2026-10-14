@@ -67,7 +67,7 @@ nonisolated struct AppRelease: Decodable, Equatable, Sendable {
     /// CI создаёт релиз на коммите сборки; SHA используется для подтверждения происхождения и установки.
     let commit: String
     let tagName: String
-    let name: String
+    let name: String?
     let publishedAt: Date?
     let pageURL: URL
     let draft: Bool
@@ -164,12 +164,20 @@ nonisolated struct AppReleaseClient: Sendable {
             let value = String(target).trimmingCharacters(in: .whitespacesAndNewlines)
             guard value.hasPrefix("<"), value.hasSuffix(">"),
                   let url = URL(string: String(value.dropFirst().dropLast()), relativeTo: currentURL)?.absoluteURL,
-                  url.scheme == "https", url.host == "api.github.com", url.path == Self.releasesURL.path else {
+                  url.scheme == "https", url.host == "api.github.com", isReleasesPath(url.path) else {
                 throw MojangError.invalid(String(appLocalized: "Некорректный ответ GitHub."))
             }
             return url
         }
         return nil
+    }
+
+    /// GitHub даёт ссылки на следующие страницы в виде `/repositories/<id>/releases`.
+    private static func isReleasesPath(_ path: String) -> Bool {
+        if path == releasesURL.path { return true }
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts[0].isEmpty && parts[1] == "repositories" && parts[3] == "releases"
+            && !parts[2].isEmpty && parts[2].utf8.allSatisfy { (48...57).contains($0) }
     }
 
     private static func isNextRelation(_ attribute: Substring) -> Bool {

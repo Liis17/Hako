@@ -6,7 +6,7 @@ import Testing
 @Suite(.serialized) @MainActor struct AppUpdateTests {
     private static let commit = "899eced977c249d1029dee13b7bbf143def293fe"
     private static let pageOne = "api.github.com/repos/Liis17/Hako/releases?per_page=100&page=1"
-    private static let pageTwo = "api.github.com/repos/Liis17/Hako/releases?per_page=100&page=2"
+    private static let pageTwo = "api.github.com/repositories/861234567/releases?per_page=100&page=2"
     private static let dmg = Data("dmg".utf8)
 
     private static func release(
@@ -48,7 +48,7 @@ import Testing
 
     @Test func latestPaginatesAndSelectsHighestVersionAcrossUnorderedReleases() async throws {
         let session = AppUpdateTestProtocol.session(); defer { session.invalidateAndCancel() }
-        let nextPage = "<https://api.github.com/repos/Liis17/Hako/releases?per_page=100&page=2>; rel=\"next\", <https://api.github.com/repos/Liis17/Hako/releases?per_page=100&page=3>; rel=\"last\""
+        let nextPage = "<https://api.github.com/repositories/861234567/releases?per_page=100&page=2>; rel=\"next\", <https://api.github.com/repositories/861234567/releases?per_page=100&page=3>; rel=\"last\""
         AppUpdateTestProtocol.prepare([
             Self.pageOne: .init(data: Self.json([
                 Self.release(version: "1.11.0", publishedAt: "2026-10-10T07:55:10Z"),
@@ -123,7 +123,7 @@ import Testing
         let client = AppReleaseClient(session: session)
 
         AppUpdateTestProtocol.prepareFailure(.notConnectedToInternet)
-        await #expect(throws: MojangError.self) { _ = try await client.latest() }
+        await #expect(throws: URLError.self) { _ = try await client.latest() }
 
         AppUpdateTestProtocol.prepare([Self.pageOne: .init(data: Data("not json".utf8))])
         await #expect(throws: MojangError.self) { _ = try await client.latest() }
@@ -140,7 +140,7 @@ import Testing
 
         let current = AppUpdateCoordinator(
             store: InstanceStore(context: container.mainContext), client: client,
-            currentCommit: Self.commit, currentVersion: "1.0.1"
+            currentCommit: String(repeating: "b", count: 40), currentVersion: "1.0.1"
         )
         await current.check()
         #expect(current.release == nil && current.lastChecked != nil && current.error == nil)
