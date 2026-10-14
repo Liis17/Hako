@@ -38,9 +38,20 @@ public sealed partial class WelcomePage : Page
         StartButton.Content = HakoStrings.Get("StartButton");
         GuestButton.Content = HakoStrings.Get("GuestButton");
         Disclaimer.Text = HakoStrings.Get("Disclaimer");
+        RefreshStartupNotice();
         _updatingLanguage = true;
         LanguageBox.SelectedIndex = _coordinator?.Language == AppLanguage.Russian ? 0 : 1;
         _updatingLanguage = false;
+    }
+
+    public void RefreshStartupNotice()
+    {
+        var key = _coordinator?.CurrentStartupNotice?.ResourceKey();
+        StartupInfoBar.IsOpen = key is not null;
+        if (key is not null)
+        {
+            StartupInfoBar.Message = HakoStrings.Get(key);
+        }
     }
 
     private async void LanguageBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -14,6 +14,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         _coordinator = coordinator;
         _coordinator.PropertyChanged += Coordinator_PropertyChanged;
+        Closed += (_, _) => _coordinator.CancelSignIn();
         HakoStrings.SetLanguage(_coordinator.Language, true);
         UpdateNavigationLabels();
         ShowScreen();
@@ -40,6 +41,16 @@ public sealed partial class MainWindow : Window
                  && ShellFrame.Content is SettingsPage currentSettingsPage)
         {
             currentSettingsPage.RefreshProfile();
+        }
+        else if (e.PropertyName == nameof(AppCoordinator.Account)
+                 && ShellFrame.Content is SettingsPage accountSettingsPage)
+        {
+            accountSettingsPage.RefreshProfile();
+        }
+        else if (e.PropertyName == nameof(AppCoordinator.CurrentStartupNotice)
+                 && FlowFrame.Content is WelcomePage welcomePage)
+        {
+            welcomePage.RefreshStartupNotice();
         }
     }
 

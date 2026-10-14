@@ -11,7 +11,11 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-        _coordinator = new AppCoordinator(new JsonUserSettingsStore(AppDataDirectory.GetLocalPath()));
+        var dataDirectory = AppDataDirectory.GetLocalPath();
+        _coordinator = new AppCoordinator(
+            new JsonUserSettingsStore(dataDirectory),
+            new AccountSessionStore(dataDirectory),
+            new MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System));
     }
 
     protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
@@ -19,14 +23,7 @@ public partial class App : Application
         _window = new MainWindow(_coordinator);
         _window.Activate();
 
-        try
-        {
-            await _coordinator.InitializeAsync();
-        }
-        catch
-        {
-            _coordinator.ShowWelcomeAfterStartupFailure();
-        }
+        await _coordinator.InitializeAsync();
     }
 
     internal static void ActivateMainWindow()

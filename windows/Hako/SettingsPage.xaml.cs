@@ -1,6 +1,7 @@
 using Hako.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Hako;
@@ -43,11 +44,44 @@ public sealed partial class SettingsPage : Page
 
     public void RefreshProfile()
     {
-        var isGuest = _coordinator?.IsGuest == true;
-        ProfileStatus.Text = HakoStrings.Get(isGuest ? "GuestProfileTitle" : "ProfileSignedOutTitle");
-        ProfileDetails.Text = HakoStrings.Get(isGuest ? "GuestProfileDetails" : "ProfileSignedOutDetails");
+        var account = _coordinator?.Account;
+        var isGuest = account is null && _coordinator?.IsGuest == true;
+        var hasAccount = account is not null;
+
+        ProfileStatus.Text = account?.Gamertag ?? HakoStrings.Get(isGuest ? "GuestProfileTitle" : "ProfileSignedOutTitle");
+        ProfileDetails.Text = isGuest
+            ? HakoStrings.Get("GuestProfileDetails")
+            : hasAccount ? string.Empty : HakoStrings.Get("ProfileSignedOutDetails");
+        ProfileDetails.Visibility = string.IsNullOrEmpty(ProfileDetails.Text) ? Visibility.Collapsed : Visibility.Visible;
+
+        ProfileEmail.Text = account?.Email ?? string.Empty;
+        ProfileEmail.Visibility = string.IsNullOrWhiteSpace(account?.Email) ? Visibility.Collapsed : Visibility.Visible;
+        XboxBadge.Text = HakoStrings.Get("XboxLabel");
+        XboxBadge.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
+
+        AccountAvatar.Source = null;
+        AccountAvatar.Visibility = Visibility.Collapsed;
+        AvatarPlaceholder.Visibility = Visibility.Visible;
+        if (Uri.TryCreate(account?.XboxAvatarUrl, UriKind.Absolute, out var avatarUri) && avatarUri.Scheme == Uri.UriSchemeHttps)
+        {
+            AccountAvatar.Source = new BitmapImage(avatarUri);
+            AccountAvatar.Visibility = Visibility.Visible;
+            AvatarPlaceholder.Visibility = Visibility.Collapsed;
+        }
+
+        MinecraftProfilePanel.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
+        if (account is not null)
+        {
+            MinecraftStatus.Text = account.MinecraftName ?? HakoStrings.Get("MinecraftNotAvailableTitle");
+            MinecraftDetails.Text = account.MinecraftName is null
+                ? HakoStrings.Get("MinecraftNotAvailableDetails")
+                : HakoStrings.Get("MinecraftProfileDetails");
+        }
+
         SignInButton.Content = HakoStrings.Get("SignInButton");
         SignInButton.Visibility = isGuest ? Visibility.Visible : Visibility.Collapsed;
+        SignOutButton.Content = HakoStrings.Get("LogoutButton");
+        SignOutButton.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void HakoStrings_LanguageChanged(object? sender, EventArgs e)
@@ -95,20 +129,65 @@ public sealed partial class SettingsPage : Page
         }
         catch
         {
-            var dialog = new ContentDialog
-            {
-                Title = HakoStrings.Get("ErrorTitle"),
-                Content = HakoStrings.Get("LanguageSaveError"),
-                CloseButtonText = HakoStrings.Get("CloseButton"),
-                XamlRoot = XamlRoot
-            };
-            await dialog.ShowAsync();
+            await ShowErrorAsync("LanguageSaveError");
         }
     }
 
     private void SignInButton_Click(object sender, RoutedEventArgs e)
     {
         _coordinator?.OpenSettings(SettingsSection.Profile);
-        _coordinator?.BeginSignIn();
+        if (_coordinator is not null)
+        {
+            _ = _coordinator.BeginSignIn();
+        }
+    }
+
+    private async void SignOutButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_coordinator is null)
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = HakoStrings.Get("LogoutTitle"),
+            Content = HakoStrings.Get("LogoutMessage"),
+            PrimaryButtonText = HakoStrings.Get("LogoutConfirm"),
+            CloseButtonText = HakoStrings.Get("CancelButton"),
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            await _coordinator.LogoutAsync();
+        }
+        catch (Exception exception) when (exception is AccountStoreException or IOException or UnauthorizedAccessException)
+        {
+            await ShowErrorAsync("LogoutFailed");
+        }
+    }
+
+    private async Task ShowErrorAsync(string resourceKey)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = HakoStrings.Get("ErrorTitle"),
+            Content = HakoStrings.Get(resourceKey),
+            CloseButtonText = HakoStrings.Get("CloseButton"),
+            XamlRoot = XamlRoot
+        };
+        await dialog.ShowAsync();
+    }
+
+    private void AccountAvatar_ImageFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        AccountAvatar.Visibility = Visibility.Collapsed;
+        AvatarPlaceholder.Visibility = Visibility.Visible;
     }
 }

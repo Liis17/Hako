@@ -12,6 +12,7 @@
             <StackPanel MaxWidth="680" Spacing="20" VerticalAlignment="Center">
                 <TextBlock x:Name="WelcomeTitle" FontSize="44" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <TextBlock x:Name="WelcomeSubtitle" FontSize="22" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <InfoBar x:Name="StartupInfoBar" IsOpen="False" Severity="Warning" />
                 <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,16,0,0">
                     <Button x:Name="StartButton" Style="{ThemeResource AccentButtonStyle}" Click="StartButton_Click" />
                     <Button x:Name="GuestButton" Click="GuestButton_Click" />

@@ -4,10 +4,37 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid Padding="32" RowDefinitions="Auto,*">
         <Button x:Name="BackButton" Grid.Row="0" HorizontalAlignment="Left" Click="BackButton_Click" />
-        <StackPanel Grid.Row="1" MaxWidth="680" Spacing="20" VerticalAlignment="Center">
-            <TextBlock x:Name="LoginTitle" FontSize="36" FontWeight="SemiBold" TextWrapping="Wrap" />
-            <ProgressRing IsActive="True" Width="32" Height="32" />
-            <TextBlock x:Name="LoginStatus" FontSize="18" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-        </StackPanel>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="720" Spacing="20" VerticalAlignment="Center" Margin="0,24,0,0">
+                <TextBlock x:Name="LoginTitle" FontSize="36" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="LoginInstructions" FontSize="18" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <InfoBar x:Name="LoginNotice" IsOpen="False" Severity="Warning" />
+
+                <StackPanel x:Name="RequestingPanel" Visibility="Collapsed" Spacing="12">
+                    <ProgressRing IsActive="True" Width="32" Height="32" />
+                    <TextBlock x:Name="RequestingText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <StackPanel x:Name="WaitingPanel" Visibility="Collapsed" Spacing="18">
+                    <TextBlock x:Name="UserCodeText" FontFamily="Consolas" FontSize="46" FontWeight="Bold" IsTextSelectionEnabled="True" />
+                    <TextBlock x:Name="VerificationUriText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button x:Name="OpenVerificationButton" Style="{ThemeResource AccentButtonStyle}" Click="OpenVerificationButton_Click" />
+                        <Button x:Name="CopyCodeButton" Click="CopyCodeButton_Click" />
+                    </StackPanel>
+                    <TextBlock x:Name="WaitingText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <StackPanel x:Name="SigningInPanel" Visibility="Collapsed" Spacing="12">
+                    <ProgressRing IsActive="True" Width="32" Height="32" />
+                    <TextBlock x:Name="SigningInText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel x:Name="FailedPanel" Visibility="Collapsed" Spacing="16">
+                    <TextBlock x:Name="FailureText" FontSize="18" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" />
+                    <Button x:Name="RetryButton" Style="{ThemeResource AccentButtonStyle}" Click="RetryButton_Click" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Page>

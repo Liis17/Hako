@@ -36,10 +36,28 @@
                     <StackPanel x:Name="ProfilePanel" Visibility="Collapsed" Spacing="16">
                         <TextBlock x:Name="ProfileTitle" FontSize="24" FontWeight="SemiBold" />
                         <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                            <StackPanel Spacing="12">
-                                <TextBlock x:Name="ProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <StackPanel Spacing="16">
+                                <Grid ColumnDefinitions="64,*">
+                                    <Grid Width="56" Height="56">
+                                        <Ellipse Fill="{ThemeResource ControlFillColorSecondaryBrush}" />
+                                        <FontIcon x:Name="AvatarPlaceholder" Glyph="&#xE77B;" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image x:Name="AccountAvatar" Width="56" Height="56" Visibility="Collapsed" ImageFailed="AccountAvatar_ImageFailed" />
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                                        <TextBlock x:Name="ProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="ProfileEmail" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                        <TextBlock x:Name="XboxBadge" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Grid>
                                 <TextBlock x:Name="ProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                <Button x:Name="SignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
+                                <StackPanel x:Name="MinecraftProfilePanel" Visibility="Collapsed" Spacing="6">
+                                    <TextBlock x:Name="MinecraftStatus" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="MinecraftDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <Button x:Name="SignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
+                                    <Button x:Name="SignOutButton" HorizontalAlignment="Left" Click="SignOutButton_Click" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
