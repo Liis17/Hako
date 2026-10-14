@@ -282,8 +282,9 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   ставит `StartupNotice.PreferencesUnavailable` и берёт язык по умолчанию (`AppLanguages.Default`).
 - `SaveAsync`: запись в `settings.json.<guid>.tmp`, затем `File.Move(..., true)`; временный файл удаляется в `finally`.
 - `SetLanguageAsync` сразу меняет `Language`. Сохранения идут по одному (`_languageSaveGate`) и пишут текущий `Language`,
-  поэтому побеждает последний выбор. При ошибке записи язык откатывается, только если за это время не было нового выбора
-  (`_languageSelection`); исключение пробрасывается, UI показывает `LanguageSaveError`.
+  поэтому побеждает последний выбор. При ошибке записи язык откатывается к `_savedLanguage` (последнему успешно сохранённому
+  или загруженному при старте), только если за это время не было нового выбора (`_languageSelection`); исключение пробрасывается,
+  UI показывает `LanguageSaveError`.
 
 ### Каталог данных
 

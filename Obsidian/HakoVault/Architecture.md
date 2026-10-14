@@ -257,7 +257,8 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
    затем `AppInstance.FindOrRegisterForKey("Hako.Main")`. Если экземпляр не текущий, `RedirectActivationTo` запускает
    `RedirectActivationToAsync` в `Task.Run`, а STA-поток ждёт его в `CoWaitForMultipleObjects`, продолжая обрабатывать
    сообщения: блокирующий `Wait()` может зависнуть, пока целевой экземпляр обрабатывает активацию. Затем перенаправляющий
-   процесс вызывает `SetForegroundWindow` для главного окна целевого процесса и выходит. Текущий экземпляр при повторной
+   процесс вызывает `SetForegroundWindow` для главного окна целевого процесса и выходит. Сбой этого шага (например, целевой
+   процесс уже завершился) игнорируется: второй экземпляр просто выходит. Текущий экземпляр при повторной
    активации вызывает `App.ActivateMainWindow` через `DispatcherQueue`: разворачивает свёрнутое окно
    (`OverlappedPresenter.Restore`), затем вызывает `AppWindow.Show()` и `Activate()`. Один экземпляр — решение пользователя.
 2. `App()` создаёт `AppCoordinator` с `JsonUserSettingsStore`, `AccountSessionStore` и
