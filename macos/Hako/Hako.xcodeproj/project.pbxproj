@@ -135,6 +135,7 @@
 		F7F1000000000000000000B1 /* Hako/Updates/AppRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Updates/AppRelease.swift; sourceTree = SOURCE_ROOT; };
 		F7F1000000000000000000B2 /* Hako/Updates/AppUpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Updates/AppUpdateInstaller.swift; sourceTree = SOURCE_ROOT; };
 		F7F1000000000000000000B3 /* Hako/Updates/AppUpdateCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Updates/AppUpdateCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		F7F3000000000000000000C1 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -177,6 +178,7 @@
 		233ED7CE3072CD6700E6B7EC = {
 			isa = PBXGroup;
 			children = (
+				F7F3000000000000000000C1 /* Version.xcconfig */,
 				233ED7D93072CD6700E6B7EC /* Hako */,
 				F7A000000000000000000037 /* HakoPlaytimeHelper */,
 				BF55C192E7034A1EA2164A18 /* HakoTests */,
@@ -586,12 +588,12 @@
 		};
 		233ED7E53072CD6800E6B7EC /* Debug configuration for PBXNativeTarget "Hako" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F7F3000000000000000000C1 /* Version.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Y935NYUP9;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -606,7 +608,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Launcher.Hako;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -621,12 +622,12 @@
 		};
 		233ED7E63072CD6800E6B7EC /* Release configuration for PBXNativeTarget "Hako" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F7F3000000000000000000C1 /* Version.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9Y935NYUP9;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -641,7 +642,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Launcher.Hako;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
