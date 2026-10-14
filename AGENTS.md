@@ -10,9 +10,9 @@
 Скриншоты сборки показываются сеткой: их можно перетащить в Finder копией, открыть в Quick Look и удалить в корзину.
 Время игры учитывается по аккаунтам и сборкам, включая работу при закрытом лаунчере; гостевая статистика переносится при входе.
 Интерфейс на русском и английском: язык выбирается на приветствии и в настройках и меняется без перезапуска.
-Hako проверяет обновления в GitHub Releases (`nightly`) и сам устанавливает новую версию с перезапуском.
+CI публикует независимые стабильные релизы `macos-vX.Y.Z` и `windows-vX.Y.Z`, только когда повышается версия соответствующей платформы. macOS-клиент автоматически получает обновления из стабильных macOS-релизов; прежние клиенты `nightly` переходят на них вручную.
 Проект Xcode: `macos/Hako/Hako.xcodeproj`, исходники: `macos/Hako/Hako/`.
-Windows-клиент на WinUI 3 (.NET 8) находится в `windows/` и на первом этапе паритета с macOS: приветствие, вход в Microsoft, настройки и выход. Проекты: `windows/Hako/Hako.csproj`, логика `windows/Hako.Core/`, тесты `windows/Hako.Tests/`.
+Windows-клиент на WinUI 3 (.NET 8) находится в `windows/` и на первом этапе паритета с macOS: приветствие, вход в Microsoft, настройки «Основные» и «Профиль», выход; сборок и запуска игры пока нет. Проекты: `windows/Hako/Hako.csproj`, логика `windows/Hako.Core/`, тесты `windows/Hako.Tests/`.
 
 <!-- obsidian:start -->
 ## База знаний — Obsidian
@@ -24,7 +24,7 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 |------|------------|
 | `Obsidian/HakoVault/Index.md` | Навигация по базе знаний |
 | `Obsidian/HakoVault/Architecture.md` | Архитектура, конфигурация сборки, основные потоки и ограничения |
-| `Obsidian/HakoVault/App/Updates.md` | Обновления Hako: релиз `nightly`, `HakoCommit`, проверка, загрузка DMG и замена бандла |
+| `Obsidian/HakoVault/App/Updates.md` | Обновления macOS-клиента: стабильные версии, `HakoCommit`, проверка, загрузка DMG и замена бандла |
 | `Obsidian/HakoVault/Data/Persistence.md` | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; токены, параметры и папки сборок |
 | `Obsidian/HakoVault/Data/Backups.md` | Резервные копии `.hakobackup` и `.hakoworld`: состав архивов и схема `data.json` для восстановления |
 | `Obsidian/HakoVault/Minecraft/Installation.md` | Официальный каталог Mojang, совместимость, независимая установка Minecraft и Java |

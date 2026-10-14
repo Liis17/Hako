@@ -7,10 +7,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x86;x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
-    <PublishProfile>win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
     <Nullable>enable</Nullable>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
@@ -63,4 +63,19 @@
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
   </PropertyGroup>
+
+  <Target Name="SetAssemblyVersionsFromPackageManifest" BeforeTargets="GetAssemblyVersion">
+    <XmlPeek XmlInputPath="$(MSBuildProjectDirectory)\Package.appxmanifest"
+             Query="/*[local-name()='Package']/*[local-name()='Identity']/@Version">
+      <Output TaskParameter="Result" ItemName="_PackageManifestVersion" />
+    </XmlPeek>
+    <Error Condition="'@(_PackageManifestVersion)' == ''"
+           Text="Package.appxmanifest must define Identity Version." />
+    <PropertyGroup>
+      <Version>@(_PackageManifestVersion)</Version>
+      <AssemblyVersion>@(_PackageManifestVersion)</AssemblyVersion>
+      <FileVersion>@(_PackageManifestVersion)</FileVersion>
+      <InformationalVersion>@(_PackageManifestVersion)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
 </Project>

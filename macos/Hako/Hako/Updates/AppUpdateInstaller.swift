@@ -9,6 +9,23 @@ nonisolated enum AppUpdateInstaller {
         (bundle.object(forInfoDictionaryKey: commitKey) as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    static func validate(bundleInfo: [String: Any], expectedBundleIdentifier: String?, release: AppRelease) throws {
+        let matchesVersion: Bool
+        if let installed = bundleInfo["CFBundleShortVersionString"] as? String,
+           let installedVersion = AppReleaseVersion.parse(installed),
+           let releaseVersion = release.version.flatMap({ AppReleaseVersion.parse($0) }) {
+            matchesVersion = installedVersion == releaseVersion
+        } else {
+            matchesVersion = false
+        }
+        guard let expectedBundleIdentifier,
+              bundleInfo["CFBundleIdentifier"] as? String == expectedBundleIdentifier,
+              bundleInfo[commitKey] as? String == release.commit,
+              matchesVersion else {
+            throw MojangError.invalid(String(appLocalized: "Загруженное обновление не подходит для этой копии Hako."))
+        }
+    }
+
     /// Проверяется до загрузки: без записи в папку приложения замену не выполнить.
     static func preflight(_ app: URL) throws {
         guard !app.path.contains("/AppTranslocation/"), FileManager.default.isWritableFile(atPath: app.deletingLastPathComponent().path) else {
@@ -29,10 +46,8 @@ nonisolated enum AppUpdateInstaller {
         try? await run("/usr/bin/hdiutil", ["detach", "-force", mount.path])
         try copied.get()
 
-        let info = NSDictionary(contentsOf: copy.appendingPathComponent("Contents/Info.plist"))
-        guard info?["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier, info?[commitKey] as? String == release.commit else {
-            throw MojangError.invalid(String(appLocalized: "Загруженное обновление не подходит для этой копии Hako."))
-        }
+        let info = NSDictionary(contentsOf: copy.appendingPathComponent("Contents/Info.plist")) as? [String: Any] ?? [:]
+        try validate(bundleInfo: info, expectedBundleIdentifier: Bundle.main.bundleIdentifier, release: release)
         try await run("/usr/bin/codesign", ["--verify", "--deep", "--strict", copy.path])
         _ = try manager.replaceItemAt(app, withItemAt: copy)
     }

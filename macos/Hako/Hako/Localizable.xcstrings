@@ -5634,22 +5634,6 @@
         }
       }
     },
-    "Новая версия Hako сейчас публикуется. Повторите проверку через несколько минут." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A new Hako version is being published right now. Check again in a few minutes."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Новая версия Hako сейчас публикуется. Повторите проверку через несколько минут."
-          }
-        }
-      }
-    },
     "Новая сборка" : {
       "localizations" : {
         "en" : {

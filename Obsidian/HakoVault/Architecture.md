@@ -43,7 +43,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 | `macos/Hako/HakoTests/` | Swift Testing: скины, хранение и миграция сборок, метаданные Mojang, установка, параметры и процессы запуска, сессии, игровое время, импорт текстурпаков и каталог Modrinth |
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
-| `windows/Hako/` | Windows-клиент: WinUI 3-приложение, страницы, `MainWindow`, точка входа, ресурсы `.resw`, решение `Hako.slnx` |
+| `windows/Hako/` | Windows-клиент: WinUI 3-приложение, конфигурация пакета MSIX, страницы, `MainWindow`, точка входа, ресурсы `.resw`, решение `Hako.slnx` |
 | `windows/Hako.Core/` | Логика Windows-клиента без WinUI: вход Microsoft, хранение аккаунта и настроек, язык |
 | `windows/Hako.Tests/` | MSTest-тесты `Hako.Core` и ресурсов Windows-клиента |
 | `Obsidian/HakoVault/` | Эта база знаний |
@@ -63,7 +63,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 - [[Minecraft/Launching]] — построение аргументов, проверка Java, процессы и восстановление игр.
 - [[Minecraft/Worlds]] — локальные сохранения, чтение gzip/NBT через системный zlib, копирование, корзина и управление датапаками; `.hakoworld` описан в [[Data/Backups]].
 - [[Minecraft/Modrinth]] — каталог модов, ресурспаков и датапаков мира, зависимости и проверка загрузок.
-- [[App/Updates]] — проверка релиза `nightly`, загрузка DMG, замена бандла и перезапуск.
+- [[App/Updates]] — проверка стабильных macOS-релизов, загрузка DMG, замена бандла и перезапуск.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/SystemIntegration]] — единые сервисы и быстрый запуск сборок из Dock, Spotlight и Siri.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
@@ -129,6 +129,8 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 - Info.plist генерируется (`GENERATE_INFOPLIST_FILE = YES`); ключи задаются через
   `INFOPLIST_KEY_*` в настройках таргета. Частичный `macos/Hako/Hako-Info.plist` (`INFOPLIST_FILE`) добавляет
   `HakoCommit = $(HAKO_COMMIT)` — коммит сборки для обновлений ([[App/Updates]]).
+- `macos/Hako/Version.xcconfig` — источник `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` для конфигураций `Debug` и `Release` таргета `Hako`.
+- В `windows/Hako/Package.appxmanifest` версия пакета `Identity.Version` имеет вид `X.Y.Z.0`; `windows/Hako/Hako.csproj` получает из неё `AssemblyVersion`, `FileVersion` и `InformationalVersion` через `XmlPeek` перед `GetAssemblyVersion`.
 - `macos/Hako/Hako/PrivacyInfo.xcprivacy` включён в ресурсы приложения и объявляет использование
   `UserDefaults` для собственных настроек (`CA92.1`) и API ёмкости диска для отображения места (`85F4.1`).
   System Boot Time (`35F9.1`) используется для длительностей игры без учёта системного сна.
@@ -158,13 +160,21 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 
 `xcuserdata/` исключён в `.gitignore`.
 
-CI: `.github/workflows/release.yml` на каждый пуш в `main` собирает Release на раннере GitHub `xcode-27`
-(preview-образ macOS 27 с Xcode 27) с ad-hoc подписью (`CODE_SIGN_IDENTITY=-`, без Developer ID и нотаризации),
-упаковывает `Hako.app` в `Hako.dmg` и публикует его в pre-release `nightly`: прежний релиз и тег удаляются,
-новый создаётся на текущем коммите. Сборка получает `HAKO_COMMIT=$GITHUB_SHA`, по нему приложение находит
-обновления ([[App/Updates]]). Ad-hoc подпись меняется с каждой сборкой, поэтому после обновления
-macOS может снова спросить доступ к записи токенов в Keychain.
+CI: `.github/workflows/release.yml` запускает быстрый Ubuntu-детектор на каждый push в `main`. `.github/scripts/detect_release.py`
+сравнивает `github.event.before` с текущим SHA; платформа собирается только при изменении её каталога и повышении
+числовой версии. Изменения документации, откат и изменение только номера сборки пропускают платформенную сборку.
+Стабильные релизы имеют независимые теги `macos-vX.Y.Z` и `windows-vX.Y.Z`; старые релизы сохраняются.
+Платформенные очереди не отменяют уже запущенные публикации.
 
+macOS собирается после тестов на раннере GitHub `xcode-27` (macOS 27 с Xcode 27), с ad-hoc подписью без Developer ID
+и нотаризации. CI сверяет версию и `HakoCommit=$GITHUB_SHA` в собранном `Hako.app`, создаёт `Hako.dmg`
+и публикует его в релизе `macos-vX.Y.Z` ([[App/Updates]]). Ad-hoc подпись меняется с каждой сборкой, поэтому после
+обновления macOS может снова спросить доступ к записи токенов в Keychain.
+
+Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и ARM64; каждая архитектура получает self-contained MSIX.
+Релиз подписывается SHA-256 и RFC 3161 timestamp сертификатом из секретов `WINDOWS_SIGNING_PFX_BASE64` и
+`WINDOWS_SIGNING_PFX_PASSWORD` (пустой пароль допустим). PFX и импортированный закрытый ключ удаляются после сборки;
+в релиз прикладываются обе архитектуры, публичный `Hako.cer`, нужные runtime-зависимости и инструкции установки.
 ## Ограничения и инварианты
 
 - Группа `Hako` в проекте — `PBXFileSystemSynchronizedRootGroup`: всё содержимое
@@ -272,9 +282,8 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
 
 - `EnableMsixTooling=true`, есть `Package.appxmanifest` и два профиля в `launchSettings.json`:
   `Hako (Package)` (`MsixPackage`) и `Hako (Unpackaged)` (`Project`). Тип упаковки (`WindowsPackageType`)
-  в `Hako.csproj` не задан.
+  в `Hako.csproj` не задан; CI выбирает `MSIX` для Windows-релизной сборки.
 - `PublishTrimmed` и `PublishReadyToRun` включаются для конфигураций, отличных от `Debug`.
-  `PublishProfile` ссылается на `win-$(Platform).pubxml`, но таких файлов в репозитории нет.
   Release-публикация даёт одно ожидаемое предупреждение `IL2059` в сгенерированном `XamlTypeInfo.g.cs`:
   `RunClassConstructor` для `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion`.
   У `Nullable<T>` нет статического конструктора, поэтому trimming ничего не удаляет; подавлять его глобально
@@ -286,7 +295,7 @@ dotnet build windows/Hako/Hako.csproj -c Debug -p:Platform=x64
 dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 ```
 
-- CI-сборки Windows нет: `.github/workflows/release.yml` работает на раннере `xcode-27` и не упоминает Windows.
+- Windows-релизные CI-сборки x64 и ARM64 с подписью MSIX описаны в разделе CI выше.
 
 ### Ограничения Windows-клиента
 

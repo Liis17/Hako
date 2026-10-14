@@ -5,26 +5,68 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-
-concurrency:
-  group: release-main
-  cancel-in-progress: true
+  contents: read
 
 jobs:
-  build:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      macos: ${{ steps.gate.outputs.macos }}
+      macos_version: ${{ steps.gate.outputs.macos_version }}
+      macos_tag: ${{ steps.gate.outputs.macos_tag }}
+      windows: ${{ steps.gate.outputs.windows }}
+      windows_version: ${{ steps.gate.outputs.windows_version }}
+      windows_tag: ${{ steps.gate.outputs.windows_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect release version bumps
+        id: gate
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: python3 .github/scripts/detect_release.py --before "$PUSH_BEFORE" --after "$GITHUB_SHA"
+
+  macos:
+    needs: detect
+    if: needs.detect.outputs.macos == 'true'
     runs-on: xcode-27
+    permissions:
+      contents: write
+    concurrency:
+      group: release-macos
+      cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v4
 
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Run tests
+        run: |
+          xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build-debug test \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= HAKO_COMMIT="$GITHUB_SHA"
+
       - name: Build
         run: |
           xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Release \
             -destination 'generic/platform=macOS' -derivedDataPath build build \
             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= HAKO_COMMIT="$GITHUB_SHA"
+
+      - name: Verify built app metadata
+        env:
+          EXPECTED_VERSION: ${{ needs.detect.outputs.macos_version }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          info=build/Build/Products/Release/Hako.app/Contents/Info.plist
+          actual_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info")
+          actual_commit=$(/usr/libexec/PlistBuddy -c 'Print :HakoCommit' "$info")
+          [[ "$actual_version" =~ ^[0-9]+\.[0-9]+$ ]] && actual_version="$actual_version.0"
+          [[ "$actual_version" == "$EXPECTED_VERSION" ]] || { echo "Built app version $actual_version does not match $EXPECTED_VERSION." >&2; exit 1; }
+          [[ "$actual_commit" == "$EXPECTED_COMMIT" ]] || { echo "Built app commit $actual_commit does not match $EXPECTED_COMMIT." >&2; exit 1; }
 
       - name: Create DMG
         run: |
@@ -33,11 +75,242 @@ jobs:
           ln -s /Applications dmg/Applications
           hdiutil create -volname Hako -srcfolder dmg -format UDZO -ov Hako.dmg
 
-      - name: Publish nightly release
+      - name: Publish stable macOS release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ needs.detect.outputs.macos_tag }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.macos_version }}
+          RELEASE_NOTES: |
+            Сборка macOS из коммита ${{ github.sha }}.
+
+            Приложение подписано ad-hoc, без Developer ID и нотариализации. При первом запуске разрешите его в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть» либо выполните `xattr -dr com.apple.quarantine /Applications/Hako.app`.
+        run: python3 .github/scripts/publish_release.py --tag "$RELEASE_TAG" --title "Hako macOS $RELEASE_VERSION" --notes "$RELEASE_NOTES" --asset Hako.dmg
+
+  windows:
+    needs: detect
+    if: needs.detect.outputs.windows == 'true'
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    concurrency:
+      group: release-windows
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: microsoft/setup-msbuild@v3
+        with:
+          msbuild-architecture: x64
+
+      - name: Build and sign x64 and ARM64 MSIX packages
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.windows_version }}
         run: |
-          gh release delete nightly --cleanup-tag --yes || true
-          gh release create nightly Hako.dmg --prerelease --target "$GITHUB_SHA" \
-            --title "Nightly ${GITHUB_SHA::7}" \
-            --notes "Сборка из main ${GITHUB_SHA::7}. Приложение не подписано Developer ID: при первом запуске разрешите его в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть» или выполните xattr -dr com.apple.quarantine /Applications/Hako.app."
+          $ErrorActionPreference = 'Stop'
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'hako-signing.pfx'
+          $thumbprintPath = Join-Path $env:RUNNER_TEMP 'hako-signing-thumbprint.txt'
+          $thumbprint = $null
+          try {
+            if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
+              throw 'WINDOWS_SIGNING_PFX_BASE64 is required for stable Windows releases.'
+            }
+            $pfxBytes = [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64.Trim())
+            [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+            [Array]::Clear($pfxBytes, 0, $pfxBytes.Length)
+            Remove-Item Env:WINDOWS_SIGNING_PFX_BASE64
+
+            $passwordText = $env:WINDOWS_SIGNING_PFX_PASSWORD
+            if ([string]::IsNullOrEmpty($passwordText)) {
+              $password = [Security.SecureString]::new()
+            } else {
+              $password = ConvertTo-SecureString $passwordText -AsPlainText -Force
+            }
+            $passwordText = $null
+            Remove-Item Env:WINDOWS_SIGNING_PFX_PASSWORD
+            try {
+              $certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation 'Cert:\CurrentUser\My' -Password $password
+            } finally {
+              $password.Dispose()
+            }
+            if ($null -eq $certificate -or -not $certificate.HasPrivateKey -or $certificate.Subject -cne 'CN=daske') {
+              throw 'The signing PFX must contain a private key with subject CN=daske.'
+            }
+            $thumbprint = $certificate.Thumbprint
+            Set-Content -LiteralPath $thumbprintPath -Value $thumbprint -NoNewline
+
+            $sdkLine = dotnet --list-sdks | Where-Object { $_ -match '^8\.0\.' } | Select-Object -Last 1
+            if (-not $sdkLine) { throw 'The .NET 8 SDK installed by setup-dotnet was not found.' }
+            $sdkVersion = ($sdkLine -split '\s+', 2)[0]
+            $env:MSBuildSDKsPath = Join-Path $env:ProgramFiles "dotnet\sdk\$sdkVersion\Sdks"
+            $env:MSBuildEnableWorkloadResolver = 'false'
+            if (-not (Test-Path -LiteralPath $env:MSBuildSDKsPath)) {
+              throw "The selected .NET SDK path does not exist: $env:MSBuildSDKsPath"
+            }
+
+            $manifestPath = 'windows/Hako/Package.appxmanifest'
+            [xml]$sourceManifest = Get-Content -LiteralPath $manifestPath -Raw
+            $namespaceManager = [System.Xml.XmlNamespaceManager]::new($sourceManifest.NameTable)
+            $namespaceManager.AddNamespace('a', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+            $sourceIdentity = $sourceManifest.SelectSingleNode('/a:Package/a:Identity', $namespaceManager)
+            if ($null -eq $sourceIdentity -or $sourceIdentity.Version -ne "$env:RELEASE_VERSION.0") {
+              throw 'The Windows package version does not match the release gate version.'
+            }
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            function Read-PackageManifest([string]$packagePath) {
+              $archive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
+              try {
+                $entry = $archive.GetEntry('AppxManifest.xml')
+                if ($null -eq $entry) { throw "No AppxManifest.xml in $packagePath" }
+                $stream = $entry.Open()
+                try {
+                  $packageManifest = [System.Xml.XmlDocument]::new()
+                  $packageManifest.Load($stream)
+                } finally {
+                  $stream.Dispose()
+                }
+                $identity = $packageManifest.SelectSingleNode("/*[local-name()='Package']/*[local-name()='Identity']")
+                if ($null -eq $identity) { throw "No package identity in $packagePath" }
+                [pscustomobject]@{ Path = $packagePath; Xml = $packageManifest; Identity = $identity }
+              } finally {
+                $archive.Dispose()
+              }
+            }
+
+            $windowsKits = Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Windows Kits\10\bin'
+            $signTool = Get-ChildItem -LiteralPath $windowsKits -Filter signtool.exe -File -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+              Sort-Object -Property FullName -Descending |
+              Select-Object -First 1
+            if ($null -eq $signTool) { throw 'Windows SDK signtool.exe was not found.' }
+
+            $assetRoot = Join-Path $env:RUNNER_TEMP 'hako-release-assets'
+            New-Item -ItemType Directory -Force -Path $assetRoot | Out-Null
+            $dependencyAssets = [System.Collections.Generic.List[string]]::new()
+            $architectures = @(
+              @{ Name = 'x64'; Platform = 'x64'; Rid = 'win-x64'; PackageArchitecture = 'x64' },
+              @{ Name = 'arm64'; Platform = 'ARM64'; Rid = 'win-arm64'; PackageArchitecture = 'arm64' }
+            )
+
+            foreach ($architecture in $architectures) {
+              $architectureRoot = Join-Path $env:RUNNER_TEMP "hako-build\$($architecture.Name)"
+              $packageDir = Join-Path $architectureRoot 'AppxPackages'
+              New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+
+              $msbuildArgs = @(
+                'windows/Hako/Hako.csproj', '/restore', '/t:Build', '/nologo', '/verbosity:minimal',
+                '/p:Configuration=Release', "/p:Platform=$($architecture.Platform)", "/p:RuntimeIdentifier=$($architecture.Rid)",
+                '/p:WindowsSdkPackageVersion=10.0.19041.57', '/p:WindowsPackageType=MSIX',
+                '/p:GenerateAppxPackageOnBuild=true', '/p:AppxBundle=Never', '/p:UapAppxPackageBuildMode=SideloadOnly',
+                '/p:GenerateAppInstallerFile=false', '/p:SelfContained=true', '/p:WindowsAppSDKSelfContained=true',
+                '/p:AppxPackageSigningEnabled=false', "/p:AppxPackageDir=$packageDir\"
+              )
+              & msbuild @msbuildArgs
+              if ($LASTEXITCODE -ne 0) { throw "MSBuild failed for $($architecture.Name) with exit code $LASTEXITCODE." }
+
+              $packageFiles = @(Get-ChildItem -LiteralPath $packageDir -File -Recurse | Where-Object {
+                $_.Extension -in @('.msix', '.appx')
+              })
+              $packageInfos = @($packageFiles | ForEach-Object { Read-PackageManifest $_.FullName })
+              $appPackage = @($packageInfos | Where-Object {
+                $_.Identity.Name -eq $sourceIdentity.Name -and $_.Identity.ProcessorArchitecture -eq $architecture.PackageArchitecture
+              })
+              if ($appPackage.Count -ne 1) {
+                throw "Expected one $($architecture.Name) MSIX package for identity $($sourceIdentity.Name); found $($appPackage.Count)."
+              }
+              $appPackage = $appPackage[0]
+              if ($appPackage.Identity.Publisher -cne $sourceIdentity.Publisher -or $appPackage.Identity.Version -ne $sourceIdentity.Version) {
+                throw "The $($architecture.Name) package identity or version does not match Package.appxmanifest."
+              }
+
+              $packageName = "Hako-$env:RELEASE_VERSION-windows-$($architecture.Name).msix"
+              $signedPackage = Join-Path $assetRoot $packageName
+              Copy-Item -LiteralPath $appPackage.Path -Destination $signedPackage -Force
+              & $signTool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /s My /sha1 $thumbprint $signedPackage
+              if ($LASTEXITCODE -ne 0) { throw "MSIX signing failed for $($architecture.Name)." }
+              & $signTool.FullName verify /pa /all /v /tw $signedPackage
+              if ($LASTEXITCODE -ne 0) { throw "MSIX signature or RFC 3161 timestamp verification failed for $($architecture.Name)." }
+              $signature = Get-AuthenticodeSignature -LiteralPath $signedPackage
+              if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $thumbprint -or $null -eq $signature.TimeStamperCertificate) {
+                throw "The $($architecture.Name) MSIX signature, signer or timestamp is invalid."
+              }
+
+              $dependencyNodes = @($appPackage.Xml.SelectNodes("//*[local-name()='PackageDependency']"))
+              foreach ($dependency in $dependencyNodes) {
+                $includedDependency = @($packageInfos | Where-Object {
+                  $_.Identity.Name -eq $dependency.Name -and $_.Identity.ProcessorArchitecture -in @($architecture.PackageArchitecture, 'neutral')
+                } | Select-Object -First 1)
+                if ($includedDependency.Count -ne 1) {
+                  throw "The $($architecture.Name) MSIX requires framework dependency '$($dependency.Name)' that is not included."
+                }
+                $dependencyFile = $includedDependency[0].Path
+                $dependencyName = $dependency.Name -replace '[^A-Za-z0-9.-]', '-'
+                $dependencyAsset = Join-Path $assetRoot "Hako-$env:RELEASE_VERSION-windows-$($architecture.Name)-dependency-$dependencyName$([IO.Path]::GetExtension($dependencyFile))"
+                Copy-Item -LiteralPath $dependencyFile -Destination $dependencyAsset -Force
+                $dependencyAssets.Add($dependencyAsset)
+              }
+            }
+
+            $certificatePath = Join-Path $assetRoot 'Hako.cer'
+            Export-Certificate -Cert $certificate -FilePath $certificatePath -Type CERT | Out-Null
+            "WINDOWS_ASSET_X64=$(Join-Path $assetRoot "Hako-$env:RELEASE_VERSION-windows-x64.msix")" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            "WINDOWS_ASSET_ARM64=$(Join-Path $assetRoot "Hako-$env:RELEASE_VERSION-windows-arm64.msix")" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            "WINDOWS_ASSET_CERT=$certificatePath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            "WINDOWS_DEPENDENCY_ASSETS=$($dependencyAssets -join ';')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          } finally {
+            Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
+            if ($thumbprint) {
+              Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Publish stable Windows release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ needs.detect.outputs.windows_tag }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.windows_version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notes = @"
+          Сборка Windows из коммита $env:GITHUB_SHA.
+
+          Сертификат самоподписанный. В PowerShell от имени администратора выполните `Import-Certificate -FilePath .\Hako.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople`, затем откройте MSIX для своей архитектуры. На Windows 10 до версии 2004 может потребоваться включить установку неопубликованных приложений в настройках разработчика.
+
+          Если приложены runtime-зависимости, установите их до Hako.
+          "@
+          $assetPaths = @($env:WINDOWS_ASSET_X64, $env:WINDOWS_ASSET_ARM64, $env:WINDOWS_ASSET_CERT) + @(
+            $env:WINDOWS_DEPENDENCY_ASSETS -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          )
+          $arguments = @('--tag', $env:RELEASE_TAG, '--title', "Hako Windows $env:RELEASE_VERSION", '--notes', $notes)
+          foreach ($assetPath in $assetPaths) { $arguments += @('--asset', $assetPath) }
+          python .github/scripts/publish_release.py @arguments
+          if ($LASTEXITCODE -ne 0) { throw "Windows release publication failed with exit code $LASTEXITCODE." }
+
+      - name: Remove signing material
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'hako-signing.pfx') -Force -ErrorAction SilentlyContinue
+          $thumbprintPath = Join-Path $env:RUNNER_TEMP 'hako-signing-thumbprint.txt'
+          if (Test-Path -LiteralPath $thumbprintPath) {
+            $thumbprint = (Get-Content -LiteralPath $thumbprintPath -Raw).Trim()
+            if ($thumbprint) { Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue }
+            Remove-Item -LiteralPath $thumbprintPath -Force -ErrorAction SilentlyContinue
+          }
