@@ -10,10 +10,18 @@
     </Window.SystemBackdrop>
 
     <Grid>
-        <Frame x:Name="FlowFrame" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="AppTitleBar" Title="Hako" />
+
+        <Frame x:Name="FlowFrame" Grid.Row="1" />
 
         <NavigationView
             x:Name="RootNavigation"
+            Grid.Row="1"
             IsBackButtonVisible="Collapsed"
             IsSettingsVisible="False"
             PaneDisplayMode="LeftCompact"

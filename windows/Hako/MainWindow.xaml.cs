@@ -1,6 +1,9 @@
 using Hako.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using System.Runtime.InteropServices;
+using Windows.Graphics;
+using WinRT.Interop;
 
 namespace Hako;
 
@@ -12,6 +15,10 @@ public sealed partial class MainWindow : Window
     public MainWindow(AppCoordinator coordinator)
     {
         InitializeComponent();
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        Activated += MainWindow_Activated;
+
         _coordinator = coordinator;
         _coordinator.PropertyChanged += Coordinator_PropertyChanged;
         Closed += (_, _) => _coordinator.CancelSignIn();
@@ -19,6 +26,20 @@ public sealed partial class MainWindow : Window
         UpdateNavigationLabels();
         ShowScreen();
     }
+
+    private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
+    {
+        Activated -= MainWindow_Activated;
+        var scale = GetDpiForWindow(WindowNative.GetWindowHandle(this)) / 96d;
+        var windowSize = AppWindow.Size;
+        var clientSize = AppWindow.ClientSize;
+        AppWindow.Resize(new SizeInt32(
+            (int)System.Math.Round(1280 * scale) + windowSize.Width - clientSize.Width,
+            (int)System.Math.Round(720 * scale) + windowSize.Height - clientSize.Height));
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint hWnd);
 
     private void Coordinator_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
