@@ -72,3 +72,46 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 ## Главная страница
 
 После входа или выбора «Продолжить без аккаунта» показывается главная страница лаунчера — см. [[UI/Launcher]].
+
+## Windows-клиент
+
+Экраны WinUI 3 в `windows/Hako/`. `MainWindow` (`windows/Hako/MainWindow.xaml.cs`) показывает страницу по
+`LauncherScreen` из `AppCoordinator.Screen` (`windows/Hako.Core/AppCoordinator.cs`). Фон окна — системный
+`MicaBackdrop` (`windows/Hako/MainWindow.xaml`).
+
+### Источники
+
+| Файл | Значимый символ | Роль |
+|------|-----------------|------|
+| `windows/Hako/MainWindow.xaml(.cs)` | `MainWindow`, `ShowScreen`, `RootNavigation_SelectionChanged` | Окно, переключение страниц, `NavigationView` и `Frame` |
+| `windows/Hako/WelcomePage.xaml(.cs)` | `WelcomePage` | Приветствие, выбор языка, вход и гостевой вход |
+| `windows/Hako/LoginPage.xaml(.cs)` | `LoginPage` | Фазы входа в Microsoft |
+| `windows/Hako/LoadingPage.xaml(.cs)` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
+| `windows/Hako/BuildsPage.xaml(.cs)` | `BuildsPage` | Раздел «Сборки» (пустое состояние) |
+| `windows/Hako/SettingsPage.xaml(.cs)` | `SettingsPage` | Разделы «Основные» и «Профиль», выход |
+
+### Экраны
+
+| `LauncherScreen` | Страница | Содержимое |
+|------------------|----------|------------|
+| `Loading` | `LoadingPage` | Кольцо прогресса на время чтения настроек и аккаунта |
+| `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
+| `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`) |
+| `Builds` | `BuildsPage` | Заголовок и текст пустого состояния; сборок на этом этапе нет |
+| `Settings` | `SettingsPage` | Слева `ListView` из двух разделов, справа панель выбранного |
+
+### Навигация
+
+- Для `Builds` и `Settings` `MainWindow` показывает `RootNavigation` (`NavigationView`, `PaneDisplayMode=LeftCompact`)
+  с пунктами «Сборки» (`Tag="Builds"`) и «Настройки» (`Tag="Settings"`); содержимое — `ShellFrame`.
+  Для остальных экранов видим только `FlowFrame`.
+- Закрытие окна вызывает `CancelSignIn()`.
+
+### Настройки
+
+- «Основные»: `LanguageBox` меняет язык сразу. Ошибка сохранения — диалог `LanguageSaveError`.
+- «Профиль»: аватар Xbox (`AccountAvatar`, при ошибке загрузки — `FontIcon`), gamertag, email, бейдж «Xbox»,
+  блок Minecraft: ник либо текст «Minecraft: Java Edition не подключён». Гостю показывается кнопка входа
+  (`SignInButton`), аккаунту — «Выйти» (`SignOutButton`).
+- Выход открывает `ContentDialog` с подтверждением (`SignOutButton_Click`). Подтверждение вызывает
+  `AppCoordinator.LogoutAsync`; при ошибке удаления показывается `LogoutFailed`.

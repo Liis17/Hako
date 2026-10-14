@@ -99,3 +99,75 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 Выход отменяет задачи и удаляет кэш сессий; проверка отмены не позволяет завершившемуся запросу
 восстановить удалённый аккаунт. Старые поколения задач не освобождают слот нового подключения.
 Токены остаются только в Keychain и памяти; сервис не пишет их в журнал.
+
+## Windows-клиент
+
+Реализация — `windows/Hako.Core/MicrosoftDeviceAuth.cs` (`MicrosoftDeviceAuth` реализует `IMicrosoftAuthService`),
+состояние входа ведёт `AppCoordinator`. Экраны — [[UI/Screens#Windows-клиент]], хранение результата —
+[[Data/Persistence#Windows-клиент]]. Client ID тот же, что и в macOS (`MicrosoftDeviceAuth.ClientId`),
+поэтому статус одобрения Mojang для него — как в разделе «Ограничения и важные детали» выше.
+
+### Источники
+
+| Файл | Значимый символ | Роль |
+|------|-----------------|------|
+| `windows/Hako.Core/MicrosoftDeviceAuth.cs` | `MicrosoftDeviceAuth`, `ClassifyXboxError`, `ReadDisplayEmail` | Запросы цепочки входа, опрос токена, классификация ошибок |
+| `windows/Hako.Core/AuthContracts.cs` | `IMicrosoftAuthService`, `MicrosoftToken`, `AuthErrorKind`, `AuthServiceException`, `SignInPhase` | Контракт сервиса, типы ошибок и фаз |
+| `windows/Hako.Core/DeviceCode.cs` | `DeviceCode` | Код пользователя, URI, срок и интервал опроса |
+| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.BeginSignIn`, `RetrySignIn`, `BackFromSignIn`, `CancelSignIn`, `LogoutAsync` | Попытки входа, отмена, запись аккаунта и выход |
+| `windows/Hako/LoginPage.xaml.cs` | `LoginPage` | Панели по фазе, копирование кода, открытие страницы входа |
+| `windows/Hako.Tests/MicrosoftDeviceAuthTests.cs`, `windows/Hako.Tests/AppCoordinatorTests.cs` | — | Протокол опроса, Xbox/Minecraft-шаги, гонки отмены и записи |
+
+### Публичные контракты
+
+| Контракт | Поведение и условия |
+|----------|---------------------|
+| `RequestDeviceCodeAsync(ct)` | POST `login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`, `scope=XboxLive.signin openid profile email offline_access`. Ответ без `device_code` или `user_code`, с не-https `verification_uri` либо с `expires_in <= 0` → `InvalidResponse`. Интервал опроса не меньше 1 с |
+| `WaitForTokenAsync(deviceCode, ct)` | Опрос `/consumers/oauth2/v2.0/token` с `grant_type=urn:ietf:params:oauth:grant-type:device_code`. `authorization_pending` — ждать; `slow_down` — интервал +5 с; `authorization_declined` и `access_denied` → `AuthorizationDeclined`; `expired_token` или истёкший срок → `CodeExpired`; прочие ошибки → `MicrosoftRejected` с HTTP-статусом. Срок проверяется до и после задержки; запрос после срока не отправляется |
+| `MicrosoftToken.Email` | `email` или `preferred_username` из payload `id_token`; подпись не проверяется, только для отображения (как в macOS-клиенте) |
+| `SignInAsync(token, ct)` | Возвращает `AccountSession`; обязательные и необязательные шаги перечислены ниже |
+
+### Шаги входа
+
+1. Xbox Live: POST `user.auth.xboxlive.com/user/authenticate`, `RpsTicket = d=<access token Microsoft>`,
+   `RelyingParty = http://auth.xboxlive.com` — **обязательно**.
+2. XSTS `http://xboxlive.com` (`xsts.auth.xboxlive.com/xsts/authorize`) → `xid`, `gtg` и `uhs` из `DisplayClaims.xui`.
+   Пустое значение любого из них → `InvalidResponse` — **обязательно**.
+3. Аватар: GET `profile.xboxlive.com/users/me/profile/settings?settings=GameDisplayPicRaw` с `XBL3.0 x=<uhs>;<токен>`.
+   **Необязательно**: сеть, таймаут, неуспешный HTTP и некорректный JSON дают `null`; принимается только https-ссылка.
+4. Minecraft: XSTS `rp://api.minecraftservices.com/` → `api.minecraftservices.com/authentication/login_with_xbox`
+   (`identityToken`) → GET `/minecraft/profile` с `Bearer`. **Необязательно только при** `HttpRequestException`,
+   таймауте (`OperationCanceledException`, не отмене пользователем) или HTTP 403/404 на любом из этих трёх запросов:
+   тогда поля Minecraft пусты, вход продолжается. Иные ошибки прерывают весь вход: XSTS с `XErr` (например, 401),
+   другой HTTP-статус, пустой или некорректный JSON. `MinecraftTokenExpiresAt` = момент получения + `expires_in`.
+5. Запись `AccountSession` через `AccountSessionStore.SaveAsync` — аккаунт становится текущим, только если
+   попытка ещё актуальна ([[Data/Persistence#Windows-клиент]]).
+
+Коды `XErr` классифицируются: `2148916233` → `XboxProfileMissing`, `2148916235` → `XboxUnavailable`,
+`2148916236` и `2148916237` → `XboxAgeVerification`, `2148916238` → `XboxChildAccount`, остальные → `XboxRejected`.
+
+### Фазы и экраны входа
+
+`AppCoordinator` задаёт `SignInPhase`: `RequestingCode` → `WaitingForCode` (код показан) → `SigningIn`
+(Xbox, профиль, запись). Успех: `Account` заполнен, экран `Builds`. Ошибка: `Failed` и `LoginError`.
+`BeginSignIn` запоминает экран возврата: `Welcome`, либо `Settings` → «Профиль», если вход начат из настроек.
+`BackFromSignIn` возвращает на него, `RetrySignIn` запускает новую попытку.
+
+### Ошибки
+
+`AuthErrorKind.ResourceKey()` даёт ключ строки из `Resources.resw`: `AuthNetworkError`, `AuthInvalidResponse`,
+`AuthCodeExpired`, `AuthDeclined`, `AuthMicrosoftRejected`, `XboxProfileMissing`, `XboxUnavailable`,
+`XboxAgeVerification`, `XboxChildAccount`, `XboxRejected`, для `Persistence` — `AccountSaveFailed`.
+`RunAttemptAsync` переводит исключения: сетевая ошибка и таймаут → `Network`, `AccountStoreException` →
+`Persistence`, `AuthServiceException` → собственный `Kind`, прочее (включая `JsonException`) → `InvalidResponse`.
+
+### Одна попытка, отмена и сериализация
+
+- Одна активная попытка: `StartAttempt` через `InvalidateAttemptLocked` увеличивает поколение и отменяет
+  предыдущую попытку.
+- Отмена: `CancelSignIn` (закрытие `MainWindow`), `BackFromSignIn`, `LogoutAsync`. Ошибки отменённой попытки не показываются.
+- Все переходы состояния попытки и финальная запись аккаунта выполняются под `_commitLock`. Запись проходит
+  только при `IsCurrentAttempt` (то же поколение, попытка активна и не отменена); `File.Move` выполняется
+  внутри этого условия. Устаревший вход не заменит аккаунт, а завершившийся вход не восстановит аккаунт после выхода.
+- Выход: `LogoutAsync` сначала инвалидирует попытку, затем удаляет `session.dat` под тем же условием. Выбранный язык
+  при выходе сохраняется (тест `LogoutKeepsSelectedLanguage`).

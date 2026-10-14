@@ -1,6 +1,6 @@
 # Hako
 
-Нативный macOS-лаунчер Minecraft на SwiftUI и SwiftData (Xcode 27, macOS 27.0+)
+Нативный лаунчер Minecraft для macOS на SwiftUI и SwiftData (Xcode 27, macOS 27.0+)
 с авторизацией через Microsoft и интеграцией Modrinth и CurseForge. Пока реализованы приветствие, вход в Microsoft, главная страница с вкладками и выход.
 Готовы глобальные настройки игры, сведения о месте на диске и раздел «О приложении»,
 создание и фоновая установка Vanilla- и Fabric-сборок с независимой Java и Fabric API, профили сборок,
@@ -12,6 +12,7 @@
 Интерфейс на русском и английском: язык выбирается на приветствии и в настройках и меняется без перезапуска.
 Hako проверяет обновления в GitHub Releases (`nightly`) и сам устанавливает новую версию с перезапуском.
 Проект Xcode: `macos/Hako/Hako.xcodeproj`, исходники: `macos/Hako/Hako/`.
+Windows-клиент на WinUI 3 (.NET 8) находится в `windows/` и на первом этапе паритета с macOS: приветствие, вход в Microsoft, настройки и выход. Проекты: `windows/Hako/Hako.csproj`, логика `windows/Hako.Core/`, тесты `windows/Hako.Tests/`.
 
 <!-- obsidian:start -->
 ## База знаний — Obsidian

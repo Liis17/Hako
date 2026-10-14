@@ -238,3 +238,68 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 Установка и обновление из Modrinth записывают источник, номер версии и иконку; проверка обновлений
 распознаёт прежние ZIP по хешу и сохраняет сведения. Связанные ресурспаки датапаков сохраняют тип файла
 для безопасного выбора обновления ([[Minecraft/Modrinth]]). SwiftData-схема не меняется.
+
+## Windows-клиент
+
+Хранение в `windows/Hako.Core/` (без WinUI). Аккаунт — зашифрованный файл `session.dat`, настройки —
+`settings.json`. Каталог данных задаёт `windows/Hako/AppDataDirectory.cs`. Экраны и вход — [[UI/Screens#Windows-клиент]],
+[[Auth/MicrosoftAuth#Windows-клиент]].
+
+### Источники
+
+| Файл | Значимый символ | Роль |
+|------|-----------------|------|
+| `windows/Hako.Core/AccountSession.cs` | `AccountSession` | Запись аккаунта |
+| `windows/Hako.Core/AccountSessionStore.cs` | `AccountSessionStore`, `AccountStoreException` | Шифрование, чтение, атомарная запись и удаление `session.dat` |
+| `windows/Hako.Core/JsonUserSettingsStore.cs`, `windows/Hako.Core/UserSettings.cs` | `JsonUserSettingsStore`, `UserSettings` | `settings.json` с языком |
+| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, откат языка, выход |
+| `windows/Hako/AppDataDirectory.cs` | `AppDataDirectory.GetLocalPath` | Каталог данных |
+| `windows/Hako.Tests/StorageTests.cs` | — | DPAPI без открытого текста токенов, очистка, повреждённый файл, сбой замены |
+
+### Аккаунт: `session.dat`
+
+- Путь — `session.dat` в каталоге данных. Содержимое — JSON `AccountSession` (camelCase), зашифрованный
+  `ProtectedData` с `DataProtectionScope.CurrentUser` и энтропией `Hako.AccountSession.v1`.
+- Поля `AccountSession`: `Xuid`, `Gamertag`, `Email`, `XboxAvatarUrl`, `MinecraftProfileId`, `MinecraftName`,
+  `MicrosoftRefreshToken`, `MinecraftAccessToken`, `MinecraftTokenExpiresAt`.
+- `LoadAsync`: файла нет → `null`. Ошибка расшифровки или JSON, либо пустые `Xuid`, `Gamertag` или
+  `MicrosoftRefreshToken` → `AccountStoreException`. Файл при этом не удаляется. `AppCoordinator.InitializeAsync`
+  показывает `Welcome` с `StartupAccountWarning`; следующий успешный вход перезапишет файл.
+- `SaveAsync(account, commitIfCurrent)`: пишется `session.dat.<guid>.tmp` (`FileShare.None`, `Flush(true)`),
+  затем `File.Move(tmp, session.dat, overwrite: true)` выполняется внутри `commitIfCurrent`. Временный файл
+  удаляется в `finally`. Ошибки ввода-вывода и криптографии → `AccountStoreException`.
+- `ClearAsync(commitIfCurrent)`: `File.Delete(session.dat)` выполняется внутри `commitIfCurrent`.
+- Не Windows: `PlatformNotSupportedException`.
+
+### Настройки: `settings.json`
+
+- Файл `settings.json` в том же каталоге. Содержимое — `UserSettings`: `{ "language": "ru" }` или `"en"`
+  (camelCase, с отступами, `null` не пишется).
+- Отсутствующий `language` или файла нет — язык системы (`AppLanguages.Default`).
+- `LoadAsync`: файла нет или `JsonException` → `null` без предупреждения. Прочие исключения чтения
+  пробрасываются, и `AppCoordinator` ставит `StartupNotice.PreferencesUnavailable`.
+- `SaveAsync`: запись в `settings.json.<guid>.tmp`, затем `File.Move(..., true)`; временный файл удаляется в `finally`.
+- `SetLanguageAsync` меняет язык в памяти, при ошибке записи возвращает прежний язык и пробрасывает исключение;
+  UI показывает `LanguageSaveError`.
+
+### Каталог данных
+
+`AppDataDirectory.GetLocalPath()` проверяет доступность `Package.Current.Id`:
+
+- пакетный запуск → `ApplicationData.Current.LocalFolder.Path`;
+- `InvalidOperationException` (unpackaged) → `%LOCALAPPDATA%\Hako`.
+
+Следствия:
+
+- Аккаунт не переносится между MSIX-запуском и unpackaged-запуском: файлы лежат в разных каталогах. DPAPI
+  `CurrentUser` привязан к пользователю, а не к пакету, поэтому причина в каталоге, а не в шифровании.
+- Гостевой вход (`AppCoordinator.IsGuest`) хранится только в памяти: после перезапуска приложение возвращается
+  к `Welcome` (тест `GuestDoesNotPersistAndRestartReturnsToWelcome`).
+- Сохранённый профиль Minecraft (`MinecraftProfileId`, `MinecraftName`) — данные профиля, а не игровая сессия.
+  `MinecraftAccessToken` и `MinecraftTokenExpiresAt` нигде не читаются, обновление токенов не реализовано.
+  Выход удаляет запись целиком.
+
+### Решения и основания
+
+- DPAPI и файлы вместо `ApplicationData.Current`: `ApplicationData.Current` падает в unpackaged-запуске
+  (причина из плана пользователя).

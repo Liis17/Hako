@@ -6,6 +6,7 @@ Parent: [[Index]]
 
 Hako — нативное macOS-приложение: таргет `Hako` (bundle ID `com.Launcher.Hako`)
 и отдельные таргеты Swift Testing `HakoTests` и CLI-помощника `HakoPlaytimeHelper`.
+Windows-клиент — отдельный стек WinUI 3 в каталоге `windows/` ([[#Windows-клиент]]).
 
 Назначение (со слов пользователя): лаунчер Minecraft с авторизацией через Microsoft
 и интеграцией каталогов Modrinth и CurseForge.
@@ -15,8 +16,8 @@ Hako — нативное macOS-приложение: таргет `Hako` (bundl
 (карточки и профили сборок, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java и анимированным 3D-скином) и выход.
 Создание сборки запускает независимую установку Java и Minecraft из официальных API Mojang в фоне; для Fabric дополнительно устанавливаются закреплённый Loader и проверенный Fabric API.
 Установленные сборки запускаются онлайн или в offline-mode; гостевой вход открывает лаунчер без аккаунта.
-Поддерживаются Vanilla и Fabric, локальные моды и Fabric API из официального проекта Modrinth. Каталог Modrinth устанавливает моды и ресурспаки в сборку и датапаки в выбранный локальный мир ([[Minecraft/Modrinth]]); каталог CurseForge не реализован. Сторонних зависимостей (Swift Package Manager,
-CocoaPods, Carthage не используются) нет.
+Поддерживаются Vanilla и Fabric, локальные моды и Fabric API из официального проекта Modrinth. Каталог Modrinth устанавливает моды и ресурспаки в сборку и датапаки в выбранный локальный мир ([[Minecraft/Modrinth]]); каталог CurseForge не реализован. В macOS-приложении сторонних зависимостей (Swift Package Manager,
+CocoaPods, Carthage не используются) нет; NuGet-пакеты Windows-клиента — в разделе [[#Windows-клиент]].
 
 ## Стек
 
@@ -42,6 +43,9 @@ CocoaPods, Carthage не используются) нет.
 | `macos/Hako/HakoTests/` | Swift Testing: скины, хранение и миграция сборок, метаданные Mojang, установка, параметры и процессы запуска, сессии, игровое время, импорт текстурпаков и каталог Modrinth |
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
+| `windows/Hako/` | Windows-клиент: WinUI 3-приложение, страницы, `MainWindow`, точка входа, ресурсы `.resw`, решение `Hako.slnx` |
+| `windows/Hako.Core/` | Логика Windows-клиента без WinUI: вход Microsoft, хранение аккаунта и настроек, язык |
+| `windows/Hako.Tests/` | MSTest-тесты `Hako.Core` и ресурсов Windows-клиента |
 | `Obsidian/HakoVault/` | Эта база знаний |
 
 ## Компоненты
@@ -212,3 +216,79 @@ macOS может снова спросить доступ к записи ток
 совместно, без запросов к сети. Моды, ресурспаки и датапаки миров из Modrinth ставятся через каталог
 и обновляются с сохранением происхождения в файловых реестрах ([[Minecraft/Modrinth]]);
 локальные датапаки устанавливаются из ZIP/папок в выбранный мир. Каталога CurseForge нет.
+
+## Windows-клиент
+
+Клиент для Windows в каталоге `windows/` на первом этапе паритета с macOS: приветствие, вход в Microsoft
+по коду, главная с разделами «Сборки» и «Настройки», язык и профиль, выход. Сборки, запуск игры,
+моды, ресурспаки и самообновление пока не реализованы.
+Экраны — [[UI/Screens#Windows-клиент]], вход — [[Auth/MicrosoftAuth#Windows-клиент]],
+хранение — [[Data/Persistence#Windows-клиент]], строки — [[UI/Localization#Windows-клиент]].
+
+### Стек
+
+| Технология | Роль | Источник |
+|------------|------|----------|
+| .NET 8 | Платформа: `net8.0-windows10.0.19041.0` для `Hako`, `net8.0` для `Hako.Core`, `net8.0-windows10.0.17763.0` для тестов | `windows/Hako/Hako.csproj`, `windows/Hako.Core/Hako.Core.csproj`, `windows/Hako.Tests/Hako.Tests.csproj` |
+| WinUI 3, Windows App SDK 2.5.1 (`Microsoft.WindowsAppSDK`), `Microsoft.Windows.SDK.BuildTools` 10.0.28000.2705 | Окна и страницы, `AppInstance`, MSIX-инструменты | `windows/Hako/Hako.csproj` |
+| `System.Security.Cryptography.ProtectedData` 8.0.0 | DPAPI: `ProtectedData.Protect` и `Unprotect` | `windows/Hako.Core/Hako.Core.csproj` |
+| `System.Text.Json` с source generation | Сериализация без рефлексии через `HakoJsonContext` | `windows/Hako.Core/JsonContexts.cs` |
+| MSTest 3.10.4, `Microsoft.NET.Test.Sdk` 17.14.1 | Тесты | `windows/Hako.Tests/Hako.Tests.csproj` |
+
+Платформы сборки: x86, x64, ARM64 (`Platforms`, `RuntimeIdentifiers` в `Hako.csproj`). Минимальная версия
+Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` объявляет поддержку возможностей Windows 10.
+
+### Структура
+
+- `windows/Hako/` — WinUI-приложение: `Program.cs` (точка входа и единственный экземпляр), `App.xaml.cs`
+  (создаёт `AppCoordinator`), `MainWindow` (окно с `NavigationView` и `Frame`), страницы `LoadingPage`,
+  `WelcomePage`, `LoginPage`, `BuildsPage`, `SettingsPage`, `HakoStrings`, `AppDataDirectory`,
+  `Strings/ru-RU` и `Strings/en-US` (`Resources.resw`), `Package.appxmanifest`, `app.manifest`,
+  `Properties/launchSettings.json`, решение `Hako.slnx`.
+- `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
+  `AuthContracts`, `AccountSessionStore`, `JsonUserSettingsStore`, `AppLanguage`, `JsonContexts`.
+- `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
+  `LocalizationResourcesTests`; `TestSupport.cs` содержит фейки времени и таймеров и `TestData`.
+
+### Запуск и единственный экземпляр
+
+1. `Program.Main` вызывает `ComWrappersSupport.InitializeComWrappers()`, затем
+   `AppInstance.FindOrRegisterForKey("Hako.Main")`. Если экземпляр не текущий, активация перенаправляется
+   (`RedirectActivationToAsync`) и процесс выходит. Текущий экземпляр при повторной активации вызывает
+   `App.ActivateMainWindow` через `DispatcherQueue`. Один экземпляр — решение пользователя.
+2. `App()` создаёт `AppCoordinator` с `JsonUserSettingsStore`, `AccountSessionStore` и
+   `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`; каталог данных — `AppDataDirectory.GetLocalPath()`.
+3. `OnLaunched` сначала показывает `MainWindow` (экран `Loading`), затем `await InitializeAsync()` выбирает
+   `Welcome` или `Builds`.
+
+### Упаковка и сборка
+
+- `EnableMsixTooling=true`, есть `Package.appxmanifest` и два профиля в `launchSettings.json`:
+  `Hako (Package)` (`MsixPackage`) и `Hako (Unpackaged)` (`Project`). Тип упаковки (`WindowsPackageType`)
+  в `Hako.csproj` не задан.
+- `PublishTrimmed` и `PublishReadyToRun` включаются для конфигураций, отличных от `Debug`.
+  `PublishProfile` ссылается на `win-$(Platform).pubxml`, но таких файлов в репозитории нет.
+- Сборка и тесты:
+
+```sh
+dotnet build windows/Hako/Hako.csproj -c Debug -p:Platform=x64
+dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
+```
+
+- CI-сборки Windows нет: `.github/workflows/release.yml` работает на раннере `xcode-27` и не упоминает Windows.
+
+### Ограничения Windows-клиента
+
+- Не реализованы: сборки (вкладка «Сборки» показывает пустое состояние), запуск Minecraft, моды и ресурспаки,
+  каталоги Modrinth и CurseForge, самообновление.
+- Обновление токенов не реализовано: `MicrosoftRefreshToken` сохраняется, refresh-grant в коде нет.
+- `MinecraftAccessToken` сохраняется и нигде не читается. Игровой сессии на Windows пока нет.
+
+### Решения и основания
+
+- Хранение аккаунта через DPAPI и файлы, а не через `ApplicationData`: `ApplicationData.Current` падает
+  в unpackaged-запуске (причина из плана пользователя). Подробности — [[Data/Persistence#Windows-клиент]].
+- JSON через source generation (`HakoJsonContext`): при `PublishTrimmed` в .NET 8 рефлексия отключена
+  (причина из плана пользователя).
+- Один экземпляр приложения, сохранение аккаунта между запусками, вход без аккаунта
+  (`ContinueWithoutAccount`, не сохраняется между запусками) и профиль внутри раздела «Настройки» — решения пользователя.
