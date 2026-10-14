@@ -83,12 +83,12 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 
 | Файл | Значимый символ | Роль |
 |------|-----------------|------|
-| `windows/Hako/MainWindow.xaml(.cs)` | `MainWindow`, `ShowScreen`, `RootNavigation_SelectionChanged` | Окно, переключение страниц, `NavigationView` и `Frame` |
-| `windows/Hako/WelcomePage.xaml(.cs)` | `WelcomePage` | Приветствие, выбор языка, вход и гостевой вход |
-| `windows/Hako/LoginPage.xaml(.cs)` | `LoginPage` | Фазы входа в Microsoft |
-| `windows/Hako/LoadingPage.xaml(.cs)` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
-| `windows/Hako/BuildsPage.xaml(.cs)` | `BuildsPage` | Раздел «Сборки» (пустое состояние) |
-| `windows/Hako/SettingsPage.xaml(.cs)` | `SettingsPage` | Разделы «Основные» и «Профиль», выход |
+| `windows/Hako/MainWindow.xaml`, `windows/Hako/MainWindow.xaml.cs` | `MainWindow`, `ShowScreen`, `RootNavigation_SelectionChanged` | Окно, переключение страниц, `NavigationView` и `Frame` |
+| `windows/Hako/WelcomePage.xaml`, `windows/Hako/WelcomePage.xaml.cs` | `WelcomePage` | Приветствие, выбор языка, вход и гостевой вход |
+| `windows/Hako/LoginPage.xaml`, `windows/Hako/LoginPage.xaml.cs` | `LoginPage` | Фазы входа в Microsoft |
+| `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
+| `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage` | Раздел «Сборки» (пустое состояние) |
+| `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные» и «Профиль», выход |
 
 ### Экраны
 

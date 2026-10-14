@@ -291,8 +291,8 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 
 Следствия:
 
-- Аккаунт не переносится между MSIX-запуском и unpackaged-запуском: файлы лежат в разных каталогах. DPAPI
-  `CurrentUser` привязан к пользователю, а не к пакету, поэтому причина в каталоге, а не в шифровании.
+- Аккаунт не переносится между MSIX-запуском и unpackaged-запуском: файлы лежат в разных каталогах
+  (см. `AppDataDirectory.GetLocalPath` выше).
 - Гостевой вход (`AppCoordinator.IsGuest`) хранится только в памяти: после перезапуска приложение возвращается
   к `Welcome` (тест `GuestDoesNotPersistAndRestartReturnsToWelcome`).
 - Сохранённый профиль Minecraft (`MinecraftProfileId`, `MinecraftName`) — данные профиля, а не игровая сессия.
