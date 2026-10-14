@@ -1,0 +1,13 @@
+<Page
+    x:Class="Hako.BuildsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="32" RowDefinitions="Auto,*">
+        <TextBlock x:Name="BuildsTitle" FontSize="32" FontWeight="SemiBold" />
+        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Spacing="12">
+            <SymbolIcon Symbol="Library" Width="32" Height="32" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="BuildsEmptyTitle" FontSize="22" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock x:Name="BuildsEmptyBody" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+    </Grid>
+</Page>

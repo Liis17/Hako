@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="WelcomeTitle" xml:space="preserve"><value>Добро пожаловать
+в Hako</value></data>
+  <data name="WelcomeSubtitle" xml:space="preserve"><value>Лаунчер Minecraft для Windows</value></data>
+  <data name="StartButton" xml:space="preserve"><value>Начать</value></data>
+  <data name="GuestButton" xml:space="preserve"><value>Продолжить без аккаунта</value></data>
+  <data name="Disclaimer" xml:space="preserve"><value>Hako не связан с Mojang или Microsoft и не одобрен ими. Minecraft — товарный знак Microsoft.</value></data>
+  <data name="LoginTitle" xml:space="preserve"><value>Вход в Microsoft</value></data>
+  <data name="BackButton" xml:space="preserve"><value>Назад</value></data>
+  <data name="LoginPreparing" xml:space="preserve"><value>Подготавливаем вход…</value></data>
+  <data name="BuildsTitle" xml:space="preserve"><value>Сборки</value></data>
+  <data name="BuildsEmptyTitle" xml:space="preserve"><value>Здесь появятся ваши сборки Minecraft</value></data>
+  <data name="BuildsEmptyBody" xml:space="preserve"><value>В этом этапе Hako настраивает ваш лаунчер. Управление сборками появится позже.</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>Настройки</value></data>
+  <data name="GeneralSection" xml:space="preserve"><value>Основные</value></data>
+  <data name="ProfileTitle" xml:space="preserve"><value>Профиль</value></data>
+  <data name="LanguageLabel" xml:space="preserve"><value>Язык интерфейса</value></data>
+  <data name="GuestProfileTitle" xml:space="preserve"><value>Вы продолжили без аккаунта</value></data>
+  <data name="GuestProfileDetails" xml:space="preserve"><value>Войдите в Microsoft, чтобы сохранить аккаунт в Hako.</value></data>
+  <data name="ProfileSignedOutTitle" xml:space="preserve"><value>Аккаунт Microsoft не подключён</value></data>
+  <data name="ProfileSignedOutDetails" xml:space="preserve"><value>Вы можете продолжить без аккаунта или войти в Microsoft.</value></data>
+  <data name="SignInButton" xml:space="preserve"><value>Войти в Microsoft</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>Ошибка</value></data>
+  <data name="CloseButton" xml:space="preserve"><value>Закрыть</value></data>
+  <data name="LanguageSaveError" xml:space="preserve"><value>Не удалось сохранить выбранный язык.</value></data>
+</root>

@@ -1,33 +1,103 @@
+using Hako.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
+namespace Hako;
 
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
-
-namespace Hako
+public sealed partial class MainWindow : Window
 {
-    /// <summary>
-    /// An empty window that can be used on its own or navigated to within a Frame.
-    /// </summary>
-    public sealed partial class MainWindow : Window
+    private readonly AppCoordinator _coordinator;
+    private bool _changingSelection;
+
+    public MainWindow(AppCoordinator coordinator)
     {
-        public MainWindow()
+        InitializeComponent();
+        _coordinator = coordinator;
+        _coordinator.PropertyChanged += Coordinator_PropertyChanged;
+        HakoStrings.SetLanguage(_coordinator.Language, true);
+        UpdateNavigationLabels();
+        ShowScreen();
+    }
+
+    private void Coordinator_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppCoordinator.Language))
         {
-            InitializeComponent();
+            HakoStrings.SetLanguage(_coordinator.Language);
+            UpdateNavigationLabels();
         }
+
+        if (e.PropertyName == nameof(AppCoordinator.Screen))
+        {
+            ShowScreen();
+        }
+        else if (e.PropertyName == nameof(AppCoordinator.SelectedSettingsSection)
+                 && ShellFrame.Content is SettingsPage settingsPage)
+        {
+            settingsPage.SelectSection(_coordinator.SelectedSettingsSection);
+        }
+        else if (e.PropertyName == nameof(AppCoordinator.IsGuest)
+                 && ShellFrame.Content is SettingsPage currentSettingsPage)
+        {
+            currentSettingsPage.RefreshProfile();
+        }
+    }
+
+    private void ShowScreen()
+    {
+        if (_coordinator.Screen is LauncherScreen.Builds or LauncherScreen.Settings)
+        {
+            FlowFrame.Visibility = Visibility.Collapsed;
+            RootNavigation.Visibility = Visibility.Visible;
+            _changingSelection = true;
+            RootNavigation.SelectedItem = _coordinator.Screen == LauncherScreen.Builds
+                ? BuildsNavigationItem
+                : SettingsNavigationItem;
+            _changingSelection = false;
+
+            if (_coordinator.Screen == LauncherScreen.Builds)
+            {
+                ShellFrame.Navigate(typeof(BuildsPage), _coordinator);
+            }
+            else
+            {
+                ShellFrame.Navigate(typeof(SettingsPage), _coordinator);
+            }
+
+            return;
+        }
+
+        RootNavigation.Visibility = Visibility.Collapsed;
+        FlowFrame.Visibility = Visibility.Visible;
+        var page = _coordinator.Screen switch
+        {
+            LauncherScreen.Login => typeof(LoginPage),
+            LauncherScreen.Welcome => typeof(WelcomePage),
+            _ => typeof(LoadingPage)
+        };
+        FlowFrame.Navigate(page, _coordinator);
+    }
+
+    private void RootNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (_changingSelection || args.SelectedItemContainer?.Tag is not string tag)
+        {
+            return;
+        }
+
+        if (tag == "Builds")
+        {
+            _coordinator.OpenBuilds();
+        }
+        else if (tag == "Settings")
+        {
+            _coordinator.OpenSettings();
+        }
+    }
+
+    private void UpdateNavigationLabels()
+    {
+        BuildsNavigationItem.Content = HakoStrings.Get("BuildsTitle");
+        SettingsNavigationItem.Content = HakoStrings.Get("SettingsTitle");
     }
 }

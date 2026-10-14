@@ -1,0 +1,50 @@
+<Page
+    x:Class="Hako.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Padding="32" RowDefinitions="Auto,*">
+        <TextBlock x:Name="SettingsTitle" FontSize="32" FontWeight="SemiBold" />
+        <Grid Grid.Row="1" ColumnDefinitions="220,*" Margin="0,24,0,0">
+            <ListView x:Name="SettingsSections" SelectionMode="Single" SelectionChanged="SettingsSections_SelectionChanged">
+                <ListViewItem Tag="General">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <SymbolIcon Symbol="Setting" />
+                        <TextBlock x:Name="GeneralSectionLabel" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListViewItem>
+                <ListViewItem Tag="Profile">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <SymbolIcon Symbol="Contact" />
+                        <TextBlock x:Name="ProfileSectionLabel" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListViewItem>
+            </ListView>
+
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="24,0,0,0">
+                <Grid>
+                    <StackPanel x:Name="GeneralPanel" Spacing="20">
+                        <TextBlock x:Name="GeneralTitle" FontSize="24" FontWeight="SemiBold" />
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="LanguageLabel" />
+                            <ComboBox x:Name="LanguageBox" Width="180" HorizontalAlignment="Left" SelectionChanged="LanguageBox_SelectionChanged">
+                                <ComboBoxItem Content="Русский" />
+                                <ComboBoxItem Content="English" />
+                            </ComboBox>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="ProfilePanel" Visibility="Collapsed" Spacing="16">
+                        <TextBlock x:Name="ProfileTitle" FontSize="24" FontWeight="SemiBold" />
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="12">
+                                <TextBlock x:Name="ProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="ProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                <Button x:Name="SignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Page>
