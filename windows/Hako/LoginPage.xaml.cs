@@ -133,6 +133,7 @@ public sealed partial class LoginPage : Page
         }
         catch (COMException)
         {
+            _copied = false;
             _noticeKey = "CopyCodeFailed";
         }
 

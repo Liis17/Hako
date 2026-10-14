@@ -39,6 +39,7 @@ public partial class App : Application
             presenter.Restore();
         }
 
+        _window.AppWindow.Show();
         _window.Activate();
     }
 }

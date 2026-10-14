@@ -1,6 +1,7 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using WinRT;
 
@@ -49,10 +50,17 @@ internal static class Program
 
         CoWaitForMultipleObjects(0, uint.MaxValue, 1, [redirectDone], out _);
         CloseHandle(redirectDone);
+
+        // The redirecting process is the one allowed to bring the target window forward, so it does it here.
+        using var target = Process.GetProcessById((int)instance.ProcessId);
+        SetForegroundWindow(target.MainWindowHandle);
     }
 
     [DllImport("ole32.dll")]
     private static extern int CoWaitForMultipleObjects(uint flags, uint timeout, uint handleCount, IntPtr[] handles, out uint index);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr CreateEvent(IntPtr attributes, bool manualReset, bool initialState, string? name);
