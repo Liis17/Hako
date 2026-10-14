@@ -248,14 +248,18 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
 - `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
   `AuthContracts`, `AccountSessionStore`, `JsonUserSettingsStore`, `AppLanguage`, `JsonContexts`.
 - `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
-  `LocalizationResourcesTests`; `TestSupport.cs` содержит фейки времени и таймеров и `TestData`.
+  `LocalizationResourcesTests`, `RedactionTests`; `TestSupport.cs` содержит фейки времени, таймеров, хранилищ,
+  сервиса входа и `TestData`.
 
 ### Запуск и единственный экземпляр
 
-1. `Program.Main` вызывает `ComWrappersSupport.InitializeComWrappers()`, затем
-   `AppInstance.FindOrRegisterForKey("Hako.Main")`. Если экземпляр не текущий, активация перенаправляется
-   (`RedirectActivationToAsync`) и процесс выходит. Текущий экземпляр при повторной активации вызывает
-   `App.ActivateMainWindow` через `DispatcherQueue`. Один экземпляр — решение пользователя.
+1. `Program.Main` — синхронный `[STAThread] static void Main`. Он вызывает `ComWrappersSupport.InitializeComWrappers()`,
+   затем `AppInstance.FindOrRegisterForKey("Hako.Main")`. Если экземпляр не текущий, `RedirectActivationTo` запускает
+   `RedirectActivationToAsync` в `Task.Run`, а STA-поток ждёт его в `CoWaitForMultipleObjects`, продолжая обрабатывать
+   сообщения: блокирующий `Wait()` может зависнуть, пока целевой экземпляр обрабатывает активацию. Затем перенаправляющий
+   процесс вызывает `SetForegroundWindow` для главного окна целевого процесса и выходит. Текущий экземпляр при повторной
+   активации вызывает `App.ActivateMainWindow` через `DispatcherQueue`: разворачивает свёрнутое окно
+   (`OverlappedPresenter.Restore`), затем вызывает `AppWindow.Show()` и `Activate()`. Один экземпляр — решение пользователя.
 2. `App()` создаёт `AppCoordinator` с `JsonUserSettingsStore`, `AccountSessionStore` и
    `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`; каталог данных — `AppDataDirectory.GetLocalPath()`.
 3. `OnLaunched` сначала показывает `MainWindow` (экран `Loading`), затем `await InitializeAsync()` выбирает

@@ -96,7 +96,7 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 |------------------|----------|------------|
 | `Loading` | `LoadingPage` | Кольцо прогресса на время чтения настроек и аккаунта |
 | `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
-| `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`) |
+| `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`). `LoginNotice` (`InfoBar`) показывает `OpenVerificationFailed` или `CopyCodeFailed`, если открыть страницу или скопировать код не удалось; при сбое копирования кнопка снова «Скопировать код». Уведомление сбрасывается при следующем нажатии этих кнопок и при «Попробовать снова» |
 | `Builds` | `BuildsPage` | Заголовок и текст пустого состояния; сборок на этом этапе нет |
 | `Settings` | `SettingsPage` | Слева `ListView` из двух разделов, справа панель выбранного |
 

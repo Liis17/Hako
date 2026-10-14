@@ -252,9 +252,10 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Core/AccountSession.cs` | `AccountSession` | Запись аккаунта |
 | `windows/Hako.Core/AccountSessionStore.cs` | `AccountSessionStore`, `AccountStoreException` | Шифрование, чтение, атомарная запись и удаление `session.dat` |
 | `windows/Hako.Core/JsonUserSettingsStore.cs`, `windows/Hako.Core/UserSettings.cs` | `JsonUserSettingsStore`, `UserSettings` | `settings.json` с языком |
-| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, откат языка, выход |
+| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, сериализованное сохранение языка и откат, выход |
 | `windows/Hako/AppDataDirectory.cs` | `AppDataDirectory.GetLocalPath` | Каталог данных |
 | `windows/Hako.Tests/StorageTests.cs` | — | DPAPI без открытого текста токенов, очистка, повреждённый файл, сбой замены |
+| `windows/Hako.Tests/RedactionTests.cs` | — | `ToString()` записей `MicrosoftToken` и `AccountSession` без токенов |
 
 ### Аккаунт: `session.dat`
 
@@ -262,6 +263,7 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   `ProtectedData` с `DataProtectionScope.CurrentUser` и энтропией `Hako.AccountSession.v1`.
 - Поля `AccountSession`: `Xuid`, `Gamertag`, `Email`, `XboxAvatarUrl`, `MinecraftProfileId`, `MinecraftName`,
   `MicrosoftRefreshToken`, `MinecraftAccessToken`, `MinecraftTokenExpiresAt`.
+- `AccountSession.ToString()` не выводит `MicrosoftRefreshToken` и `MinecraftAccessToken`.
 - `LoadAsync`: файла нет → `null`. Ошибка расшифровки или JSON, либо пустые `Xuid`, `Gamertag` или
   `MicrosoftRefreshToken` → `AccountStoreException`. Файл при этом не удаляется. `AppCoordinator.InitializeAsync`
   показывает `Welcome` с `StartupAccountWarning`; следующий успешный вход перезапишет файл.
@@ -276,11 +278,12 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 - Файл `settings.json` в том же каталоге. Содержимое — `UserSettings`: `{ "language": "ru" }` или `"en"`
   (camelCase, с отступами, `null` не пишется).
 - Отсутствующий `language` или файла нет — язык системы (`AppLanguages.Default`).
-- `LoadAsync`: файла нет или `JsonException` → `null` без предупреждения. Прочие исключения чтения
-  пробрасываются, и `AppCoordinator` ставит `StartupNotice.PreferencesUnavailable`.
+- `LoadAsync`: файла нет → `null`. Ошибки чтения и `JsonException` пробрасываются; `AppCoordinator.InitializeAsync`
+  ставит `StartupNotice.PreferencesUnavailable` и берёт язык по умолчанию (`AppLanguages.Default`).
 - `SaveAsync`: запись в `settings.json.<guid>.tmp`, затем `File.Move(..., true)`; временный файл удаляется в `finally`.
-- `SetLanguageAsync` меняет язык в памяти, при ошибке записи возвращает прежний язык и пробрасывает исключение;
-  UI показывает `LanguageSaveError`.
+- `SetLanguageAsync` сразу меняет `Language`. Сохранения идут по одному (`_languageSaveGate`) и пишут текущий `Language`,
+  поэтому побеждает последний выбор. При ошибке записи язык откатывается, только если за это время не было нового выбора
+  (`_languageSelection`); исключение пробрасывается, UI показывает `LanguageSaveError`.
 
 ### Каталог данных
 

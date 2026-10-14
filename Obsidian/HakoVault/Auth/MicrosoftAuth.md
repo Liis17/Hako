@@ -125,6 +125,7 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 | `RequestDeviceCodeAsync(ct)` | POST `login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`, `scope=XboxLive.signin openid profile email offline_access`. Ответ без `device_code` или `user_code`, с не-https `verification_uri` либо с `expires_in <= 0` → `InvalidResponse`. Интервал опроса не меньше 1 с |
 | `WaitForTokenAsync(deviceCode, ct)` | Опрос `/consumers/oauth2/v2.0/token` с `grant_type=urn:ietf:params:oauth:grant-type:device_code`. `authorization_pending` — ждать; `slow_down` — интервал +5 с; `authorization_declined` и `access_denied` → `AuthorizationDeclined`; `expired_token` или истёкший срок → `CodeExpired`; прочие ошибки → `MicrosoftRejected` с HTTP-статусом. Срок проверяется до и после задержки; запрос после срока не отправляется |
 | `MicrosoftToken.Email` | `email` или `preferred_username` из payload `id_token`; подпись не проверяется, только для отображения (как в macOS-клиенте) |
+| `MicrosoftToken.ToString()` | Выводит только `Email`; access и refresh token в строку не попадают |
 | `SignInAsync(token, ct)` | Возвращает `AccountSession`; обязательные и необязательные шаги перечислены ниже |
 
 ### Шаги входа
@@ -134,16 +135,16 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 2. XSTS `http://xboxlive.com` (`xsts.auth.xboxlive.com/xsts/authorize`) → `xid`, `gtg` и `uhs` из `DisplayClaims.xui`.
    Пустое значение любого из них → `InvalidResponse` — **обязательно**.
 3. Аватар: GET `profile.xboxlive.com/users/me/profile/settings?settings=GameDisplayPicRaw` с `XBL3.0 x=<uhs>;<токен>`.
-   **Необязательно**: сеть, таймаут, неуспешный HTTP и некорректный JSON дают `null`; принимается только https-ссылка.
+   **Необязательно**: любая ошибка (сеть, таймаут, HTTP-статус, JSON, исключение) даёт `null`; принимается только https-ссылка.
 4. Minecraft: XSTS `rp://api.minecraftservices.com/` → `api.minecraftservices.com/authentication/login_with_xbox`
-   (`identityToken`) → GET `/minecraft/profile` с `Bearer`. **Необязательно только при** `HttpRequestException`,
-   таймауте (`OperationCanceledException`, не отмене пользователем) или HTTP 403/404 на любом из этих трёх запросов:
-   тогда поля Minecraft пусты, вход продолжается. Иные ошибки прерывают весь вход: XSTS с `XErr` (например, 401),
-   другой HTTP-статус, пустой или некорректный JSON. `MinecraftTokenExpiresAt` = момент получения + `expires_in`.
+   (`identityToken`) → GET `/minecraft/profile` с `Bearer`. **Необязательно**: любая ошибка шага (XSTS с `XErr`, любой
+   HTTP-статус из этих трёх запросов, пустой `uhs`, пустой или некорректный JSON, сеть, таймаут) даёт пустые поля Minecraft,
+   вход продолжается с профилем Xbox. Причина не сохраняется и не показывается. Исключение выходит наружу только при отмене
+   нашим `CancellationToken`. `MinecraftTokenExpiresAt` = момент получения + `expires_in`.
 5. Запись `AccountSession` через `AccountSessionStore.SaveAsync` — аккаунт становится текущим, только если
    попытка ещё актуальна ([[Data/Persistence#Windows-клиент]]).
 
-Коды `XErr` классифицируются: `2148916233` → `XboxProfileMissing`, `2148916235` → `XboxUnavailable`,
+Коды `XErr` шагов 1–2 классифицируются: `2148916233` → `XboxProfileMissing`, `2148916235` → `XboxUnavailable`,
 `2148916236` и `2148916237` → `XboxAgeVerification`, `2148916238` → `XboxChildAccount`, остальные → `XboxRejected`.
 
 ### Фазы и экраны входа

@@ -110,7 +110,7 @@ Parent: [[Index]]
 
 ### Смена языка без перезапуска
 
-1. `AppCoordinator.SetLanguageAsync` меняет `Language` и сохраняет `settings.json`.
+1. `AppCoordinator.SetLanguageAsync` меняет `Language` и сохраняет `settings.json`; сохранения сериализованы и пишут текущий язык, поэтому побеждает последний выбор.
 2. `MainWindow.Coordinator_PropertyChanged` при изменении `Language` вызывает `HakoStrings.SetLanguage`.
 3. `HakoStrings` поднимает `LanguageChanged`. Страницы, которые сейчас открыты (`WelcomePage`, `LoginPage`,
    `SettingsPage`, `BuildsPage`), подписываются на событие в `OnNavigatedTo` и перечитывают строки;
@@ -124,7 +124,8 @@ Parent: [[Index]]
 - Строка добавляется в оба `.resw` с одинаковым именем. `RussianAndEnglishResourcesHaveTheSameNonemptyKeys`
   сверяет наборы ключей.
 - Ключи ошибок и уведомлений берутся через `ResourceKey()`. `EveryMappedErrorAndStartupNoticeHasRussianAndEnglishText`
-  проверяет, что они есть в обоих файлах.
+  проверяет, что они есть в обоих файлах. Ключи `CopyCodeFailed` и `OpenVerificationFailed` задаются в `LoginPage` литералами;
+  проверки их наличия в `.resw` нет, `RussianAndEnglishResourcesHaveTheSameNonemptyKeys` сверяет только наборы ru/en.
 - Тексты страниц задаются в коде через `HakoStrings.Get` в методе `RefreshStrings()`; `x:Uid` не используется.
 - Названия языков («Русский», «English») и заголовок окна `Title="Hako"` заданы литералами в XAML. Подписи пунктов
   навигации присваиваются из `BuildsTitle` и `SettingsTitle` в `MainWindow.UpdateNavigationLabels`.
