@@ -1,4 +1,5 @@
 using Hako.Core;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.Runtime.InteropServices;
@@ -17,7 +18,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
-        Activated += MainWindow_Activated;
+        SetInitialWindowSize();
 
         _coordinator = coordinator;
         _coordinator.PropertyChanged += Coordinator_PropertyChanged;
@@ -27,19 +28,36 @@ public sealed partial class MainWindow : Window
         ShowScreen();
     }
 
-    private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
+    private void SetInitialWindowSize()
     {
-        Activated -= MainWindow_Activated;
         var scale = GetDpiForWindow(WindowNative.GetWindowHandle(this)) / 96d;
-        var windowSize = AppWindow.Size;
-        var clientSize = AppWindow.ClientSize;
+        var initialWindowSize = AppWindow.Size;
+        var initialClientSize = AppWindow.ClientSize;
         AppWindow.Resize(new SizeInt32(
-            (int)System.Math.Round(1280 * scale) + windowSize.Width - clientSize.Width,
-            (int)System.Math.Round(720 * scale) + windowSize.Height - clientSize.Height));
-    }
+            (int)Math.Round(1280 * scale) + initialWindowSize.Width - initialClientSize.Width,
+            (int)Math.Round(720 * scale) + initialWindowSize.Height - initialClientSize.Height));
 
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForWindow(nint hWnd);
+        var workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest)?.WorkArea;
+        if (workArea is not { } area)
+        {
+            return;
+        }
+
+        var windowSize = AppWindow.Size;
+        var width = Math.Min(windowSize.Width, area.Width);
+        var height = Math.Min(windowSize.Height, area.Height);
+        if (width != windowSize.Width || height != windowSize.Height)
+        {
+            AppWindow.Resize(new SizeInt32(width, height));
+            windowSize = AppWindow.Size;
+        }
+
+        AppWindow.MoveAndResize(new RectInt32(
+            area.X + (area.Width - windowSize.Width) / 2,
+            area.Y + (area.Height - windowSize.Height) / 2,
+            windowSize.Width,
+            windowSize.Height));
+    }
 
     private void Coordinator_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -132,4 +150,7 @@ public sealed partial class MainWindow : Window
         BuildsNavigationItem.Content = HakoStrings.Get("BuildsTitle");
         SettingsNavigationItem.Content = HakoStrings.Get("SettingsTitle");
     }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hWnd);
 }
