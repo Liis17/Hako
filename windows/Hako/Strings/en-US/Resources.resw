@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="WelcomeTitle" xml:space="preserve"><value>Welcome to
+Hako</value></data>
+  <data name="WelcomeSubtitle" xml:space="preserve"><value>Minecraft launcher for Windows</value></data>
+  <data name="StartButton" xml:space="preserve"><value>Get started</value></data>
+  <data name="GuestButton" xml:space="preserve"><value>Continue without an account</value></data>
+  <data name="Disclaimer" xml:space="preserve"><value>Hako is not affiliated with or endorsed by Mojang or Microsoft. Minecraft is a trademark of Microsoft.</value></data>
+  <data name="LoginTitle" xml:space="preserve"><value>Sign in with Microsoft</value></data>
+  <data name="BackButton" xml:space="preserve"><value>Back</value></data>
+  <data name="LoginInstructions" xml:space="preserve"><value>Enter the code on the Microsoft page to sign in to Xbox.</value></data>
+  <data name="RequestingCode" xml:space="preserve"><value>Getting a code…</value></data>
+  <data name="WaitingForCode" xml:space="preserve"><value>Open the Microsoft page and enter this code.</value></data>
+  <data name="OpenVerificationButton" xml:space="preserve"><value>Open sign-in page</value></data>
+  <data name="CopyCodeButton" xml:space="preserve"><value>Copy code</value></data>
+  <data name="CopiedCodeButton" xml:space="preserve"><value>Copied</value></data>
+  <data name="CopyCodeFailed" xml:space="preserve"><value>Couldn't copy the code. Select it and copy it manually.</value></data>
+  <data name="OpenVerificationFailed" xml:space="preserve"><value>Couldn't open the sign-in page. Open the address above manually.</value></data>
+  <data name="SigningIn" xml:space="preserve"><value>Connecting Xbox and checking the Minecraft profile…</value></data>
+  <data name="RetryButton" xml:space="preserve"><value>Try again</value></data>
+  <data name="AuthNetworkError" xml:space="preserve"><value>Couldn't reach the server. Check your connection and try again.</value></data>
+  <data name="AuthInvalidResponse" xml:space="preserve"><value>The server returned an unexpected response. Try again.</value></data>
+  <data name="AuthCodeExpired" xml:space="preserve"><value>The code expired. Get a new one and try again.</value></data>
+  <data name="AuthDeclined" xml:space="preserve"><value>Sign-in was declined on the Microsoft page.</value></data>
+  <data name="AuthMicrosoftRejected" xml:space="preserve"><value>Microsoft couldn't complete sign-in. Try again.</value></data>
+  <data name="XboxProfileMissing" xml:space="preserve"><value>This account has no Xbox profile. Create one at xbox.com and try again.</value></data>
+  <data name="XboxUnavailable" xml:space="preserve"><value>Xbox Live isn't available in your country.</value></data>
+  <data name="XboxAgeVerification" xml:space="preserve"><value>This account needs age verification at xbox.com.</value></data>
+  <data name="XboxChildAccount" xml:space="preserve"><value>An adult must add this child account to a Microsoft family group.</value></data>
+  <data name="XboxRejected" xml:space="preserve"><value>Xbox Live rejected sign-in. Check the account settings and try again.</value></data>
+  <data name="AccountSaveFailed" xml:space="preserve"><value>Hako couldn't securely save the account on this device.</value></data>
+  <data name="StartupPreferencesWarning" xml:space="preserve"><value>Settings couldn't be read. The system language will be used.</value></data>
+  <data name="StartupAccountWarning" xml:space="preserve"><value>The saved account couldn't be opened. Sign in again to restore access.</value></data>
+  <data name="BuildsTitle" xml:space="preserve"><value>Builds</value></data>
+  <data name="BuildsEmptyTitle" xml:space="preserve"><value>Your Minecraft builds will appear here</value></data>
+  <data name="BuildsEmptyBody" xml:space="preserve"><value>Hako is setting up your launcher in this stage. Build management will come later.</value></data>
+  <data name="SettingsTitle" xml:space="preserve"><value>Settings</value></data>
+  <data name="GeneralSection" xml:space="preserve"><value>General</value></data>
+  <data name="ProfileTitle" xml:space="preserve"><value>Profile</value></data>
+  <data name="LanguageLabel" xml:space="preserve"><value>Interface language</value></data>
+  <data name="GuestProfileTitle" xml:space="preserve"><value>You continued without an account</value></data>
+  <data name="GuestProfileDetails" xml:space="preserve"><value>Sign in with Microsoft to save your account in Hako.</value></data>
+  <data name="ProfileSignedOutTitle" xml:space="preserve"><value>No Microsoft account is connected</value></data>
+  <data name="ProfileSignedOutDetails" xml:space="preserve"><value>You can continue without an account or sign in with Microsoft.</value></data>
+  <data name="SignInButton" xml:space="preserve"><value>Sign in with Microsoft</value></data>
+  <data name="XboxLabel" xml:space="preserve"><value>Xbox</value></data>
+  <data name="MinecraftNotAvailableTitle" xml:space="preserve"><value>Minecraft: Java Edition isn't connected</value></data>
+  <data name="MinecraftNotAvailableDetails" xml:space="preserve"><value>Signing in to Microsoft confirms the Xbox account, but doesn't mean that it owns Minecraft: Java Edition.</value></data>
+  <data name="MinecraftProfileDetails" xml:space="preserve"><value>A Minecraft profile was found. The game session connects when you launch the game.</value></data>
+  <data name="LogoutButton" xml:space="preserve"><value>Sign out</value></data>
+  <data name="LogoutTitle" xml:space="preserve"><value>Sign out of this account?</value></data>
+  <data name="LogoutMessage" xml:space="preserve"><value>The account data will be removed from this device. You'll need to confirm a new Microsoft code to sign in again.</value></data>
+  <data name="LogoutConfirm" xml:space="preserve"><value>Sign out</value></data>
+  <data name="CancelButton" xml:space="preserve"><value>Cancel</value></data>
+  <data name="LogoutFailed" xml:space="preserve"><value>Saved account data couldn't be deleted. You are still signed in.</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>Error</value></data>
+  <data name="CloseButton" xml:space="preserve"><value>Close</value></data>
+  <data name="LanguageSaveError" xml:space="preserve"><value>The selected language could not be saved.</value></data>
+</root>

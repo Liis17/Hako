@@ -78,3 +78,54 @@ Parent: [[Index]]
 - Строки, уже лежащие в состоянии (ошибки, этапы установки, `installationError` в SwiftData, открытые
   подтверждения), не переводятся заново; новые сообщения приходят на выбранном языке.
 - Русские формы числа в каталоге не заданы: `%lld сборок` по-русски не склоняется.
+
+## Windows-клиент
+
+Строки — `windows/Hako/Strings/ru-RU/Resources.resw` и `windows/Hako/Strings/en-US/Resources.resw`
+(`<data name="…">`). Чтение — `HakoStrings` (`windows/Hako/HakoStrings.cs`): MRT Core `ResourceManager`,
+поддерево `Resources` и `ResourceContext`, в котором `QualifierValues["Language"]` равен `ru-RU` или `en-US`.
+Тесты копируют оба файла в выходной каталог через `Link` в `windows/Hako.Tests/Hako.Tests.csproj`.
+
+### Источники
+
+| Файл | Значимый символ | Роль |
+|------|-----------------|------|
+| `windows/Hako.Core/AppLanguage.cs` | `AppLanguage`, `AppLanguages`, `ToTag` | Язык, разбор значения из `settings.json`, системный язык по умолчанию |
+| `windows/Hako/HakoStrings.cs` | `HakoStrings.Get`, `SetLanguage`, `LanguageChanged` | Чтение строк и смена языка |
+| `windows/Hako.Core/AuthContracts.cs` | `AuthErrorKindExtensions.ResourceKey` | Ключи ошибок входа |
+| `windows/Hako.Core/AppCoordinator.cs` | `StartupNoticeExtensions.ResourceKey`, `SetLanguageAsync` | Ключи уведомлений запуска и смена языка |
+| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ключей ошибок и уведомлений |
+
+### Публичные контракты
+
+| Контракт | Поведение и условия |
+|----------|---------------------|
+| `AppLanguages.Default` | Системный `CultureInfo.CurrentUICulture`: начинается с `ru` → Russian, иначе English |
+| `AppLanguages.Parse(string?)` | `ru` или `ru-ru` → Russian, `en` или `en-us` → English, иное или `null` → `Default` |
+| `AppLanguage.ToTag()` | Значение, которое пишется в `settings.json`: `ru` или `en` |
+| `HakoStrings.Get(key)` | Строка из текущего `ResourceContext` |
+| `HakoStrings.SetLanguage(language, force)` | Меняет контекст и вызывает `LanguageChanged`; без `force` при том же языке ничего не делает |
+| `AuthErrorKind.ResourceKey()` | Ключ ошибки входа; `Persistence` → `AccountSaveFailed` |
+| `StartupNotice.ResourceKey()` | `PreferencesUnavailable` → `StartupPreferencesWarning`, `AccountUnavailable` → `StartupAccountWarning` |
+
+### Смена языка без перезапуска
+
+1. `AppCoordinator.SetLanguageAsync` меняет `Language` и сохраняет `settings.json`; сохранения сериализованы и пишут текущий язык, поэтому побеждает последний выбор.
+2. `MainWindow.Coordinator_PropertyChanged` при изменении `Language` вызывает `HakoStrings.SetLanguage`.
+3. `HakoStrings` поднимает `LanguageChanged`. Страницы, которые сейчас открыты (`WelcomePage`, `LoginPage`,
+   `SettingsPage`, `BuildsPage`), подписываются на событие в `OnNavigatedTo` и перечитывают строки;
+   в `OnNavigatedFrom` подписка снимается.
+
+Язык при старте: `AppCoordinator.InitializeAsync` берёт `AppLanguages.Parse(settings?.Language)`.
+`MainWindow` вызывает `HakoStrings.SetLanguage(..., force: true)` в конструкторе.
+
+### Правила для новых строк
+
+- Строка добавляется в оба `.resw` с одинаковым именем. `RussianAndEnglishResourcesHaveTheSameNonemptyKeys`
+  сверяет наборы ключей.
+- Ключи ошибок и уведомлений берутся через `ResourceKey()`. `EveryMappedErrorAndStartupNoticeHasRussianAndEnglishText`
+  проверяет, что они есть в обоих файлах. Ключи `CopyCodeFailed` и `OpenVerificationFailed` задаются в `LoginPage` литералами;
+  проверки их наличия в `.resw` нет, `RussianAndEnglishResourcesHaveTheSameNonemptyKeys` сверяет только наборы ru/en.
+- Тексты страниц задаются в коде через `HakoStrings.Get` в методе `RefreshStrings()`; `x:Uid` не используется.
+- Названия языков («Русский», «English») и заголовок окна `Title="Hako"` заданы литералами в XAML. Подписи пунктов
+  навигации присваиваются из `BuildsTitle` и `SettingsTitle` в `MainWindow.UpdateNavigationLabels`.

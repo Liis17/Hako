@@ -6,6 +6,7 @@
     xmlns:local="using:Hako">
     <Application.Resources>
         <ResourceDictionary>
+            <Color x:Key="SystemAccentColor">#FFE0607E</Color>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->

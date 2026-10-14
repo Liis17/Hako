@@ -1,52 +1,45 @@
-﻿using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Shapes;
+using Hako.Core;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
+namespace Hako;
 
-using Windows.ApplicationModel;
-using Windows.ApplicationModel.Activation;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
-
-namespace Hako
+public partial class App : Application
 {
-    /// <summary>
-    /// Provides application-specific behavior to supplement the default Application class.
-    /// </summary>
-    public partial class App : Application
+    private static Window? _window;
+    private readonly AppCoordinator _coordinator;
+
+    public App()
     {
-        private Window? _window;
+        InitializeComponent();
+        var dataDirectory = AppDataDirectory.GetLocalPath();
+        _coordinator = new AppCoordinator(
+            new JsonUserSettingsStore(dataDirectory),
+            new AccountSessionStore(dataDirectory),
+            new MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System));
+    }
 
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
-        public App()
+    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    {
+        _window = new MainWindow(_coordinator);
+        _window.Activate();
+
+        await _coordinator.InitializeAsync();
+    }
+
+    internal static void ActivateMainWindow()
+    {
+        if (_window is null)
         {
-            InitializeComponent();
+            return;
         }
 
-        /// <summary>
-        /// Invoked when the application is launched.
-        /// </summary>
-        /// <param name="args">Details about the launch request and process.</param>
-        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+        if (_window.AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
         {
-            _window = new MainWindow();
-            _window.Activate();
+            presenter.Restore();
         }
+
+        _window.AppWindow.Show();
+        _window.Activate();
     }
 }
