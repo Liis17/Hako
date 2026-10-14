@@ -175,6 +175,7 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 Релиз подписывается SHA-256 и RFC 3161 timestamp сертификатом из секретов `WINDOWS_SIGNING_PFX_BASE64` и
 `WINDOWS_SIGNING_PFX_PASSWORD` (пустой пароль допустим). PFX и импортированный закрытый ключ удаляются после сборки;
 в релиз прикладываются обе архитектуры, публичный `Hako.cer`, нужные runtime-зависимости и инструкции установки.
+
 ## Ограничения и инварианты
 
 - Группа `Hako` в проекте — `PBXFileSystemSynchronizedRootGroup`: всё содержимое
