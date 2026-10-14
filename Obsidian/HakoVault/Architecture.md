@@ -176,7 +176,7 @@ macOS может снова спросить доступ к записи ток
 - `AppDataLocation` переносит SwiftData-store из контейнера Sandbox в `Library/Application Support/Hako/`. Игровые файлы
   каждой сборки находятся в настоящем `~/.hako/{имя}/java` и `minecraft`; общих бинарных файлов нет.
 - Вход в Minecraft требует Client ID Azure, одобренного Mojang; Client ID проекта задан в
-  `MicrosoftAuth.clientID`, заявка на одобрение подана, но ещё не одобрена — см. [[Auth/MicrosoftAuth]].
+  `MicrosoftAuth.clientID` и одобрен Mojang — см. [[Auth/MicrosoftAuth]].
 - Интерфейс рассчитан на светлую тему и белый фон: `ContentView` принудительно задаёт `.light`.
 - `HakoTests` проверяет формат текстур, зеркалирование 64×32, слои, загрузку, кэш, ошибки, отмену
   и сохранение варианта активного скина, миграцию аккаунта, независимость/переименование сборок, совместимость Mojang,

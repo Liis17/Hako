@@ -77,8 +77,8 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 - Endpoint `devicecode` принимает `XboxLive.signin` вместе с OIDC-scope `openid profile email`
   (проверено запросом). Наличие `email` в `id_token` проверяется только настоящим входом.
 - Mojang пропускает в Minecraft API только одобренные Client ID (заявка: aka.ms/mce-reviewappid).
-  Заявка на одобрение Client ID проекта подана и пока не одобрена: вход в Microsoft и Xbox Live
-  проходит, а шаг Minecraft возвращает 403 (`.appNotApproved`). После одобрения код менять не нужно.
+  Client ID проекта одобрен Mojang (подтверждено владельцем проекта). Ответ 403 от `login_with_xbox`
+  (`.appNotApproved`) означает отзыв или неверный Client ID.
 - Device code flow не использует секрет клиента; секреты приложения Azure в репозиторий не добавляются.
 - Исходящие соединения в песочнице разрешены настройкой `ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES`
   (entitlement `com.apple.security.network.client`).
