@@ -202,7 +202,7 @@ public sealed class MicrosoftDeviceAuth(HttpClient httpClient, TimeProvider time
         {
             throw;
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JsonException)
+        catch (Exception)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return null;
@@ -268,12 +268,7 @@ public sealed class MicrosoftDeviceAuth(HttpClient httpClient, TimeProvider time
         {
             throw;
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return null;
-        }
-        catch (AuthServiceException exception) when (exception.HttpStatus is 403 or 404)
+        catch (Exception)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return null;

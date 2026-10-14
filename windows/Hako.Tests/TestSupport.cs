@@ -167,6 +167,33 @@ internal sealed class MemorySettingsStore(UserSettings? settings = null) : IUser
     }
 }
 
+internal sealed class PausingSettingsStore(UserSettings? settings = null) : IUserSettingsStore
+{
+    private int _saveCount;
+
+    public UserSettings? Settings { get; private set; } = settings;
+    public bool FailFirstSave { get; set; }
+    public TaskCompletionSource FirstSaveReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource ReleaseFirstSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task<UserSettings?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Settings);
+
+    public async Task SaveAsync(UserSettings settings, CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Increment(ref _saveCount) == 1)
+        {
+            FirstSaveReached.TrySetResult();
+            await ReleaseFirstSave.Task;
+            if (FailFirstSave)
+            {
+                throw new IOException("settings write failed");
+            }
+        }
+
+        Settings = settings;
+    }
+}
+
 internal sealed class MemoryAccountStore(AccountSession? account = null) : IAccountStore
 {
     public AccountSession? SavedAccount { get; private set; } = account;

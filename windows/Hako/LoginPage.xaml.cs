@@ -2,6 +2,7 @@ using Hako.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using System.Runtime.InteropServices;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace Hako;
@@ -10,6 +11,7 @@ public sealed partial class LoginPage : Page
 {
     private AppCoordinator? _coordinator;
     private bool _copied;
+    private string? _noticeKey;
 
     public LoginPage()
     {
@@ -78,6 +80,11 @@ public sealed partial class LoginPage : Page
         FailureText.Text = _coordinator.LoginError is { } error
             ? HakoStrings.Get(error.ResourceKey())
             : string.Empty;
+        LoginNotice.IsOpen = _noticeKey is not null;
+        if (_noticeKey is not null)
+        {
+            LoginNotice.Message = HakoStrings.Get(_noticeKey);
+        }
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e)
@@ -87,10 +94,25 @@ public sealed partial class LoginPage : Page
 
     private async void OpenVerificationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_coordinator?.CurrentDeviceCode is { } code)
+        if (_coordinator?.CurrentDeviceCode is not { } code)
         {
-            await Windows.System.Launcher.LaunchUriAsync(code.VerificationUri);
+            return;
         }
+
+        _noticeKey = null;
+        try
+        {
+            if (!await Windows.System.Launcher.LaunchUriAsync(code.VerificationUri))
+            {
+                _noticeKey = "OpenVerificationFailed";
+            }
+        }
+        catch (Exception)
+        {
+            _noticeKey = "OpenVerificationFailed";
+        }
+
+        RefreshState();
     }
 
     private void CopyCodeButton_Click(object sender, RoutedEventArgs e)
@@ -100,17 +122,27 @@ public sealed partial class LoginPage : Page
             return;
         }
 
+        _noticeKey = null;
         var data = new DataPackage();
         data.SetText(code.UserCode);
-        Clipboard.SetContent(data);
-        Clipboard.Flush();
-        _copied = true;
+        try
+        {
+            Clipboard.SetContent(data);
+            Clipboard.Flush();
+            _copied = true;
+        }
+        catch (COMException)
+        {
+            _noticeKey = "CopyCodeFailed";
+        }
+
         RefreshState();
     }
 
     private void RetryButton_Click(object sender, RoutedEventArgs e)
     {
         _copied = false;
+        _noticeKey = null;
         if (_coordinator is not null)
         {
             _ = _coordinator.RetrySignIn();

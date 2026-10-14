@@ -461,6 +461,84 @@ public sealed class MicrosoftDeviceAuthTests
         Assert.IsNull(account.MinecraftName);
     }
 
+    [TestMethod]
+    public async Task MinecraftLoginRateLimitIsOptionalAndKeepsXboxAccount()
+    {
+        await AssertMinecraftFailureIsOptionalAsync(minecraftLogin: TestData.Json(HttpStatusCode.TooManyRequests, "{}"));
+    }
+
+    [TestMethod]
+    public async Task MinecraftProfileServerErrorIsOptionalAndKeepsXboxAccount()
+    {
+        await AssertMinecraftFailureIsOptionalAsync(minecraftProfile: TestData.Json(HttpStatusCode.InternalServerError, "{}"));
+    }
+
+    [TestMethod]
+    public async Task MalformedMinecraftResponseIsOptionalAndKeepsXboxAccount()
+    {
+        await AssertMinecraftFailureIsOptionalAsync(minecraftLogin: TestData.Json(HttpStatusCode.OK, "not json"));
+    }
+
+    [TestMethod]
+    public async Task MinecraftXstsUnauthorizedIsOptionalAndKeepsXboxAccount()
+    {
+        await AssertMinecraftFailureIsOptionalAsync(minecraftXsts: TestData.Json(HttpStatusCode.Unauthorized, "{\"XErr\":2148916233}"));
+    }
+
+    [TestMethod]
+    public async Task UnexpectedAvatarExceptionIsOptionalAndKeepsXboxAccount()
+    {
+        var handler = new CallbackHttpHandler((request, _) =>
+        {
+            var uri = request.RequestUri?.AbsoluteUri;
+            if (uri == "https://user.auth.xboxlive.com/user/authenticate")
+                return Task.FromResult(TestData.Json(HttpStatusCode.OK, "{\"Token\":\"user-token\",\"DisplayClaims\":{\"xui\":[]}}"));
+            if (uri == "https://xsts.auth.xboxlive.com/xsts/authorize")
+                return Task.FromResult(TestData.Json(HttpStatusCode.OK, XboxProfileTokenJson()));
+            if (uri?.StartsWith("https://profile.xboxlive.com/", StringComparison.Ordinal) == true)
+                return Task.FromException<HttpResponseMessage>(new InvalidOperationException("simulated avatar failure"));
+            return Task.FromResult(TestData.Json(HttpStatusCode.Forbidden, "{}"));
+        });
+        using var http = new HttpClient(handler);
+        var auth = new MicrosoftDeviceAuth(http, TimeProvider.System);
+
+        var account = await auth.SignInAsync(new MicrosoftToken("ms-access", "ms-refresh", null), CancellationToken.None);
+
+        Assert.AreEqual("123", account.Xuid);
+        Assert.IsNull(account.XboxAvatarUrl);
+        Assert.IsNull(account.MinecraftName);
+    }
+
+    private static async Task AssertMinecraftFailureIsOptionalAsync(
+        HttpResponseMessage? minecraftXsts = null,
+        HttpResponseMessage? minecraftLogin = null,
+        HttpResponseMessage? minecraftProfile = null)
+    {
+        var xstsRequests = 0;
+        var handler = new CallbackHttpHandler((request, _) => Task.FromResult(request.RequestUri?.AbsoluteUri switch
+        {
+            "https://user.auth.xboxlive.com/user/authenticate" => TestData.Json(HttpStatusCode.OK, "{\"Token\":\"user-token\",\"DisplayClaims\":{\"xui\":[]}}"),
+            "https://xsts.auth.xboxlive.com/xsts/authorize" => Interlocked.Increment(ref xstsRequests) == 1
+                ? TestData.Json(HttpStatusCode.OK, XboxProfileTokenJson())
+                : (minecraftXsts ?? TestData.Json(HttpStatusCode.OK, "{\"Token\":\"minecraft-xsts\",\"DisplayClaims\":{\"xui\":[{\"uhs\":\"user-hash\"}]}}")),
+            "https://api.minecraftservices.com/authentication/login_with_xbox" => minecraftLogin
+                ?? TestData.Json(HttpStatusCode.OK, "{\"access_token\":\"minecraft-access\",\"expires_in\":3600}"),
+            "https://api.minecraftservices.com/minecraft/profile" => minecraftProfile
+                ?? TestData.Json(HttpStatusCode.OK, "{\"id\":\"profile-id\",\"name\":\"JavaPlayer\"}"),
+            _ => TestData.Json(HttpStatusCode.ServiceUnavailable, "{}")
+        }));
+        using var http = new HttpClient(handler);
+        var auth = new MicrosoftDeviceAuth(http, TimeProvider.System);
+
+        var account = await auth.SignInAsync(new MicrosoftToken("ms-access", "ms-refresh", null), CancellationToken.None);
+
+        Assert.AreEqual("123", account.Xuid);
+        Assert.AreEqual("HakoPlayer", account.Gamertag);
+        Assert.IsNull(account.MinecraftProfileId);
+        Assert.IsNull(account.MinecraftName);
+        Assert.IsNull(account.MinecraftAccessToken);
+    }
+
     private static CallbackHttpHandler Sequence(params HttpResponseMessage[] responses)
     {
         var index = -1;

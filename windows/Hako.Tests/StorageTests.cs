@@ -104,6 +104,26 @@ public sealed class StorageTests
         }
     }
 
+    [TestMethod]
+    public async Task CorruptSettingsReportPreferencesUnavailableAndUseDefaultLanguage()
+    {
+        var directory = NewDirectory();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "settings.json"), "{ not json");
+            var coordinator = new AppCoordinator(new JsonUserSettingsStore(directory), new MemoryAccountStore(), new SequenceAuthService());
+
+            await coordinator.InitializeAsync();
+
+            Assert.AreEqual(StartupNotice.PreferencesUnavailable, coordinator.CurrentStartupNotice);
+            Assert.AreEqual(AppLanguages.Default, coordinator.Language);
+        }
+        finally
+        {
+            DeleteDirectory(directory);
+        }
+    }
+
     private static bool Replace(Action replace)
     {
         replace();

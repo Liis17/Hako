@@ -13,15 +13,8 @@ public sealed class JsonUserSettingsStore(string directory) : IUserSettingsStore
             return null;
         }
 
-        try
-        {
-            var json = await File.ReadAllBytesAsync(_path, cancellationToken);
-            return JsonSerializer.Deserialize(json, HakoJsonContext.Default.UserSettings);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        var json = await File.ReadAllBytesAsync(_path, cancellationToken);
+        return JsonSerializer.Deserialize(json, HakoJsonContext.Default.UserSettings);
     }
 
     public async Task SaveAsync(UserSettings settings, CancellationToken cancellationToken = default)

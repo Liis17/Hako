@@ -42,6 +42,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private readonly IAccountStore _accountStore;
     private readonly IMicrosoftAuthService _authService;
     private readonly object _commitLock = new();
+    private readonly SemaphoreSlim _languageSaveGate = new(1, 1);
     private LauncherScreen _screen = LauncherScreen.Loading;
     private AppLanguage _language = AppLanguages.Default;
     private bool _isGuest;
@@ -55,6 +56,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private AccountSession? _account;
     private CancellationTokenSource? _activeAttempt;
     private long _attemptGeneration;
+    private long _languageSelection;
 
     public AppCoordinator(IUserSettingsStore settingsStore, IAccountStore accountStore, IMicrosoftAuthService authService)
     {
@@ -159,15 +161,34 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     public async Task SetLanguageAsync(AppLanguage language, CancellationToken cancellationToken = default)
     {
         var previousLanguage = Language;
+        var selection = ++_languageSelection;
         Language = language;
         try
         {
-            await _settingsStore.SaveAsync(new UserSettings(language.ToTag()), cancellationToken);
+            await SaveLanguageAsync(cancellationToken);
         }
         catch
         {
-            Language = previousLanguage;
+            if (selection == _languageSelection)
+            {
+                Language = previousLanguage;
+            }
+
             throw;
+        }
+    }
+
+    private async Task SaveLanguageAsync(CancellationToken cancellationToken)
+    {
+        await _languageSaveGate.WaitAsync(cancellationToken);
+        try
+        {
+            // Saves the current language rather than the caller's: the last save to run always carries the latest choice.
+            await _settingsStore.SaveAsync(new UserSettings(Language.ToTag()), cancellationToken);
+        }
+        finally
+        {
+            _languageSaveGate.Release();
         }
     }
 

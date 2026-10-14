@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Hako.Core;
 
 public enum SignInPhase
@@ -39,7 +41,15 @@ public interface IMicrosoftAuthService
 public sealed record MicrosoftToken(
     string AccessToken,
     string RefreshToken,
-    string? Email);
+    string? Email)
+{
+    // Tokens are left out of ToString() so logs and debugger output never show them.
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("Email = ").Append(Email);
+        return true;
+    }
+}
 
 public static class AuthErrorKindExtensions
 {

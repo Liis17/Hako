@@ -188,4 +188,40 @@ public sealed class AppCoordinatorTests
         Assert.AreEqual(StartupNotice.AccountUnavailable, coordinator.CurrentStartupNotice);
         Assert.IsNull(coordinator.Account);
     }
+
+    [TestMethod]
+    public async Task LanguageSavesRunInSelectionOrderAndLatestChoiceWins()
+    {
+        var settings = new PausingSettingsStore(new UserSettings("ru"));
+        var coordinator = new AppCoordinator(settings, new MemoryAccountStore(), new SequenceAuthService());
+        await coordinator.InitializeAsync();
+
+        var english = coordinator.SetLanguageAsync(AppLanguage.English);
+        await settings.FirstSaveReached.Task;
+        var russian = coordinator.SetLanguageAsync(AppLanguage.Russian);
+        settings.ReleaseFirstSave.TrySetResult();
+        await Task.WhenAll(english, russian);
+
+        Assert.AreEqual(AppLanguage.Russian, coordinator.Language);
+        Assert.AreEqual("ru", settings.Settings?.Language);
+    }
+
+    [TestMethod]
+    public async Task FailedOlderLanguageSaveDoesNotRevertRepeatedChoice()
+    {
+        var settings = new PausingSettingsStore(new UserSettings("ru")) { FailFirstSave = true };
+        var coordinator = new AppCoordinator(settings, new MemoryAccountStore(), new SequenceAuthService());
+        await coordinator.InitializeAsync();
+
+        var failed = coordinator.SetLanguageAsync(AppLanguage.English);
+        await settings.FirstSaveReached.Task;
+        var repeated = coordinator.SetLanguageAsync(AppLanguage.English);
+        settings.ReleaseFirstSave.TrySetResult();
+
+        await Assert.ThrowsExactlyAsync<IOException>(() => failed);
+        await repeated;
+
+        Assert.AreEqual(AppLanguage.English, coordinator.Language);
+        Assert.AreEqual("en", settings.Settings?.Language);
+    }
 }

@@ -1,4 +1,5 @@
 using Hako.Core;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 
 namespace Hako;
@@ -28,6 +29,16 @@ public partial class App : Application
 
     internal static void ActivateMainWindow()
     {
-        _window?.Activate();
+        if (_window is null)
+        {
+            return;
+        }
+
+        if (_window.AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
+        {
+            presenter.Restore();
+        }
+
+        _window.Activate();
     }
 }
