@@ -8,7 +8,7 @@
             <StackPanel MaxWidth="720" Spacing="20" VerticalAlignment="Center" Margin="0,24,0,0">
                 <TextBlock x:Name="LoginTitle" FontSize="36" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <TextBlock x:Name="LoginInstructions" FontSize="18" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                <InfoBar x:Name="LoginNotice" IsOpen="False" Severity="Warning" />
+                <InfoBar x:Name="LoginNotice" IsOpen="False" Severity="Warning" Closed="LoginNotice_Closed" />
 
                 <StackPanel x:Name="RequestingPanel" Visibility="Collapsed" Spacing="12">
                     <ProgressRing IsActive="True" Width="32" Height="32" />

@@ -172,7 +172,7 @@ internal sealed class PausingSettingsStore(UserSettings? settings = null) : IUse
     private int _saveCount;
 
     public UserSettings? Settings { get; private set; } = settings;
-    public bool FailFirstSave { get; set; }
+    public int FailFirstSaves { get; set; }
     public TaskCompletionSource FirstSaveReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource ReleaseFirstSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -180,14 +180,16 @@ internal sealed class PausingSettingsStore(UserSettings? settings = null) : IUse
 
     public async Task SaveAsync(UserSettings settings, CancellationToken cancellationToken = default)
     {
-        if (Interlocked.Increment(ref _saveCount) == 1)
+        var saveNumber = Interlocked.Increment(ref _saveCount);
+        if (saveNumber == 1)
         {
             FirstSaveReached.TrySetResult();
             await ReleaseFirstSave.Task;
-            if (FailFirstSave)
-            {
-                throw new IOException("settings write failed");
-            }
+        }
+
+        if (saveNumber <= FailFirstSaves)
+        {
+            throw new IOException("settings write failed");
         }
 
         Settings = settings;

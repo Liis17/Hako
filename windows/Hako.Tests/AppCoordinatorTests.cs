@@ -209,7 +209,7 @@ public sealed class AppCoordinatorTests
     [TestMethod]
     public async Task FailedOlderLanguageSaveDoesNotRevertRepeatedChoice()
     {
-        var settings = new PausingSettingsStore(new UserSettings("ru")) { FailFirstSave = true };
+        var settings = new PausingSettingsStore(new UserSettings("ru")) { FailFirstSaves = 1 };
         var coordinator = new AppCoordinator(settings, new MemoryAccountStore(), new SequenceAuthService());
         await coordinator.InitializeAsync();
 
@@ -223,5 +223,24 @@ public sealed class AppCoordinatorTests
 
         Assert.AreEqual(AppLanguage.English, coordinator.Language);
         Assert.AreEqual("en", settings.Settings?.Language);
+    }
+
+    [TestMethod]
+    public async Task FailedLatestLanguageSaveRollsBackToLastSavedLanguage()
+    {
+        var settings = new PausingSettingsStore(new UserSettings("ru")) { FailFirstSaves = 2 };
+        var coordinator = new AppCoordinator(settings, new MemoryAccountStore(), new SequenceAuthService());
+        await coordinator.InitializeAsync();
+
+        var failedOlder = coordinator.SetLanguageAsync(AppLanguage.English);
+        await settings.FirstSaveReached.Task;
+        var failedLatest = coordinator.SetLanguageAsync(AppLanguage.Russian);
+        settings.ReleaseFirstSave.TrySetResult();
+
+        await Assert.ThrowsExactlyAsync<IOException>(() => failedOlder);
+        await Assert.ThrowsExactlyAsync<IOException>(() => failedLatest);
+
+        Assert.AreEqual(AppLanguage.Russian, coordinator.Language);
+        Assert.AreEqual("ru", settings.Settings?.Language);
     }
 }

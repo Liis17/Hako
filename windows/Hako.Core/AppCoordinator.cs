@@ -45,6 +45,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private readonly SemaphoreSlim _languageSaveGate = new(1, 1);
     private LauncherScreen _screen = LauncherScreen.Loading;
     private AppLanguage _language = AppLanguages.Default;
+    private AppLanguage _savedLanguage = AppLanguages.Default;
     private bool _isGuest;
     private SettingsSection _settingsSection = SettingsSection.General;
     private LauncherScreen _loginReturnScreen = LauncherScreen.Welcome;
@@ -138,6 +139,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         }
 
         Language = AppLanguages.Parse(settings?.Language);
+        _savedLanguage = Language;
 
         try
         {
@@ -160,7 +162,6 @@ public sealed class AppCoordinator : INotifyPropertyChanged
 
     public async Task SetLanguageAsync(AppLanguage language, CancellationToken cancellationToken = default)
     {
-        var previousLanguage = Language;
         var selection = ++_languageSelection;
         Language = language;
         try
@@ -171,7 +172,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         {
             if (selection == _languageSelection)
             {
-                Language = previousLanguage;
+                Language = _savedLanguage;
             }
 
             throw;
@@ -184,7 +185,9 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         try
         {
             // Saves the current language rather than the caller's: the last save to run always carries the latest choice.
-            await _settingsStore.SaveAsync(new UserSettings(Language.ToTag()), cancellationToken);
+            var language = Language;
+            await _settingsStore.SaveAsync(new UserSettings(language.ToTag()), cancellationToken);
+            _savedLanguage = language;
         }
         finally
         {

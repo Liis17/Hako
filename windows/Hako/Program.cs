@@ -52,8 +52,15 @@ internal static class Program
         CloseHandle(redirectDone);
 
         // The redirecting process is the one allowed to bring the target window forward, so it does it here.
-        using var target = Process.GetProcessById((int)instance.ProcessId);
-        SetForegroundWindow(target.MainWindowHandle);
+        try
+        {
+            using var target = Process.GetProcessById((int)instance.ProcessId);
+            SetForegroundWindow(target.MainWindowHandle);
+        }
+        catch (Exception)
+        {
+            // The main instance may have exited after the redirect; this instance just exits quietly.
+        }
     }
 
     [DllImport("ole32.dll")]

@@ -2,7 +2,6 @@ using Hako.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
-using System.Runtime.InteropServices;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace Hako;
@@ -131,7 +130,7 @@ public sealed partial class LoginPage : Page
             Clipboard.Flush();
             _copied = true;
         }
-        catch (COMException)
+        catch (Exception)
         {
             _copied = false;
             _noticeKey = "CopyCodeFailed";
@@ -147,6 +146,14 @@ public sealed partial class LoginPage : Page
         if (_coordinator is not null)
         {
             _ = _coordinator.RetrySignIn();
+        }
+    }
+
+    private void LoginNotice_Closed(InfoBar sender, InfoBarClosedEventArgs args)
+    {
+        if (args.Reason == InfoBarCloseReason.CloseButton)
+        {
+            _noticeKey = null;
         }
     }
 }
