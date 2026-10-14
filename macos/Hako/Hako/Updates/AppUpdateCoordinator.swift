@@ -7,13 +7,14 @@ nonisolated enum AppUpdateActivity: Equatable, Sendable {
     case downloading(Double)
 }
 
-/// Проверка релиза `nightly` при запуске и раз в 6 часов, загрузка и установка новой сборки.
+/// Проверка стабильных macOS-релизов при запуске и раз в 6 часов, загрузка и установка новой версии.
 @MainActor @Observable final class AppUpdateCoordinator {
     static let automaticCheckKey = "checkUpdatesAutomatically"
     private static let interval: Duration = .seconds(6 * 60 * 60)
 
     /// `nil` у локальных сборок: им не с чем сравнить релиз.
     let currentCommit: String?
+    let currentVersion: String?
     private let store: InstanceStore
     private let client: AppReleaseClient
     private(set) var activity = AppUpdateActivity.idle
@@ -25,8 +26,13 @@ nonisolated enum AppUpdateActivity: Equatable, Sendable {
 
     var isLocalBuild: Bool { currentCommit == nil }
 
-    init(store: InstanceStore, client: AppReleaseClient = .init(), currentCommit: String? = AppUpdateInstaller.commit(of: .main)) {
-        self.store = store; self.client = client; self.currentCommit = currentCommit
+    init(
+        store: InstanceStore,
+        client: AppReleaseClient = .init(),
+        currentCommit: String? = AppUpdateInstaller.commit(of: .main),
+        currentVersion: String? = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    ) {
+        self.store = store; self.client = client; self.currentCommit = currentCommit; self.currentVersion = currentVersion
     }
 
     func start() {
@@ -47,9 +53,8 @@ nonisolated enum AppUpdateActivity: Equatable, Sendable {
         defer { activity = .idle }
         do {
             let latest = try await client.latest()
-            release = latest.flatMap { $0.isUpdate(for: currentCommit) ? $0 : nil }
+            release = latest.flatMap { $0.isUpdate(for: currentVersion) ? $0 : nil }
             lastChecked = .now; error = nil
-            if latest == nil, manual { error = String(appLocalized: "Новая версия Hako сейчас публикуется. Повторите проверку через несколько минут.") }
         } catch {
             if manual { self.error = error.localizedDescription }
         }
