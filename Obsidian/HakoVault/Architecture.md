@@ -275,6 +275,10 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
   в `Hako.csproj` не задан.
 - `PublishTrimmed` и `PublishReadyToRun` включаются для конфигураций, отличных от `Debug`.
   `PublishProfile` ссылается на `win-$(Platform).pubxml`, но таких файлов в репозитории нет.
+  Release-публикация даёт одно ожидаемое предупреждение `IL2059` в сгенерированном `XamlTypeInfo.g.cs`:
+  `RunClassConstructor` для `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion`.
+  У `Nullable<T>` нет статического конструктора, поэтому trimming ничего не удаляет; подавлять его глобально
+  через `NoWarn` не нужно, чтобы не скрыть такие же предупреждения в коде Hako.
 - Сборка и тесты:
 
 ```sh
