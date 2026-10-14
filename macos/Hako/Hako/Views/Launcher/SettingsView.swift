@@ -528,10 +528,11 @@ private struct AppUpdateCard: View {
             ProgressView("Устанавливаем обновление…")
         case .idle:
             if let release = updates.release {
+                let version = release.version ?? release.tagName
                 if let date = release.publishedAt {
-                    Text("Доступна новая версия Hako: \(release.shortCommit) от \(date.formatted(.dateTime.day().month().hour().minute().locale(locale))).")
+                    Text("Доступна новая версия Hako: \(version) от \(date.formatted(.dateTime.day().month().hour().minute().locale(locale))).")
                 } else {
-                    Text("Доступна новая версия Hako: \(release.shortCommit).")
+                    Text("Доступна новая версия Hako: \(version).")
                 }
             } else if updates.lastChecked != nil {
                 Text("Установлена последняя версия Hako.")
