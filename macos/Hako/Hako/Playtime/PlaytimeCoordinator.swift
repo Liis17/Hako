@@ -3,6 +3,8 @@ import Observation
 import SwiftData
 
 @MainActor @Observable final class PlaytimeCoordinator {
+    // Callback завершения игры должен сохранять рабочее хранилище вместе с контекстом.
+    @ObservationIgnored private let container: ModelContainer
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let persist: () throws -> Void
     @ObservationIgnored private var polling: Task<Void, Never>?
@@ -13,6 +15,7 @@ import SwiftData
     private var sessions: [UUID: PlaytimeSession]
 
     init(context: ModelContext, journalDirectory: URL = PlaytimeJournal.directory(), persist: (() throws -> Void)? = nil) throws {
+        container = context.container
         self.context = context; self.persist = persist ?? { try context.save() }
         self.journalDirectory = journalDirectory
         players = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<PlayerPlaytime>()).map { ($0.ownerKey, $0) })

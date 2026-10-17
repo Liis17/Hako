@@ -72,6 +72,8 @@ nonisolated struct InstanceStorage: Sendable {
 }
 
 @MainActor @Observable final class InstanceStore {
+    // Фоновые операции могут пережить владельца, создавшего контекст.
+    @ObservationIgnored private let container: ModelContainer
     let context: ModelContext
     let storage: InstanceStorage
     private let persist: () throws -> Void
@@ -79,6 +81,7 @@ nonisolated struct InstanceStorage: Sendable {
     var contentBusy: Set<UUID> = []
 
     init(context: ModelContext, storage: InstanceStorage = .init(), persist: (() throws -> Void)? = nil) {
+        container = context.container
         self.context = context
         self.storage = storage
         self.persist = persist ?? { try context.save() }
