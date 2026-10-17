@@ -301,6 +301,48 @@ import Testing
         #expect(catalog.projects.map(\.id) == ["new"] && catalog.nextOffset == 1 && !catalog.loadingMore)
     }
 
+    @Test func cancelledPaginationCanBeRetried() async throws {
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let first = try Self.page([("a", "modpack")], total: 2)
+        let second = try Self.page([("b", "modpack")], total: 2)
+        let (events, continuation) = AsyncStream<URLRequest>.makeStream()
+        defer { continuation.finish() }
+        ModpackTestProtocol.prepare([:], handler: { url in
+            let firstPage = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "offset" }?.value == "0"
+            return (firstPage ? first : second, firstPage ? 0 : 0.2)
+        }, onRequest: { continuation.yield($0) })
+        var requests = events.makeAsyncIterator()
+        let catalog = ModpackCatalog(client: ModrinthClient(session: session))
+        await catalog.search(force: true)
+        _ = await requests.next()
+        let page = Task { await catalog.loadMore() }
+        _ = await requests.next()
+        page.cancel(); await page.value
+        #expect(!catalog.loadingMore && catalog.hasMore && catalog.moreError == nil)
+        await catalog.loadMore()
+        #expect(catalog.projects.map(\.id) == ["a", "b"] && !catalog.hasMore)
+    }
+
+    @Test func minecraftDirectoryAliasCannotOverwriteManagedJava() async throws {
+        let root = try Self.temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let manifest = Self.manifest(files: [Self.file("bin/java")])
+        let archive = try await Self.archive(in: root, manifest: manifest)
+        let plan = try Self.plan(archive: archive, manifest: manifest)
+        let instance = root.appendingPathComponent("instance")
+        let java = instance.appendingPathComponent("java/bin/java")
+        try FileManager.default.createDirectory(at: java.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("managed".utf8).write(to: java)
+        try FileManager.default.createSymbolicLink(atPath: instance.appendingPathComponent("minecraft").path, withDestinationPath: "java")
+        try plan.write(in: instance)
+        ModpackTestProtocol.prepare(["/pack.mrpack": try Data(contentsOf: archive), "/bin/java": Data("mod".utf8)])
+        let installer = ModpackInstaller(session: session, cache: root.appendingPathComponent("cache"))
+        await #expect(throws: ModpackError.self) { try await installer.validate(in: instance, minecraft: "test", fabric: nil) }
+        await #expect(throws: ModpackError.self) { try await installer.install(in: instance) { _ in } }
+        #expect(try Data(contentsOf: java) == Data("managed".utf8))
+        #expect(try ModpackPlan.read(in: instance)?.completed == false)
+    }
+
 }
 
 nonisolated final class ModpackTestProtocol: URLProtocol, @unchecked Sendable {

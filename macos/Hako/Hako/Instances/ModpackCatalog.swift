@@ -50,15 +50,14 @@ import Observation
         let key = key, token = generation
         let offset = nextOffset
         loadingMore = true; moreError = nil
+        defer { if generation == token, self.key == key { loadingMore = false } }
         do {
             let page = try await client.searchModpacks(key.query, minecraft: key.minecraft, sort: key.sort, offset: offset)
             guard !Task.isCancelled, generation == token, self.key == key else { return }
             accept(page)
-            loadingMore = false
         } catch {
             guard !Task.isCancelled, generation == token, self.key == key else { return }
             moreError = error.localizedDescription
-            loadingMore = false
         }
     }
 

@@ -42,6 +42,7 @@ actor ModpackInstaller {
 
     func validate(in root: URL, minecraft: String, fabric: FabricConfiguration?) throws {
         guard let plan = try ModpackPlan.read(in: root) else { return }
+        _ = try Self.gameDirectory(in: root)
         guard plan.manifest.minecraft == minecraft, plan.manifest.loaderVersion == fabric?.loaderVersion,
               fabric?.api == nil else { throw ModpackError.invalidManifest }
     }
@@ -88,7 +89,7 @@ actor ModpackInstaller {
         }
         try Task.checkCancellation()
         await progress(.init(stage: String(appLocalized: "Устанавливаем содержимое модпака…"), completedBytes: completed, totalBytes: total))
-        let minecraft = try InstanceStorage.containedURL("minecraft", in: root)
+        let minecraft = try Self.gameDirectory(in: root)
         // Validate every destination before publishing any content.
         for path in stagedPaths { _ = try Self.destination(path, in: minecraft) }
         for path in stagedPaths.sorted() {
@@ -103,6 +104,12 @@ actor ModpackInstaller {
         try Task.checkCancellation()
         plan.completed = true
         try plan.write(in: root)
+    }
+
+    nonisolated private static func gameDirectory(in root: URL) throws -> URL {
+        let raw = root.appendingPathComponent("minecraft")
+        guard (try? raw.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true else { throw ModpackError.unsafePath }
+        return try InstanceStorage.containedURL("minecraft", in: root)
     }
 
     nonisolated private static func destination(_ path: String, in root: URL) throws -> URL {
