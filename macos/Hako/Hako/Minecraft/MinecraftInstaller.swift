@@ -157,15 +157,15 @@ actor MinecraftInstaller {
             try FileManager.default.createDirectory(at: try InstanceStorage.containedURL(path, in: root), withIntermediateDirectories: true)
         }
         guard FileManager.default.isExecutableFile(atPath: try InstanceStorage.containedURL(executable, in: javaRoot).path) else { throw MojangError.invalid(String(appLocalized: "Не удалось подготовить Java к запуску.")) }
-        if let fabric {
+        if let fabric, let api = fabric.api {
             let folder = try InstanceStorage.containedURL("minecraft/mods", in: root)
             if try await !content.apiWasProvisioned(in: folder) {
                 await progress(.init(stage: String(appLocalized: "Устанавливаем Fabric API…"), completedBytes: completed, totalBytes: total))
-                let metadata = try await fabricClient.metadata(for: fabric.api)
+                let metadata = try await fabricClient.metadata(for: api)
                 guard try metadata.supports(loader: fabric.loaderVersion, java: manifest.java.majorVersion) else { throw MojangError.unsupported(String(appLocalized: "Fabric API несовместим с выбранным Loader или Java.")) }
-                let cached = try await fabricClient.cachedAPI(fabric.api)
+                let cached = try await fabricClient.cachedAPI(api)
                 try Task.checkCancellation()
-                try await content.provisionAPI(fabric.api, from: cached, in: folder)
+                try await content.provisionAPI(api, from: cached, in: folder)
             }
         }
         await progress(.init(stage: String(appLocalized: "Готово"), completedBytes: total, totalBytes: total))

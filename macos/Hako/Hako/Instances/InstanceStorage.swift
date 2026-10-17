@@ -96,7 +96,7 @@ nonisolated struct InstanceStorage: Sendable {
         return folder
     }
 
-    func create(_ draft: InstanceDraft, versionID: String, metadataURL: String, metadataSHA1: String, javaMajorVersion: Int = 0, legacyTexturepacks: Bool = false) throws -> GameInstance {
+    func create(_ draft: InstanceDraft, versionID: String, metadataURL: String, metadataSHA1: String, javaMajorVersion: Int = 0, legacyTexturepacks: Bool = false, modpack: ModpackPlan? = nil) throws -> GameInstance {
         try validateOffline(draft)
         let name = try InstanceName.validated(draft.name)
         let folder = try validateName(name)
@@ -115,6 +115,13 @@ nonisolated struct InstanceStorage: Sendable {
             try FileManager.default.createDirectory(at: url.appendingPathComponent("java"), withIntermediateDirectories: false)
             try FileManager.default.createDirectory(at: url.appendingPathComponent("minecraft"), withIntermediateDirectories: false)
             if let data = draft.iconData { try data.write(to: url.appendingPathComponent("icon.png"), options: .atomic) }
+            if let modpack {
+                guard !modpack.completed, modpack.manifest.minecraft == versionID,
+                      modpack.manifest.loaderVersion == draft.fabricConfiguration?.loaderVersion,
+                      (modpack.manifest.loaderVersion == nil) == (draft.modLoader == .vanilla),
+                      draft.fabricConfiguration?.api == nil else { throw ModpackError.invalidManifest }
+                try modpack.write(in: url)
+            }
             apply(draft, to: instance)
             context.insert(instance)
             try persist()

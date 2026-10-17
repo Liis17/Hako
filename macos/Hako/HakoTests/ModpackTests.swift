@@ -36,6 +36,24 @@ import Testing
         ]))
     }
 
+    static func plan(archive: URL, manifest: ModpackManifest) throws -> ModpackPlan {
+        let bytes = try Data(contentsOf: archive)
+        let file = ModrinthVersion.File(filename: "pack.mrpack", url: URL(string: "https://cdn.modrinth.com/pack.mrpack")!, size: Int64(bytes.count), hashes: ["sha1": sha(bytes), "sha512": FabricClient.hash(bytes)], primary: true, fileType: nil)
+        return .init(projectID: "project", versionID: "v1", versionNumber: "1.0", pageURL: URL(string: "https://modrinth.com/modpack/project")!, archive: file, manifest: manifest)
+    }
+
+    static func minecraftRoutes() throws -> (MinecraftVersion, [String: Data]) {
+        let bytes = Data("abc".utf8)
+        func download(_ path: String, bytes: Data) -> [String: Any] { ["url": "https://cdn.modrinth.com/" + path, "sha1": sha(bytes), "size": bytes.count] }
+        let runtime = try JSONSerialization.data(withJSONObject: ["files": ["bin/java": ["type": "file", "executable": true, "downloads": ["raw": download("java", bytes: bytes)]]]])
+        let package: [String: Any] = ["manifest": download("runtime", bytes: runtime), "version": ["name": "17.0.1", "released": "2025-01-01"]]
+        let runtimes = try JSONSerialization.data(withJSONObject: ["mac-os-arm64": ["java-runtime-gamma": [package]], "mac-os": ["java-runtime-gamma": [package]]])
+        let metadata = try JSONSerialization.data(withJSONObject: ["id": "test", "downloads": ["client": download("client", bytes: bytes)], "libraries": [], "javaVersion": ["component": "java-runtime-gamma", "majorVersion": 17], "mainClass": "net.minecraft.client.main.Main", "arguments": ["game": [], "jvm": []]])
+        let version = MinecraftVersion(id: "test", type: "release", url: URL(string: "https://cdn.modrinth.com/metadata")!, sha1: sha(metadata))
+        let catalog = try JSONSerialization.data(withJSONObject: ["latest": ["release": "test"], "versions": [["id": "test", "type": "release", "url": version.url.absoluteString, "sha1": version.sha1]]])
+        return (version, [MojangClient.catalogURL.path: catalog, MojangClient.runtimeURL.path: runtimes, "/metadata": metadata, "/runtime": runtime, "/client": bytes, "/java": bytes])
+    }
+
     @Test func searchUsesOptionalMinecraftAndSupportedLoaderFacets() async throws {
         let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
         ModpackTestProtocol.prepare(["/v2/search": Data(#"{"hits":[],"total_hits":0}"#.utf8)])
@@ -89,6 +107,148 @@ import Testing
         let unsafe = try await Self.archive(in: root, manifest: Self.manifest(), entries: ["overrides/libraries/a.jar": Data()])
         await #expect(throws: ModpackError.self) { try await ModpackArchive.inspect(unsafe) }
     }
+    @Test func installIncludesOptionalFilesAndClientOverridesAndPreservesEditsOnRetry() async throws {
+        let root = try Self.temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let manifest = Self.manifest(files: [Self.file("mods/a.jar"), Self.file("mods/b.jar", client: "optional"), Self.file("mods/server.jar", client: "unsupported")])
+        let archive = try await Self.archive(in: root, manifest: manifest, entries: ["overrides/config/a.json": Data("common".utf8), "client-overrides/config/a.json": Data("client".utf8), "server-overrides/config/server.json": Data()])
+        let plan = try Self.plan(archive: archive, manifest: manifest)
+        let instance = root.appendingPathComponent("instance")
+        try FileManager.default.createDirectory(at: instance.appendingPathComponent("minecraft"), withIntermediateDirectories: true)
+        try plan.write(in: instance)
+        ModpackTestProtocol.prepare(["/pack.mrpack": try Data(contentsOf: archive), "/mods/a.jar": Data("mod".utf8), "/mods/b.jar": Data("mod".utf8)])
+        let installer = ModpackInstaller(session: session, cache: root.appendingPathComponent("cache"))
+        try await installer.install(in: instance) { _ in }
+        #expect(try ModpackPlan.read(in: instance)?.completed == true)
+        #expect(try Data(contentsOf: instance.appendingPathComponent("minecraft/mods/b.jar")) == Data("mod".utf8))
+        #expect(try Data(contentsOf: instance.appendingPathComponent("minecraft/config/a.json")) == Data("client".utf8))
+        #expect(!FileManager.default.fileExists(atPath: instance.appendingPathComponent("minecraft/mods/server.jar").path))
+        #expect(!FileManager.default.fileExists(atPath: instance.appendingPathComponent("minecraft/config/server.json").path))
+        try FileManager.default.removeItem(at: instance.appendingPathComponent("minecraft/mods/a.jar"))
+        try Data("edited".utf8).write(to: instance.appendingPathComponent("minecraft/config/a.json"))
+        ModpackTestProtocol.prepare([:])
+        try await installer.install(in: instance) { _ in }
+        #expect(ModpackTestProtocol.requests.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: instance.appendingPathComponent("minecraft/mods/a.jar").path))
+        #expect(try Data(contentsOf: instance.appendingPathComponent("minecraft/config/a.json")) == Data("edited".utf8))
+    }
+
+    @Test func failedDownloadPublishesNothingAndCanRetryWithAnotherURL() async throws {
+        let root = try Self.temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let manifest = Self.manifest(files: [Self.file("mods/a.jar", downloads: [URL(string: "https://cdn.modrinth.com/bad")!, URL(string: "https://cdn.modrinth.com/good")!])])
+        let archive = try await Self.archive(in: root, manifest: manifest, entries: ["overrides/options.txt": Data("options".utf8)])
+        let plan = try Self.plan(archive: archive, manifest: manifest)
+        let instance = root.appendingPathComponent("instance")
+        try FileManager.default.createDirectory(at: instance, withIntermediateDirectories: true)
+        try plan.write(in: instance)
+        ModpackTestProtocol.prepare(["/pack.mrpack": try Data(contentsOf: archive), "/bad": Data("bad".utf8)])
+        let installer = ModpackInstaller(session: session, cache: root.appendingPathComponent("cache"))
+        await #expect(throws: ModpackError.self) { try await installer.install(in: instance) { _ in } }
+        #expect(try ModpackPlan.read(in: instance)?.completed == false)
+        #expect(!FileManager.default.fileExists(atPath: instance.appendingPathComponent("minecraft/options.txt").path))
+        ModpackTestProtocol.prepare(["/good": Data("mod".utf8)])
+        try await installer.install(in: instance) { _ in }
+        #expect(try ModpackPlan.read(in: instance)?.completed == true)
+        #expect(ModpackTestProtocol.requests.map { $0.url!.path } == ["/bad", "/good"])
+    }
+
+    @Test func preparationPinsMinecraftAndFabricWithoutRequestingFabricAPI() async throws {
+        let root = try Self.temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let manifest = Self.manifest(dependencies: ["minecraft": "test", "fabric-loader": "0.19.5"])
+        let archive = try await Self.archive(in: root, manifest: manifest)
+        let plan = try Self.plan(archive: archive, manifest: manifest)
+        var (_, routes) = try Self.minecraftRoutes()
+        routes["/pack.mrpack"] = try Data(contentsOf: archive)
+        routes["/v2/versions/loader/test"] = Data(#"[{"loader":{"version":"0.19.5","stable":true}}]"#.utf8)
+        routes["/v2/versions/loader/test/0.19.5/profile/json"] = Data(#"{"id":"fabric-test","inheritsFrom":"test","mainClass":"KnotClient","libraries":[]}"#.utf8)
+        ModpackTestProtocol.prepare(routes)
+        let project = try JSONDecoder().decode(ModrinthProject.self, from: Data(#"{"id":"project","title":"Pack","project_type":"modpack"}"#.utf8))
+        let version = ModrinthVersion(id: "v1", projectID: "project", number: "1.0", channel: "release", published: "2026-01-01", gameVersions: ["test"], loaders: ["fabric"], files: [plan.archive], dependencies: nil)
+        let installer = ModpackInstaller(session: session, cache: root.appendingPathComponent("cache"))
+        let prepared = try await installer.prepare(project: project, version: version, minecraft: MojangClient(session: session), fabric: FabricClient(session: session))
+        #expect(prepared.minecraft.version.id == "test")
+        #expect(prepared.plan.manifest.loaderVersion == "0.19.5")
+        let gameInstaller = MinecraftInstaller(client: MojangClient(session: session), session: session, fabricClient: FabricClient(session: session))
+        let result = try await gameInstaller.install(prepared.minecraft.version, at: root.appendingPathComponent("game"), fabric: .init(loaderVersion: "0.19.5", api: nil)) { _ in }
+        #expect(result.fabricProfileSHA1 != nil)
+        #expect(!ModpackTestProtocol.requests.contains { $0.url!.path.contains("P7dR8mSH") })
+    }
+
+    @Test func queueInstallsVanillaPackAndCreationRollsBackOnPersistenceFailure() async throws {
+        let root = try Self.temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let manifest = Self.manifest()
+        let archive = try await Self.archive(in: root, manifest: manifest, entries: ["overrides/options.txt": Data("options".utf8)])
+        let plan = try Self.plan(archive: archive, manifest: manifest)
+        let (version, initialRoutes) = try Self.minecraftRoutes()
+        var routes = initialRoutes; routes["/pack.mrpack"] = try Data(contentsOf: archive)
+        ModpackTestProtocol.prepare(routes)
+        let container = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let minecraft = MojangClient(session: session)
+        let modpacks = ModpackInstaller(session: session, cache: root.appendingPathComponent("cache"))
+        let coordinator = InstallationCoordinator(context: container.mainContext, storage: .init(root: root.appendingPathComponent("instances")), client: minecraft, installer: MinecraftInstaller(client: minecraft, session: session), modpacks: modpacks)
+        var draft = InstanceDraft(); draft.name = "Pack"
+        let instance = try coordinator.store.create(draft, versionID: version.id, metadataURL: version.url.absoluteString, metadataSHA1: version.sha1, modpack: plan)
+        coordinator.start()
+        for _ in 0..<500 where instance.state == .queued || instance.state == .installing { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(instance.state == .ready, "\(instance.installationError ?? "")")
+        #expect(try Data(contentsOf: root.appendingPathComponent("instances/Pack/minecraft/options.txt")) == Data("options".utf8))
+        let copy = try await coordinator.store.duplicate(instance)
+        let copyRoot = try coordinator.store.storage.directory(copy.folderName)
+        #expect(try ModpackPlan.read(in: copyRoot)?.completed == true)
+        let backup = try await coordinator.store.backup(instance, content: coordinator.content)
+        let data = try await FabricClient.archiveEntry(ModpackPlan.filename, in: backup, limit: 1_048_576)
+        #expect(try JSONDecoder().decode(ModpackPlan.self, from: data).completed)
+        let failing = InstanceStore(context: container.mainContext, storage: coordinator.store.storage, persist: { throw ModpackError.archive })
+        draft.name = "Failed"
+        #expect(throws: ModpackError.self) { try failing.create(draft, versionID: version.id, metadataURL: version.url.absoluteString, metadataSHA1: version.sha1, modpack: plan) }
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("instances/Failed").path))
+    }
+
+    @Test func cancellationKeepsPlanPendingAndRestartReusesVerifiedDownloads() async throws {
+        let root = try Self.temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let manifest = Self.manifest(files: [Self.file("mods/a.jar")])
+        let archive = try await Self.archive(in: root, manifest: manifest)
+        let plan = try Self.plan(archive: archive, manifest: manifest)
+        let instance = root.appendingPathComponent("instance")
+        try FileManager.default.createDirectory(at: instance, withIntermediateDirectories: true)
+        try plan.write(in: instance)
+        ModpackTestProtocol.prepare(["/pack.mrpack": try Data(contentsOf: archive), "/mods/a.jar": Data("mod".utf8)])
+        let cache = root.appendingPathComponent("cache")
+        let installer = ModpackInstaller(session: session, cache: cache)
+        let task = Task {
+            try await installer.install(in: instance) { value in
+                if value.completedBytes > 0 { withUnsafeCurrentTask { $0?.cancel() } }
+            }
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(try ModpackPlan.read(in: instance)?.completed == false)
+        #expect(!FileManager.default.fileExists(atPath: instance.appendingPathComponent("minecraft/mods/a.jar").path))
+        ModpackTestProtocol.prepare([:])
+        try await ModpackInstaller(session: session, cache: cache).install(in: instance) { _ in }
+        #expect(try ModpackPlan.read(in: instance)?.completed == true)
+        #expect(ModpackTestProtocol.requests.isEmpty)
+    }
+
+    @Test func symlinkDestinationCannotOverwriteGameLibraries() async throws {
+        let root = try Self.temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let manifest = Self.manifest(files: [Self.file("mods/a.jar")])
+        let archive = try await Self.archive(in: root, manifest: manifest)
+        let plan = try Self.plan(archive: archive, manifest: manifest)
+        let instance = root.appendingPathComponent("instance")
+        let minecraft = instance.appendingPathComponent("minecraft")
+        try FileManager.default.createDirectory(at: minecraft.appendingPathComponent("libraries"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: minecraft.appendingPathComponent("mods").path, withDestinationPath: "libraries")
+        try plan.write(in: instance)
+        ModpackTestProtocol.prepare(["/pack.mrpack": try Data(contentsOf: archive), "/mods/a.jar": Data("mod".utf8)])
+        await #expect(throws: ModpackError.self) { try await ModpackInstaller(session: session, cache: root.appendingPathComponent("cache")).install(in: instance) { _ in } }
+        #expect(!FileManager.default.fileExists(atPath: minecraft.appendingPathComponent("libraries/a.jar").path))
+    }
+
 }
 
 nonisolated final class ModpackTestProtocol: URLProtocol, @unchecked Sendable {

@@ -1,8 +1,8 @@
 import Foundation
 
-nonisolated struct ModpackManifest: Codable, Sendable {
-    struct File: Codable, Sendable {
-        struct Environment: Codable, Sendable { let client: String; let server: String }
+nonisolated struct ModpackManifest: Codable, Equatable, Sendable {
+    struct File: Codable, Equatable, Sendable {
+        struct Environment: Codable, Equatable, Sendable { let client: String; let server: String }
         let path: String
         let hashes: [String: String]
         let env: Environment?
@@ -25,6 +25,7 @@ nonisolated struct ModpackManifest: Codable, Sendable {
               dependencies.values.allSatisfy({ !$0.isEmpty }), files.count <= 50_000 else {
             throw ModpackError.invalidManifest
         }
+        guard files.reduce(Int64(0), { $0 + max(0, min($1.fileSize, ModpackArchive.fileLimit)) }) <= ModpackArchive.totalLimit else { throw ModpackError.invalidManifest }
         var paths: [String: String] = [:]
         for file in files {
             try ModpackPaths.validate(file.path)
@@ -52,7 +53,7 @@ nonisolated struct ModpackPlan: Codable, Sendable {
     var completed = false
 
     func validate() throws {
-        guard formatVersion == 1, archive.isInstallable(extension: ".mrpack") else { throw ModpackError.invalidManifest }
+        guard formatVersion == 1, archive.isInstallable(extension: ".mrpack"), archive.size <= ModpackArchive.fileLimit else { throw ModpackError.invalidManifest }
         try manifest.validate()
     }
 

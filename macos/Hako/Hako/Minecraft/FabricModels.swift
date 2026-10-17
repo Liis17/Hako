@@ -37,7 +37,7 @@ nonisolated struct FabricAPIDescriptor: Codable, Equatable, Sendable {
 
 nonisolated struct FabricConfiguration: Codable, Sendable {
     let loaderVersion: String
-    let api: FabricAPIDescriptor
+    let api: FabricAPIDescriptor?
 }
 
 nonisolated struct FabricProfile: Decodable, Sendable {
