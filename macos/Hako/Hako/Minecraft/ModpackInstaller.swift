@@ -28,6 +28,18 @@ actor ModpackInstaller {
         return PreparedModpack(plan: plan, minecraft: prepared)
     }
 
+    func icon(_ url: URL?) async -> Data? {
+        guard let url, url.scheme == "https" else { return nil }
+        do {
+            let (temporary, response) = try await session.download(from: url)
+            defer { try? FileManager.default.removeItem(at: temporary) }
+            guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
+                  (try temporary.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) <= 8_388_608 else { return nil }
+            try Task.checkCancellation()
+            return try InstanceIconImage.normalized(temporary)
+        } catch { return nil }
+    }
+
     func validate(in root: URL, minecraft: String, fabric: FabricConfiguration?) throws {
         guard let plan = try ModpackPlan.read(in: root) else { return }
         guard plan.manifest.minecraft == minecraft, plan.manifest.loaderVersion == fabric?.loaderVersion,

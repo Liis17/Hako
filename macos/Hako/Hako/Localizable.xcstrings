@@ -9778,6 +9778,438 @@
           }
         }
       }
+    },
+    "Версия модпака" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modpack version"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия модпака"
+          }
+        }
+      }
+    },
+    "Все версии Minecraft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Minecraft versions"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все версии Minecraft"
+          }
+        }
+      }
+    },
+    "Выберите Minecraft и загрузчик, затем добавьте свои моды." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Minecraft and a loader, then add your own mods."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите Minecraft и загрузчик, затем добавьте свои моды."
+          }
+        }
+      }
+    },
+    "Выберите, как создать сборку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose how to create your instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите, как создать сборку."
+          }
+        }
+      }
+    },
+    "Выбрать %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать %@"
+          }
+        }
+      }
+    },
+    "Готовая с Modrinth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modpack from Modrinth"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готовая с Modrinth"
+          }
+        }
+      }
+    },
+    "Готовые модпаки для Fabric и Vanilla" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready-made modpacks for Fabric and Vanilla"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готовые модпаки для Fabric и Vanilla"
+          }
+        }
+      }
+    },
+    "Загружаем модпаки…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading modpacks…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загружаем модпаки…"
+          }
+        }
+      }
+    },
+    "Модпак повреждён или использует неподдерживаемый формат, Minecraft или загрузчик." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The modpack is damaged or uses an unsupported format, Minecraft version, or loader."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модпак повреждён или использует неподдерживаемый формат, Minecraft или загрузчик."
+          }
+        }
+      }
+    },
+    "Модпак содержит небезопасные пути или конфликтующие файлы." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The modpack contains unsafe paths or conflicting files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модпак содержит небезопасные пути или конфликтующие файлы."
+          }
+        }
+      }
+    },
+    "Модпаки не найдены." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No modpacks found."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модпаки не найдены."
+          }
+        }
+      }
+    },
+    "Моды и настройки установятся в составе, выбранном автором модпака. Необязательные клиентские файлы тоже будут установлены." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mods and settings will be installed as selected by the modpack author, including optional client files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Моды и настройки установятся в составе, выбранном автором модпака. Необязательные клиентские файлы тоже будут установлены."
+          }
+        }
+      }
+    },
+    "Назад к сборкам" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to instances"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Назад к сборкам"
+          }
+        }
+      }
+    },
+    "Найдите модпак и установите его вместе с модами и настройками." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a modpack and install it with its mods and settings."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найдите модпак и установите его вместе с модами и настройками."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать архив модпака." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't read the modpack archive."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать архив модпака."
+          }
+        }
+      }
+    },
+    "Нет поддерживаемых версий модпака для выбранной версии Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No supported modpack versions for the selected Minecraft version."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет поддерживаемых версий модпака для выбранной версии Minecraft."
+          }
+        }
+      }
+    },
+    "Повторить загрузку версий" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry loading versions"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить загрузку версий"
+          }
+        }
+      }
+    },
+    "Подготавливаем модпак…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing modpack…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготавливаем модпак…"
+          }
+        }
+      }
+    },
+    "Поиск модпаков" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search modpacks"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск модпаков"
+          }
+        }
+      }
+    },
+    "Проверяем модпак и совместимость с вашим Mac…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the modpack and compatibility with your Mac…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверяем модпак и совместимость с вашим Mac…"
+          }
+        }
+      }
+    },
+    "Сборки с Modrinth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modrinth modpacks"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборки с Modrinth"
+          }
+        }
+      }
+    },
+    "Своя сборка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Своя сборка"
+          }
+        }
+      }
+    },
+    "Скачиваем файлы модпака…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading modpack files…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачиваем файлы модпака…"
+          }
+        }
+      }
+    },
+    "Устанавливаем содержимое модпака…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing modpack content…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Устанавливаем содержимое модпака…"
+          }
+        }
+      }
+    },
+    "Установить модпак" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install modpack"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установить модпак"
+          }
+        }
+      }
+    },
+    "Установка продолжится в фоне." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installation will continue in the background."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Установка продолжится в фоне."
+          }
+        }
+      }
+    },
+    "Файл модпака %@ повреждён. Повторите загрузку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modpack file %@ is damaged. Try downloading again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл модпака %@ повреждён. Повторите загрузку."
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

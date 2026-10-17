@@ -30,7 +30,7 @@ nonisolated struct ModpackManifest: Codable, Equatable, Sendable {
         for file in files {
             try ModpackPaths.validate(file.path)
             try ModpackPaths.insert(file.path, into: &paths)
-            guard file.fileSize > 0, file.fileSize <= ModpackArchive.fileLimit,
+            guard file.fileSize >= 0, file.fileSize <= ModpackArchive.fileLimit,
                   let sha1 = file.hashes["sha1"], let sha512 = file.hashes["sha512"],
                   sha1.count == 40, sha512.count == 128, (sha1 + sha512).allSatisfy(\.isHexDigit),
                   !file.downloads.isEmpty, file.downloads.allSatisfy(ModpackPaths.allowedDownload),

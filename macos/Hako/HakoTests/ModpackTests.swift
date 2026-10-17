@@ -249,14 +249,71 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: minecraft.appendingPathComponent("libraries/a.jar").path))
     }
 
+    static func page(_ hits: [(String, String)], total: Int) throws -> Data {
+        try JSONSerialization.data(withJSONObject: ["hits": hits.map { ["project_id": $0.0, "title": $0.0, "project_type": $0.1] }, "total_hits": total])
+    }
+
+    @Test func catalogPaginationUsesRawOffsetAndDeduplicatesRows() async throws {
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let first = try Self.page([("a", "modpack"), ("ignored", "mod")], total: 4)
+        let second = try Self.page([("a", "modpack"), ("b", "modpack")], total: 4)
+        ModpackTestProtocol.prepare([:], handler: { url in
+            let offset = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "offset" }?.value
+            return (offset == "0" ? first : second, 0)
+        })
+        let catalog = ModpackCatalog(client: ModrinthClient(session: session))
+        await catalog.search(force: true)
+        #expect(catalog.projects.map(\.id) == ["a"] && catalog.nextOffset == 2 && catalog.hasMore)
+        await catalog.loadMore()
+        #expect(catalog.projects.map(\.id) == ["a", "b"] && catalog.nextOffset == 4 && !catalog.hasMore)
+        let offsets = ModpackTestProtocol.requests.map { URLComponents(url: $0.url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "offset" }?.value }
+        #expect(offsets == ["0", "2"])
+    }
+
+    @Test func catalogIgnoresLateSearchAndLatePagination() async throws {
+        let session = ModpackTestProtocol.session(); defer { session.invalidateAndCancel() }
+        let old = try Self.page([("old", "modpack")], total: 2)
+        let new = try Self.page([("new", "modpack")], total: 1)
+        let (events, continuation) = AsyncStream<URLRequest>.makeStream()
+        defer { continuation.finish() }
+        ModpackTestProtocol.prepare([:], handler: { url in
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "query" }?.value
+            return (query == "old" ? old : new, query == "old" ? 0.15 : 0)
+        }, onRequest: { continuation.yield($0) })
+        var requests = events.makeAsyncIterator()
+        let catalog = ModpackCatalog(client: ModrinthClient(session: session))
+        catalog.query = "old"
+        let stale = Task { await catalog.search(force: true) }
+        _ = await requests.next()
+        catalog.query = "new"
+        await catalog.search(force: true)
+        await stale.value
+        #expect(catalog.projects.map(\.id) == ["new"])
+        catalog.query = "old"
+        await catalog.search(force: true)
+        // Drain the two completed searches before awaiting the pagination request.
+        _ = await requests.next(); _ = await requests.next()
+        let stalePage = Task { await catalog.loadMore() }
+        _ = await requests.next()
+        catalog.query = "new"; catalog.minecraft = "1.21.1"; catalog.sort = .updated
+        await catalog.search(force: true)
+        await stalePage.value
+        #expect(catalog.projects.map(\.id) == ["new"] && catalog.nextOffset == 1 && !catalog.loadingMore)
+    }
+
 }
 
 nonisolated final class ModpackTestProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     private nonisolated(unsafe) static var routes: [String: Data] = [:]
     private nonisolated(unsafe) static var recorded: [URLRequest] = []
+    private nonisolated(unsafe) static var handler: (@Sendable (URL) -> (Data, TimeInterval))?
+    private nonisolated(unsafe) static var onRequest: (@Sendable (URLRequest) -> Void)?
+    private var work: DispatchWorkItem?
     static var requests: [URLRequest] { lock.withLock { recorded } }
-    static func prepare(_ routes: [String: Data]) { lock.withLock { self.routes = routes; recorded = [] } }
+    static func prepare(_ routes: [String: Data], handler: (@Sendable (URL) -> (Data, TimeInterval))? = nil, onRequest: (@Sendable (URLRequest) -> Void)? = nil) {
+        lock.withLock { self.routes = routes; recorded = []; self.handler = handler; self.onRequest = onRequest }
+    }
     static func session() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [Self.self]
         return URLSession(configuration: configuration)
@@ -265,10 +322,20 @@ nonisolated final class ModpackTestProtocol: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let url = request.url!
-        let data = Self.lock.withLock { Self.recorded.append(request); return Self.routes[url.path] }
-        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: data == nil ? 404 : 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data ?? Data())
-        client?.urlProtocolDidFinishLoading(self)
+        let (data, handler, onRequest) = Self.lock.withLock {
+            Self.recorded.append(request)
+            return (Self.routes[url.path], Self.handler, Self.onRequest)
+        }
+        onRequest?(request)
+        let custom = handler?(url)
+        let bytes = custom?.0 ?? data
+        let item = DispatchWorkItem { [self] in
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: bytes == nil ? 404 : 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: bytes ?? Data())
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        work = item
+        DispatchQueue.global().asyncAfter(deadline: .now() + (custom?.1 ?? 0), execute: item)
     }
-    override func stopLoading() {}
+    override func stopLoading() { work?.cancel() }
 }

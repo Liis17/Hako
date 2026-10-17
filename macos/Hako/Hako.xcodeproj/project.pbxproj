@@ -61,6 +61,8 @@
 		1447946B1DCF624129DE177D /* Hako/Minecraft/ModpackManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6643439D63C53E911F16BB48 /* Hako/Minecraft/ModpackManifest.swift */; };
 		F82011307F04C00F7C8089B1 /* Hako/Minecraft/ModpackArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4B5BDD9CF0C0D017520574 /* Hako/Minecraft/ModpackArchive.swift */; };
 		EA83B425C728D7B518D6FD31 /* Hako/Minecraft/ModpackInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DB34D955A12768BB73DD22 /* Hako/Minecraft/ModpackInstaller.swift */; };
+		2AEEBB9FB5905415302C9936 /* Hako/Instances/ModpackCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEBBEB9CFF2723314BBC9EF4 /* Hako/Instances/ModpackCatalog.swift */; };
+		EF4BB8813C67F444CA64A172 /* Hako/Instances/InstanceIconImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B88F3350D2974EA8102990 /* Hako/Instances/InstanceIconImage.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -142,6 +144,8 @@
 		6643439D63C53E911F16BB48 /* Hako/Minecraft/ModpackManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/ModpackManifest.swift; sourceTree = SOURCE_ROOT; };
 		CE4B5BDD9CF0C0D017520574 /* Hako/Minecraft/ModpackArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/ModpackArchive.swift; sourceTree = SOURCE_ROOT; };
 		11DB34D955A12768BB73DD22 /* Hako/Minecraft/ModpackInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/ModpackInstaller.swift; sourceTree = SOURCE_ROOT; };
+		AEBBEB9CFF2723314BBC9EF4 /* Hako/Instances/ModpackCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/ModpackCatalog.swift; sourceTree = SOURCE_ROOT; };
+		F5B88F3350D2974EA8102990 /* Hako/Instances/InstanceIconImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/InstanceIconImage.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -382,6 +386,8 @@
 		8F1FCCEB115745ABA0EF12F5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				EF4BB8813C67F444CA64A172 /* Hako/Instances/InstanceIconImage.swift in Sources */,
+				2AEEBB9FB5905415302C9936 /* Hako/Instances/ModpackCatalog.swift in Sources */,
 				EA83B425C728D7B518D6FD31 /* Hako/Minecraft/ModpackInstaller.swift in Sources */,
 				F82011307F04C00F7C8089B1 /* Hako/Minecraft/ModpackArchive.swift in Sources */,
 				1447946B1DCF624129DE177D /* Hako/Minecraft/ModpackManifest.swift in Sources */,
