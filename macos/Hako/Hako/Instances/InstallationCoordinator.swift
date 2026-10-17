@@ -8,6 +8,7 @@ import SwiftData
     let client: MojangClient
     let fabricClient: FabricClient
     let content: InstanceContent
+    let modpacks: ModpackInstaller
     private let installer: MinecraftInstaller
     private var activeID: UUID?
     private var activeTask: Task<Void, Never>?
@@ -20,11 +21,12 @@ import SwiftData
     }
     private var lastProgressUpdate = Date.distantPast
 
-    init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), fabricClient: FabricClient = .init(), content: InstanceContent = .init(), installer: MinecraftInstaller? = nil) {
+    init(context: ModelContext, storage: InstanceStorage = .init(), client: MojangClient = .init(), fabricClient: FabricClient = .init(), content: InstanceContent = .init(), installer: MinecraftInstaller? = nil, modpacks: ModpackInstaller = .init()) {
         store = InstanceStore(context: context, storage: storage)
         self.client = client
         self.fabricClient = fabricClient
         self.content = content
+        self.modpacks = modpacks
         self.installer = installer ?? MinecraftInstaller(client: client, fabricClient: fabricClient, content: content)
     }
 
@@ -117,7 +119,11 @@ import SwiftData
                         pump()
                     }
                     do {
+                        try await modpacks.validate(in: root, minecraft: version.id, fabric: fabric)
                         let result = try await installer.install(version, at: root, fabric: fabric) { [weak self] value in
+                            await self?.setProgress(value, id: id)
+                        }
+                        try await modpacks.install(in: root) { [weak self] value in
                             await self?.setProgress(value, id: id)
                         }
                         try Task.checkCancellation()

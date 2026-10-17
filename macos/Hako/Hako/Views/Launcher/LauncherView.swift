@@ -8,6 +8,7 @@ import SwiftUI
 
 enum LauncherTab: Hashable {
     case instances
+    case modpacks
     case instance(UUID)
     case settings
     case profile
@@ -42,6 +43,8 @@ struct LauncherView: View {
                 switch tab {
                 case .instances:
                     InstancesView(instances: instances, account: account, onCreate: { creatingInstance = true }, onOpen: { requestTab(.instance($0.id)) })
+                case .modpacks:
+                    ModpackCatalogView(client: content.modrinth, onBack: { requestTab(.instances) }, onCreated: { requestTab(.instances) })
                 case .instance(let id):
                     if let instance = instances.first(where: { $0.id == id }) {
                         InstanceProfileView(instance: instance, account: account, onBack: { requestTab(.instances) }, onDelete: { delete(instance) })
@@ -72,7 +75,10 @@ struct LauncherView: View {
         }
         .onChange(of: tab) { completeQuickLaunchNavigation() }
         .sheet(isPresented: $creatingInstance) {
-            InstanceCreationView(onCreated: { requestTab(.instances) })
+            InstanceCreationChoiceView(onCreated: { requestTab(.instances) }, onModrinth: {
+                creatingInstance = false
+                requestTab(.modpacks)
+            })
                 .environment(installations)
         }
         .sheet(item: Binding(get: { content.confirmation }, set: { _ in })) { confirmation in

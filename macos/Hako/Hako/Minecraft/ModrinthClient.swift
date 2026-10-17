@@ -51,7 +51,7 @@ nonisolated struct ModrinthSearchPage: Decodable, Sendable {
 }
 
 nonisolated struct ModrinthVersion: Decodable, Sendable {
-    struct File: Decodable, Sendable {
+    struct File: Codable, Sendable {
         let filename: String
         let url: URL
         let size: Int64
@@ -62,8 +62,11 @@ nonisolated struct ModrinthVersion: Decodable, Sendable {
         var sha512: String { hashes["sha512"]?.lowercased() ?? "" }
         var isResourcePack: Bool { ["required-resource-pack", "optional-resource-pack"].contains(fileType ?? "") }
         func isInstallable(kind: ModrinthContentKind) -> Bool {
+            isInstallable(extension: kind.fileExtension)
+        }
+        func isInstallable(extension suffix: String) -> Bool {
             !filename.contains("/") && !filename.contains("\\") && !filename.hasPrefix(".")
-                && filename.lowercased().hasSuffix(kind.fileExtension) && url.scheme == "https" && size > 0
+                && filename.lowercased().hasSuffix(suffix) && url.scheme == "https" && size > 0
                 && !["sources-jar", "dev-jar", "javadoc-jar"].contains(fileType ?? "")
                 && sha1.count == 40 && sha512.count == 128 && (sha1 + sha512).allSatisfy(\.isHexDigit)
         }
@@ -87,6 +90,11 @@ nonisolated struct ModrinthVersion: Decodable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, projectID = "project_id", number = "version_number", channel = "version_type", published = "date_published"
         case gameVersions = "game_versions", loaders, files, dependencies
+    }
+
+    var modpackFile: File? {
+        let candidates = files.filter { $0.isInstallable(extension: ".mrpack") }
+        return candidates.first(where: \.primary) ?? candidates.first
     }
 
     /// Проверяемый файл мода (`.jar`) или ресурспака (`.zip`); версии без него не устанавливаются.
@@ -192,6 +200,31 @@ actor ModrinthClient {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !query.isEmpty { parameters["query"] = query }
         return try JSONDecoder().decode(ModrinthSearchPage.self, from: await data(request(url("search", parameters))))
+    }
+
+    func searchModpacks(_ query: String, minecraft: String?, sort: ModrinthSort, offset: Int) async throws -> ModrinthSearchPage {
+        var facets = [["project_type:modpack"], ["categories:fabric", "categories:minecraft"], ["environment!=dedicated_server_only"]]
+        if let minecraft { facets.append(["versions:\(minecraft)"]) }
+        var parameters = ["facets": try json(facets), "index": sort.rawValue, "offset": String(offset), "limit": "20"]
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty { parameters["query"] = query }
+        return try JSONDecoder().decode(ModrinthSearchPage.self, from: await data(request(url("search", parameters))))
+    }
+
+    func modpackVersions(project: String, minecraft: String?) async throws -> [ModrinthVersion] {
+        var parameters = ["loaders": try json(["fabric", "minecraft"]), "include_changelog": "false"]
+        if let minecraft { parameters["game_versions"] = try json([minecraft]) }
+        let path = "project/\(try checkedIDs([project])[0])/version"
+        let versions = try JSONDecoder().decode([ModrinthVersion].self, from: await data(request(url(path, parameters))))
+        let priority = ["release": 0, "beta": 1, "alpha": 2]
+        return versions.filter {
+            $0.projectID == project && $0.modpackFile != nil && priority[$0.channel] != nil
+                && !$0.loaders.isEmpty && $0.loaders.allSatisfy { ["fabric", "minecraft"].contains($0) }
+                && (minecraft == nil || $0.gameVersions.contains(minecraft!))
+        }.sorted {
+            let lhs = priority[$0.channel]!, rhs = priority[$1.channel]!
+            return lhs == rhs ? $0.published > $1.published : lhs < rhs
+        }
     }
 
     /// Последняя версия для Minecraft и загрузчика: release, затем beta, затем alpha; внутри канала — новейшая.

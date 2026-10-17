@@ -16,7 +16,7 @@ struct LauncherRail: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            RailButton(title: "Сборки", systemImage: "shippingbox.fill", isSelected: selection == .instances) {
+            RailButton(title: "Сборки", systemImage: "shippingbox.fill", isSelected: selection == .instances || selection == .modpacks) {
                 selection = .instances
             }
 
