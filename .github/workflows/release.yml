@@ -30,14 +30,7 @@ jobs:
 
   macos:
     needs: detect
-    if: needs.detect.outputs.macos == 'true'
     runs-on: xcode-27
-    permissions:
-      contents: write
-    concurrency:
-      group: release-macos
-      cancel-in-progress: false
-      queue: max
     steps:
       - uses: actions/checkout@v4
 
@@ -64,8 +57,10 @@ jobs:
           info=build/Build/Products/Release/Hako.app/Contents/Info.plist
           actual_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info")
           actual_commit=$(/usr/libexec/PlistBuddy -c 'Print :HakoCommit' "$info")
-          [[ "$actual_version" =~ ^[0-9]+\.[0-9]+$ ]] && actual_version="$actual_version.0"
-          [[ "$actual_version" == "$EXPECTED_VERSION" ]] || { echo "Built app version $actual_version does not match $EXPECTED_VERSION." >&2; exit 1; }
+          if [[ -n "$EXPECTED_VERSION" ]]; then
+            [[ "$actual_version" =~ ^[0-9]+\.[0-9]+$ ]] && actual_version="$actual_version.0"
+            [[ "$actual_version" == "$EXPECTED_VERSION" ]] || { echo "Built app version $actual_version does not match $EXPECTED_VERSION." >&2; exit 1; }
+          fi
           [[ "$actual_commit" == "$EXPECTED_COMMIT" ]] || { echo "Built app commit $actual_commit does not match $EXPECTED_COMMIT." >&2; exit 1; }
 
       - name: Create DMG
@@ -75,35 +70,18 @@ jobs:
           ln -s /Applications dmg/Applications
           hdiutil create -volname Hako -srcfolder dmg -format UDZO -ov Hako.dmg
 
-      - name: Publish stable macOS release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
-          RELEASE_TAG: ${{ needs.detect.outputs.macos_tag }}
-          RELEASE_VERSION: ${{ needs.detect.outputs.macos_version }}
-          RELEASE_NOTES: |
-            Сборка macOS из коммита ${{ github.sha }}.
-
-            Приложение подписано ad-hoc, без Developer ID и нотариализации. При первом запуске разрешите его в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть» либо выполните `xattr -dr com.apple.quarantine /Applications/Hako.app`.
-        run: python3 .github/scripts/publish_release.py --tag "$RELEASE_TAG" --title "Hako macOS $RELEASE_VERSION" --notes "$RELEASE_NOTES" --asset Hako.dmg
+      - name: Upload macOS release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-assets
+          path: Hako.dmg
+          if-no-files-found: error
 
   windows:
     needs: detect
-    if: needs.detect.outputs.windows == 'true'
     runs-on: windows-2025
-    permissions:
-      contents: write
-    concurrency:
-      group: release-windows
-      cancel-in-progress: false
-      queue: max
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -126,7 +104,7 @@ jobs:
           $thumbprint = $null
           try {
             if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
-              throw 'WINDOWS_SIGNING_PFX_BASE64 is required for stable Windows releases.'
+              throw 'WINDOWS_SIGNING_PFX_BASE64 is required for Windows release builds.'
             }
             $pfxBytes = [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64.Trim())
             [IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
@@ -166,8 +144,13 @@ jobs:
             $namespaceManager = [System.Xml.XmlNamespaceManager]::new($sourceManifest.NameTable)
             $namespaceManager.AddNamespace('a', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
             $sourceIdentity = $sourceManifest.SelectSingleNode('/a:Package/a:Identity', $namespaceManager)
-            if ($null -eq $sourceIdentity -or $sourceIdentity.Version -ne "$env:RELEASE_VERSION.0") {
+            if ($null -eq $sourceIdentity) { throw 'Package.appxmanifest has no package identity.' }
+            if (-not [string]::IsNullOrWhiteSpace($env:RELEASE_VERSION) -and $sourceIdentity.Version -ne "$env:RELEASE_VERSION.0") {
               throw 'The Windows package version does not match the release gate version.'
+            }
+            $assetVersion = $env:RELEASE_VERSION
+            if ([string]::IsNullOrWhiteSpace($assetVersion)) {
+              $assetVersion = $sourceIdentity.Version -replace '\.0$', ''
             }
 
             Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -200,7 +183,6 @@ jobs:
 
             $assetRoot = Join-Path $env:RUNNER_TEMP 'hako-release-assets'
             New-Item -ItemType Directory -Force -Path $assetRoot | Out-Null
-            $dependencyAssets = [System.Collections.Generic.List[string]]::new()
             $architectures = @(
               @{ Name = 'x64'; Platform = 'x64'; Rid = 'win-x64'; PackageArchitecture = 'x64' },
               @{ Name = 'arm64'; Platform = 'ARM64'; Rid = 'win-arm64'; PackageArchitecture = 'arm64' }
@@ -237,7 +219,7 @@ jobs:
                 throw "The $($architecture.Name) package identity or version does not match Package.appxmanifest."
               }
 
-              $packageName = "Hako-$env:RELEASE_VERSION-windows-$($architecture.Name).msix"
+              $packageName = "Hako-$assetVersion-windows-$($architecture.Name).msix"
               $signedPackage = Join-Path $assetRoot $packageName
               Copy-Item -LiteralPath $appPackage.Path -Destination $signedPackage -Force
               & $signTool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /s My /sha1 $thumbprint $signedPackage
@@ -259,18 +241,13 @@ jobs:
                 }
                 $dependencyFile = $includedDependency[0].Path
                 $dependencyName = $dependency.Name -replace '[^A-Za-z0-9.-]', '-'
-                $dependencyAsset = Join-Path $assetRoot "Hako-$env:RELEASE_VERSION-windows-$($architecture.Name)-dependency-$dependencyName$([IO.Path]::GetExtension($dependencyFile))"
+                $dependencyAsset = Join-Path $assetRoot "Hako-$assetVersion-windows-$($architecture.Name)-dependency-$dependencyName$([IO.Path]::GetExtension($dependencyFile))"
                 Copy-Item -LiteralPath $dependencyFile -Destination $dependencyAsset -Force
-                $dependencyAssets.Add($dependencyAsset)
               }
             }
 
             $certificatePath = Join-Path $assetRoot 'Hako.cer'
             Export-Certificate -Cert $certificate -FilePath $certificatePath -Type CERT | Out-Null
-            "WINDOWS_ASSET_X64=$(Join-Path $assetRoot "Hako-$env:RELEASE_VERSION-windows-x64.msix")" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-            "WINDOWS_ASSET_ARM64=$(Join-Path $assetRoot "Hako-$env:RELEASE_VERSION-windows-arm64.msix")" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-            "WINDOWS_ASSET_CERT=$certificatePath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-            "WINDOWS_DEPENDENCY_ASSETS=$($dependencyAssets -join ';')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           } finally {
             Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
             if ($thumbprint) {
@@ -278,30 +255,12 @@ jobs:
             }
           }
 
-      - name: Publish stable Windows release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
-          RELEASE_TAG: ${{ needs.detect.outputs.windows_tag }}
-          RELEASE_VERSION: ${{ needs.detect.outputs.windows_version }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $notes = @"
-          Сборка Windows из коммита $env:GITHUB_SHA.
-
-          Сертификат самоподписанный. В PowerShell от имени администратора выполните `Import-Certificate -FilePath .\Hako.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople`, затем откройте MSIX для своей архитектуры. На Windows 10 до версии 2004 может потребоваться включить установку неопубликованных приложений в настройках разработчика.
-
-          Если приложены runtime-зависимости, установите их до Hako.
-          "@
-          $assetPaths = @($env:WINDOWS_ASSET_X64, $env:WINDOWS_ASSET_ARM64, $env:WINDOWS_ASSET_CERT) + @(
-            $env:WINDOWS_DEPENDENCY_ASSETS -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-          )
-          $arguments = @('--tag', $env:RELEASE_TAG, '--title', "Hako Windows $env:RELEASE_VERSION", '--notes', $notes)
-          foreach ($assetPath in $assetPaths) { $arguments += @('--asset', $assetPath) }
-          python .github/scripts/publish_release.py @arguments
-          if ($LASTEXITCODE -ne 0) { throw "Windows release publication failed with exit code $LASTEXITCODE." }
+      - name: Upload Windows release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-assets
+          path: ${{ runner.temp }}/hako-release-assets/*
+          if-no-files-found: error
 
       - name: Remove signing material
         if: always()
@@ -314,3 +273,116 @@ jobs:
             if ($thumbprint) { Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue }
             Remove-Item -LiteralPath $thumbprintPath -Force -ErrorAction SilentlyContinue
           }
+
+  publish-macos:
+    needs: [detect, macos]
+    if: needs.detect.outputs.macos == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-macos
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-release-assets
+          path: release-assets
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Publish stable macOS release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ needs.detect.outputs.macos_tag }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.macos_version }}
+          RELEASE_NOTES: |
+            Сборка macOS из коммита ${{ github.sha }}.
+
+            Приложение подписано ad-hoc, без Developer ID и нотариализации. При первом запуске разрешите его в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть» либо выполните `xattr -dr com.apple.quarantine /Applications/Hako.app`.
+        run: python3 .github/scripts/publish_release.py --tag "$RELEASE_TAG" --title "Hako macOS $RELEASE_VERSION" --notes "$RELEASE_NOTES" --asset release-assets/Hako.dmg
+
+  publish-windows:
+    needs: [detect, windows]
+    if: needs.detect.outputs.windows == 'true'
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    concurrency:
+      group: release-windows
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release-assets
+          path: release-assets
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Publish stable Windows release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ needs.detect.outputs.windows_tag }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.windows_version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notes = @"
+          Сборка Windows из коммита $env:GITHUB_SHA.
+
+          Сертификат самоподписанный. В PowerShell от имени администратора выполните `Import-Certificate -FilePath .\Hako.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople`, затем откройте MSIX для своей архитектуры. На Windows 10 до версии 2004 может потребоваться включить установку неопубликованных приложений в настройках разработчика.
+
+          Если приложены runtime-зависимости, установите их до Hako.
+          "@
+          $assetPaths = @(Get-ChildItem -LiteralPath 'release-assets' -File | Select-Object -ExpandProperty FullName)
+          $arguments = @('--tag', $env:RELEASE_TAG, '--title', "Hako Windows $env:RELEASE_VERSION", '--notes', $notes)
+          foreach ($assetPath in $assetPaths) { $arguments += @('--asset', $assetPath) }
+          python .github/scripts/publish_release.py @arguments
+          if ($LASTEXITCODE -ne 0) { throw "Windows release publication failed with exit code $LASTEXITCODE." }
+
+  main-prerelease:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish main prerelease
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA:0:12}"
+          tag="main-${GITHUB_SHA}"
+          notes="$(cat <<EOF
+          Сборки macOS и Windows из коммита ${GITHUB_SHA} ветки main.
+
+          Это проверочный prerelease. Стабильные релизы публикуются отдельно после повышения версии соответствующей платформы.
+          EOF
+          )"
+          mapfile -d '' -t assets < <(find release-assets -type f -print0 | sort -z)
+          arguments=(--tag "$tag" --title "Hako main $short_sha" --notes "$notes" --prerelease)
+          for asset in "${assets[@]}"; do arguments+=(--asset "$asset"); done
+          python3 .github/scripts/publish_release.py "${arguments[@]}"

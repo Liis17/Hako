@@ -125,6 +125,7 @@ import Testing
         fixture.recorder.failIndex = false
         try await fixture.indexer.synchronize()
         #expect(fixture.recorder.entries[instance.id] != nil)
+        try await fixture.terminateRunningGamesAndWait()
     }
 
     @Test func aFailedRebuildRetriesEvenWhenModelsHaveNotChanged() async throws {
@@ -171,6 +172,7 @@ import Testing
         let after = try #require(afterRecord)
         #expect(after.pid == before.pid && after.sessionID == before.sessionID)
         #expect(LaunchGameInstanceIntent.allowedExecutionTargets == .main)
+        try await fixture.terminateRunningGamesAndWait()
     }
 }
 
@@ -240,5 +242,18 @@ import Testing
                let record = try? GameProcessRecord.load(in: directory), record.isRunning { kill(record.pid, SIGTERM) }
         }
         try? FileManager.default.removeItem(at: root)
+    }
+
+    func terminateRunningGamesAndWait() async throws {
+        for instance in (try? container.mainContext.fetch(FetchDescriptor<GameInstance>())) ?? [] {
+            if let directory = try? store.storage.directory(instance.folderName),
+               let record = try? GameProcessRecord.load(in: directory), record.isRunning {
+                kill(record.pid, SIGTERM)
+            }
+        }
+        for _ in 0..<100 where !store.launchBusy.isEmpty {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(store.launchBusy.isEmpty, "A game process remained active during test cleanup.")
     }
 }

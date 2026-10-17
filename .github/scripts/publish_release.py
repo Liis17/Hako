@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create or resume a stable GitHub draft release, then publish it."""
+"""Create or resume a GitHub draft release, then publish it."""
 
 from __future__ import annotations
 
@@ -157,6 +157,7 @@ class ReleasePublisher:
         title: str,
         notes: str,
         asset_paths: list[Path],
+        prerelease: bool = False,
     ) -> str:
         if not re.fullmatch(r"[0-9a-fA-F]{40}", source_sha):
             raise RuntimeError(f"Invalid source commit SHA: {source_sha!r}.")
@@ -184,7 +185,7 @@ class ReleasePublisher:
             "name": title,
             "body": notes,
             "draft": True,
-            "prerelease": False,
+            "prerelease": prerelease,
         }
         if release is None:
             release = _release_mutation(lambda: self.api.create_release(details), "creation")
@@ -200,7 +201,10 @@ class ReleasePublisher:
             self.api.upload_asset(release_id, path)
 
         _release_mutation(
-            lambda: self.api.update_release(release_id, {"draft": False, "target_commitish": source_sha}),
+            lambda: self.api.update_release(
+                release_id,
+                {"draft": False, "prerelease": prerelease, "target_commitish": source_sha},
+            ),
             "publication",
         )
         return "published"
@@ -212,6 +216,7 @@ def main() -> int:
     parser.add_argument("--title", required=True)
     parser.add_argument("--notes", required=True)
     parser.add_argument("--asset", action="append", type=Path, required=True)
+    parser.add_argument("--prerelease", action="store_true")
     args = parser.parse_args()
 
     repository = os.environ.get("GITHUB_REPOSITORY", "")
@@ -223,7 +228,7 @@ def main() -> int:
         parser.error("GITHUB_TOKEN is required")
     try:
         outcome = ReleasePublisher(GitHubAPI(repository, token), resolve_remote_tag).publish(
-            args.tag, source_sha, args.title, args.notes, args.asset
+            args.tag, source_sha, args.title, args.notes, args.asset, args.prerelease
         )
     except (GitHubAPIError, RuntimeError) as error:
         print(f"release publisher: {error}", file=sys.stderr)
@@ -231,7 +236,8 @@ def main() -> int:
     if outcome == "already-published":
         print(f"Release {args.tag} already points to this source commit; leaving it unchanged.")
     else:
-        print(f"Published stable release {args.tag} from {source_sha}.")
+        release_type = "pre-release" if args.prerelease else "stable release"
+        print(f"Published {release_type} {args.tag} from {source_sha}.")
     return 0
 
 

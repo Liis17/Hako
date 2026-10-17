@@ -160,11 +160,12 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 
 `xcuserdata/` исключён в `.gitignore`.
 
-CI: `.github/workflows/release.yml` запускает быстрый Ubuntu-детектор на каждый push в `main`. `.github/scripts/detect_release.py`
-сравнивает `github.event.before` с текущим SHA; платформа собирается только при изменении её каталога и повышении
-числовой версии. Изменения документации, откат и изменение только номера сборки пропускают платформенную сборку.
-Стабильные релизы имеют независимые теги `macos-vX.Y.Z` и `windows-vX.Y.Z`; старые релизы сохраняются.
-Платформенные очереди не отменяют уже запущенные публикации.
+CI: `.github/workflows/tests.yml` запускает тесты macOS, Windows и релизных скриптов на pull request в `main`.
+`.github/workflows/release.yml` на каждый push в `main` собирает обе платформы и публикует общий prerelease
+`main-<полный SHA>` с DMG и Windows MSIX-ассетами. `.github/scripts/detect_release.py` сравнивает
+`github.event.before` с текущим SHA; при повышении числовой версии изменённой платформы отдельно публикуется
+её стабильный релиз. Стабильные релизы имеют независимые теги `macos-vX.Y.Z` и `windows-vX.Y.Z`; старые релизы
+сохраняются. Платформенные очереди стабильной публикации не отменяют уже запущенные релизы.
 
 macOS собирается после тестов на раннере GitHub `xcode-27` (macOS 27 с Xcode 27), с ad-hoc подписью без Developer ID
 и нотаризации. CI сверяет версию и `HakoCommit=$GITHUB_SHA` в собранном `Hako.app`, создаёт `Hako.dmg`

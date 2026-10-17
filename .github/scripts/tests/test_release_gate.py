@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,6 +10,16 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "detect_release.py"
+
+
+def run_detector(repository: Path, before: str, after: str) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    environment.pop("GITHUB_OUTPUT", None)
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "--before", before, "--after", after],
+        cwd=repository, text=True, encoding="utf-8",
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment,
+    )
 
 
 class GitFixture:
@@ -64,20 +75,12 @@ class ReleaseGateTests(unittest.TestCase):
         self.temp.cleanup()
 
     def detect(self, before: str, after: str) -> dict[str, str]:
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT), "--before", before, "--after", after],
-            cwd=self.repo, text=True, encoding="utf-8",
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        )
+        result = run_detector(self.repo, before, after)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
     def failure_message(self, before: str, after: str) -> str:
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT), "--before", before, "--after", after],
-            cwd=self.repo, text=True, encoding="utf-8",
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        )
+        result = run_detector(self.repo, before, after)
         self.assertNotEqual(result.returncode, 0)
         return result.stderr
 
@@ -180,10 +183,7 @@ class ReleaseGateTests(unittest.TestCase):
             git.windows_version("1.0.0.0")
             git.write("windows/Hako/Program.cs", "class Program {}\n")
             second = git.commit("add Windows platform")
-            result = subprocess.run(
-                [sys.executable, str(SCRIPT), "--before", first, "--after", second],
-                cwd=repo, text=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            )
+            result = run_detector(repo, first, second)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["windows"], "true")
 

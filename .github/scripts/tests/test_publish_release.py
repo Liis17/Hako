@@ -117,6 +117,20 @@ class ReleasePublisherTests(unittest.TestCase):
         self.assertTrue(create["draft"])
         self.assertEqual(create["target_commitish"], self.source)
         self.assertFalse(api.release["draft"])
+        self.assertFalse(api.release["prerelease"])
+
+    def test_prerelease_flag_is_published(self) -> None:
+        api = FakeAPI()
+        result = self.publisher(api).publish(
+            "main-" + self.source, self.source, "Hako main build", "source", self.assets, prerelease=True
+        )
+        self.assertEqual(result, "published")
+        create = next(event[1] for event in api.events if event[0] == "create")
+        publication = next(
+            event[1] for event in api.events if event[0] == "update" and event[1].get("draft") is False
+        )
+        self.assertTrue(create["prerelease"])
+        self.assertTrue(publication["prerelease"])
 
     def test_historical_create_404_is_a_clear_error_not_missing_release(self) -> None:
         class Create404(FakeAPI):
