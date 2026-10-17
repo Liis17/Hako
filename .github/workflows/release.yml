@@ -183,6 +183,14 @@ jobs:
 
             $assetRoot = Join-Path $env:RUNNER_TEMP 'hako-release-assets'
             New-Item -ItemType Directory -Force -Path $assetRoot | Out-Null
+            $certificatePath = Join-Path $assetRoot 'Hako.cer'
+            Export-Certificate -Cert $certificate -FilePath $certificatePath -Type CERT | Out-Null
+            # Trust only the public signing certificate while verifying packages on this disposable runner.
+            Import-Certificate -FilePath $certificatePath -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+            if ($certificate.Subject -ceq $certificate.Issuer) {
+              # Authenticode verification also requires a trusted chain root on the disposable runner.
+              Import-Certificate -FilePath $certificatePath -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+            }
             $architectures = @(
               @{ Name = 'x64'; Platform = 'x64'; Rid = 'win-x64'; PackageArchitecture = 'x64' },
               @{ Name = 'arm64'; Platform = 'ARM64'; Rid = 'win-arm64'; PackageArchitecture = 'arm64' }
@@ -245,13 +253,12 @@ jobs:
                 Copy-Item -LiteralPath $dependencyFile -Destination $dependencyAsset -Force
               }
             }
-
-            $certificatePath = Join-Path $assetRoot 'Hako.cer'
-            Export-Certificate -Cert $certificate -FilePath $certificatePath -Type CERT | Out-Null
           } finally {
             Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
             if ($thumbprint) {
               Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue
+              Remove-Item -LiteralPath "Cert:\LocalMachine\TrustedPeople\$thumbprint" -Force -ErrorAction SilentlyContinue
+              Remove-Item -LiteralPath "Cert:\LocalMachine\Root\$thumbprint" -Force -ErrorAction SilentlyContinue
             }
           }
 
@@ -270,7 +277,11 @@ jobs:
           $thumbprintPath = Join-Path $env:RUNNER_TEMP 'hako-signing-thumbprint.txt'
           if (Test-Path -LiteralPath $thumbprintPath) {
             $thumbprint = (Get-Content -LiteralPath $thumbprintPath -Raw).Trim()
-            if ($thumbprint) { Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue }
+            if ($thumbprint) {
+              Remove-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -Force -ErrorAction SilentlyContinue
+              Remove-Item -LiteralPath "Cert:\LocalMachine\TrustedPeople\$thumbprint" -Force -ErrorAction SilentlyContinue
+              Remove-Item -LiteralPath "Cert:\LocalMachine\Root\$thumbprint" -Force -ErrorAction SilentlyContinue
+            }
             Remove-Item -LiteralPath $thumbprintPath -Force -ErrorAction SilentlyContinue
           }
 

@@ -176,6 +176,10 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 Релиз подписывается SHA-256 и RFC 3161 timestamp сертификатом из секретов `WINDOWS_SIGNING_PFX_BASE64` и
 `WINDOWS_SIGNING_PFX_PASSWORD` (пустой пароль допустим). PFX и импортированный закрытый ключ удаляются после сборки;
 в релиз прикладываются обе архитектуры, публичный `Hako.cer`, нужные runtime-зависимости и инструкции установки.
+Для проверки самоподписанной подписи публичный сертификат временно добавляется в
+`LocalMachine\TrustedPeople` и `LocalMachine\Root` одноразового раннера и удаляется при очистке вместе с записью в `CurrentUser\My`.
+Доверие к корню нужно для Authenticode-проверки в CI; пользователю для установки достаточно `TrustedPeople`.
+Создание сертификата `CN=daske` на macOS и загрузка PFX в Repository secrets описаны в `docs/windows-signing.md`.
 
 ## Ограничения и инварианты
 
