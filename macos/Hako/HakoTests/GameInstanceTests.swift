@@ -27,6 +27,25 @@ import Testing
         }
     }
 
+    @Test func storeKeepsItsContainerAliveForDeferredOperations() async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        func makeStore() throws -> InstanceStore {
+            let container = try container()
+            let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+            let instance = try store.create(draft("Deferred Pack"), versionID: "v", metadataURL: "url", metadataSHA1: "hash")
+            instance.state = .ready
+            try container.mainContext.save()
+            return store
+        }
+        let store = try makeStore()
+        try await Task { @MainActor in
+            let instance = try #require(store.context.fetch(FetchDescriptor<GameInstance>()).first)
+            try store.rename(instance, to: "Renamed Pack")
+            #expect(instance.name == "Renamed Pack")
+        }.value
+    }
+
     @Test func profilesHaveIndependentFilesAndRenameWithoutRedownloading() throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }

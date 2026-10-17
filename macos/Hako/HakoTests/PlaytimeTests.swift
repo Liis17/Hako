@@ -8,6 +8,20 @@ import Darwin
         try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
+    @Test func coordinatorKeepsItsContainerAliveForDeferredCredit() async throws {
+        let instanceID = UUID()
+        func makeCoordinator() throws -> (PlaytimeCoordinator, UUID) {
+            let container = try container()
+            let playtime = try PlaytimeCoordinator(context: container.mainContext)
+            return (playtime, try playtime.beginSession(instanceID: instanceID, xuid: "first"))
+        }
+        let (playtime, sessionID) = try makeCoordinator()
+        try await Task { @MainActor in
+            try playtime.credit(sessionID: sessionID, elapsedSeconds: 90)
+            #expect(playtime.instanceSeconds(instanceID, xuid: "first") == 90)
+        }.value
+    }
+
     @Test func sessionCreditsOnlyNewTimeToItsOwnerAndInstance() throws {
         let container = try container()
         let playtime = try PlaytimeCoordinator(context: container.mainContext)

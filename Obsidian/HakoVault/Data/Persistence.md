@@ -152,6 +152,9 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 
 ## Ограничения и важные детали
 
+- `InstanceStore` и `PlaytimeCoordinator` удерживают `ModelContainer` вместе с `ModelContext`.
+  Фоновые операции индексации и callback завершения игры могут пережить создавшее их окружение;
+  освобождение контейнера раньше этих операций уничтожает доступные им модели SwiftData.
 - Используется обычная (файловая) связка ключей входа, а не Data Protection Keychain:
   проверено, что без entitlement `application-identifier` (его даёт только provisioning profile,
   которого у проекта нет) Data Protection Keychain возвращает `errSecMissingEntitlement` (−34018).
