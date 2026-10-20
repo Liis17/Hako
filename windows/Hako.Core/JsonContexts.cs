@@ -22,5 +22,7 @@ namespace Hako.Core;
 [JsonSerializable(typeof(MinecraftLoginRequest))]
 [JsonSerializable(typeof(MinecraftLoginResponse))]
 [JsonSerializable(typeof(MinecraftProfileResponse))]
+[JsonSerializable(typeof(MinecraftSessionProfileResponse))]
+[JsonSerializable(typeof(MinecraftTexturePayload))]
 [JsonSerializable(typeof(IdTokenClaims))]
 internal partial class HakoJsonContext : JsonSerializerContext;

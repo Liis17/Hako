@@ -18,6 +18,9 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift` | `MinecraftSkinScene` | Геометрия, материалы, камера, поза и ходьба |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView(source:)` | SwiftUI `RealityView`, загрузка, жесты и жизненный цикл |
 | `macos/Hako/Hako/Resources/Steve.png` | Резервная текстура | Штатный `wide/steve` из официального клиента Minecraft 1.21.9 |
+| `windows/Hako.Core/MinecraftSkinLoader.cs` | `MinecraftSkinLoader.LoadAsync(uuid, cancellationToken)` | Публичный профиль Mojang без токенов, безопасные HTTPS текстуры, кэш успешных метаданных в экземпляре |
+| `windows/Hako.Core/MinecraftSkinNormalizer.cs` | `MinecraftSkinNormalizer.NormalizeRgba` | Чистая нормализация RGBA и восстановление legacy 64×32; PNG-декодирование выполняется Windows UI-слоем |
+| `windows/Hako/Assets/Steve.png` | Резервная текстура Windows | Байтовая копия ресурса macOS; тестовый проект сравнивает оба файла и SHA-256 |
 
 `MinecraftSkin(data:variant:)` принимает текстуры 64×64 или 64×32; прочие размеры и
 нечитаемые данные дают `DecodingError.invalidTexture`. Формат 64×32 всегда классический:
@@ -47,6 +50,20 @@ Parent: [[Index]]
 без текстуры кэшируется. `Account` и Keychain загрузчик не меняет. `URLSession` можно передать
 в инициализатор для тестов. Уход с экрана или смена источника отменяет задачу;
 проверка отмены и ревизии сцены исключает применение позднего результата.
+
+Windows `MinecraftSkinLoader` принимает внедрённый `HttpClient` и возвращает PNG-байты скина,
+вариант `Classic`/`Slim` и необязательные PNG-байты плаща. Он принимает UUID в форматах `N` и `D`,
+нормализует его без дефисов и не отправляет запрос при отсутствующем UUID. Ответ профиля ограничен
+1 MiB, текстуры — 4 MiB; ссылки допускаются только для `textures.minecraft.net`, а HTTP ссылки
+этого хоста повышаются до HTTPS. Ошибка плаща не мешает загрузить скин. Экземпляр кэширует только
+успешные метаданные профиля; PNG не кэшируются, так как Core не декодирует и не проверяет изображения.
+
+`MinecraftSkinNormalizer.NormalizeRgba` принимает straight-alpha RGBA в развёртке сверху вниз,
+возвращает 64×64 RGBA и вариант модели. Формат 64×32 всегда становится `Classic`; левые конечности
+восстанавливаются зеркально, старая непрозрачная шапка очищается при отсутствии прозрачности внешней
+одежды, базовые области принудительно делаются непрозрачными. Альфа внешних слоёв сохраняется.
+`NormalizeCapeRgba` принимает только 64×32 RGBA. PNG-декодер и нормализованный image cache относятся
+к Windows renderer-этапу.
 
 Резервный PNG извлечён из
 `https://piston-data.mojang.com/v1/objects/ce92fd8d1b2460c41ceda07ae7b3fe863a80d045/client.jar`,
