@@ -90,6 +90,9 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
 | `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage` | Раздел «Сборки» (пустое состояние) |
 | `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные» и «Профиль», выход |
+| `windows/Hako/MinecraftSkinView.xaml`, `windows/Hako/MinecraftSkinView.xaml.cs` | `MinecraftSkinView` | Скин, камера, кадры ходьбы, отмена и владение renderer по видимости профиля |
+| `windows/Hako/MinecraftSkinPreviewService.cs`, `MinecraftSkinImageDecoder.cs` | `MinecraftSkinPreviewService`, `MinecraftSkinImageDecoder` | Mojang skin PNG, проверка контейнера/размера, straight RGBA, нормализованный cache по UUID |
+| `windows/Hako/Graphics/MinecraftSkinRenderer.cs`, `MinecraftSkinGeometry.cs` | `MinecraftSkinRenderer`, `MinecraftSkinGeometry` | D3D11 Composition surface и независимое построение UV/pose geometry |
 
 ### Экраны
 
@@ -105,14 +108,29 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 
 - Для `Builds` и `Settings` `MainWindow` показывает `RootNavigation` (`NavigationView`, `PaneDisplayMode=LeftCompact`)
   с пунктами «Сборки» (`Tag="Builds"`) и «Настройки» (`Tag="Settings"`); содержимое — `ShellFrame`.
-  Для остальных экранов видим только `FlowFrame`.
-- Закрытие окна вызывает `CancelSignIn()`.
+  Для остальных экранов видим только `FlowFrame`. При скрытии корневой навигации страница Settings может
+  остаться текущей страницей `ShellFrame`, поэтому `MainWindow` отдельно передаёт ей активность экрана и окна.
+- Закрытие окна вызывает `CancelSignIn()` и завершает preview service; текущая страница сначала отменяет
+  загрузку и останавливает frame callback, затем освобождает renderer. Деактивация или сворачивание окна,
+  переход на другой корневой экран и выбор «Основные» выключают skin control без сброса камеры.
 
 ### Настройки
 
 - «Основные»: `LanguageBox` меняет язык сразу. Ошибка сохранения — диалог `LanguageSaveError`.
-- «Профиль»: аватар Xbox (`AccountAvatar`, при ошибке загрузки — `FontIcon`), gamertag, email, бейдж «Xbox»,
-  блок Minecraft: ник либо текст «Minecraft: Java Edition не подключён». Гостю показывается кнопка входа
-  (`SignInButton`), аккаунту — «Выйти» (`SignOutButton`).
+- «Профиль» для Microsoft-аккаунта показывает слева две оформленные карточки: Xbox (аватар
+  `AccountAvatar`, при ошибке загрузки — `FontIcon`, gamertag и email) и Minecraft (пиксельная голова
+  с лицом/шапкой, ник и бейдж `Java Edition`). Если Minecraft не подключён, карточка объясняет это
+  и показывает Steve; гостевое состояние остаётся прежним и 3D-модель не показывается. Кнопка выхода
+  находится под карточками.
+- При фактической ширине `ProfilePanel` от 800 DIP карточки занимают левую колонку минимум 360 DIP,
+  модель — правую минимум 240 DIP, между ними 24 DIP; область модели минимум 400 DIP по высоте.
+  Ниже 800 DIP модель становится строкой под карточками высотой 360 DIP. В коротком окне содержимое
+  Settings прокручивается. Смена языка обновляет текст без смены UUID или повторной загрузки.
 - Выход открывает `ContentDialog` с подтверждением (`SignOutButton_Click`). Подтверждение вызывает
   `AppCoordinator.LogoutAsync`; при ошибке удаления показывается `LogoutFailed`.
+
+`MinecraftSkinView` обновляет камеру по мышиному drag и стрелкам. `CompositionTarget.Rendering`
+подписан только при доступном 3D preview и разрешённых системных анимациях; reduced motion оставляет
+статичную позу. `MainWindow` передаёт состояние активации/видимости окна, в том числе при logout, когда
+`ShellFrame` не навигирует с текущей Settings-страницы. Страница и control снимают собственные события
+при навигации/скрытии и освобождении.

@@ -44,6 +44,7 @@ public sealed class MinecraftSkinLoaderTests
         Assert.IsNotNull(result);
         CollectionAssert.AreEqual(SkinBytes, result.SkinPng);
         CollectionAssert.AreEqual(CapeBytes, result.CapePng);
+        Assert.IsTrue(result.HasCape);
         Assert.AreEqual(MinecraftSkinVariant.Slim, result.Variant);
         Assert.AreEqual(3, requests.Count);
         Assert.AreEqual($"/session/minecraft/profile/{ProfileId.Replace("-", string.Empty)}", requests[0].AbsolutePath);
@@ -173,7 +174,32 @@ public sealed class MinecraftSkinLoaderTests
         Assert.IsNotNull(result);
         CollectionAssert.AreEqual(SkinBytes, result.SkinPng);
         Assert.IsNull(result.CapePng);
+        Assert.IsTrue(result.HasCape);
         Assert.AreEqual(1, profileRequests);
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_NoAdvertisedCape_MarksCapeAsNotExpected()
+    {
+        var handler = new CallbackHttpHandler((request, _) =>
+        {
+            var uri = request.RequestUri!;
+            if (uri.Host == "sessionserver.mojang.com")
+            {
+                return Task.FromResult(JsonResponse(ProfileJson(SkinTextureUrl)));
+            }
+
+            return Task.FromResult(ByteResponse(SkinBytes, request));
+        });
+        using var client = new HttpClient(handler);
+        var loader = new MinecraftSkinLoader(client);
+
+        var result = await loader.LoadAsync(ProfileId);
+
+        Assert.IsNotNull(result);
+        Assert.IsNull(result.CapePng);
+        Assert.IsFalse(result.HasCape);
+        Assert.AreEqual(2, handler.RequestCount);
     }
 
     [TestMethod]

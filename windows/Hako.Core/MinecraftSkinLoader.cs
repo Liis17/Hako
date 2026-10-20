@@ -5,7 +5,10 @@ using System.Text.Json.Serialization;
 
 namespace Hako.Core;
 
-public sealed record MinecraftSkinData(byte[] SkinPng, MinecraftSkinVariant Variant, byte[]? CapePng);
+public sealed record MinecraftSkinData(byte[] SkinPng, MinecraftSkinVariant Variant, byte[]? CapePng)
+{
+    public bool HasCape { get; init; }
+}
 
 /// <summary>Loads public Minecraft skin textures without account credentials.</summary>
 public sealed class MinecraftSkinLoader(HttpClient httpClient)
@@ -57,7 +60,7 @@ public sealed class MinecraftSkinLoader(HttpClient httpClient)
 
         cancellationToken.ThrowIfCancellationRequested();
         _profileCache.TryAdd(normalizedUuid, profile);
-        return new(skinPng, profile.Variant, capePng);
+        return new(skinPng, profile.Variant, capePng) { HasCape = profile.CapeUri is not null };
     }
 
     private async Task<ResolvedProfile> ResolveProfileAsync(string uuid, CancellationToken cancellationToken)

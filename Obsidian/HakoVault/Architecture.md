@@ -236,8 +236,8 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 ## Windows-клиент
 
 Клиент для Windows в каталоге `windows/` на первом этапе паритета с macOS: приветствие, вход в Microsoft
-по коду, главная с разделами «Сборки» и «Настройки», язык и профиль, выход. Сборки, запуск игры,
-моды, ресурспаки и самообновление пока не реализованы.
+по коду, главная с разделами «Сборки» и «Настройки», язык, профиль с 3D-превью скина и выход. Сборки,
+запуск игры, моды, ресурспаки и самообновление пока не реализованы.
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
 Экраны — [[UI/Screens#Windows-клиент]], вход — [[Auth/MicrosoftAuth#Windows-клиент]],
@@ -249,6 +249,7 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 |------------|------|----------|
 | .NET 8 | Платформа: `net8.0-windows10.0.19041.0` для `Hako`, `net8.0` для `Hako.Core`, `net8.0-windows10.0.17763.0` для тестов | `windows/Hako/Hako.csproj`, `windows/Hako.Core/Hako.Core.csproj`, `windows/Hako.Tests/Hako.Tests.csproj` |
 | WinUI 3, Windows App SDK 2.5.1 (`Microsoft.WindowsAppSDK`), `Microsoft.Windows.SDK.BuildTools` 10.0.28000.2705 | Окна и страницы, `AppInstance`, MSIX-инструменты | `windows/Hako/Hako.csproj` |
+| Vortice.Direct3D11, Vortice.D3DCompiler | D3D11 renderer и компиляция встроенного HLSL для skin preview | `windows/Hako/Hako.csproj`, `windows/Hako/Graphics/` |
 | `System.Security.Cryptography.ProtectedData` 8.0.0 | DPAPI: `ProtectedData.Protect` и `Unprotect` | `windows/Hako.Core/Hako.Core.csproj` |
 | `System.Text.Json` с source generation | Сериализация без рефлексии через `HakoJsonContext` | `windows/Hako.Core/JsonContexts.cs` |
 | MSTest 3.10.4, `Microsoft.NET.Test.Sdk` 17.14.1 | Тесты | `windows/Hako.Tests/Hako.Tests.csproj` |
@@ -258,31 +259,38 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
 
 ### Структура
 
-- `windows/Hako/` — WinUI-приложение: `Program.cs` (точка входа и единственный экземпляр), `App.xaml.cs`
-  (создаёт `AppCoordinator`), `MainWindow` (окно с `NavigationView` и `Frame`), страницы `LoadingPage`,
-  `WelcomePage`, `LoginPage`, `BuildsPage`, `SettingsPage`, `HakoStrings`, `AppDataDirectory`,
+- `windows/Hako/` — WinUI-приложение: `Program.cs` (точка входа и ключи единственного экземпляра), `App.xaml.cs`
+  (создаёт `AppCoordinator` и app-lifetime `MinecraftSkinPreviewService`), `MainWindow` (окно с `NavigationView`,
+  `Frame` и forwarding состояния окна), страницы `LoadingPage`, `WelcomePage`, `LoginPage`, `BuildsPage`, `SettingsPage`,
+  `MinecraftSkinView`, `MinecraftSkinImageDecoder`, `MinecraftSkinPreviewService`, `MinecraftSkinHeadComposer`,
+  `Graphics/MinecraftSkinRenderer` и `Graphics/MinecraftSkinGeometry`, `HakoStrings`, `AppDataDirectory`,
   `Strings/ru-RU` и `Strings/en-US` (`Resources.resw`), `Package.appxmanifest`, `app.manifest`,
   `Properties/launchSettings.json`, решение `Hako.slnx`.
 - `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
   `AuthContracts`, `AccountSessionStore`, `JsonUserSettingsStore`, `AppLanguage`, `JsonContexts`.
 - `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
-  `LocalizationResourcesTests`, `RedactionTests`; `TestSupport.cs` содержит фейки времени, таймеров, хранилищ,
-  сервиса входа и `TestData`.
+  `LocalizationResourcesTests`, `RedactionTests`, `MinecraftSkinTests`, `MinecraftSkinImageDecoderTests`,
+  `MinecraftSkinGeometryTests`; `TestSupport.cs` содержит фейки времени, таймеров, хранилищ,
+  сервиса входа и `TestData`. Decoder/head/geometry исходники Windows UI linked-compiled для тестов.
 
 ### Запуск и единственный экземпляр
 
 1. `Program.Main` — синхронный `[STAThread] static void Main`. Он вызывает `ComWrappersSupport.InitializeComWrappers()`,
-   затем `AppInstance.FindOrRegisterForKey("Hako.Main")`. Если экземпляр не текущий, `RedirectActivationTo` запускает
+   затем `AppInstance.FindOrRegisterForKey("Hako.Main")`. Изолированный CLI preview использует отдельный ключ
+   `Hako.ProfilePreview`, поэтому не активирует работающий обычный Hako. Если экземпляр не текущий, `RedirectActivationTo` запускает
    `RedirectActivationToAsync` в `Task.Run`, а STA-поток ждёт его в `CoWaitForMultipleObjects`, продолжая обрабатывать
    сообщения: блокирующий `Wait()` может зависнуть, пока целевой экземпляр обрабатывает активацию. Затем перенаправляющий
    процесс вызывает `SetForegroundWindow` для главного окна целевого процесса и выходит. Сбой этого шага (например, целевой
    процесс уже завершился) игнорируется: второй экземпляр просто выходит. Текущий экземпляр при повторной
    активации вызывает `App.ActivateMainWindow` через `DispatcherQueue`: разворачивает свёрнутое окно
    (`OverlappedPresenter.Restore`), затем вызывает `AppWindow.Show()` и `Activate()`. Один экземпляр — решение пользователя.
-2. `App()` создаёт `AppCoordinator` с `JsonUserSettingsStore`, `AccountSessionStore` и
+2. Обычный `App()` создаёт `AppCoordinator` с `JsonUserSettingsStore`, `AccountSessionStore` и
    `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`; каталог данных — `AppDataDirectory.GetLocalPath()`.
+   Skin preview service использует отдельный `HttpClient` с 15-секундным timeout для публичных Mojang texture API,
+   без токенов; он не меняет `AccountSession` или формат persistence.
 3. `OnLaunched` сначала показывает `MainWindow` (экран `Loading`), затем `await InitializeAsync()` выбирает
-   `Welcome` или `Builds`.
+   `Welcome` или `Builds`. В preview-режиме вместо файловых store создаются fake in-memory store и auth-сервис,
+   который запрещает sign-in; production-путь `AppDataDirectory.GetLocalPath()` не вызывается.
 
 ### Упаковка и сборка
 
@@ -290,10 +298,16 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
   `Hako (Package)` (`MsixPackage`) и `Hako (Unpackaged)` (`Project`). Тип упаковки (`WindowsPackageType`)
   в `Hako.csproj` не задан; CI выбирает `MSIX` для Windows-релизной сборки.
 - `PublishTrimmed` и `PublishReadyToRun` включаются для конфигураций, отличных от `Debug`.
-  Release-публикация даёт одно ожидаемое предупреждение `IL2059` в сгенерированном `XamlTypeInfo.g.cs`:
-  `RunClassConstructor` для `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion`.
-  У `Nullable<T>` нет статического конструктора, поэтому trimming ничего не удаляет; подавлять его глобально
-  через `NoWarn` не нужно, чтобы не скрыть такие же предупреждения в коде Hako.
+  Release-публикация показывает `IL2059` в сгенерированном `XamlTypeInfo.g.cs` для `RunClassConstructor`
+  у `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion`, а также `IL2104` для
+  `SharpGen.Runtime`. `Nullable<T>` не имеет статического конструктора; предупреждение зависимости
+  относится к upstream assembly. Не подавлять их глобально через `NoWarn`, чтобы не скрыть такие же
+  предупреждения в коде Hako.
+- Для isolated UI smoke запустить `Hako.exe --profile-preview [account|no-minecraft|guest|fixture]`
+  (без режима используется `account`). `--preview-width` принимает 640–2560, `--preview-height` — 480–2560;
+  эти аргументы действуют только в preview. Режимы используют fake аккаунт/гостя без реального UUID, сеть
+  skin service не обращается к Mojang; `fixture` показывает локальный Steve и тестовый плащ. Команда для
+  разработки: `dotnet run --project windows/Hako/Hako.csproj -c Debug -- --profile-preview fixture --preview-width 1000 --preview-height 720`.
 - Сборка и тесты:
 
 ```sh
