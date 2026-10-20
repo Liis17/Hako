@@ -8,13 +8,13 @@ namespace Hako.Graphics;
 
 internal static unsafe class ICompositorInterop
 {
-    private static readonly Guid InterfaceId = new("25297D5C-3AD4-4C9C-B5CF-E36A38512330");
+    private static readonly Guid InterfaceId = new("FAB19398-6D19-4D8A-B752-8F096C396069");
 
     internal static CompositionGraphicsDevice CreateGraphicsDevice(Compositor compositor, ID3D11Device device)
     {
         using var interop = ((IWinRTObject)compositor).NativeObject.As<UnknownVftbl>(InterfaceId);
         var vtable = *(IntPtr**)interop.ThisPtr;
-        var createGraphicsDevice = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr, IntPtr*, int>)vtable[5];
+        var createGraphicsDevice = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr, IntPtr*, int>)vtable[3];
         IntPtr graphicsDevicePointer = IntPtr.Zero;
         var result = createGraphicsDevice(interop.ThisPtr, device.NativePointer, &graphicsDevicePointer);
 
@@ -32,7 +32,7 @@ internal static unsafe class ICompositorInterop
 
 internal sealed unsafe class ICompositionDrawingSurfaceInterop : IDisposable
 {
-    private static readonly Guid InterfaceId = new("FD04E6E3-FE0C-4C3C-AB19-A07601A576EE");
+    private static readonly Guid InterfaceId = new("2D6355C2-AD57-4EAE-92E4-4C3EFF65D578");
     private static readonly Guid Texture2DInterfaceId = new("6F15AAF2-D208-4E89-9AB4-489535D34F9C");
     private readonly ObjectReference<UnknownVftbl> _interop;
     private bool _drawInProgress;
