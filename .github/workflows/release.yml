@@ -372,6 +372,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download release assets
         uses: actions/download-artifact@v4
@@ -383,16 +385,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA:0:12}"
           tag="main-${GITHUB_SHA}"
-          notes="$(cat <<EOF
-          Сборки macOS и Windows из коммита ${GITHUB_SHA} ветки main.
-
-          Это проверочный prerelease. Стабильные релизы публикуются отдельно после повышения версии соответствующей платформы.
-          EOF
-          )"
+          notes="$(python3 .github/scripts/prerelease_notes.py --after "$GITHUB_SHA" --before "$PUSH_BEFORE")"
           mapfile -d '' -t assets < <(find release-assets -type f -print0 | sort -z)
           arguments=(--tag "$tag" --title "Hako main $short_sha" --notes "$notes" --prerelease)
           for asset in "${assets[@]}"; do arguments+=(--asset "$asset"); done
