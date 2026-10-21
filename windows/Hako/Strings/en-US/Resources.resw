@@ -64,4 +64,9 @@ Hako</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>Error</value></data>
   <data name="CloseButton" xml:space="preserve"><value>Close</value></data>
   <data name="LanguageSaveError" xml:space="preserve"><value>The selected language could not be saved.</value></data>
+  <data name="HakoAlreadyOpen" xml:space="preserve"><value>Hako is already open and using these folders. Close the other instance and try again.</value></data>
+  <data name="StartupInvalidArguments" xml:space="preserve"><value>Hako was started with invalid command-line arguments. Check the options and try again.</value></data>
+  <data name="StartupStorageUnavailable" xml:space="preserve"><value>Hako couldn't access its data folders. Check permissions and try again.</value></data>
+  <data name="InstanceRegistryDamaged" xml:space="preserve"><value>The instance registry is damaged or uses an unsupported version. The file was preserved, and instance changes are disabled.</value></data>
+  <data name="InstanceRegistryUnavailable" xml:space="preserve"><value>The instance registry could not be read. Instance changes are disabled.</value></data>
 </root>

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Hako.Core.Instances;
 
 namespace Hako.Core;
 
@@ -7,6 +8,7 @@ namespace Hako.Core;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(UserSettings))]
+[JsonSerializable(typeof(InstanceRegistryFile))]
 [JsonSerializable(typeof(AccountSession))]
 [JsonSerializable(typeof(DeviceCodeResponse))]
 [JsonSerializable(typeof(MicrosoftTokenResponse))]

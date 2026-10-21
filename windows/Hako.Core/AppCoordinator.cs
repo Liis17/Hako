@@ -38,11 +38,10 @@ public static class StartupNoticeExtensions
 
 public sealed class AppCoordinator : INotifyPropertyChanged
 {
-    private readonly IUserSettingsStore _settingsStore;
+    private readonly UserSettingsService _settingsService;
     private readonly IAccountStore _accountStore;
     private readonly IMicrosoftAuthService _authService;
     private readonly object _commitLock = new();
-    private readonly SemaphoreSlim _languageSaveGate = new(1, 1);
     private LauncherScreen _screen = LauncherScreen.Loading;
     private AppLanguage _language = AppLanguages.Default;
     private AppLanguage _savedLanguage = AppLanguages.Default;
@@ -60,8 +59,13 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private long _languageSelection;
 
     public AppCoordinator(IUserSettingsStore settingsStore, IAccountStore accountStore, IMicrosoftAuthService authService)
+        : this(new UserSettingsService(settingsStore), accountStore, authService)
     {
-        _settingsStore = settingsStore;
+    }
+
+    public AppCoordinator(UserSettingsService settingsService, IAccountStore accountStore, IMicrosoftAuthService authService)
+    {
+        _settingsService = settingsService;
         _accountStore = accountStore;
         _authService = authService;
     }
@@ -127,7 +131,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         UserSettings? settings = null;
         try
         {
-            settings = await _settingsStore.LoadAsync(cancellationToken);
+            settings = await _settingsService.LoadAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -166,32 +170,18 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         Language = language;
         try
         {
-            await SaveLanguageAsync(cancellationToken);
+            await _settingsService.SetLanguageAsync(language, cancellationToken);
+            _savedLanguage = AppLanguages.Parse(_settingsService.SavedLanguage);
         }
         catch
         {
+            _savedLanguage = AppLanguages.Parse(_settingsService.SavedLanguage);
             if (selection == _languageSelection)
             {
                 Language = _savedLanguage;
             }
 
             throw;
-        }
-    }
-
-    private async Task SaveLanguageAsync(CancellationToken cancellationToken)
-    {
-        await _languageSaveGate.WaitAsync(cancellationToken);
-        try
-        {
-            // Saves the current language rather than the caller's: the last save to run always carries the latest choice.
-            var language = Language;
-            await _settingsStore.SaveAsync(new UserSettings(language.ToTag()), cancellationToken);
-            _savedLanguage = language;
-        }
-        finally
-        {
-            _languageSaveGate.Release();
         }
     }
 

@@ -64,4 +64,9 @@
   <data name="ErrorTitle" xml:space="preserve"><value>Ошибка</value></data>
   <data name="CloseButton" xml:space="preserve"><value>Закрыть</value></data>
   <data name="LanguageSaveError" xml:space="preserve"><value>Не удалось сохранить выбранный язык.</value></data>
+  <data name="HakoAlreadyOpen" xml:space="preserve"><value>Hako уже открыт и использует эти папки. Закройте другой экземпляр и попробуйте снова.</value></data>
+  <data name="StartupInvalidArguments" xml:space="preserve"><value>Некорректные параметры запуска Hako. Проверьте аргументы и попробуйте снова.</value></data>
+  <data name="StartupStorageUnavailable" xml:space="preserve"><value>Hako не удалось получить доступ к папкам данных. Проверьте разрешения и попробуйте снова.</value></data>
+  <data name="InstanceRegistryDamaged" xml:space="preserve"><value>Реестр сборок повреждён или имеет неподдерживаемую версию. Файл сохранён, изменения сборок отключены.</value></data>
+  <data name="InstanceRegistryUnavailable" xml:space="preserve"><value>Не удалось прочитать реестр сборок. Изменения сборок отключены.</value></data>
 </root>

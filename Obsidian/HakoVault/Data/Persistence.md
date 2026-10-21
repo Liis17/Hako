@@ -245,7 +245,9 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 ## Windows-клиент
 
 Хранение в `windows/Hako.Core/` (без WinUI). Аккаунт — зашифрованный файл `session.dat`, настройки —
-`settings.json`. Каталог данных задаёт `windows/Hako/AppDataDirectory.cs`. Экраны и вход — [[UI/Screens#Windows-клиент]],
+`settings.json`, профили сборок — `instances.json`. `HakoPaths` задаёт игровой корень, каталог данных и кэш;
+производственный игровой корень — `%USERPROFILE%\.hako`, каталог данных по-прежнему задаёт
+`windows/Hako/AppDataDirectory.cs`. Экраны и вход — [[UI/Screens#Windows-клиент]],
 [[Auth/MicrosoftAuth#Windows-клиент]].
 
 ### Источники
@@ -254,10 +256,16 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 |------|-----------------|------|
 | `windows/Hako.Core/AccountSession.cs` | `AccountSession` | Запись аккаунта |
 | `windows/Hako.Core/AccountSessionStore.cs` | `AccountSessionStore`, `AccountStoreException` | Шифрование, чтение, атомарная запись и удаление `session.dat` |
-| `windows/Hako.Core/JsonUserSettingsStore.cs`, `windows/Hako.Core/UserSettings.cs` | `JsonUserSettingsStore`, `UserSettings` | `settings.json` с языком |
-| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, сериализованное сохранение языка и откат, выход |
+| `windows/Hako.Core/JsonUserSettingsStore.cs`, `UserSettings.cs`, `UserSettingsService.cs` | `JsonUserSettingsStore`, `UserSettings`, `UserSettingsService` | `settings.json`: язык и глобальные параметры игры; единый сериализованный снимок |
+| `windows/Hako.Core/HakoPaths.cs`, `HakoRootLock.cs` | `HakoPaths`, `HakoRootLock` | Пути корней, изолированные запуски и блокировки game-root/data-root |
+| `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
+| `windows/Hako.Core/Instances/InstanceStorage.cs`, `InstanceStore.cs` | `InstanceStorage`, `InstanceStore`, `InstanceRegistryFile` | Безопасные пути, `instances.json`, транзакционное создание и управление профилями |
+| `windows/Hako.Core/RecycleBin.cs` | `RecycleBin`, `IFileOperationProgressSink` | Перемещение в Корзину и подтверждённое безвозвратное удаление через API |
+| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, изменение языка через общий сервис настроек, выход |
+| `windows/Hako/Program.cs`, `App.xaml.cs` | `Program.Main`, `App` | Проверка аргументов до `AppInstance`, выбор путей, блокировка корня и сервисы приложения |
 | `windows/Hako/AppDataDirectory.cs` | `AppDataDirectory.GetLocalPath` | Каталог данных |
 | `windows/Hako.Tests/StorageTests.cs` | — | DPAPI без открытого текста токенов, очистка, повреждённый файл, сбой замены |
+| `windows/Hako.Tests/InstanceStoreTests.cs`, `UserSettingsServiceTests.cs`, `RecycleBinTests.cs` | — | Изоляция путей, файловые транзакции, настройки, блокировка и корзина |
 | `windows/Hako.Tests/RedactionTests.cs` | — | `ToString()` записей `MicrosoftToken` и `AccountSession` без токенов |
 
 ### Аккаунт: `session.dat`
@@ -278,16 +286,70 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 
 ### Настройки: `settings.json`
 
-- Файл `settings.json` в том же каталоге. Содержимое — `UserSettings`: `{ "language": "ru" }` или `"en"`
-  (camelCase, с отступами, `null` не пишется).
+- Файл `settings.json` в каталоге данных. `UserSettings` хранит `language` и optional-поля `javaPath`,
+  `javaArguments`, `minecraftArguments`, `fullscreen`, `windowWidth`, `windowHeight`, `maximumMemoryMiB`
+  (camelCase, с отступами, `null` не пишется). Старый файл только с `language` читается без миграции.
 - Отсутствующий `language` или файла нет — язык системы (`AppLanguages.Default`).
 - `LoadAsync`: файла нет → `null`. Ошибки чтения и `JsonException` пробрасываются; `AppCoordinator.InitializeAsync`
   ставит `StartupNotice.PreferencesUnavailable` и берёт язык по умолчанию (`AppLanguages.Default`).
 - `SaveAsync`: запись в `settings.json.<guid>.tmp`, затем `File.Move(..., true)`; временный файл удаляется в `finally`.
-- `SetLanguageAsync` сразу меняет `Language`. Сохранения идут по одному (`_languageSaveGate`) и пишут текущий `Language`,
-  поэтому побеждает последний выбор. При ошибке записи язык откатывается к `_savedLanguage` (последнему успешно сохранённому
-  или загруженному при старте), только если за это время не было нового выбора (`_languageSelection`); исключение пробрасывается,
-  UI показывает `LanguageSaveError`.
+- `UserSettingsService` держит единый снимок языка и игровых параметров. Изменения языка и параметров используют общий
+  `SemaphoreSlim`, и каждая запись сохраняет полный актуальный снимок. Если первоначальная загрузка завершилась ошибкой,
+  перед следующей записью сервис повторяет чтение и объединяет выбранные изменения с данными на диске; при повторной ошибке
+  ввода-вывода запись не выполняется, а при `JsonException` повреждённый файл заменяется полным текущим снимком.
+  `AppCoordinator.SetLanguageAsync` меняет язык сразу; при ошибке он возвращается к языку из
+  последнего успешно сохранённого снимка, если после этого не было нового выбора. Ошибка пробрасывается, UI показывает
+  `LanguageSaveError`.
+
+### Профили сборок Windows
+
+- `instances.json` находится в игровом корне и имеет формат `{ "formatVersion": 1, "instances": [...] }`.
+  `HakoJsonContext` пишет camelCase; значения источника аргументов, состояния установки и загрузчика — `global`/`mojang`/`custom`,
+  `queued`/`installing`/`paused`/`ready`/`failed`, `vanilla`/`fabric`. В записи сохраняются параметры сборки, offline-ник,
+  конфигурация Fabric, состояние паузы, Java, совместимость текстурпаков и архитектура.
+- `InstanceStore.LoadAsync` асинхронно загружает реестр при старте. `Instances` и `List()` возвращают снимок в памяти;
+  успешная фиксация записи обновляет его. Ошибка чтения доступна в `LoadError`; повреждённый или неизвестный формат
+  остаётся нетронутым, но не блокирует открытие главного окна. Операции создания и изменения профилей блокируются
+  `InstanceRegistryException` с кодом ошибки и ключом локализации (`InstanceRegistryDamaged` или
+  `InstanceRegistryUnavailable`). Реестр пишется во временный файл, сбрасывается на диск и публикуется через `File.Move`.
+- Имя сборки — 1–60 ASCII-букв, цифр и пробелов после trim; пробелы в имени папки становятся `_`. `backups`, `worlds`
+  и имена устройств Windows зарезервированы. Коллизии в реестре и файловой системе проверяются без учёта регистра.
+  `InstanceStorage.ContainedPath` отклоняет traversal, абсолютные пути, symlink и reparse points ниже игрового корня;
+  сам корень может быть junction или symlink, например когда `.hako` вынесена на другой диск.
+- Создание эксклюзивно создаёт каталог профиля и только его удаляет при ошибке. Переименование переносит каталог,
+  использует временное имя при смене регистра и откатывает перенос при ошибке записи. Удаление сначала переносит каталог
+  в `.delete-{instanceId:N}-{randomId:N}`, затем сохраняет реестр и очищает staging в фоне. После публикации снимка
+  `LoadAsync` в фоне удаляет только staging-имена этого формата и прежние `.delete-{GUID}` в форматах N/D;
+  `.delete-whatever` остаётся нетронутым. При обнаружении нового staging с записью реестра и отсутствующей исходной папкой
+  запись атомарно удаляется; если папка уже на месте, staging удаляется без изменения записи. Очистка не переходит по
+  вложенным junction и symlink. Сбой очистки записывается в Debug-вывод и повторяется при следующей загрузке.
+  При ошибке фиксации реестра каталог восстанавливается. `TryBeginLaunch` и `TryBeginContent` выдают одноразовые
+  `IDisposable`-leases; занятость снимается только при Dispose. Начало операций и блокировки Delete/Rename/Update
+  сериализованы общим `_gate`; состояния очереди/установки также блокируют эти операции.
+- `HakoRootLock` удерживает lock-файлы в игровом и data-root с `FileShare.None` до завершения приложения; lock data-root
+  защищает `session.dat` и `settings.json` от другого экземпляра. Сам game-root может быть junction или symlink. Только
+  sharing/lock violation считается уже запущенным экземпляром; прочие ошибки остаются обычными ошибками старта. При конфликте
+  показывается локализованное сообщение из `Resources.resw`.
+- `RecycleBin` применяет `IFileOperation` с `FOF_ALLOWUNDO` и `FOFX_RECYCLEONDELETE`; progress sink возвращает `E_ABORT`,
+  когда Shell не указал `TSF_DELETE_RECYCLE_IF_POSSIBLE`. Результат пакетного удаления содержит статус каждого элемента:
+  `Recycled`, `NotRecyclable`, `Failed` с сообщением об ошибке или `Cancelled`; после частичного успеха операция не теряет
+  уже полученные результаты. Успех Shell подтверждается только при `SUCCEEDED(hr)` и ненулевом `newItem`; иначе элемент
+  помечается `Failed`, поскольку он мог удалиться, и нужно проверить его наличие. `PermanentDelete` требует абсолютный путь
+  и обязательный `allowedRoot`, принимает только вложенный путь без прохождения через reparse points и удаляет конечную
+  ссылку без перехода по ней. Для длинных Win32-путей приложение помечено `longPathAware`; Shell получает обычное абсолютное
+  parsing name, поскольку пространство `\\?\` предназначено для файловых API и не разбирается Shell как parsing name.
+  COM-обёртки source generation освобождаются через `ComObject.FinalRelease`: после `Unadvise` освобождаются элементы,
+  затем операция, и только после этого вызывается `CoUninitialize`.
+
+### Пути и изоляция Windows
+
+- `HakoPaths` объединяет игровой корень, каталог данных и кэш. В production это `%USERPROFILE%\.hako`, текущий каталог
+  `AppDataDirectory.GetLocalPath()` и `%LOCALAPPDATA%\Hako\Cache`.
+- `Program.Main` проверяет `--hako-root <path>` и `--data-root <path>` до `AppInstance`. Для изоляции требуются оба
+  абсолютных пути, которые не могут содержать друг друга; ключ процесса — `Hako.Isolated.<sha256 корней>`. Ошибка разбора
+  показывает локализованное сообщение и завершает запуск, не выбирая production-каталоги. `--profile-preview` создаёт
+  уникальный временный корень и in-memory account/settings stores; при выходе удаляется только каталог, эксклюзивно
+  созданный этим процессом.
 
 ### Каталог данных
 

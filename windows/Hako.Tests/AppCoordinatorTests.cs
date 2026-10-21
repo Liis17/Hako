@@ -243,4 +243,51 @@ public sealed class AppCoordinatorTests
         Assert.AreEqual(AppLanguage.Russian, coordinator.Language);
         Assert.AreEqual("ru", settings.Settings?.Language);
     }
+
+    [TestMethod]
+    public async Task LaterLanguageSaveFailureRollsBackToTheActuallySavedLanguage()
+    {
+        var settings = new NthFailingSettingsStore(new UserSettings("ru"), failOnWrite: 2);
+        var coordinator = new AppCoordinator(settings, new MemoryAccountStore(), new SequenceAuthService());
+        await coordinator.InitializeAsync();
+
+        var english = coordinator.SetLanguageAsync(AppLanguage.English);
+        await settings.FirstSaveReached.Task;
+        var russian = coordinator.SetLanguageAsync(AppLanguage.Russian);
+        settings.ReleaseFirstSave.TrySetResult();
+
+        await english;
+        await Assert.ThrowsExactlyAsync<IOException>(() => russian);
+
+        Assert.AreEqual(AppLanguage.English, coordinator.Language);
+        Assert.AreEqual("en", settings.Settings?.Language);
+    }
+
+    private sealed class NthFailingSettingsStore(UserSettings? settings, int failOnWrite) : IUserSettingsStore
+    {
+        private int _writeCount;
+
+        public UserSettings? Settings { get; private set; } = settings;
+        public TaskCompletionSource FirstSaveReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseFirstSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<UserSettings?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Settings);
+
+        public async Task SaveAsync(UserSettings newSettings, CancellationToken cancellationToken = default)
+        {
+            var write = Interlocked.Increment(ref _writeCount);
+            if (write == 1)
+            {
+                FirstSaveReached.TrySetResult();
+                await ReleaseFirstSave.Task.WaitAsync(cancellationToken);
+            }
+
+            if (write == failOnWrite)
+            {
+                throw new IOException("Injected settings write failure.");
+            }
+
+            Settings = newSettings;
+        }
+    }
 }

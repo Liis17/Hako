@@ -270,30 +270,44 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
   `Strings/ru-RU` и `Strings/en-US` (`Resources.resw`), `Package.appxmanifest`, `app.manifest`,
   `Properties/launchSettings.json`, решение `Hako.slnx`.
 - `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
-  `AuthContracts`, `AccountSessionStore`, `JsonUserSettingsStore`, `AppLanguage`, `JsonContexts`.
+  `AuthContracts`, `AccountSessionStore`, `UserSettingsService`, `HakoPaths`, `HakoRootLock`, `Instances/`
+  (`GameInstance`, `InstanceStorage`, `InstanceStore`), source-generated COM-корзина `RecycleBin`, `JsonContexts`.
 - `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
   `LocalizationResourcesTests`, `RedactionTests`, `MinecraftSkinTests`, `MinecraftSkinImageDecoderTests`,
   `MinecraftSkinGeometryTests`; `TestSupport.cs` содержит фейки времени, таймеров, хранилищ,
   сервиса входа и `TestData`. Decoder/head/geometry исходники Windows UI linked-compiled для тестов.
+  `windows/Hako/app.manifest` включает `longPathAware` для файловых операций Windows.
 
 ### Запуск и единственный экземпляр
 
-1. `Program.Main` — синхронный `[STAThread] static void Main`. Он вызывает `ComWrappersSupport.InitializeComWrappers()`,
-   затем `AppInstance.FindOrRegisterForKey("Hako.Main")`. Изолированный CLI preview использует отдельный ключ
-   `Hako.ProfilePreview`, поэтому не активирует работающий обычный Hako. Если экземпляр не текущий, `RedirectActivationTo` запускает
+1. `Program.Main` — синхронный `[STAThread] static void Main`. До `AppInstance` он разбирает `--hako-root` и `--data-root`
+   и валидирует абсолютные пути. Для переопределений нужны оба корня; неверные аргументы показывают системное сообщение
+   и завершают процесс без выбора production-путей. Изолированный запуск использует ключ
+   `Hako.Isolated.<sha256 корней>`, а `--profile-preview` — отдельный `Hako.ProfilePreview`.
+   Для изолированного запуска game-root и data-root не могут содержать друг друга. Обычный ключ остаётся `Hako.Main`.
+   Если экземпляр не текущий, `RedirectActivationTo` запускает
    `RedirectActivationToAsync` в `Task.Run`, а STA-поток ждёт его в `CoWaitForMultipleObjects`, продолжая обрабатывать
    сообщения: блокирующий `Wait()` может зависнуть, пока целевой экземпляр обрабатывает активацию. Затем перенаправляющий
    процесс вызывает `SetForegroundWindow` для главного окна целевого процесса и выходит. Сбой этого шага (например, целевой
    процесс уже завершился) игнорируется: второй экземпляр просто выходит. Текущий экземпляр при повторной
    активации вызывает `App.ActivateMainWindow` через `DispatcherQueue`: разворачивает свёрнутое окно
    (`OverlappedPresenter.Restore`), затем вызывает `AppWindow.Show()` и `Activate()`. Один экземпляр — решение пользователя.
-2. Обычный `App()` создаёт `AppCoordinator` с `JsonUserSettingsStore`, `AccountSessionStore` и
-   `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`; каталог данных — `AppDataDirectory.GetLocalPath()`.
+2. Обычный `App()` удерживает `HakoRootLock` на `.hako-lock` в игровом корне и каталоге данных. При sharing/lock violation
+   показывается локализованное сообщение и приложение не читает аккаунт, настройки или `instances.json`; прочие ошибки
+   блокировки показываются как ошибка доступа к хранилищу. Игровой корень может быть junction или symlink, а вложенные
+   пути сборок остаются защищены от reparse points. `HakoPaths` задаёт
+   `%USERPROFILE%\.hako`, каталог данных из `AppDataDirectory.GetLocalPath()` и `%LOCALAPPDATA%\Hako\Cache`.
+   App-lifetime сервисы используют эти пути: `InstanceStore`, `UserSettingsService` с `JsonUserSettingsStore`,
+   `AccountSessionStore` и `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`. `instances.json` атомарно
+   сохраняет полный профиль сборки; изменения сериализуются внутри `InstanceStore`. `settings.json` хранит язык и
+   optional-поля глобальных параметров игры, а `UserSettingsService` пишет единый снимок для обоих видов настроек.
    Skin preview service использует отдельный `HttpClient` с 15-секундным timeout для публичных Mojang texture API,
    без токенов; он не меняет `AccountSession` или формат persistence.
-3. `OnLaunched` сначала показывает `MainWindow` (экран `Loading`), затем `await InitializeAsync()` выбирает
-   `Welcome` или `Builds`. В preview-режиме вместо файловых store создаются fake in-memory store и auth-сервис,
-   который запрещает sign-in; production-путь `AppDataDirectory.GetLocalPath()` не вызывается. Режим
+3. `OnLaunched` сначала выполняет `InstanceStore.LoadAsync()` и только затем показывает `MainWindow`.
+   `await InitializeAsync()` выбирает `Welcome` или `Builds`; ошибка реестра остаётся в `InstanceStore.LoadError`
+   для UI. В preview-режиме `HakoPaths` указывает на уникальный временный корень, создаются fake in-memory store
+   и auth-сервис, который запрещает sign-in; production-каталог данных не читается, временный корень удаляется при выходе.
+   Режим
    `--profile-preview guest` после гостевого перехода открывает «Настройки → Профиль»; обычный гостевой вход
    по-прежнему начинает на странице сборок.
 
@@ -324,7 +338,7 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: сборки (вкладка «Сборки» показывает пустое состояние), запуск Minecraft, моды и ресурспаки,
+- Не реализованы: UI и установка сборок (вкладка «Сборки» показывает пустое состояние), запуск Minecraft, моды и ресурспаки,
   каталоги Modrinth и CurseForge, самообновление.
 - Обновление токенов не реализовано: `MicrosoftRefreshToken` сохраняется, refresh-grant в коде нет.
 - `MinecraftAccessToken` сохраняется и нигде не читается. Игровой сессии на Windows пока нет.
