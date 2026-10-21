@@ -49,11 +49,12 @@ enum InstanceRenameExitRequest: Equatable {
 
 @MainActor final class HakoApplicationDelegate: NSObject, NSApplicationDelegate {
     weak var renameExit: InstanceRenameExitCoordinator?
+    weak var services: HakoServices?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
-        let services = HakoServices.shared
+        guard let services else { return nil }
         services.start()
         return DockLaunchMenu(store: services.installations.store, quickLaunch: services.quickLaunch).makeMenu()
     }

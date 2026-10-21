@@ -10,9 +10,11 @@ import SwiftUI
 struct ProfileView: View {
     let account: Account
     let minecraftStatus: MinecraftStatus
+    var onEditCharacter: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
     @Environment(MinecraftSessionCoordinator.self) private var sessions
+    @Environment(MinecraftAppearanceStore.self) private var appearances
     @State private var isConfirmingSignOut = false
 
     var body: some View {
@@ -20,15 +22,26 @@ struct ProfileView: View {
             ScrollView { accountDetails }
                 .frame(minWidth: 400, maxWidth: 600)
 
-            MinecraftSkinView(source: MinecraftSkinSource(
-                uuid: account.minecraftUUID,
-                skinURL: account.minecraftSkinURL,
-                variant: account.minecraftSkinVariant.flatMap(MinecraftSkinVariant.init(rawValue:)),
-                loadCape: true
-            ))
+            MinecraftSkinView(source: minecraftSkinSource)
             .frame(minWidth: 240, maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 16)
         }
+    }
+
+    private var minecraftSkinSource: MinecraftSkinSource {
+        let profile = appearances.profile(for: account.xuid)
+        return MinecraftSkinSource(
+            uuid: account.minecraftUUID,
+            skinURL: profile == nil ? account.minecraftSkinURL : profile?.minecraftProfile.skinURL,
+            variant: profile == nil
+                ? account.minecraftSkinVariant.flatMap(MinecraftSkinVariant.init(rawValue:))
+                : profile?.minecraftProfile.skinVariant,
+            loadCape: true,
+            appearanceRevision: appearances.revision(for: account.xuid),
+            isAuthoritative: profile != nil,
+            capeURL: profile?.activeCape?.secureURL,
+            capeIsKnown: profile != nil
+        )
     }
 
     private var accountDetails: some View {
@@ -44,8 +57,8 @@ struct ProfileView: View {
                     subtitle: minecraftSubtitle,
                     badge: "Java Edition"
                 ) {
-                    if let skinURL = account.minecraftSkinURL {
-                        MinecraftHead(skinURL: skinURL)
+                    if let skinURL = minecraftSkinSource.skinURL {
+                        MinecraftHead(skinURL: skinURL, revision: minecraftSkinSource.appearanceRevision)
                             .clipShape(.rect(cornerRadius: 10))
                     } else {
                         Image(systemName: "cube.transparent")
@@ -54,6 +67,15 @@ struct ProfileView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(.quaternary, in: .rect(cornerRadius: 10))
                     }
+                }
+
+                if canEditCharacter {
+                    Button(action: onEditCharacter) {
+                        Label("Изменить персонажа", systemImage: "person.crop.square")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
                 }
 
                 PlaytimeSummaryView(xuid: account.xuid)
@@ -87,6 +109,9 @@ struct ProfileView: View {
     }
 
     private var isConnecting: Bool { if case .connecting = minecraftStatus { true } else { false } }
+    private var canEditCharacter: Bool {
+        account.minecraftUUID != nil && account.minecraftName != nil && sessions.identity(for: account) != nil
+    }
     private var minecraftSubtitle: String? {
         if case .idle = minecraftStatus { return account.minecraftName == nil ? minecraftStatusText : nil }
         return minecraftStatusText

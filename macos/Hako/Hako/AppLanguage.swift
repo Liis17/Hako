@@ -14,6 +14,10 @@ nonisolated enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
 
     /// Выбранный язык; до выбора — русский для русской системы, иначе английский.
     static var current: AppLanguage {
+        if ProcessInfo.processInfo.arguments.contains("--character-editor-preview") {
+            if ProcessInfo.processInfo.arguments.contains("--character-editor-preview-language=en") { return .english }
+            if ProcessInfo.processInfo.arguments.contains("--character-editor-preview-language=ru") { return .russian }
+        }
         if let raw = UserDefaults.standard.string(forKey: storageKey), let language = AppLanguage(rawValue: raw) { return language }
         return Locale.preferredLanguages.first?.hasPrefix("ru") == true ? .russian : .english
     }

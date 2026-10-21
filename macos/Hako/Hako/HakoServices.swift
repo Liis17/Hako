@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 
 /// Единственные контейнер и координаторы основного процесса, включая системные команды.
@@ -7,10 +8,19 @@ import SwiftData
         catch { fatalError("Could not create ModelContainer: \(error)") }
     }()
 
+    static func forCurrentLaunch() -> HakoServices {
+        guard ProcessInfo.processInfo.arguments.contains("--character-editor-preview") else { return shared }
+        do { return try HakoServices(characterEditorPreview: true) }
+        catch { fatalError("Could not create isolated character preview: \(error)") }
+    }
+
     let modelContainer: ModelContainer
     let installations: InstallationCoordinator
     let content: InstanceContentController
     let sessions: MinecraftSessionCoordinator
+    let appearances: MinecraftAppearanceStore
+    let skinLoader: MinecraftSkinLoader
+    let characterEditor: MinecraftCharacterEditorCoordinator
     let games: GameLaunchCoordinator
     let playtime: PlaytimeCoordinator
     let renameExit = InstanceRenameExitCoordinator()
@@ -18,28 +28,87 @@ import SwiftData
     let instanceCatalog: InstanceEntityCatalog
     let spotlight: InstanceSpotlightIndexer
     let updates: AppUpdateCoordinator
+    let startsInCharacterEditor: Bool
 
-    private init() throws {
+    private init(characterEditorPreview: Bool = false) throws {
         let schema = HakoSchema.schema
-        let configuration = ModelConfiguration(schema: schema, url: try AppDataLocation.storeURL())
+        let configuration: ModelConfiguration
+        let fixtureSession: URLSession?
+        let storage: InstanceStorage
+        let playtimeDirectory: URL
+        if characterEditorPreview {
+            MinecraftCharacterPreviewFixture.reset()
+            fixtureSession = MinecraftCharacterPreviewFixture.makeSession()
+            configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            let root = FileManager.default.temporaryDirectory.appending(path: "Hako-Character-Editor-Preview", directoryHint: .isDirectory)
+            storage = InstanceStorage(root: root)
+            playtimeDirectory = root.appending(path: "playtime", directoryHint: .isDirectory)
+        } else {
+            fixtureSession = nil
+            configuration = ModelConfiguration(schema: schema, url: try AppDataLocation.storeURL())
+            storage = .init()
+            playtimeDirectory = PlaytimeJournal.directory()
+        }
         let container = try ModelContainer(for: schema, configurations: [configuration])
-        try LaunchSettingsMigration.run(context: container.mainContext)
+        if !characterEditorPreview { try LaunchSettingsMigration.run(context: container.mainContext) }
         modelContainer = container
-        installations = InstallationCoordinator(context: container.mainContext)
+        installations = InstallationCoordinator(context: container.mainContext, storage: storage)
         content = InstanceContentController(installations: installations)
-        sessions = MinecraftSessionCoordinator(context: container.mainContext)
-        playtime = try PlaytimeCoordinator(context: container.mainContext)
+        appearances = MinecraftAppearanceStore()
+        if let fixtureSession {
+            skinLoader = MinecraftSkinLoader(session: fixtureSession)
+        } else {
+            skinLoader = .shared
+        }
+        let sessionDependencies: MinecraftSessionCoordinator.Dependencies?
+        if characterEditorPreview {
+            sessionDependencies = .init(
+                load: { _ in AccountTokens(microsoftRefreshToken: "preview-refresh-token", minecraftAccessToken: "preview-access-token", minecraftTokenExpiration: .now.addingTimeInterval(3600)) },
+                save: { _, _ in },
+                refresh: { _ in MicrosoftToken(accessToken: "preview-microsoft-token", refreshToken: "preview-refresh-token", idToken: nil) },
+                signIn: { _ in
+                    MinecraftSession(
+                        profile: MinecraftProfile(uuid: "00000000000000000000000000000001", name: "PreviewPlayer", skinURL: URL(string: "https://textures.minecraft.net/texture/hako-preview-skin"), skinVariant: .classic),
+                        accessToken: "preview-access-token-2", expiration: .now.addingTimeInterval(3600)
+                    )
+                }
+            )
+        } else {
+            sessionDependencies = nil
+        }
+        sessions = MinecraftSessionCoordinator(context: container.mainContext, dependencies: sessionDependencies, appearances: appearances)
+        characterEditor = MinecraftCharacterEditorCoordinator(
+            api: MinecraftProfileAPIClient(session: fixtureSession ?? .shared), sessions: sessions,
+            context: container.mainContext, appearances: appearances
+        )
+        playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: playtimeDirectory)
         games = GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime)
         quickLaunch = QuickLaunchCoordinator(store: installations.store, games: games)
         instanceCatalog = InstanceEntityCatalog(store: installations.store)
         spotlight = InstanceSpotlightIndexer(catalog: instanceCatalog)
-        spotlight.start()
         updates = AppUpdateCoordinator(store: installations.store)
+        startsInCharacterEditor = characterEditorPreview
+        if characterEditorPreview {
+            let account = Account(xbox: XboxProfile(xuid: "character-editor-preview", gamertag: "PreviewPlayer", avatarURL: nil), email: "preview@example.test")
+            account.minecraftUUID = "00000000000000000000000000000001"
+            account.minecraftName = "PreviewPlayer"
+            account.minecraftSkinURL = URL(string: "https://textures.minecraft.net/texture/hako-preview-skin")
+            account.minecraftSkinVariant = MinecraftSkinVariant.classic.rawValue
+            container.mainContext.insert(account)
+            try container.mainContext.save()
+            sessions.installFixtureIdentity(
+                .init(name: "PreviewPlayer", uuid: account.minecraftUUID!, accessToken: "preview-access-token", xuid: account.xuid),
+                for: account,
+                expiration: .now.addingTimeInterval(3600)
+            )
+        }
     }
 
     func start() {
+        guard !startsInCharacterEditor else { return }
         games.start()
         installations.start()
+        spotlight.start()
         updates.start()
     }
 }

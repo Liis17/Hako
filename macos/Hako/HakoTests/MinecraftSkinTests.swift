@@ -83,6 +83,15 @@ struct MinecraftSkinTests {
         #expect(profile.skinVariant == nil)
         #expect(profile.skinURL != nil)
     }
+
+    @Test func activeProfileIncludesEveryCapeAndSkinID() throws {
+        let data = Data(#"{"id":"player","name":"Player","skins":[{"id":"skin-1","state":"ACTIVE","variant":"SLIM","url":"https://textures.minecraft.net/skin"}],"capes":[{"id":"cape-old","state":"INACTIVE","alias":"Old Cape","url":"https://textures.minecraft.net/cape/old"},{"id":"cape-new","state":"ACTIVE","alias":"New Cape","url":"https://textures.minecraft.net/cape/new"}]}"#.utf8)
+        let profile = try JSONDecoder().decode(MinecraftProfileResponse.self, from: data)
+        #expect(profile.minecraftProfile.skinID == "skin-1")
+        #expect(profile.capes?.count == 2)
+        #expect(profile.activeCape?.id == "cape-new")
+        #expect(profile.activeCape?.name == "New Cape")
+    }
 }
 
 @Suite(.serialized)
@@ -195,5 +204,161 @@ struct MinecraftSkinLoaderTests {
         let skin = try #require(await loader.load(source))
         #expect(skin.variant == .slim)
         #expect(SkinURLProtocol.requests.count == 1)
+    }
+}
+
+@Suite(.serialized)
+@MainActor
+struct MinecraftSkinUploadTests {
+    @Test func acceptsModernAndLegacyPngAndForcesClassicForLegacy() throws {
+        let modern = try MinecraftSkinUpload(png: SkinTestFixtures.png(), variant: .slim)
+        let legacy = try MinecraftSkinUpload(png: SkinTestFixtures.png(height: 32), variant: .slim)
+        #expect(modern.variant == .slim)
+        #expect(!modern.isLegacy)
+        #expect(legacy.variant == .classic)
+        #expect(legacy.isLegacy)
+    }
+
+    @Test(arguments: [Data(), Data("not a png".utf8), Data([137, 80, 78, 71])])
+    func rejectsInvalidPngHeader(data: Data) {
+        #expect(throws: MinecraftSkinUploadError.invalidPNG) {
+            try MinecraftSkinUpload(png: data, variant: .classic)
+        }
+    }
+
+    @Test(arguments: [(32, 32), (64, 48), (128, 128)])
+    func rejectsUnsupportedDimensions(size: (Int, Int)) throws {
+        let data = try SkinTestFixtures.png(width: size.0, height: size.1)
+        #expect(throws: MinecraftSkinUploadError.unsupportedDimensions) {
+            try MinecraftSkinUpload(png: data, variant: .classic)
+        }
+    }
+}
+
+@Suite(.serialized)
+@MainActor
+struct MinecraftProfileAPITests {
+    private let profileURL = URL(string: "https://api.minecraftservices.com/minecraft/profile")!
+
+    private func session() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MinecraftProfileAPIURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    @Test func authenticatedGetDecodesCapesAndUsesMinecraftProfileEndpoint() async throws {
+        let json = Data(#"{"id":"player","name":"Player","skins":[{"id":"skin","state":"ACTIVE","variant":"CLASSIC","url":"https://textures.minecraft.net/skin"}],"capes":[{"id":"one","state":"ACTIVE","alias":"Minecon","url":"https://textures.minecraft.net/cape"}]}"#.utf8)
+        MinecraftProfileAPIURLProtocol.prepare([.init(method: "GET", url: profileURL, status: 200, data: json)])
+        let urlSession = session()
+        defer { urlSession.invalidateAndCancel() }
+        let result = try await MinecraftProfileAPIClient(session: urlSession).profile(accessToken: "fixture-token")
+        #expect(result.activeCape?.id == "one")
+        #expect(MinecraftProfileAPIURLProtocol.requests.first?.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token")
+        #expect(MinecraftProfileAPIURLProtocol.requests.first?.url == profileURL)
+    }
+
+    @Test func skinMultipartAndCapePutDeleteUseExpectedWireFormats() async throws {
+        let png = try SkinTestFixtures.png()
+        let skinsURL = profileURL.appending(path: "skins")
+        let capeURL = profileURL.appending(path: "capes/active")
+        MinecraftProfileAPIURLProtocol.prepare([
+            .init(method: "POST", url: skinsURL, status: 204),
+            .init(method: "PUT", url: capeURL, status: 204),
+            .init(method: "DELETE", url: capeURL, status: 204)
+        ])
+        let urlSession = session()
+        defer { urlSession.invalidateAndCancel() }
+        let api = MinecraftProfileAPIClient(session: urlSession)
+        try await api.uploadSkin(accessToken: "fixture-token", png: png, variant: .slim)
+        try await api.activateCape(accessToken: "fixture-token", capeID: "cape-7")
+        try await api.unequipCape(accessToken: "fixture-token")
+
+        let requests = MinecraftProfileAPIURLProtocol.requests
+        #expect(requests.map(\.httpMethod) == ["POST", "PUT", "DELETE"])
+        #expect(requests[0].value(forHTTPHeaderField: "Content-Type")?.contains("multipart/form-data; boundary=") == true)
+        let body = try #require(requests[0].httpBody)
+        #expect(body.range(of: Data("name=\"variant\"".utf8)) != nil)
+        #expect(body.range(of: Data("slim".utf8)) != nil)
+        #expect(body.range(of: Data("filename=\"skin.png\"".utf8)) != nil)
+        #expect(body.range(of: png) != nil)
+        #expect(try JSONSerialization.jsonObject(with: #require(requests[1].httpBody)) as? [String: String] == ["capeId": "cape-7"])
+        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token" })
+    }
+
+    @Test func preservesUnauthorizedAndForbiddenAndRateLimitStatuses() async throws {
+        for status in [401, 403, 429] {
+            MinecraftProfileAPIURLProtocol.prepare([.init(method: "GET", url: profileURL, status: status)])
+            let urlSession = session()
+            await #expect(throws: MinecraftProfileAPIError.self) { try await MinecraftProfileAPIClient(session: urlSession).profile(accessToken: "fixture-token") }
+            urlSession.invalidateAndCancel()
+        }
+        #expect(MinecraftProfileAPIURLProtocol.requests.count == 1)
+    }
+}
+
+nonisolated final class MinecraftProfileAPIURLProtocol: URLProtocol, @unchecked Sendable {
+    struct Script: Sendable {
+        let method: String
+        let url: URL
+        var status = 200
+        var data = Data()
+        var error: URLError?
+    }
+
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var scripts: [String: [Script]] = [:]
+    private nonisolated(unsafe) static var used: [String: Int] = [:]
+    private nonisolated(unsafe) static var recordedRequests: [URLRequest] = []
+
+    static var requests: [URLRequest] { lock.withLock { recordedRequests } }
+
+    static func prepare(_ scripts: [Script]) {
+        lock.withLock {
+            self.scripts = Dictionary(grouping: scripts, by: { key($0.method, $0.url) })
+            used = [:]
+            recordedRequests = []
+        }
+    }
+
+    private static func key(_ method: String, _ url: URL) -> String { "\(method) \(url.absoluteString)" }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let script = Self.lock.withLock { () -> Script in
+            Self.recordedRequests.append(Self.materializeBody(in: request))
+            let key = Self.key(request.httpMethod ?? "GET", request.url!)
+            let index = Self.used[key, default: 0]
+            Self.used[key] = index + 1
+            return Self.scripts[key].flatMap { index < $0.count ? $0[index] : nil }
+                ?? Script(method: request.httpMethod ?? "GET", url: request.url!, status: 404)
+        }
+        if let error = script.error {
+            client?.urlProtocol(self, didFailWithError: error)
+            return
+        }
+        let response = HTTPURLResponse(url: request.url!, statusCode: script.status, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if !script.data.isEmpty { client?.urlProtocol(self, didLoad: script.data) }
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+
+    private static func materializeBody(in request: URLRequest) -> URLRequest {
+        guard request.httpBody == nil, let stream = request.httpBodyStream else { return request }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let count = buffer.withUnsafeMutableBufferPointer { stream.read($0.baseAddress!, maxLength: $0.count) }
+            guard count > 0 else { break }
+            data.append(contentsOf: buffer.prefix(count))
+        }
+        var copy = request
+        copy.httpBody = data
+        return copy
     }
 }

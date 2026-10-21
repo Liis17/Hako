@@ -1,9 +1,7 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
-    "" : {
-
-    },
+    "" : {},
     "-Xmx и MaxHeapSize из аргументов заменяются лимитом ползунка при запуске." : {
       "localizations" : {
         "en" : {
@@ -10207,6 +10205,566 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Файл модпака %@ повреждён. Повторите загрузку."
+          }
+        }
+      }
+    },
+    "Изменить персонажа" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Character"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменить персонажа"
+          }
+        }
+      }
+    },
+    "Сохраняем…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохраняем…"
+          }
+        }
+      }
+    },
+    "Сохранить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить"
+          }
+        }
+      }
+    },
+    "Скин" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skin"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скин"
+          }
+        }
+      }
+    },
+    "Выбрать PNG" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose PNG"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать PNG"
+          }
+        }
+      }
+    },
+    "Заменить PNG" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace PNG"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить PNG"
+          }
+        }
+      }
+    },
+    "Модель" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель"
+          }
+        }
+      }
+    },
+    "Классическая" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classic"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Классическая"
+          }
+        }
+      }
+    },
+    "Тонкие руки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slim arms"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тонкие руки"
+          }
+        }
+      }
+    },
+    "Для скина 64 × 32 используется классическая модель." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The classic model is required for 64 × 32 skins."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для скина 64 × 32 используется классическая модель."
+          }
+        }
+      }
+    },
+    "Плащ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cape"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Плащ"
+          }
+        }
+      }
+    },
+    "Загружаем плащи" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading capes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загружаем плащи"
+          }
+        }
+      }
+    },
+    "Повторить загрузку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry loading"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить загрузку"
+          }
+        }
+      }
+    },
+    "У аккаунта пока нет плащей." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account has no capes yet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У аккаунта пока нет плащей."
+          }
+        }
+      }
+    },
+    "Без плаща" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cape"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без плаща"
+          }
+        }
+      }
+    },
+    "Подготавливаем предпросмотр…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing preview…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подготавливаем предпросмотр…"
+          }
+        }
+      }
+    },
+    "Отбросить изменения персонажа?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard character changes?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отбросить изменения персонажа?"
+          }
+        }
+      }
+    },
+    "Отбросить изменения" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard Changes"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отбросить изменения"
+          }
+        }
+      }
+    },
+    "Продолжить редактирование" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Editing"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить редактирование"
+          }
+        }
+      }
+    },
+    "Несохранённые изменения скина и плаща будут удалены." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsaved skin and cape changes will be discarded."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Несохранённые изменения скина и плаща будут удалены."
+          }
+        }
+      }
+    },
+    "Выберите корректный PNG-файл скина." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a valid skin PNG file."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите корректный PNG-файл скина."
+          }
+        }
+      }
+    },
+    "Размер PNG должен быть 64 × 64 или 64 × 32 пикселя." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PNG must be 64 × 64 or 64 × 32 pixels."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер PNG должен быть 64 × 64 или 64 × 32 пикселя."
+          }
+        }
+      }
+    },
+    "Сессия Minecraft истекла. Подключите аккаунт повторно." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Minecraft session expired. Reconnect the account."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сессия Minecraft истекла. Подключите аккаунт повторно."
+          }
+        }
+      }
+    },
+    "Minecraft ответил с ошибкой %lld. Попробуйте ещё раз." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft returned error %lld. Try again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft ответил с ошибкой %lld. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать ответ Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the Minecraft response."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать ответ Minecraft."
+          }
+        }
+      }
+    },
+    "Minecraft не принял обновлённую сессию. Подключите аккаунт повторно." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft rejected the refreshed session. Reconnect the account."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minecraft не принял обновлённую сессию. Подключите аккаунт повторно."
+          }
+        }
+      }
+    },
+    "Аккаунт изменился. Откройте редактор персонажа снова." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The account changed. Open the character editor again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт изменился. Откройте редактор персонажа снова."
+          }
+        }
+      }
+    },
+    "Изменения персонажа сохранены на сервере, но не удалось сохранить их в Hako: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The character changes are saved on the server, but Hako could not save them: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменения персонажа сохранены на сервере, но не удалось сохранить их в Hako: %@"
+          }
+        }
+      }
+    },
+    "Скин отправлен, но Minecraft пока не подтвердил его. Повторите сохранение." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The skin was sent, but Minecraft has not confirmed it yet. Try saving again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скин отправлен, но Minecraft пока не подтвердил его. Повторите сохранение."
+          }
+        }
+      }
+    },
+    "Не удалось проверить результат загрузки скина. Повторите сохранение, чтобы сверить его с сервером." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not verify the skin upload. Save again to check the server state."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить результат загрузки скина. Повторите сохранение, чтобы сверить его с сервером."
+          }
+        }
+      }
+    },
+    "Плащ отправлен, но Minecraft пока не подтвердил его. Повторите сохранение." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cape was sent, but Minecraft has not confirmed it yet. Try saving again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Плащ отправлен, но Minecraft пока не подтвердил его. Повторите сохранение."
+          }
+        }
+      }
+    },
+    "Не удалось проверить результат изменения плаща. Повторите сохранение, чтобы сверить его с сервером." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not verify the cape change. Save again to check the server state."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить результат изменения плаща. Повторите сохранение, чтобы сверить его с сервером."
+          }
+        }
+      }
+    },
+    "Результат запроса неизвестен. Состояние сверено с Minecraft; повторное сохранение сначала проверит сервер." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The request result is unknown. Hako checked Minecraft; saving again will check the server before retrying."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Результат запроса неизвестен. Состояние сверено с Minecraft; повторное сохранение сначала проверит сервер."
+          }
+        }
+      }
+    },
+    "Не удалось сверить изменения с Minecraft. Повторное сохранение сначала проверит сервер." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not check the changes with Minecraft. Saving again will check the server before retrying."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сверить изменения с Minecraft. Повторное сохранение сначала проверит сервер."
+          }
+        }
+      }
+    },
+    "Часть изменений уже сохранена в Minecraft, но не в Hako: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some changes are saved in Minecraft, but not in Hako: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Часть изменений уже сохранена в Minecraft, но не в Hako: %@"
           }
         }
       }

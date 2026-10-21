@@ -6,6 +6,23 @@ enum MinecraftStatus {
     case idle, connecting, failed(String)
 }
 
+enum MinecraftSessionError: LocalizedError {
+    case unavailable
+    case refreshedTokenRejected
+    case accountChanged
+
+    var errorDescription: String? {
+        switch self {
+        case .unavailable:
+            String(appLocalized: "Minecraft-сессия недоступна. Повторите подключение аккаунта.")
+        case .refreshedTokenRejected:
+            String(appLocalized: "Minecraft не принял обновлённую сессию. Подключите аккаунт повторно.")
+        case .accountChanged:
+            String(appLocalized: "Аккаунт изменился. Откройте редактор персонажа снова.")
+        }
+    }
+}
+
 @MainActor @Observable final class MinecraftSessionCoordinator {
     struct Dependencies {
         var load: (String) -> AccountTokens? = { TokenKeychain.load(for: $0) }
@@ -15,30 +32,68 @@ enum MinecraftStatus {
         var now: () -> Date = { .now }
     }
 
+    let appearances: MinecraftAppearanceStore
+
     private let context: ModelContext
     private let dependencies: Dependencies
     private var identities: [String: MinecraftLaunchIdentity] = [:]
     private var expirations: [String: Date] = [:]
     private var tasks: [String: Task<Void, Never>] = [:]
+    private var forcedRefreshTasks: [String: Task<MinecraftLaunchIdentity, Error>] = [:]
     private var generations: [String: UUID] = [:]
+    private var refreshGenerations: [String: UUID] = [:]
+    private var accountIDs: [String: PersistentIdentifier] = [:]
+    private var sessionEpoch = UUID()
     private(set) var statuses: [String: MinecraftStatus] = [:]
     private(set) var checkedAt = Date.distantPast
 
-    init(context: ModelContext, dependencies: Dependencies? = nil) { self.context = context; self.dependencies = dependencies ?? .init() }
+    init(context: ModelContext, dependencies: Dependencies? = nil, appearances: MinecraftAppearanceStore? = nil) {
+        self.context = context
+        self.dependencies = dependencies ?? .init()
+        self.appearances = appearances ?? MinecraftAppearanceStore()
+    }
 
     func identity(for account: Account?) -> MinecraftLaunchIdentity? {
         _ = checkedAt
-        guard let account, let expiry = expirations[account.xuid], expiry > dependencies.now() else { return nil }
+        guard let account, accountIDs[account.xuid] == account.persistentModelID,
+              let expiry = expirations[account.xuid], expiry > dependencies.now()
+        else { return nil }
         return identities[account.xuid]
+    }
+
+    func installFixtureIdentity(_ identity: MinecraftLaunchIdentity, for account: Account, expiration: Date) {
+        accountIDs[account.xuid] = account.persistentModelID
+        identities[account.xuid] = identity
+        expirations[account.xuid] = expiration
+        statuses[account.xuid] = .idle
     }
 
     func connect(_ account: Account, force: Bool = false) async {
         checkedAt = dependencies.now()
         let xuid = account.xuid
-        if let task = tasks[xuid] { await task.value; return }
+        let accountID = account.persistentModelID
+        accountIDs[xuid] = accountID
+
+        if let refreshTask = forcedRefreshTasks[xuid] {
+            _ = try? await refreshTask.value
+        }
+        if let task = tasks[xuid] {
+            await task.value
+            if accountIDs[xuid] != accountID { await connect(account, force: force) }
+            return
+        }
+
         let generation = UUID()
+        let epoch = sessionEpoch
+        let appearanceRevision = appearances.revision(for: xuid)
         generations[xuid] = generation
         let task = Task { [self] in
+            defer {
+                if generations[xuid] == generation {
+                    tasks[xuid] = nil
+                    generations[xuid] = nil
+                }
+            }
             if !force, case .failed = statuses[xuid] { return }
             guard var tokens = dependencies.load(xuid) else {
                 identities[xuid] = nil; expirations[xuid] = nil
@@ -55,24 +110,78 @@ enum MinecraftStatus {
             do {
                 let refreshed = try await dependencies.refresh(tokens.microsoftRefreshToken)
                 try Task.checkCancellation()
+                guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch, generation: generation) else { return }
                 tokens.microsoftRefreshToken = refreshed.refreshToken
                 try dependencies.save(tokens, xuid)
                 let session = try await dependencies.signIn(refreshed)
                 try Task.checkCancellation()
+                guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch, generation: generation) else { return }
                 tokens.minecraftAccessToken = session.accessToken; tokens.minecraftTokenExpiration = session.expiration
                 try dependencies.save(tokens, xuid)
-                account.connect(session.profile)
-                try context.save()
+                if appearances.revision(for: xuid) == appearanceRevision {
+                    account.connect(session.profile)
+                    try context.save()
+                }
                 identities[xuid] = .init(name: session.profile.name, uuid: session.profile.uuid, accessToken: session.accessToken, xuid: xuid)
                 expirations[xuid] = session.expiration; statuses[xuid] = .idle
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, isCurrent(accountID: accountID, xuid: xuid, epoch: epoch, generation: generation) else { return }
                 statuses[xuid] = .failed(error.localizedDescription)
             }
         }
         tasks[xuid] = task
         await task.value
-        if generations[xuid] == generation { tasks[xuid] = nil; generations[xuid] = nil }
+    }
+
+    /// Refreshes once after a 401 and guarantees the retry uses a different Minecraft token.
+    func refreshAfterUnauthorized(_ account: Account, rejectedToken: String) async throws -> MinecraftLaunchIdentity {
+        let xuid = account.xuid
+        let accountID = account.persistentModelID
+        accountIDs[xuid] = accountID
+
+        if let task = tasks[xuid] { await task.value }
+        if let current = identity(for: account), current.accessToken != rejectedToken { return current }
+        if let task = forcedRefreshTasks[xuid] { return try await task.value }
+
+        let generation = UUID()
+        let epoch = sessionEpoch
+        let appearanceRevision = appearances.revision(for: xuid)
+        refreshGenerations[xuid] = generation
+        let task = Task { [self] () throws -> MinecraftLaunchIdentity in
+            defer {
+                if refreshGenerations[xuid] == generation {
+                    forcedRefreshTasks[xuid] = nil
+                    refreshGenerations[xuid] = nil
+                }
+            }
+            guard var tokens = dependencies.load(xuid) else { throw MinecraftSessionError.unavailable }
+            let refreshed = try await dependencies.refresh(tokens.microsoftRefreshToken)
+            try Task.checkCancellation()
+            guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch) else { throw MinecraftSessionError.accountChanged }
+            tokens.microsoftRefreshToken = refreshed.refreshToken
+            try dependencies.save(tokens, xuid)
+            let session = try await dependencies.signIn(refreshed)
+            try Task.checkCancellation()
+            guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch) else { throw MinecraftSessionError.accountChanged }
+            guard session.accessToken != rejectedToken else {
+                identities[xuid] = nil; expirations[xuid] = nil
+                throw MinecraftSessionError.refreshedTokenRejected
+            }
+            tokens.minecraftAccessToken = session.accessToken
+            tokens.minecraftTokenExpiration = session.expiration
+            try dependencies.save(tokens, xuid)
+            if appearances.revision(for: xuid) == appearanceRevision {
+                account.connect(session.profile)
+                try context.save()
+            }
+            let identity = MinecraftLaunchIdentity(name: session.profile.name, uuid: session.profile.uuid, accessToken: session.accessToken, xuid: xuid)
+            identities[xuid] = identity
+            expirations[xuid] = session.expiration
+            statuses[xuid] = .idle
+            return identity
+        }
+        forcedRefreshTasks[xuid] = task
+        return try await task.value
     }
 
     func monitor(_ account: Account) async {
@@ -83,8 +192,16 @@ enum MinecraftStatus {
     }
 
     func signOut() {
+        sessionEpoch = UUID()
         for task in tasks.values { task.cancel() }
-        tasks.removeAll(); generations.removeAll()
-        identities.removeAll(); expirations.removeAll(); statuses.removeAll()
+        for task in forcedRefreshTasks.values { task.cancel() }
+        tasks.removeAll(); forcedRefreshTasks.removeAll()
+        generations.removeAll(); refreshGenerations.removeAll()
+        for xuid in Array(appearances.profiles.keys) { appearances.clear(xuid) }
+        identities.removeAll(); expirations.removeAll(); accountIDs.removeAll(); statuses.removeAll()
+    }
+
+    private func isCurrent(accountID: PersistentIdentifier, xuid: String, epoch: UUID, generation: UUID? = nil) -> Bool {
+        sessionEpoch == epoch && accountIDs[xuid] == accountID && (generation == nil || generations[xuid] == generation)
     }
 }

@@ -34,7 +34,7 @@ final class MinecraftSkinScene {
             image: skin.image, options: .init(semantic: .color, mipmapsMode: .none)
         )
         try Task.checkCancellation()
-        guard requestedRevision == revision else { return }
+        guard requestedRevision == revision else { throw CancellationError() }
 
         let materials = Self.materials(for: texture)
 
@@ -70,7 +70,7 @@ final class MinecraftSkinScene {
                 image: capeImage, options: .init(semantic: .color, mipmapsMode: .none)
             )
             try Task.checkCancellation()
-            guard requestedRevision == revision else { return }
+            guard requestedRevision == revision else { throw CancellationError() }
             cape = try Self.cuboid(
                 size: .init(10, 16, 1), uv: .zero, inflation: 0,
                 materials: Self.materials(for: capeTexture), textureSize: .init(64, 32)

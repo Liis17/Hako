@@ -16,9 +16,11 @@ struct MinecraftSkin {
     let image: CGImage
     let variant: MinecraftSkinVariant
     let capeImage: CGImage?
+    private let normalizedPixels: Data
 
     enum DecodingError: Error {
         case invalidTexture
+        case invalidCape
     }
 
     init(data: Data, variant: MinecraftSkinVariant, capeData: Data? = nil) throws {
@@ -89,8 +91,18 @@ struct MinecraftSkin {
               )
         else { throw DecodingError.invalidTexture }
         image = normalized
+        normalizedPixels = Data(pixels)
         self.variant = legacy ? .classic : variant
-        capeImage = capeData.flatMap(Self.decodeCape)
+        if let capeData {
+            guard let capeImage = Self.decodeCape(capeData) else { throw DecodingError.invalidCape }
+            self.capeImage = capeImage
+        } else {
+            capeImage = nil
+        }
+    }
+
+    func hasSamePixels(as other: MinecraftSkin) -> Bool {
+        normalizedPixels == other.normalizedPixels
     }
 
     private static func decodeCape(_ data: Data) -> CGImage? {
