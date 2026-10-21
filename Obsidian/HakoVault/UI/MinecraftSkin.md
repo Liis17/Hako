@@ -15,8 +15,11 @@ Parent: [[Index]]
 |------|--------|------|
 | `macos/Hako/Hako/Minecraft/MinecraftSkin.swift` | `MinecraftSkin`, `MinecraftSkinVariant` | Нормализованная текстура 64×64 и необязательная текстура плаща 64×32; варианты `CLASSIC` / `SLIM` |
 | `macos/Hako/Hako/Minecraft/MinecraftSkinLoader.swift` | `MinecraftSkinSource`, `MinecraftSkinLoader.load(_:)` | UUID, URL, вариант и выбор загрузки плаща; асинхронная загрузка и кэш на время работы приложения |
+| `macos/Hako/Hako/Minecraft/MinecraftAppearanceStore.swift` | `MinecraftAppearanceStore` | Наблюдаемое авторитетное состояние Java-профиля, включая известное отсутствие плаща и ревизию внешнего вида |
+| `macos/Hako/Hako/Minecraft/MinecraftSkinUpload.swift` | `MinecraftSkinUpload` | PNG-проверка до декодирования, исходные байты и нормализованные пиксели для подтверждения загрузки |
 | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift` | `MinecraftSkinScene` | Геометрия, материалы, камера, поза и ходьба |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView(source:)` | SwiftUI `RealityView`, загрузка, жесты и жизненный цикл |
+| `macos/Hako/Hako/Minecraft/MinecraftCharacterPreviewFixture.swift` | `MinecraftCharacterPreviewFixture` | Изолированные HTTP-фикстуры для нативного preview-режима редактора |
 | `macos/Hako/Hako/Resources/Steve.png` | Резервная текстура | Штатный `wide/steve` из официального клиента Minecraft 1.21.9 |
 | `windows/Hako.Core/MinecraftSkinLoader.cs` | `MinecraftSkinLoader.LoadAsync(uuid, cancellationToken)` | Публичный профиль Mojang без токенов, безопасные HTTPS текстуры, кэш успешных метаданных в экземпляре |
 | `windows/Hako.Core/MinecraftSkinNormalizer.cs` | `MinecraftSkinNormalizer.NormalizeRgba` | Чистая нормализация RGBA и восстановление legacy 64×32; PNG-декодирование выполняется Windows UI-слоем |
@@ -55,6 +58,18 @@ Parent: [[Index]]
 без текстуры кэшируется. `Account` и Keychain загрузчик не меняет. `URLSession` можно передать
 в инициализатор для тестов. Уход с экрана или смена источника отменяет задачу;
 проверка отмены и ревизии сцены исключает применение позднего результата.
+
+При известном авторитетном Java-профиле `MinecraftAppearanceStore` становится единственным источником
+скина и плаща: данные sessionserver не могут затереть текущий внешний вид. Пустой активный плащ означает
+подтверждённое отсутствие плаща; пока профиль не прочитан, состояние остаётся неизвестным. Ревизия
+профиля входит в ключ источника модели и головы, поэтому старые загрузки не обновляют новое состояние.
+
+## PNG для редактора
+
+`MinecraftSkinUpload` проверяет PNG-сигнатуру и IHDR до полного ImageIO decode. Принимаются только
+64×64 и legacy 64×32; legacy всегда получает `CLASSIC`. Исходные проверенные байты сохраняются
+неизменными для POST, а нормализованная `MinecraftSkin` используется для локального preview и сравнения
+пикселей с повторно прочитанным активным скином сервера. Ошибка импорта не меняет предыдущий валидный черновик.
 
 Windows `MinecraftSkinLoader` принимает внедрённый `HttpClient` и возвращает PNG-байты скина,
 вариант `Classic`/`Slim` и необязательные PNG-байты плаща. Он принимает UUID в форматах `N` и `D`,
@@ -109,6 +124,22 @@ RealityKit, без сторонних зависимостей. Шесть ча�
 Reduce Motion отключает цикл и оставляет спокойную приподнятую позу. Уход с экрана отменяет
 подписку. Камера с углом обзора 38° вписывает фигуру при изменении размера области.
 
+В редакторе `MinecraftSkinView` принимает подготовленный локальный образ и сообщает готовность
+RealityKit через callback с ревизией. Save недоступен до успешной готовности рендера; ошибка подготовки
+показывается в редакторе. Поздние callbacks предыдущего черновика игнорируются.
+
+Для изолированного нативного редактора соберите Debug и запустите приложение с флагом:
+
+```sh
+xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug -derivedDataPath /tmp/HakoCharacterPreviewBuild build CODE_SIGNING_ALLOWED=NO
+open -na /tmp/HakoCharacterPreviewBuild/Build/Products/Debug/Hako.app --args --character-editor-preview --character-editor-preview-language=ru
+```
+
+Для английского интерфейса замените `ru` на `en`. Этот режим создаёт in-memory SwiftData-контейнер,
+тестовую сессию и отдельный `URLSession` с внутрипроцессными ответами; он не меняет Keychain,
+производственный store или настройки и не отправляет запросы Minecraft Services. Подробнее об инициализации
+сервисов — [[Architecture#Запуск]].
+
 ## Windows renderer
 
 `windows/Hako/Graphics/MinecraftSkinGeometry.cs` строит UV-геометрию и позу без зависимости от
@@ -148,7 +179,9 @@ unpackaged published output.
 
 `macos/Hako/HakoTests/` — Swift Testing: ресурс Стива, форматы, зеркалирование граней,
 внешние слои, активный вариант профиля, HTTPS, кэш, HTTP-ошибки, повреждённые данные,
-отсутствие сети и отмена. `windows/Hako.Tests/` проверяет PNG decode (ресурс Steve, повреждённый
+отсутствие сети и отмена; редактор также проверяет PNG upload, multipart/PUT/DELETE, 401/403/429,
+частичный и неопределённый результат сохранения, повтор без дублирования записи, смену аккаунта и
+поздние загрузки. `windows/Hako.Tests/` проверяет PNG decode (ресурс Steve, повреждённый
 PNG, размеры, straight alpha, скин/плащ), композит головы и BGRA bitmap conversion, geometry
 UV/legacy/slim/pose/cape, отсутствие/ошибку advertised CAPE и timeout при зависшем чтении тела. Схема и
 команда запуска — [[Architecture]].

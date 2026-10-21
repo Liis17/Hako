@@ -17,6 +17,8 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 | `macos/Hako/Hako/Auth/MicrosoftAuth.swift` | `MicrosoftAuth`, `MicrosoftAuthError`, `DeviceCode`, `MicrosoftToken`, `XboxProfile`, `MinecraftProfile`, `MinecraftSession` | Сетевые запросы цепочки входа и ошибки |
 | `macos/Hako/Hako/Views/LoginView.swift` | `LoginView.signIn()` | Оркестрация входа и сохранение результата |
 | `macos/Hako/Hako/Auth/MinecraftSessionCoordinator.swift` | `MinecraftSessionCoordinator.connect` | Общая сессия, refresh token, срок действия и повтор подключения |
+| `macos/Hako/Hako/Auth/MinecraftProfileAPI.swift` | `MinecraftProfileAPIClient` | Чтение Java-профиля, загрузка PNG-скина и выбор или снятие плаща |
+| `macos/Hako/Hako/Auth/MinecraftCharacterEditorCoordinator.swift` | `MinecraftCharacterEditorCoordinator` | Черновик, локальный предпросмотр, сверка отдельных записей и сохранение профиля |
 
 ## Публичные контракты
 
@@ -26,7 +28,7 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
 | `requestDeviceCode() async throws -> DeviceCode` | POST `login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`, `scope=XboxLive.signin openid profile email offline_access`. Возвращает `userCode`, `deviceCode`, `verificationUri`, `expiresIn`, `interval` |
 | `waitForToken(_:) async throws -> MicrosoftToken` | Опрос `/consumers/oauth2/v2.0/token` (`grant_type=urn:ietf:params:oauth:grant-type:device_code`) каждые `interval` секунд до `expiresIn`. `authorization_pending` — ждать, `slow_down` — +5 с, `authorization_declined` → `.declined`, `expired_token` или дедлайн → `.codeExpired`. Отмена задачи прерывает опрос (`CancellationError` из `Task.sleep`) |
 | `MicrosoftToken.email` | `email` или `preferred_username` из payload `id_token` (base64url JWT, подпись не проверяется — только для отображения). `nil`, если `id_token` нет |
-| `MinecraftProfile` | `uuid`, `name`, `skinURL?`, `skinVariant: MinecraftSkinVariant?`; вариант используется для ширины рук в 3D-превью |
+| `MinecraftProfile` | `uuid`, `name`, `skinURL?`, `skinVariant: MinecraftSkinVariant?`, `skinID?`; вариант используется для ширины рук в 3D-превью, ID приходит из Java Profile API |
 | `refresh(_:) async throws -> MicrosoftToken` | `grant_type=refresh_token`, `scope=XboxLive.signin offline_access`. Ответ содержит новый refresh token |
 | `signIn(with:) async throws -> (XboxProfile, MinecraftSession?)` | Xbox Live → профиль Xbox → Minecraft. Ошибки Xbox прерывают вход; **любая** ошибка шага Minecraft даёт `nil`. После шага Minecraft проверяет отмену задачи |
 | `signInToMinecraft(with:) async throws -> MinecraftSession` | Xbox Live → Minecraft для уже сохранённого аккаунта; вызывается после `refresh` из `MinecraftSessionCoordinator` |
@@ -46,6 +48,26 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
    также разбирает `variant` активного скина (`CLASSIC` / `SLIM`); отсутствующее или неизвестное
    значение даёт `nil`, не прерывая вход. Вариант сохраняется через `Account.connect(_:)`
    ([[Data/Persistence]]).
+
+### Редактор персонажа
+
+Кнопка «Изменить персонажа» доступна только при действующей Java-сессии и сохранённых UUID/нику.
+`MinecraftProfileAPIClient` читает `GET /minecraft/profile` вместе со всеми принадлежащими аккаунту плащами,
+отправляет PNG через `POST /minecraft/profile/skins` (`variant=classic|slim`) и выбирает/снимает плащ
+через `PUT`/`DELETE /minecraft/profile/capes/active`. У вызовов записи нет токенного тела или журналирования.
+
+Один 401 приводит к refresh Minecraft-сессии и ровно одной повторной попытке, только если обновлён Minecraft
+access token. 403 и 429 не запускают refresh. `MinecraftCharacterEditorCoordinator` пишет только реально
+изменённые части, сначала скин, затем плащ. После каждой записи профиль читается заново: скин подтверждается
+по активному ID, варианту и совпадающим нормализованным пикселям, плащ — по активному ID. Таймаут или неудачная
+сверка помечают результат неизвестным; следующий Save сначала снова читает сервер. Успешная часть сохраняется
+и остаётся подтверждённой при ошибке второй. Ошибка SwiftData после удалённого успеха оставляет локальное
+сохранение ожидающим, поэтому повтор не загружает тот же скин повторно.
+
+`MinecraftSessionCoordinator.refreshAfterUnauthorized` требует новый Minecraft access token и объединяет
+параллельный refresh. Поколение редактора отбрасывает поздние ответы при смене аккаунта/выходе, а ревизия
+[[UI/MinecraftSkin|авторитетного внешнего вида]] не даёт старому refresh перезаписать профиль после успешного
+изменения. Новых полей SwiftData и изменений токенного хранилища нет.
 
 `LoginView.signIn()` сохраняет токены в Keychain и читает журналы игрового времени до вставки `Account`.
 Затем `PlaytimeCoordinator.transferGuest(to:)` сохраняет аккаунт вместе с переносом гостевых счётчиков
