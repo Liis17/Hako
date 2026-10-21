@@ -128,7 +128,7 @@ enum MinecraftSessionError: LocalizedError {
                 try dependencies.save(tokens, xuid)
                 if appearances.revision(for: xuid) == appearanceRevision {
                     account.connect(session.profile)
-                    try context.save()
+                    try (account.modelContext ?? context).save()
                 }
                 identities[xuid] = .init(name: session.profile.name, uuid: session.profile.uuid, accessToken: session.accessToken, xuid: xuid)
                 expirations[xuid] = session.expiration; statuses[xuid] = .idle
@@ -189,7 +189,7 @@ enum MinecraftSessionError: LocalizedError {
             try dependencies.save(tokens, xuid)
             if appearances.revision(for: xuid) == appearanceRevision {
                 account.connect(session.profile)
-                try context.save()
+                try (account.modelContext ?? context).save()
             }
             let identity = MinecraftLaunchIdentity(name: session.profile.name, uuid: session.profile.uuid, accessToken: session.accessToken, xuid: xuid)
             identities[xuid] = identity

@@ -116,6 +116,148 @@ struct MinecraftCharacterEditorTests {
         #expect(harness.account.minecraftSkinVariant == MinecraftSkinVariant.slim.rawValue)
     }
 
+    @Test(arguments: [MinecraftSkinVariant.classic, .slim])
+    func variantDraftKeepsDisplayedPngWhenServerSkinChanges(externalVariant: MinecraftSkinVariant) async throws {
+        let harness = try makeHarness()
+        await open(harness)
+        let originalPNG = harness.api.skinPNG
+        let revision = harness.editor.previewRevision
+        harness.editor.selectVariant(.slim)
+        await waitForPreview(harness.editor, after: revision)
+        let displayed = try #require(harness.editor.previewSkin)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        harness.api.replaceSkin(try SkinTestFixtures.png(transparentPixel: (40, 8)), variant: externalVariant)
+
+        #expect(await harness.editor.save())
+        let upload = try #require(harness.api.uploadedSkins.first)
+        #expect(harness.api.uploadedSkins.count == 1)
+        #expect(upload.png == originalPNG)
+        #expect(upload.variant == .slim)
+        #expect(try MinecraftSkin(data: upload.png, variant: upload.variant).hasSamePixels(as: displayed))
+        #expect(harness.editor.previewSkin?.hasSamePixels(as: displayed) == true)
+        #expect(!harness.editor.hasUnsavedChanges)
+    }
+
+    @Test func revertingVariantAndDiscardingDraftKeepOriginalSkinUnchanged() async throws {
+        let harness = try makeHarness()
+        await open(harness)
+        harness.editor.selectVariant(.slim)
+        harness.editor.selectVariant(.classic)
+        #expect(!harness.editor.hasUnsavedChanges)
+        harness.editor.selectVariant(.slim)
+        harness.editor.discardDraft()
+        #expect(harness.editor.selectedSkin == nil)
+        #expect(harness.editor.selectedVariant == .classic)
+        #expect(!harness.editor.hasUnsavedChanges)
+        #expect(harness.api.uploadedSkins.isEmpty)
+    }
+
+    @Test func revertedVariantAllowsCapeSaveToAdoptExternalSkinWithoutUpload() async throws {
+        let harness = try makeHarness()
+        await open(harness)
+        harness.editor.selectVariant(.slim)
+        harness.editor.selectVariant(.classic)
+        let revision = harness.editor.previewRevision
+        harness.editor.selectCape("cape-festival")
+        await waitForPreview(harness.editor, after: revision)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        let externalPNG = try SkinTestFixtures.png(transparentPixel: (40, 8))
+        harness.api.replaceSkin(externalPNG, variant: .slim)
+
+        #expect(await harness.editor.save())
+        #expect(harness.api.uploadedSkins.isEmpty)
+        #expect(harness.editor.selectedVariant == .slim)
+        #expect(harness.editor.previewSkin?.hasSamePixels(as: try MinecraftSkin(data: externalPNG, variant: .slim)) == true)
+        #expect(harness.account.minecraftSkinVariant == "SLIM")
+        #expect(!harness.editor.hasUnsavedChanges)
+    }
+
+    @Test(arguments: [false, true])
+    func variantSelectionCannotUploadFallbackOrAlterLegacySkin(legacy: Bool) async throws {
+        let harness = try makeHarness()
+        harness.api.ownsSkin = legacy
+        if legacy { harness.api.replaceSkin(try SkinTestFixtures.png(height: 32), variant: .classic) }
+        await open(harness)
+        #expect(!harness.editor.canChooseVariant)
+        harness.editor.selectVariant(.slim)
+        #expect(harness.editor.selectedVariant == .classic)
+        #expect(harness.editor.selectedSkin == nil)
+        #expect(!harness.editor.hasUnsavedChanges)
+        #expect(!(await harness.editor.save()))
+        if !legacy {
+            #expect(harness.api.uploadedSkins.isEmpty)
+            return
+        }
+        let revision = harness.editor.previewRevision
+        harness.editor.selectCape(nil)
+        await waitForPreview(harness.editor, after: revision)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        #expect(await harness.editor.save())
+        #expect(harness.api.uploadedSkins.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func savePersistsSwiftUIAccountInItsOwnContext(retryLocalFailure: Bool) async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let harness = try makeHarness(storeURL: directory.appendingPathComponent("fixture.store"))
+        let uiContext = ModelContext(harness.container)
+        uiContext.autosaveEnabled = false
+        let uiAccount = try #require(uiContext.fetch(FetchDescriptor<Account>()).first)
+        #expect(uiAccount !== harness.account)
+        await harness.editor.open(uiAccount)
+        let revision = harness.editor.previewRevision
+        harness.editor.selectVariant(.slim)
+        await waitForPreview(harness.editor, after: revision)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        harness.api.playerName = "UpdatedPlayer"
+        harness.persistence.failNextSave = retryLocalFailure
+
+        if retryLocalFailure {
+            #expect(!(await harness.editor.save()))
+            #expect(harness.editor.localPersistencePending)
+            #expect(harness.editor.selectedSkin != nil)
+            #expect(harness.editor.hasUnsavedChanges)
+            let fresh = ModelContext(harness.container)
+            let unchanged = try #require(fresh.fetch(FetchDescriptor<Account>()).first)
+            #expect(unchanged.minecraftSkinVariant == "CLASSIC")
+            #expect(unchanged.minecraftName == "FixturePlayer")
+        }
+        #expect(await harness.editor.save())
+        let fresh = ModelContext(harness.container)
+        let saved = try #require(fresh.fetch(FetchDescriptor<Account>()).first)
+        #expect(saved.persistentModelID == uiAccount.persistentModelID)
+        #expect(saved.minecraftUUID == harness.api.playerID)
+        #expect(saved.minecraftName == "UpdatedPlayer")
+        #expect(saved.minecraftSkinURL == harness.api.skinURL)
+        #expect(saved.minecraftSkinVariant == "SLIM")
+        #expect(uiAccount.minecraftSkinVariant == "SLIM")
+        #expect(harness.api.uploadedSkins.count == 1)
+        #expect(harness.appearances.profile(for: uiAccount.xuid)?.activeSkin?.variant == "SLIM")
+        #expect(!harness.editor.localPersistencePending)
+        #expect(!harness.editor.hasUnsavedChanges)
+    }
+
+    @Test(arguments: [false, true])
+    func sessionRefreshPersistsAccountFromSeparateContext(unauthorized: Bool) async throws {
+        let harness = try makeHarness()
+        let uiContext = ModelContext(harness.container)
+        uiContext.autosaveEnabled = false
+        let uiAccount = try #require(uiContext.fetch(FetchDescriptor<Account>()).first)
+        let updatedURL = URL(string: "https://textures.minecraft.net/texture/refreshed")!
+        harness.sessionFixture.signInSkinURL = updatedURL
+        if unauthorized {
+            _ = try await harness.sessions.refreshAfterUnauthorized(uiAccount, rejectedToken: "fixture-token")
+        } else {
+            await harness.sessions.connect(uiAccount, force: true)
+        }
+        let fresh = ModelContext(harness.container)
+        let saved = try #require(fresh.fetch(FetchDescriptor<Account>()).first)
+        #expect(saved.minecraftSkinURL == updatedURL)
+        #expect(harness.sessions.identity(for: uiAccount)?.accessToken == "refreshed-token")
+    }
+
     @Test func capeOnlySaveAndUnequipDoNotUploadSkin() async throws {
         let harness = try makeHarness()
         await open(harness)
@@ -542,9 +684,12 @@ struct MinecraftCharacterEditorTests {
         #expect(condition())
     }
 
-    private func makeHarness() throws -> Harness {
+    private func makeHarness(storeURL: URL? = nil) throws -> Harness {
         let schema = HakoSchema.schema
-        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let configuration = storeURL.map { ModelConfiguration(schema: schema, url: $0) }
+            ?? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        container.mainContext.autosaveEnabled = false
         let account = Account(xbox: XboxProfile(xuid: "fixture-xuid", gamertag: "Fixture", avatarURL: nil), email: nil)
         account.minecraftUUID = "00000000000000000000000000000001"
         account.minecraftName = "FixturePlayer"
@@ -582,12 +727,12 @@ struct MinecraftCharacterEditorTests {
             sessions: sessions,
             context: container.mainContext,
             appearances: appearanceStore,
-            saveContext: {
+            saveContext: { context in
                 if persistence.failNextSave {
                     persistence.failNextSave = false
                     throw FixturePersistenceError.failed
                 }
-                try container.mainContext.save()
+                try context.save()
             }
         )
         return Harness(
@@ -682,6 +827,7 @@ private final class ScriptedMinecraftProfileAPI: MinecraftProfileAPI {
     private(set) var capeMutationIsPaused = false
     private var capeContinuation: CheckedContinuation<Void, Error>?
     var ownsCapes = true
+    var ownsSkin = true
 
     init() {
         capeData = [
@@ -707,6 +853,12 @@ private final class ScriptedMinecraftProfileAPI: MinecraftProfileAPI {
             }
         }
         return response
+    }
+
+    func replaceSkin(_ png: Data, variant: MinecraftSkinVariant) {
+        skinPNG = png
+        skinVariant = variant.rawValue
+        skinID = "skin-external"
     }
 
     func uploadSkin(accessToken: String, png: Data, variant: MinecraftSkinVariant) async throws {
@@ -774,6 +926,6 @@ private final class ScriptedMinecraftProfileAPI: MinecraftProfileAPI {
             MinecraftProfileResponse.Cape(id: "cape-emerald", state: activeCapeID == "cape-emerald" ? "ACTIVE" : "INACTIVE", url: URL(string: "https://textures.minecraft.net/cape/cape-emerald")!, alias: "Emerald"),
             MinecraftProfileResponse.Cape(id: "cape-festival", state: activeCapeID == "cape-festival" ? "ACTIVE" : "INACTIVE", url: URL(string: "https://textures.minecraft.net/cape/cape-festival")!, alias: "Festival")
         ]
-        return MinecraftProfileResponse(id: playerID, name: playerName, skins: skins, capes: ownsCapes ? ownedCapes : [])
+        return MinecraftProfileResponse(id: playerID, name: playerName, skins: ownsSkin ? skins : [], capes: ownsCapes ? ownedCapes : [])
     }
 }

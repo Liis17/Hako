@@ -25,7 +25,8 @@ final class MinecraftCharacterEditorCoordinator {
     private let api: any MinecraftProfileAPI
     private let sessions: MinecraftSessionCoordinator
     private let appearances: MinecraftAppearanceStore
-    private let saveContext: () throws -> Void
+    private let context: ModelContext
+    private let saveContext: (ModelContext) throws -> Void
 
     private var generation = UUID()
     private var previewGeneration = UUID()
@@ -64,12 +65,13 @@ final class MinecraftCharacterEditorCoordinator {
         sessions: MinecraftSessionCoordinator,
         context: ModelContext,
         appearances: MinecraftAppearanceStore,
-        saveContext: (() throws -> Void)? = nil
+        saveContext: ((ModelContext) throws -> Void)? = nil
     ) {
         self.api = api
         self.sessions = sessions
         self.appearances = appearances
-        self.saveContext = saveContext ?? { try context.save() }
+        self.context = context
+        self.saveContext = saveContext ?? { try $0.save() }
     }
 
     var canImportSkin: Bool { profile != nil && !isSaving }
@@ -197,10 +199,13 @@ final class MinecraftCharacterEditorCoordinator {
 
     func selectVariant(_ variant: MinecraftSkinVariant) {
         guard canChooseVariant, variant != selectedVariant else { return }
+        // Keep the displayed PNG independent of the next server preflight's baseline.
+        selectedSkin = selectedSkin ?? originalSkin
         selectedVariant = variant
+        if !skinNeedsChange { selectedSkin = nil }
         inputError = nil
         saveError = nil
-        skinWriteState = .pending
+        skinWriteState = skinNeedsChange ? .pending : .unchanged
         requestPreview()
     }
 
@@ -418,7 +423,7 @@ final class MinecraftCharacterEditorCoordinator {
         try checkCurrent(account, generation: generation)
         guard let profile else { throw MinecraftProfileAPIError.invalidResponse }
         account.connect(profile.minecraftProfile)
-        do { try saveContext() }
+        do { try saveContext(account.modelContext ?? context) }
         catch {
             localPersistencePending = true
             throw error
