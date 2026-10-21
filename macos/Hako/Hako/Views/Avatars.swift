@@ -81,7 +81,7 @@ struct MinecraftHead: View {
         else { return [] }
         // Как в игре: у старых скинов 64×32 слой одежды без прозрачных пикселей — это фон, а не шапка.
         let overlay = skin.cropping(to: CGRect(x: 32, y: 0, width: 32, height: 32))
-        guard skin.height == 64 || overlay.map(hasTransparency) == true,
+        guard skin.height == 64 || overlay.map({ hasTransparency($0) }) == true,
               let hat = skin.cropping(to: CGRect(x: 40, y: 8, width: 8, height: 8))
         else { return [face] }
         return [face, hat]

@@ -14,6 +14,7 @@ struct MinecraftSkinView: View {
     var isLocalPreview = false
     var previewError: String? = nil
     var onReadinessChange: ((Bool, Int) -> Void)? = nil
+    var onPreviewFailure: ((String, Int) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -69,7 +70,7 @@ struct MinecraftSkinView: View {
                 rotation.x += direction == .increment ? 15 : -15
             }
             .overlay {
-                if let message = renderError ?? previewError {
+                if let message = previewError ?? renderError {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -87,7 +88,7 @@ struct MinecraftSkinView: View {
                 onReadinessChange?(false, requestedRevision)
                 do {
                     if isLocalPreview {
-                        guard let previewSkin else { throw MinecraftSkin.DecodingError.invalidTexture }
+                        guard let previewSkin else { return }
                         try await scene.display(previewSkin)
                     } else {
                         try await scene.display(MinecraftSkin.steve())
@@ -102,6 +103,7 @@ struct MinecraftSkinView: View {
                     guard !Task.isCancelled, generation == renderGeneration else { return }
                     renderError = error.localizedDescription
                     onReadinessChange?(false, requestedRevision)
+                    onPreviewFailure?(error.localizedDescription, requestedRevision)
                 }
             }
             .onDisappear {

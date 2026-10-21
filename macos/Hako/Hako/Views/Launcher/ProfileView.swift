@@ -22,7 +22,18 @@ struct ProfileView: View {
             ScrollView { accountDetails }
                 .frame(minWidth: 400, maxWidth: 600)
 
-            MinecraftSkinView(source: minecraftSkinSource)
+            VStack(spacing: 16) {
+                MinecraftSkinView(source: minecraftSkinSource)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if canEditCharacter {
+                    Button(action: onEditCharacter) {
+                        Label("Изменить персонажа", systemImage: "person.crop.square")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                }
+            }
             .frame(minWidth: 240, maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 16)
         }
@@ -67,15 +78,6 @@ struct ProfileView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(.quaternary, in: .rect(cornerRadius: 10))
                     }
-                }
-
-                if canEditCharacter {
-                    Button(action: onEditCharacter) {
-                        Label("Изменить персонажа", systemImage: "person.crop.square")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
                 }
 
                 PlaytimeSummaryView(xuid: account.xuid)

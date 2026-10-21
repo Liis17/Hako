@@ -5,6 +5,50 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct MinecraftCharacterEditorTests {
+    @Test func draftChangeImmediatelyRejectsPreviousRenderReadiness() async throws {
+        let harness = try makeHarness()
+        await open(harness)
+        let oldRevision = harness.editor.previewRevision
+        harness.editor.selectVariant(.slim)
+        harness.editor.setPreviewReady(true, revision: oldRevision)
+        #expect(!harness.editor.previewReady)
+        #expect(!harness.editor.canSave)
+        await waitForPreview(harness.editor, after: oldRevision)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        #expect(harness.editor.canSave)
+    }
+
+    @Test func lateUnauthorizedFromClosedEditorCannotReplaceSameXuidSession() async throws {
+        let harness = try makeHarness()
+        harness.api.pauseNextProfile = true
+        let opening = Task { await harness.editor.open(harness.account) }
+        await waitUntil { harness.api.profileIsPaused }
+        harness.editor.close()
+        harness.sessions.signOut()
+        let replacement = Account(xbox: .init(xuid: harness.account.xuid, gamertag: "Replacement", avatarURL: nil), email: nil)
+        harness.container.mainContext.insert(replacement)
+        try harness.container.mainContext.save()
+        harness.sessions.installFixtureIdentity(
+            .init(name: "Replacement", uuid: "replacement", accessToken: "replacement-token", xuid: replacement.xuid),
+            for: replacement, expiration: .now.addingTimeInterval(3600)
+        )
+        harness.api.resumePausedProfile(error: MinecraftProfileAPIError.unauthorized)
+        await opening.value
+        #expect(harness.sessionFixture.refreshCount == 0)
+        #expect(harness.sessions.identity(for: replacement)?.accessToken == "replacement-token")
+    }
+
+    @Test func importBeforeInitialProfileIsIgnored() async throws {
+        let harness = try makeHarness()
+        harness.api.profileErrors = [MinecraftProfileAPIError.httpStatus(503)]
+        await harness.editor.open(harness.account)
+        harness.editor.importSkin(try SkinTestFixtures.png(transparentPixel: (40, 8)))
+        #expect(harness.editor.selectedSkin == nil)
+        await harness.editor.loadProfile()
+        #expect(harness.editor.profile != nil)
+        #expect(!harness.editor.hasUnsavedChanges)
+    }
+
     @Test func importingSkinDoesNotMutateAccountUntilSave() async throws {
         let harness = try makeHarness()
         await open(harness)
@@ -198,6 +242,84 @@ struct MinecraftCharacterEditorTests {
         #expect(harness.editor.profile?.id == harness.api.playerID)
     }
 
+    @Test func sessionRecognizesSameSavedAccountFromSwiftUIContext() async throws {
+        let harness = try makeHarness()
+        let uiContext = ModelContext(harness.container)
+        let sameAccount = try #require(uiContext.fetch(FetchDescriptor<Account>()).first)
+        #expect(sameAccount !== harness.account)
+        #expect(sameAccount.persistentModelID == harness.account.persistentModelID)
+        #expect(harness.sessions.identity(for: sameAccount)?.accessToken == "fixture-token")
+        await harness.editor.open(sameAccount)
+        #expect(harness.editor.profile != nil)
+        #expect(harness.editor.previewSkin != nil)
+    }
+
+    @Test func concurrentUnauthorizedRefreshesShareOneReplacementAndRejectOldAccount() async throws {
+        let harness = try makeHarness()
+        harness.sessionFixture.pauseNextSignIn = true
+        let first = Task { try await harness.sessions.refreshAfterUnauthorized(harness.account, rejectedToken: "fixture-token") }
+        await waitUntil { harness.sessionFixture.signInIsPaused }
+        let second = Task { try await harness.sessions.refreshAfterUnauthorized(harness.account, rejectedToken: "fixture-token") }
+        await Task.yield()
+        harness.sessionFixture.resumeSignIn()
+        #expect(try await first.value.accessToken == "refreshed-token")
+        #expect(try await second.value.accessToken == "refreshed-token")
+        #expect(harness.sessionFixture.refreshCount == 1)
+
+        harness.sessions.signOut()
+        let replacement = Account(xbox: .init(xuid: harness.account.xuid, gamertag: "Replacement", avatarURL: nil), email: nil)
+        harness.sessions.installFixtureIdentity(.init(name: "Replacement", uuid: "new", accessToken: "new-token", xuid: replacement.xuid),
+                                                for: replacement, expiration: .now.addingTimeInterval(3600))
+        await #expect(throws: MinecraftSessionError.accountChanged) {
+            try await harness.sessions.refreshAfterUnauthorized(harness.account, rejectedToken: "refreshed-token")
+        }
+        #expect(harness.sessions.identity(for: replacement)?.accessToken == "new-token")
+        #expect(harness.sessionFixture.refreshCount == 1)
+    }
+
+    @Test func refreshFailureDoesNotRetryProfileWithRejectedToken() async throws {
+        let harness = try makeHarness()
+        harness.api.unauthorizedTokens = ["fixture-token"]
+        harness.sessionFixture.refreshError = URLError(.notConnectedToInternet)
+        await harness.editor.open(harness.account)
+        #expect(harness.api.calls.filter { $0.hasPrefix("GET:") } == ["GET:fixture-token"])
+        #expect(harness.sessionFixture.refreshCount == 1)
+        #expect(harness.editor.profile == nil)
+        #expect(harness.editor.previewError != nil)
+    }
+
+    @Test func repeated401StopsAfterOneReplacementRefresh() async throws {
+        let harness = try makeHarness()
+        harness.api.unauthorizedTokens = ["fixture-token", "refreshed-token"]
+        await harness.editor.open(harness.account)
+        #expect(harness.api.calls.filter { $0.hasPrefix("GET:") } == ["GET:fixture-token", "GET:refreshed-token"])
+        #expect(harness.sessionFixture.refreshCount == 1)
+        #expect(harness.editor.profile == nil)
+    }
+
+    @Test(arguments: [true, false])
+    func uncertainCapeWriteRequiresSuccessfulReconciliationBeforeRetry(appliedRemotely: Bool) async throws {
+        let harness = try makeHarness()
+        await open(harness)
+        let revision = harness.editor.previewRevision
+        harness.editor.selectCape("cape-festival")
+        await waitForPreview(harness.editor, after: revision)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        harness.api.capePlans = [.init(applies: appliedRemotely, error: URLError(.timedOut))]
+        harness.api.profileErrors = [nil, MinecraftProfileAPIError.httpStatus(503)]
+        #expect(!(await harness.editor.save()))
+        #expect(harness.editor.capeWriteState == .unknown)
+        #expect(harness.api.capeChanges.count == 1)
+        harness.api.profileErrors = [MinecraftProfileAPIError.httpStatus(503)]
+        #expect(!(await harness.editor.save()))
+        #expect(harness.api.capeChanges.count == 1)
+        let beforeRetry = harness.api.calls.count
+        #expect(await harness.editor.save())
+        #expect(harness.api.calls[beforeRetry].hasPrefix("GET:"))
+        #expect(harness.api.capeChanges.count == (appliedRemotely ? 1 : 2))
+        #expect(harness.api.uploadedSkins.isEmpty)
+    }
+
     @Test func authoritativeAppearanceRevisionBlocksLateRefreshProfileWrite() async throws {
         let harness = try makeHarness()
         harness.sessionFixture.signInSkinURL = URL(string: "https://textures.minecraft.net/texture/stale-refresh")!
@@ -248,10 +370,11 @@ struct MinecraftCharacterEditorTests {
         #expect(harness.editor.selectedSkin?.png == draft)
         #expect(harness.editor.hasUnsavedChanges)
 
-        harness.sessions.installFixtureIdentity(
-            .init(name: "FixturePlayer", uuid: harness.account.minecraftUUID!, accessToken: "reconnected-token", xuid: harness.account.xuid),
-            for: harness.account, expiration: harness.sessionFixture.now.addingTimeInterval(3600)
-        )
+        let reconnectRevision = harness.editor.previewRevision
+        await harness.editor.reconnect()
+        await waitForPreview(harness.editor, after: reconnectRevision)
+        #expect(harness.editor.selectedSkin?.png == draft)
+        #expect(harness.api.uploadedSkins.isEmpty)
         harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
         #expect(harness.editor.canSave)
     }
@@ -329,7 +452,7 @@ struct MinecraftCharacterEditorTests {
         harness.api.capeData[emeraldURL] = Data("invalid cape".utf8)
         await open(harness)
         let valid = try SkinTestFixtures.png(transparentPixel: (40, 8))
-        var revision = harness.editor.previewRevision
+        let revision = harness.editor.previewRevision
         harness.editor.importSkin(valid)
         await waitForPreview(harness.editor, after: revision)
         harness.editor.importSkin(Data("invalid".utf8))
@@ -337,7 +460,67 @@ struct MinecraftCharacterEditorTests {
         #expect(harness.editor.inputError != nil)
 
         #expect(harness.editor.previewError != nil)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        #expect(harness.editor.previewError != nil)
         #expect(!harness.editor.canSave)
+    }
+
+    @Test func retryPreviewReloadsFailedCapeAndRetainsDraft() async throws {
+        let harness = try makeHarness()
+        let capeURL = URL(string: "https://textures.minecraft.net/cape/cape-emerald")!
+        harness.api.capeData[capeURL] = Data("broken cape".utf8)
+        await harness.editor.open(harness.account)
+        await waitUntil { harness.editor.capeImageErrors["cape-emerald"] != nil }
+        #expect(harness.editor.previewError != nil)
+        let draft = try SkinTestFixtures.png(transparentPixel: (40, 8))
+        var revision = harness.editor.previewRevision
+        harness.editor.importSkin(draft)
+        await waitForPreview(harness.editor, after: revision)
+        harness.api.capeData[capeURL] = try SkinTestFixtures.png(height: 32)
+        revision = harness.editor.previewRevision
+        harness.editor.retryPreview()
+        await waitForPreview(harness.editor, after: revision)
+        #expect(harness.editor.previewError == nil)
+        #expect(harness.editor.previewSkin?.capeImage != nil)
+        #expect(harness.editor.selectedSkin?.png == draft)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        #expect(harness.editor.canSave)
+    }
+
+    @Test func renderFailureCannotBeClearedByLateReadyCallback() async throws {
+        let harness = try makeHarness()
+        await open(harness)
+        let revision = harness.editor.previewRevision
+        harness.editor.selectVariant(.slim)
+        await waitForPreview(harness.editor, after: revision)
+        let failedRevision = harness.editor.previewRevision
+        harness.editor.reportPreviewFailure("Render failed", revision: failedRevision)
+        harness.editor.setPreviewReady(true, revision: failedRevision)
+        #expect(harness.editor.previewError == "Render failed")
+        #expect(!harness.editor.canSave)
+        harness.editor.retryPreview()
+        await waitForPreview(harness.editor, after: failedRevision)
+        harness.editor.reportPreviewFailure("Old render failed", revision: failedRevision)
+        harness.editor.setPreviewReady(true, revision: harness.editor.previewRevision)
+        #expect(harness.editor.previewError == nil)
+        #expect(harness.editor.canSave)
+    }
+
+    @Test func failedFileImportRetainsValidDraft() async throws {
+        let harness = try makeHarness()
+        await open(harness)
+        let draft = try SkinTestFixtures.png(transparentPixel: (40, 8))
+        let revision = harness.editor.previewRevision
+        harness.editor.importSkin(draft)
+        await waitForPreview(harness.editor, after: revision)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("broken PNG".utf8).write(to: url)
+        let validRevision = harness.editor.previewRevision
+        await harness.editor.importSkin(from: url)
+        #expect(harness.editor.selectedSkin?.png == draft)
+        #expect(harness.editor.previewRevision == validRevision)
+        #expect(harness.editor.inputError != nil)
     }
 
     private func open(_ harness: Harness) async {
@@ -347,7 +530,8 @@ struct MinecraftCharacterEditorTests {
     }
 
     private func waitForPreview(_ editor: MinecraftCharacterEditorCoordinator, after revision: Int) async {
-        for _ in 0..<500 where editor.previewRevision <= revision { await Task.yield() }
+        for _ in 0..<500 where editor.previewRevision <= revision || editor.isPreparingPreview { await Task.yield() }
+        #expect(!editor.isPreparingPreview)
         #expect(editor.previewRevision > revision)
     }
 
@@ -375,6 +559,7 @@ struct MinecraftCharacterEditorTests {
             save: { _, _ in },
             refresh: { _ in
                 sessionFixture.refreshCount += 1
+                if let error = sessionFixture.refreshError { throw error }
                 return MicrosoftToken(accessToken: "microsoft-access", refreshToken: "refresh", idToken: nil)
             },
             signIn: { _ in
@@ -424,6 +609,7 @@ struct MinecraftCharacterEditorTests {
 @MainActor
 private final class SessionRefreshFixture {
     var refreshCount = 0
+    var refreshError: Error?
     var replacementToken = "refreshed-token"
     var now = Date.now
     var signInSkinURL: URL?
@@ -563,11 +749,12 @@ private final class ScriptedMinecraftProfileAPI: MinecraftProfileAPI {
         return data
     }
 
-    func resumePausedProfile() {
+    func resumePausedProfile(error: Error? = nil) {
         guard let response = pausedProfile else { return }
         pausedProfile = nil
         profileIsPaused = false
-        profileContinuation?.resume(returning: response)
+        if let error { profileContinuation?.resume(throwing: error) }
+        else { profileContinuation?.resume(returning: response) }
         profileContinuation = nil
     }
 

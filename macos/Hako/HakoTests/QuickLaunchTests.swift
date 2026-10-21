@@ -15,6 +15,39 @@ import Testing
         }
     }
 
+    @Test(arguments: [true, false])
+    func characterEditorRejectionReleasesOnlyItsLaunchRequest(isSaving: Bool) async throws {
+        let fixture = try QuickLaunchFixture()
+        defer { fixture.cleanup() }
+        let first = try fixture.instance()
+        var secondDraft = InstanceDraft(); secondDraft.name = "Queued Pack"; secondDraft.offlineMode = true
+        let second = try fixture.store.create(secondDraft, versionID: "v", metadataURL: "url", metadataSHA1: "sha")
+        second.state = .ready
+        let firstTask = Task { try await fixture.quick.launch(instanceID: first.id) }
+        try await eventually { fixture.quick.presentation != nil }
+        let firstRequest = try #require(fixture.quick.presentation)
+        let queuedTask = Task { try await fixture.quick.launch(instanceID: second.id) }
+        try await eventually { fixture.quick.preparingIDs.contains(second.id) }
+        var gate = CharacterEditorNavigationGate()
+        let decision = gate.request(presentationID: firstRequest.id, isSaving: isSaving,
+                                    hasUnsavedChanges: true, quickLaunch: fixture.quick)
+        if isSaving { #expect(decision == .blocked) }
+        else {
+            #expect(decision == .confirmDiscard)
+            gate.cancel(quickLaunch: fixture.quick)
+        }
+        await #expect(throws: CancellationError.self) { try await firstTask.value }
+        try await eventually { fixture.quick.presentation?.instanceID == second.id }
+        #expect(!fixture.quick.preparingIDs.contains(first.id))
+        #expect(fixture.quick.preparingIDs.contains(second.id))
+        #expect(fixture.games.states[first.id] == nil)
+        // A later navigation completion for the cancelled request cannot start it.
+        fixture.quick.completePresentation(firstRequest.id)
+        fixture.quick.completePresentation(try #require(fixture.quick.presentation).id, error: CancellationError())
+        await #expect(throws: CancellationError.self) { try await queuedTask.value }
+        #expect(fixture.quick.presentation == nil && fixture.quick.preparingIDs.isEmpty)
+    }
+
     @Test func waitsForProfileAndCoalescesOfflineRequestsWithoutAuthentication() async throws {
         let probe = QuickLaunchProbe()
         let fixture = try QuickLaunchFixture(dependencies: .init(load: { _ in Issue.record("Offline requested auth"); return nil }), prepare: { request in

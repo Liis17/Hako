@@ -10721,22 +10721,6 @@
         }
       }
     },
-    "Результат запроса неизвестен. Состояние сверено с Minecraft; повторное сохранение сначала проверит сервер." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The request result is unknown. Hako checked Minecraft; saving again will check the server before retrying."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Результат запроса неизвестен. Состояние сверено с Minecraft; повторное сохранение сначала проверит сервер."
-          }
-        }
-      }
-    },
     "Не удалось сверить изменения с Minecraft. Повторное сохранение сначала проверит сервер." : {
       "localizations" : {
         "en" : {
@@ -10765,6 +10749,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Часть изменений уже сохранена в Minecraft, но не в Hako: %@"
+          }
+        }
+      }
+    },
+    "Размер PNG-файла не должен превышать 4 МиБ." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The PNG file must be no larger than 4 MiB."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер PNG-файла не должен превышать 4 МиБ."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать текстуру скина." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the skin texture."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать текстуру скина."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать текстуру плаща." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the cape texture."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать текстуру плаща."
+          }
+        }
+      }
+    },
+    "Повторить предпросмотр" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry preview"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить предпросмотр"
           }
         }
       }

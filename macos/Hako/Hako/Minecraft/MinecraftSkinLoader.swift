@@ -82,7 +82,7 @@ final class MinecraftSkinLoader {
         let variant = source.variant ?? profile?.variant ?? .classic
         let capeData: Data?
         if source.capeIsKnown, let capeURL = source.capeURL {
-            capeData = try await data(from: capeURL)
+            capeData = try? await data(from: capeURL)
         } else if source.capeIsKnown {
             capeData = nil
         } else if source.loadCape, let capeURL = profile?.capeURL {
@@ -91,9 +91,16 @@ final class MinecraftSkinLoader {
             capeData = nil
         }
         try Task.checkCancellation()
-        let skin = try MinecraftSkin(data: await data(from: url), variant: variant, capeData: capeData)
+        let skinData = try await data(from: url)
+        let skin: MinecraftSkin
+        do {
+            skin = try MinecraftSkin(data: skinData, variant: variant, capeData: capeData)
+        } catch MinecraftSkin.DecodingError.invalidCape {
+            skin = try MinecraftSkin(data: skinData, variant: variant)
+        }
         try Task.checkCancellation()
-        skins[source] = skin
+        let expectsCape = source.capeIsKnown ? source.capeURL != nil : source.loadCape && profile?.capeURL != nil
+        if !expectsCape || skin.capeImage != nil { skins[source] = skin }
         return skin
     }
 

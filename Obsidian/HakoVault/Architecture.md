@@ -84,7 +84,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
    с URL из `AppDataLocation` → `ModelContainer`. `LaunchSettingsMigration.run` сохраняет прежние режимы
    аргументов, фиксирует окна и переносит предел heap в ползунки. Ошибка создания контейнера или миграции
    завершает приложение через `fatalError`.
-   При `--character-editor-preview` создаются отдельный in-memory контейнер, временная папка игровых данных,
+   В Debug при `--character-editor-preview` создаются отдельный in-memory контейнер, временная папка игровых данных,
    фиктивные токены и `URLSession` с `MinecraftCharacterPreviewFixture`; миграция не запускается, а
    production store и Keychain не изменяются. `--character-editor-preview-language=ru|en` задаёт язык только для preview.
    Подробная команда — [[UI/MinecraftSkin#PNG для редактора]].

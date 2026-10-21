@@ -9,9 +9,13 @@ import SwiftData
     }()
 
     static func forCurrentLaunch() -> HakoServices {
+        #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("--character-editor-preview") else { return shared }
         do { return try HakoServices(characterEditorPreview: true) }
         catch { fatalError("Could not create isolated character preview: \(error)") }
+        #else
+        return shared
+        #endif
     }
 
     let modelContainer: ModelContainer

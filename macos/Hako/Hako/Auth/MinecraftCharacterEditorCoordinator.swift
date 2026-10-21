@@ -24,7 +24,6 @@ final class MinecraftCharacterEditorCoordinator {
 
     private let api: any MinecraftProfileAPI
     private let sessions: MinecraftSessionCoordinator
-    private let context: ModelContext
     private let appearances: MinecraftAppearanceStore
     private let saveContext: () throws -> Void
 
@@ -46,6 +45,7 @@ final class MinecraftCharacterEditorCoordinator {
     private(set) var selectedCapeID: String?
     private(set) var previewSkin: MinecraftSkin?
     private(set) var previewRevision = 0
+    private(set) var isPreparingPreview = false
     private(set) var previewReady = false
     private(set) var previewError: String?
     private(set) var inputError: String?
@@ -68,9 +68,24 @@ final class MinecraftCharacterEditorCoordinator {
     ) {
         self.api = api
         self.sessions = sessions
-        self.context = context
         self.appearances = appearances
         self.saveContext = saveContext ?? { try context.save() }
+    }
+
+    var canImportSkin: Bool { profile != nil && !isSaving }
+    var sessionUnavailable: Bool { account.flatMap { sessions.identity(for: $0) } == nil }
+
+    func reconnect() async {
+        guard let account, !isSaving else { return }
+        let requestGeneration = generation
+        await sessions.connect(account, force: true)
+        guard isCurrent(account, generation: requestGeneration) else { return }
+        if sessionUnavailable {
+            if case .failed(let message) = sessions.statuses[account.xuid] { saveError = message }
+            return
+        }
+        if profile == nil { await loadProfile() }
+        else { saveError = nil; retryPreview() }
     }
 
     var canChooseVariant: Bool {
@@ -83,7 +98,7 @@ final class MinecraftCharacterEditorCoordinator {
     }
 
     var canSave: Bool {
-        hasUnsavedChanges && previewReady && previewError == nil && !isSaving
+        hasUnsavedChanges && previewReady && previewError == nil && !isSaving && !isLoading
             && profile != nil && account.flatMap { sessions.identity(for: $0) } != nil
     }
 
@@ -147,8 +162,21 @@ final class MinecraftCharacterEditorCoordinator {
         }
     }
 
+    func importSkin(from url: URL) async {
+        guard canImportSkin else { return }
+        let requestGeneration = generation
+        do {
+            let data = try await Task.detached { try MinecraftSkinUpload.readPNGFile(at: url) }.value
+            guard generation == requestGeneration, canImportSkin else { return }
+            importSkin(data)
+        } catch {
+            guard generation == requestGeneration, !isSaving else { return }
+            inputError = error.localizedDescription
+        }
+    }
+
     func importSkin(_ data: Data) {
-        guard !isSaving else { return }
+        guard canImportSkin else { return }
         do {
             let upload = try MinecraftSkinUpload(png: data, variant: selectedVariant)
             selectedSkin = upload
@@ -156,7 +184,7 @@ final class MinecraftCharacterEditorCoordinator {
             inputError = nil
             saveError = nil
             skinWriteState = .pending
-            Task { await rebuildPreview(generation: generation) }
+            requestPreview()
         } catch {
             inputError = error.localizedDescription
         }
@@ -173,7 +201,7 @@ final class MinecraftCharacterEditorCoordinator {
         inputError = nil
         saveError = nil
         skinWriteState = .pending
-        Task { await rebuildPreview(generation: generation) }
+        requestPreview()
     }
 
     func selectCape(_ id: String?) {
@@ -181,18 +209,35 @@ final class MinecraftCharacterEditorCoordinator {
         selectedCapeID = id
         capeWriteState = id == baselineCapeID ? .unchanged : .pending
         saveError = nil
-        Task { await rebuildPreview(generation: generation) }
+        requestPreview()
     }
 
     func retryPreview() {
         guard !isSaving else { return }
-        Task { await rebuildPreview(generation: generation) }
+        if previewError != nil, let selectedCapeID {
+            capeImages[selectedCapeID] = nil
+            capeImageErrors[selectedCapeID] = nil
+        }
+        requestPreview()
+    }
+
+    func retryCapeImage(_ cape: MinecraftProfileResponse.Cape) {
+        guard !isSaving else { return }
+        capeImages[cape.id] = nil
+        capeImageErrors[cape.id] = nil
+        loadCapeImage(cape, generation: generation)
+        if selectedCapeID == cape.id { requestPreview() }
     }
 
     func setPreviewReady(_ ready: Bool, revision: Int) {
-        guard revision == previewRevision else { return }
+        guard revision == previewRevision, !isPreparingPreview, previewError == nil, previewSkin != nil else { return }
         previewReady = ready
-        if ready { previewError = nil }
+    }
+
+    func reportPreviewFailure(_ message: String, revision: Int) {
+        guard revision == previewRevision, !isPreparingPreview else { return }
+        previewReady = false
+        previewError = message
     }
 
     func discardDraft() {
@@ -202,7 +247,7 @@ final class MinecraftCharacterEditorCoordinator {
         selectedCapeID = baselineCapeID
         inputError = nil; saveError = nil
         skinWriteState = .unchanged; capeWriteState = .unchanged
-        Task { await rebuildPreview(generation: generation) }
+        requestPreview()
     }
 
     func close() {
@@ -347,11 +392,7 @@ final class MinecraftCharacterEditorCoordinator {
             if skinWriteState == .confirmed || capeWriteState == .confirmed {
                 persistConfirmedMutationIfNeeded(server, account: account, generation: generation)
             }
-            if skinWriteState == .unknown || capeWriteState == .unknown {
-                saveError = String(appLocalized: "Результат запроса неизвестен. Состояние сверено с Minecraft; повторное сохранение сначала проверит сервер.")
-            } else {
-                saveError = error.localizedDescription
-            }
+            if !localPersistencePending { saveError = error.localizedDescription }
         } catch {
             guard isCurrent(account, generation: generation) else { return }
             saveError = String(appLocalized: "Не удалось сверить изменения с Minecraft. Повторное сохранение сначала проверит сервер.")
@@ -453,6 +494,7 @@ final class MinecraftCharacterEditorCoordinator {
         do {
             return try await operation(identity.accessToken)
         } catch MinecraftProfileAPIError.unauthorized {
+            try checkCurrent(account, generation: generation)
             let refreshed = try await sessions.refreshAfterUnauthorized(account, rejectedToken: identity.accessToken)
             try checkCurrent(account, generation: generation)
             guard sessions.identity(for: account)?.accessToken == refreshed.accessToken else { throw MinecraftSessionError.accountChanged }
@@ -480,10 +522,11 @@ final class MinecraftCharacterEditorCoordinator {
         capeTasks[cape.id] = task
         Task { [weak self] in
             guard let self else { return }
-            defer { capeTasks[cape.id] = nil }
+            defer { if self.generation == generation { capeTasks[cape.id] = nil } }
             do {
                 let data = try await task.value
                 guard self.generation == generation else { return }
+                _ = try MinecraftSkin(data: Self.bundledSteveData(), variant: .classic, capeData: data)
                 capeImages[cape.id] = data
                 capeImageErrors[cape.id] = nil
             } catch {
@@ -506,7 +549,7 @@ final class MinecraftCharacterEditorCoordinator {
         guard let url = cape.secureURL else { throw MinecraftProfileAPIError.invalidResponse }
         let task = Task { try await api.texture(at: url) }
         capeTasks[id] = task
-        defer { capeTasks[id] = nil }
+        defer { if self.generation == generation { capeTasks[id] = nil } }
         let data = try await task.value
         try Task.checkCancellation()
         guard self.generation == generation else { throw CancellationError() }
@@ -515,11 +558,29 @@ final class MinecraftCharacterEditorCoordinator {
         return data
     }
 
-    private func rebuildPreview(generation: UUID) async {
+    private func beginPreview() -> UUID {
         let request = UUID()
         previewGeneration = request
+        previewRevision += 1
+        isPreparingPreview = true
         previewReady = false
         previewError = nil
+        previewSkin = nil
+        return request
+    }
+
+    private func requestPreview() {
+        let request = beginPreview()
+        let generation = generation
+        Task { await rebuildPreview(generation: generation, request: request) }
+    }
+
+    private func rebuildPreview(generation: UUID, request: UUID? = nil) async {
+        let request = request ?? beginPreview()
+        guard self.generation == generation, previewGeneration == request else { return }
+        defer {
+            if self.generation == generation, previewGeneration == request { isPreparingPreview = false }
+        }
         do {
             let capeData: Data?
             if let selectedCapeID {
@@ -560,6 +621,8 @@ final class MinecraftCharacterEditorCoordinator {
         for task in capeTasks.values { task.cancel() }
         capeTasks.removeAll()
         isLoading = false
+        isPreparingPreview = false
+        previewRevision += 1
     }
 
     private static func isUncertain(_ error: Error) -> Bool {

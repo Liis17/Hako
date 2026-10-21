@@ -18,9 +18,16 @@ struct MinecraftSkin {
     let capeImage: CGImage?
     private let normalizedPixels: Data
 
-    enum DecodingError: Error {
+    enum DecodingError: LocalizedError {
         case invalidTexture
         case invalidCape
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidTexture: String(appLocalized: "Не удалось прочитать текстуру скина.")
+            case .invalidCape: String(appLocalized: "Не удалось прочитать текстуру плаща.")
+            }
+        }
     }
 
     init(data: Data, variant: MinecraftSkinVariant, capeData: Data? = nil) throws {

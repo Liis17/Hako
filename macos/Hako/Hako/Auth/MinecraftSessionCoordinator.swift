@@ -42,7 +42,9 @@ enum MinecraftSessionError: LocalizedError {
     private var forcedRefreshTasks: [String: Task<MinecraftLaunchIdentity, Error>] = [:]
     private var generations: [String: UUID] = [:]
     private var refreshGenerations: [String: UUID] = [:]
-    private var accountIDs: [String: PersistentIdentifier] = [:]
+    // Keep the model so its ID follows SwiftData's first-save remapping. Compare current IDs
+    // to also recognize the same saved account read through SwiftUI's separate ModelContext.
+    private var accounts: [String: Account] = [:]
     private var sessionEpoch = UUID()
     private(set) var statuses: [String: MinecraftStatus] = [:]
     private(set) var checkedAt = Date.distantPast
@@ -55,14 +57,14 @@ enum MinecraftSessionError: LocalizedError {
 
     func identity(for account: Account?) -> MinecraftLaunchIdentity? {
         _ = checkedAt
-        guard let account, accountIDs[account.xuid] == account.persistentModelID,
+        guard let account, accounts[account.xuid]?.persistentModelID == account.persistentModelID,
               let expiry = expirations[account.xuid], expiry > dependencies.now()
         else { return nil }
         return identities[account.xuid]
     }
 
     func installFixtureIdentity(_ identity: MinecraftLaunchIdentity, for account: Account, expiration: Date) {
-        accountIDs[account.xuid] = account.persistentModelID
+        accounts[account.xuid] = account
         identities[account.xuid] = identity
         expirations[account.xuid] = expiration
         statuses[account.xuid] = .idle
@@ -71,20 +73,25 @@ enum MinecraftSessionError: LocalizedError {
     func connect(_ account: Account, force: Bool = false) async {
         checkedAt = dependencies.now()
         let xuid = account.xuid
-        let accountID = account.persistentModelID
-        accountIDs[xuid] = accountID
+        if let previous = accounts[xuid], previous.persistentModelID != account.persistentModelID {
+            tasks.removeValue(forKey: xuid)?.cancel()
+            forcedRefreshTasks.removeValue(forKey: xuid)?.cancel()
+            generations[xuid] = nil; refreshGenerations[xuid] = nil
+            identities[xuid] = nil; expirations[xuid] = nil; statuses[xuid] = nil
+        }
+        accounts[xuid] = account
+        let epoch = sessionEpoch
 
         if let refreshTask = forcedRefreshTasks[xuid] {
             _ = try? await refreshTask.value
         }
         if let task = tasks[xuid] {
             await task.value
-            if accountIDs[xuid] != accountID { await connect(account, force: force) }
             return
         }
+        guard !Task.isCancelled, isCurrent(account: account, xuid: xuid, epoch: epoch) else { return }
 
         let generation = UUID()
-        let epoch = sessionEpoch
         let appearanceRevision = appearances.revision(for: xuid)
         generations[xuid] = generation
         let task = Task { [self] in
@@ -94,6 +101,7 @@ enum MinecraftSessionError: LocalizedError {
                     generations[xuid] = nil
                 }
             }
+            guard !Task.isCancelled, isCurrent(account: account, xuid: xuid, epoch: epoch, generation: generation) else { return }
             if !force, case .failed = statuses[xuid] { return }
             guard var tokens = dependencies.load(xuid) else {
                 identities[xuid] = nil; expirations[xuid] = nil
@@ -110,12 +118,12 @@ enum MinecraftSessionError: LocalizedError {
             do {
                 let refreshed = try await dependencies.refresh(tokens.microsoftRefreshToken)
                 try Task.checkCancellation()
-                guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch, generation: generation) else { return }
+                guard isCurrent(account: account, xuid: xuid, epoch: epoch, generation: generation) else { return }
                 tokens.microsoftRefreshToken = refreshed.refreshToken
                 try dependencies.save(tokens, xuid)
                 let session = try await dependencies.signIn(refreshed)
                 try Task.checkCancellation()
-                guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch, generation: generation) else { return }
+                guard isCurrent(account: account, xuid: xuid, epoch: epoch, generation: generation) else { return }
                 tokens.minecraftAccessToken = session.accessToken; tokens.minecraftTokenExpiration = session.expiration
                 try dependencies.save(tokens, xuid)
                 if appearances.revision(for: xuid) == appearanceRevision {
@@ -125,7 +133,7 @@ enum MinecraftSessionError: LocalizedError {
                 identities[xuid] = .init(name: session.profile.name, uuid: session.profile.uuid, accessToken: session.accessToken, xuid: xuid)
                 expirations[xuid] = session.expiration; statuses[xuid] = .idle
             } catch {
-                guard !Task.isCancelled, isCurrent(accountID: accountID, xuid: xuid, epoch: epoch, generation: generation) else { return }
+                guard !Task.isCancelled, isCurrent(account: account, xuid: xuid, epoch: epoch, generation: generation) else { return }
                 statuses[xuid] = .failed(error.localizedDescription)
             }
         }
@@ -136,12 +144,19 @@ enum MinecraftSessionError: LocalizedError {
     /// Refreshes once after a 401 and guarantees the retry uses a different Minecraft token.
     func refreshAfterUnauthorized(_ account: Account, rejectedToken: String) async throws -> MinecraftLaunchIdentity {
         let xuid = account.xuid
-        let accountID = account.persistentModelID
-        accountIDs[xuid] = accountID
-
+        try Task.checkCancellation()
+        guard accounts[xuid]?.persistentModelID == account.persistentModelID else { throw MinecraftSessionError.accountChanged }
+        let startingEpoch = sessionEpoch
         if let task = tasks[xuid] { await task.value }
+        try Task.checkCancellation()
+        guard isCurrent(account: account, xuid: xuid, epoch: startingEpoch) else { throw MinecraftSessionError.accountChanged }
         if let current = identity(for: account), current.accessToken != rejectedToken { return current }
-        if let task = forcedRefreshTasks[xuid] { return try await task.value }
+        if let task = forcedRefreshTasks[xuid] {
+            let identity = try await task.value
+            try Task.checkCancellation()
+            guard isCurrent(account: account, xuid: xuid, epoch: startingEpoch) else { throw MinecraftSessionError.accountChanged }
+            return identity
+        }
 
         let generation = UUID()
         let epoch = sessionEpoch
@@ -154,15 +169,17 @@ enum MinecraftSessionError: LocalizedError {
                     refreshGenerations[xuid] = nil
                 }
             }
+            try Task.checkCancellation()
+            guard isCurrent(account: account, xuid: xuid, epoch: epoch) else { throw MinecraftSessionError.accountChanged }
             guard var tokens = dependencies.load(xuid) else { throw MinecraftSessionError.unavailable }
             let refreshed = try await dependencies.refresh(tokens.microsoftRefreshToken)
             try Task.checkCancellation()
-            guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch) else { throw MinecraftSessionError.accountChanged }
+            guard isCurrent(account: account, xuid: xuid, epoch: epoch) else { throw MinecraftSessionError.accountChanged }
             tokens.microsoftRefreshToken = refreshed.refreshToken
             try dependencies.save(tokens, xuid)
             let session = try await dependencies.signIn(refreshed)
             try Task.checkCancellation()
-            guard isCurrent(accountID: accountID, xuid: xuid, epoch: epoch) else { throw MinecraftSessionError.accountChanged }
+            guard isCurrent(account: account, xuid: xuid, epoch: epoch) else { throw MinecraftSessionError.accountChanged }
             guard session.accessToken != rejectedToken else {
                 identities[xuid] = nil; expirations[xuid] = nil
                 throw MinecraftSessionError.refreshedTokenRejected
@@ -198,10 +215,10 @@ enum MinecraftSessionError: LocalizedError {
         tasks.removeAll(); forcedRefreshTasks.removeAll()
         generations.removeAll(); refreshGenerations.removeAll()
         for xuid in Array(appearances.profiles.keys) { appearances.clear(xuid) }
-        identities.removeAll(); expirations.removeAll(); accountIDs.removeAll(); statuses.removeAll()
+        identities.removeAll(); expirations.removeAll(); accounts.removeAll(); statuses.removeAll()
     }
 
-    private func isCurrent(accountID: PersistentIdentifier, xuid: String, epoch: UUID, generation: UUID? = nil) -> Bool {
-        sessionEpoch == epoch && accountIDs[xuid] == accountID && (generation == nil || generations[xuid] == generation)
+    private func isCurrent(account: Account, xuid: String, epoch: UUID, generation: UUID? = nil) -> Bool {
+        sessionEpoch == epoch && accounts[xuid]?.persistentModelID == account.persistentModelID && (generation == nil || generations[xuid] == generation)
     }
 }

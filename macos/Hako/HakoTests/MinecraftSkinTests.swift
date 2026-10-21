@@ -120,6 +120,29 @@ struct MinecraftSkinLoaderTests {
         #expect(SkinURLProtocol.requests.first?.value(forHTTPHeaderField: "Authorization") == nil)
     }
 
+    @Test(arguments: [true, false])
+    func ordinaryAuthoritativeProfileKeepsSkinWhenCapeFails(downloadFails: Bool) async throws {
+        let capeURL = URL(string: "https://textures.minecraft.net/cape/broken")!
+        SkinURLProtocol.prepare([
+            textureURL: .init(data: try SkinTestFixtures.png()),
+            capeURL: .init(status: downloadFails ? 503 : 200, data: Data("broken cape".utf8))
+        ])
+        let session = session()
+        defer { session.invalidateAndCancel() }
+        let loader = MinecraftSkinLoader(session: session)
+        let source = MinecraftSkinSource(uuid: uuid, skinURL: textureURL, variant: .slim,
+                                         loadCape: true, isAuthoritative: true, capeURL: capeURL, capeIsKnown: true)
+        let skin = try #require(await loader.load(source))
+        #expect(skin.variant == .slim)
+        #expect(skin.capeImage == nil)
+        // A failed cape is retried on the next profile visit, rather than cached as absent.
+        SkinURLProtocol.prepare([
+            textureURL: .init(data: try SkinTestFixtures.png()),
+            capeURL: .init(data: try SkinTestFixtures.png(height: 32))
+        ])
+        #expect(try await loader.load(source)?.capeImage != nil)
+    }
+
     @Test func noMinecraftNeedsNoRequest() async throws {
         SkinURLProtocol.prepare([:])
         let session = session()
@@ -210,6 +233,30 @@ struct MinecraftSkinLoaderTests {
 @Suite(.serialized)
 @MainActor
 struct MinecraftSkinUploadTests {
+    @Test func fileImportChecksHeaderAndRejectsOversizedFileBeforeReadingBody() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let png = try SkinTestFixtures.png(height: 32)
+        try png.write(to: url)
+        let read = try await Task.detached { try MinecraftSkinUpload.readPNGFile(at: url) }.value
+        #expect(read == png)
+        #expect(try MinecraftSkinUpload(png: read, variant: .slim).variant == .classic)
+        let file = try FileHandle(forWritingTo: url)
+        try file.truncate(atOffset: UInt64(MinecraftSkinUpload.maximumFileSize + 1))
+        try file.close()
+        await #expect(throws: MinecraftSkinUploadError.fileTooLarge) {
+            try await Task.detached { try MinecraftSkinUpload.readPNGFile(at: url) }.value
+        }
+        try Data("not a png".utf8).write(to: url)
+        await #expect(throws: MinecraftSkinUploadError.invalidPNG) {
+            try await Task.detached { try MinecraftSkinUpload.readPNGFile(at: url) }.value
+        }
+        try SkinTestFixtures.png(width: 128, height: 128).write(to: url)
+        await #expect(throws: MinecraftSkinUploadError.unsupportedDimensions) {
+            try await Task.detached { try MinecraftSkinUpload.readPNGFile(at: url) }.value
+        }
+    }
+
     @Test func acceptsModernAndLegacyPngAndForcesClassicForLegacy() throws {
         let modern = try MinecraftSkinUpload(png: SkinTestFixtures.png(), variant: .slim)
         let legacy = try MinecraftSkinUpload(png: SkinTestFixtures.png(height: 32), variant: .slim)

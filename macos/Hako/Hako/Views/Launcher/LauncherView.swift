@@ -31,6 +31,7 @@ struct LauncherView: View {
     @State private var tab = LauncherTab.instances
     @State private var creatingInstance = false
     @State private var pendingTab: LauncherTab?
+    @State private var characterNavigation = CharacterEditorNavigationGate()
     @State private var pendingEditorDestination: LauncherTab?
     @State private var isEditingCharacter = false
     @State private var isConfirmingCharacterDiscard = false
@@ -98,13 +99,13 @@ struct LauncherView: View {
             titleVisibility: .visible
         ) {
             Button("Отбросить изменения", role: .destructive) { discardCharacterDraftAndNavigate() }
-            Button("Продолжить редактирование", role: .cancel) { pendingEditorDestination = nil }
+            Button("Продолжить редактирование", role: .cancel) { cancelCharacterNavigation() }
         } message: {
             Text("Несохранённые изменения скина и плаща будут удалены.")
         }
         .task(id: quickLaunch.presentation?.id) {
             if let request = quickLaunch.presentation {
-                requestTab(.instance(request.instanceID))
+                requestTab(.instance(request.instanceID), presentationID: request.id)
                 completeQuickLaunchNavigation()
             }
         }
@@ -199,12 +200,19 @@ struct LauncherView: View {
     }
 
     private func requestTab(_ destination: LauncherTab) {
+        requestTab(destination, presentationID: nil)
+    }
+
+    private func requestTab(_ destination: LauncherTab, presentationID: UUID?) {
         if isEditingCharacter {
-            guard !characterEditor.isSaving else { return }
-            if characterEditor.hasUnsavedChanges {
+            switch characterNavigation.request(presentationID: presentationID, isSaving: characterEditor.isSaving,
+                                               hasUnsavedChanges: characterEditor.hasUnsavedChanges, quickLaunch: quickLaunch) {
+            case .blocked:
+                return
+            case .confirmDiscard:
                 pendingEditorDestination = destination
                 isConfirmingCharacterDiscard = true
-            } else {
+            case .leave:
                 finishCharacterNavigation(to: destination)
             }
             return
@@ -222,6 +230,11 @@ struct LauncherView: View {
         }
     }
 
+    private func cancelCharacterNavigation() {
+        characterNavigation.cancel(quickLaunch: quickLaunch)
+        pendingEditorDestination = nil
+    }
+
     private func discardCharacterDraftAndNavigate() {
         guard let destination = pendingEditorDestination else { return }
         characterEditor.discardDraft()
@@ -229,6 +242,7 @@ struct LauncherView: View {
     }
 
     private func finishCharacterNavigation(to destination: LauncherTab) {
+        characterNavigation.finish()
         pendingEditorDestination = nil
         isConfirmingCharacterDiscard = false
         isEditingCharacter = false
@@ -319,9 +333,6 @@ struct LauncherView: View {
         .environment(appearances)
         .environment(skinLoader)
         .environment(characterEditor)
-        .environment(sessions.appearances)
-        .environment(MinecraftSkinLoader.shared)
-        .environment(MinecraftCharacterEditorCoordinator(api: MinecraftProfileAPIClient(), sessions: sessions, context: container.mainContext, appearances: sessions.appearances))
         .environment(playtime)
         .environment(games)
         .environment(QuickLaunchCoordinator(store: installations.store, games: games))

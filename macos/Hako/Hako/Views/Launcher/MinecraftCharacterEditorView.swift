@@ -23,7 +23,8 @@ struct MinecraftCharacterEditorView: View {
                 previewRevision: editor.previewRevision,
                 isLocalPreview: true,
                 previewError: editor.previewError,
-                onReadinessChange: { ready, revision in editor.setPreviewReady(ready, revision: revision) }
+                onReadinessChange: { ready, revision in editor.setPreviewReady(ready, revision: revision) },
+                onPreviewFailure: { message, revision in editor.reportPreviewFailure(message, revision: revision) }
             )
             .frame(minWidth: 280, maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 16)
@@ -42,14 +43,7 @@ struct MinecraftCharacterEditorView: View {
             switch result {
             case .success(let urls):
                 guard let url = urls.first else { return }
-                let hasAccess = url.startAccessingSecurityScopedResource()
-                defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let data = try Data(contentsOf: url)
-                    editor.importSkin(data)
-                } catch {
-                    editor.reportInputError(error.localizedDescription)
-                }
+                Task { await editor.importSkin(from: url) }
             case .failure(let error):
                 editor.reportInputError(error.localizedDescription)
             }
@@ -100,7 +94,7 @@ struct MinecraftCharacterEditorView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.glass)
-            .disabled(editor.isSaving)
+            .disabled(!editor.canImportSkin)
 
             Picker("Модель", selection: Binding(
                 get: { editor.selectedVariant },
@@ -163,6 +157,7 @@ struct MinecraftCharacterEditorView: View {
                                 isSelected: editor.selectedCapeID == cape.id,
                                 error: editor.capeImageErrors[cape.id]
                             ) {
+                                if editor.capeImageErrors[cape.id] != nil { editor.retryCapeImage(cape) }
                                 editor.selectCape(cape.id)
                             }
                         }
@@ -175,14 +170,27 @@ struct MinecraftCharacterEditorView: View {
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .disabled(editor.isSaving)
     }
 
     @ViewBuilder private var statusMessages: some View {
+        if editor.sessionUnavailable {
+            Text("Minecraft-сессия недоступна. Повторите подключение аккаунта.")
+                .font(.callout).foregroundStyle(.secondary)
+            Button("Повторить подключение Minecraft") { Task { await editor.reconnect() } }
+                .buttonStyle(.glass)
+                .disabled(editor.isSaving)
+        }
+        if editor.previewError != nil {
+            Button("Повторить предпросмотр") { editor.retryPreview() }
+                .buttonStyle(.glass)
+                .disabled(editor.isSaving || editor.isLoading)
+        }
         if let saveError = editor.saveError {
             Label(saveError, systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.red)
                 .fixedSize(horizontal: false, vertical: true)
-        } else if editor.hasUnsavedChanges && !editor.previewReady {
+        } else if editor.hasUnsavedChanges && !editor.previewReady && editor.previewError == nil {
             Label("Подготавливаем предпросмотр…", systemImage: "hourglass")
                 .font(.callout).foregroundStyle(.secondary)
         }
