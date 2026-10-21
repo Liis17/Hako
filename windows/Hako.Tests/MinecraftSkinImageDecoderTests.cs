@@ -105,6 +105,16 @@ public sealed class MinecraftSkinImageDecoderTests
         CollectionAssert.AreEqual(new byte[] { 20, 20, 30, 255 }, head.AsSpan(8 * 4, 4).ToArray());
     }
 
+    [TestMethod]
+    public void HeadBitmapConverter_ProducesPremultipliedBgraFromStraightRgba()
+    {
+        byte[] rgba = [200, 100, 50, 128, 9, 201, 240, 255, 128, 64, 32, 0];
+
+        var bgra = MinecraftSkinHeadBitmapConverter.ConvertStraightRgbaToPremultipliedBgra(rgba);
+
+        CollectionAssert.AreEqual(new byte[] { 25, 50, 100, 128, 240, 201, 9, 255, 0, 0, 0, 0 }, bgra);
+    }
+
     private static void SetPixel(byte[] rgba, int x, int y, byte red, byte green, byte blue, byte alpha)
     {
         var offset = (y * 64 + x) * 4;

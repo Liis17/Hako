@@ -73,7 +73,7 @@ internal sealed unsafe class ICompositionDrawingSurfaceInterop : IDisposable
 
         try
         {
-            var texture = SharpGen.Runtime.MarshallingHelpers.FromPointer<ID3D11Texture2D>(texturePointer);
+            var texture = new ID3D11Texture2D(texturePointer);
             if (texture is null)
             {
                 throw new InvalidOperationException("BeginDraw не вернул текстуру D3D11.");

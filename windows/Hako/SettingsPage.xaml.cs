@@ -19,7 +19,8 @@ public sealed partial class SettingsPage : Page
     private ProfilePreviewOptions? _previewOptions;
     private bool _updatingSelection;
     private bool _updatingLanguage;
-    private bool _windowAvailable;
+    private bool _windowVisible;
+    private bool _windowActive;
     private bool _screenVisible;
     private bool _languageChangedSubscribed;
     private SettingsSection _selectedSection = SettingsSection.General;
@@ -61,14 +62,16 @@ public sealed partial class SettingsPage : Page
         base.OnNavigatedFrom(e);
     }
 
-    public void SetWindowAvailable(bool available)
+    public void SetWindowState(bool visible, bool active)
     {
-        if (_windowAvailable == available)
+        active &= visible;
+        if (_windowVisible == visible && _windowActive == active)
         {
             return;
         }
 
-        _windowAvailable = available;
+        _windowVisible = visible;
+        _windowActive = active;
         UpdateSkinVisibility();
     }
 
@@ -173,7 +176,7 @@ public sealed partial class SettingsPage : Page
     {
         var account = _coordinator?.Account;
         var showModel = _screenVisible
-            && _windowAvailable
+            && _windowVisible
             && _coordinator?.Screen == LauncherScreen.Settings
             && _selectedSection == SettingsSection.Profile
             && account is not null;
@@ -190,6 +193,7 @@ public sealed partial class SettingsPage : Page
             account!.MinecraftProfileId,
             _profileRequestScope,
             _previewOptions?.Mode == ProfilePreviewMode.Fixture);
+        SkinView.SetWindowActive(_windowActive);
         SkinView.SetEligible(true);
     }
 
@@ -280,7 +284,8 @@ public sealed partial class SettingsPage : Page
         var bitmap = new WriteableBitmap(64, 64);
         using (var stream = bitmap.PixelBuffer.AsStream())
         {
-            stream.Write(rgba, 0, rgba.Length);
+            var bgra = MinecraftSkinHeadBitmapConverter.ConvertStraightRgbaToPremultipliedBgra(rgba);
+            stream.Write(bgra, 0, bgra.Length);
         }
 
         bitmap.Invalidate();

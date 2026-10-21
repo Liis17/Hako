@@ -193,9 +193,9 @@ public sealed partial class MainWindow : Window
             && _coordinator.Screen == LauncherScreen.Settings
             && RootNavigation.Visibility == Visibility.Visible;
         settingsPage.SetScreenVisible(settingsVisible);
-        var windowAvailable = !_closed && _windowActive && _windowVisible
+        var windowVisible = !_closed && _windowVisible
             && AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Minimized };
-        settingsPage.SetWindowAvailable(windowAvailable);
+        settingsPage.SetWindowState(windowVisible, windowVisible && _windowActive);
     }
 
     private void RootNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

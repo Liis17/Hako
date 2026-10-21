@@ -53,6 +53,10 @@ public sealed class MinecraftSkinRenderer : IDisposable
     private const float NearPlane = 0.01f;
     private const float FarPlane = 100f;
 
+    private static readonly Lazy<byte[]> _sharedVertexShaderBytecode = new(() => CompileShader("VSMain", "vs_5_0"));
+    private static readonly Lazy<byte[]> _sharedOpaquePixelShaderBytecode = new(() => CompileShader("PSOpaque", "ps_5_0"));
+    private static readonly Lazy<byte[]> _sharedTranslucentPixelShaderBytecode = new(() => CompileShader("PSTranslucent", "ps_5_0"));
+
     private readonly FrameworkElement _host;
     private readonly byte[] _atlasPixels = new byte[AtlasWidth * AtlasHeight * 4];
     private readonly Vertex[] _frameVertices = new Vertex[MaxVertexCount];
@@ -101,9 +105,9 @@ public sealed class MinecraftSkinRenderer : IDisposable
 
         try
         {
-            _vertexShaderBytecode = CompileShader("VSMain", "vs_5_0");
-            _opaquePixelShaderBytecode = CompileShader("PSOpaque", "ps_5_0");
-            _translucentPixelShaderBytecode = CompileShader("PSTranslucent", "ps_5_0");
+            _vertexShaderBytecode = _sharedVertexShaderBytecode.Value;
+            _opaquePixelShaderBytecode = _sharedOpaquePixelShaderBytecode.Value;
+            _translucentPixelShaderBytecode = _sharedTranslucentPixelShaderBytecode.Value;
 
             _compositor = ElementCompositionPreview.GetElementVisual(host).Compositor;
             _surfaceBrush = _compositor.CreateSurfaceBrush();
@@ -268,7 +272,19 @@ public sealed class MinecraftSkinRenderer : IDisposable
         }
         catch (Exception exception) when (IsDeviceLost(exception))
         {
-            RecoverDevice();
+            try
+            {
+                RecoverDevice();
+                DrawFrame(yawRadians, pitchRadians, animationElapsed, isWalking);
+                _device!.DeviceRemovedReason.CheckError();
+            }
+            catch (Exception retryException)
+            {
+                throw new MinecraftSkinRendererException(
+                    MinecraftSkinRendererFailure.DeviceLost,
+                    "Не удалось восстановить устройство и повторно отрисовать Minecraft-скин.",
+                    new AggregateException(exception, retryException));
+            }
         }
         catch (MinecraftSkinRendererException)
         {

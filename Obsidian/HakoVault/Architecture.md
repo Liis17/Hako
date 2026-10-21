@@ -290,7 +290,9 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
    без токенов; он не меняет `AccountSession` или формат persistence.
 3. `OnLaunched` сначала показывает `MainWindow` (экран `Loading`), затем `await InitializeAsync()` выбирает
    `Welcome` или `Builds`. В preview-режиме вместо файловых store создаются fake in-memory store и auth-сервис,
-   который запрещает sign-in; production-путь `AppDataDirectory.GetLocalPath()` не вызывается.
+   который запрещает sign-in; production-путь `AppDataDirectory.GetLocalPath()` не вызывается. Режим
+   `--profile-preview guest` после гостевого перехода открывает «Настройки → Профиль»; обычный гостевой вход
+   по-прежнему начинает на странице сборок.
 
 ### Упаковка и сборка
 

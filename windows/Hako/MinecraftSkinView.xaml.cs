@@ -15,6 +15,7 @@ namespace Hako;
 public sealed partial class MinecraftSkinView : UserControl
 {
     private readonly UISettings _uiSettings = new();
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
     private MinecraftSkinPreviewService? _previewService;
     private MinecraftSkinRenderer? _renderer;
     private MinecraftSkinPreviewData? _skinData;
@@ -26,6 +27,7 @@ public sealed partial class MinecraftSkinView : UserControl
     private bool _requestedEligible;
     private bool _isLoaded;
     private bool _animationsEnabled = true;
+    private bool _windowActive;
     private bool _animationsChangedSubscribed;
     private bool _languageChangedSubscribed;
     private bool _renderingSubscribed;
@@ -45,6 +47,7 @@ public sealed partial class MinecraftSkinView : UserControl
     public MinecraftSkinView()
     {
         InitializeComponent();
+        _dispatcherQueue = DispatcherQueue;
         UpdateLocalizedProperties();
     }
 
@@ -102,6 +105,7 @@ public sealed partial class MinecraftSkinView : UserControl
             return;
         }
 
+        UpdateLocalizedProperties();
         ObserveXamlRoot();
         SubscribeLanguageChanges();
         RefreshAnimationPreference();
@@ -129,7 +133,22 @@ public sealed partial class MinecraftSkinView : UserControl
 
     private bool IsEligible => _requestedEligible && _isLoaded && _sourceConfigured && _previewService is not null;
 
-    private bool IsWalking => IsEligible && _skinData is not null && _animationsEnabled;
+    private bool IsWalking => IsEligible && _windowActive && _skinData is not null && _animationsEnabled;
+
+    internal void SetWindowActive(bool active)
+    {
+        if (_windowActive == active)
+        {
+            return;
+        }
+
+        _windowActive = active;
+        UpdateFrameSubscription();
+        if (!IsWalking)
+        {
+            RenderPose(isWalking: false);
+        }
+    }
 
     private void MinecraftSkinView_Loaded(object sender, RoutedEventArgs e)
     {
@@ -205,17 +224,20 @@ public sealed partial class MinecraftSkinView : UserControl
 
     private void UISettings_AnimationsEnabledChanged(UISettings sender, object args)
     {
-        if (!_isLoaded)
+        _dispatcherQueue.TryEnqueue(() =>
         {
-            return;
-        }
+            if (_disposed || !_isLoaded || !IsEligible)
+            {
+                return;
+            }
 
-        _animationsEnabled = sender.AnimationsEnabled;
-        UpdateFrameSubscription();
-        if (!IsWalking)
-        {
-            RenderPose(isWalking: false);
-        }
+            _animationsEnabled = sender.AnimationsEnabled;
+            UpdateFrameSubscription();
+            if (!IsWalking)
+            {
+                RenderPose(isWalking: false);
+            }
+        });
     }
 
     private void UnsubscribeWindowSettings()
@@ -552,7 +574,7 @@ public sealed partial class MinecraftSkinView : UserControl
         _dragYaw = _yaw;
         _dragPitch = _pitch;
         RendererSurface.CapturePointer(e.Pointer);
-        RendererSurface.Focus(FocusState.Pointer);
+        Focus(FocusState.Pointer);
         e.Handled = true;
     }
 

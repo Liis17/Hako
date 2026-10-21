@@ -114,11 +114,18 @@ public sealed class MinecraftSkinLoader(HttpClient httpClient)
             throw new InvalidDataException("The requested URL is not allowed.");
         }
 
+        using var timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (_httpClient.Timeout != Timeout.InfiniteTimeSpan)
+        {
+            timeoutCancellation.CancelAfter(_httpClient.Timeout);
+        }
+
+        var downloadToken = timeoutCancellation.Token;
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         using var response = await _httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
+            downloadToken).ConfigureAwait(false);
 
         if (response.RequestMessage?.RequestUri is { } responseUri && !isAllowedUri(responseUri))
         {
@@ -138,13 +145,13 @@ public sealed class MinecraftSkinLoader(HttpClient httpClient)
             throw new InvalidDataException("The server response exceeds the allowed size.");
         }
 
-        await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var input = await response.Content.ReadAsStreamAsync(downloadToken).ConfigureAwait(false);
         using var output = new MemoryStream(response.Content.Headers.ContentLength is long length ? (int)length : 0);
         var buffer = new byte[16 * 1024];
         while (true)
         {
             var remaining = maximumBytes - (int)output.Length;
-            var bytesRead = await input.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, remaining + 1)), cancellationToken)
+            var bytesRead = await input.ReadAsync(buffer.AsMemory(0, Math.Min(buffer.Length, remaining + 1)), downloadToken)
                 .ConfigureAwait(false);
             if (bytesRead == 0)
             {
@@ -159,7 +166,7 @@ public sealed class MinecraftSkinLoader(HttpClient httpClient)
             output.Write(buffer, 0, bytesRead);
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
+        downloadToken.ThrowIfCancellationRequested();
         return output.ToArray();
     }
 

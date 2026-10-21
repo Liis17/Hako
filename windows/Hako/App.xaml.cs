@@ -46,6 +46,7 @@ public partial class App : Application
             if (_previewOptions.Mode == ProfilePreviewMode.Guest)
             {
                 _coordinator.ContinueWithoutAccount();
+                _coordinator.OpenSettings(SettingsSection.Profile);
             }
             else
             {

@@ -258,6 +258,42 @@ public sealed class MinecraftSkinLoaderTests
     }
 
     [TestMethod]
+    public async Task LoadAsync_SkinBodyTimeout_DoesNotCacheProfileAndAllowsRetry()
+    {
+        var profileRequests = 0;
+        var skinRequests = 0;
+        var bodyReadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new CallbackHttpHandler((request, _) =>
+        {
+            if (request.RequestUri!.Host == "sessionserver.mojang.com")
+            {
+                profileRequests++;
+                return Task.FromResult(JsonResponse(ProfileJson(SkinTextureUrl)));
+            }
+
+            skinRequests++;
+            HttpContent content = skinRequests == 1
+                ? new StreamContent(new StalledReadStream(bodyReadStarted))
+                : new ByteArrayContent(SkinBytes);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = content,
+                RequestMessage = request
+            });
+        });
+        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(1) };
+        var loader = new MinecraftSkinLoader(client);
+
+        var pending = loader.LoadAsync(ProfileId);
+        await bodyReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(() => pending);
+        Assert.IsNotNull(await loader.LoadAsync(ProfileId));
+        Assert.AreEqual(2, profileRequests);
+        Assert.AreEqual(2, skinRequests);
+    }
+
+    [TestMethod]
     [DataRow("file:///tmp/skin.png")]
     [DataRow("https://example.com/texture/skin")]
     [DataRow("http://example.com/texture/skin")]
@@ -325,6 +361,42 @@ public sealed class MinecraftSkinLoaderTests
 
     private static HttpResponseMessage EmptyResponse(HttpStatusCode status, HttpRequestMessage request) =>
         new(status) { RequestMessage = request };
+
+    private sealed class StalledReadStream(TaskCompletionSource readStarted) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            await WaitForCancellationAsync(cancellationToken);
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            WaitForCancellationAsync(cancellationToken);
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        private async ValueTask<int> WaitForCancellationAsync(CancellationToken cancellationToken)
+        {
+            readStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+    }
 }
 
 [TestClass]

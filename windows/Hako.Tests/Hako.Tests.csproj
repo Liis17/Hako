@@ -24,6 +24,7 @@
   <ItemGroup>
     <Compile Include="..\Hako\MinecraftSkinImageDecoder.cs" Link="MinecraftSkinImageDecoder.cs" />
     <Compile Include="..\Hako\MinecraftSkinHeadComposer.cs" Link="MinecraftSkinHeadComposer.cs" />
+    <Compile Include="..\Hako\MinecraftSkinHeadBitmapConverter.cs" Link="MinecraftSkinHeadBitmapConverter.cs" />
     <Compile Include="..\Hako\Graphics\MinecraftSkinGeometry.cs" Link="MinecraftSkinGeometry.cs" />
   </ItemGroup>
 
