@@ -90,6 +90,7 @@ import SwiftData
         quickLaunch = QuickLaunchCoordinator(store: installations.store, games: games)
         instanceCatalog = InstanceEntityCatalog(store: installations.store)
         spotlight = InstanceSpotlightIndexer(catalog: instanceCatalog)
+        if !characterEditorPreview { spotlight.start() }
         updates = AppUpdateCoordinator(store: installations.store)
         startsInCharacterEditor = characterEditorPreview
         if characterEditorPreview {
@@ -112,7 +113,6 @@ import SwiftData
         guard !startsInCharacterEditor else { return }
         games.start()
         installations.start()
-        spotlight.start()
         updates.start()
     }
 }

@@ -24,7 +24,9 @@ struct ContentView: View {
     @Environment(\.openWindow) private var openWindow
 
     private var language: AppLanguage {
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--character-editor-preview") { return AppLanguage.current }
+        #endif
         return AppLanguage(rawValue: storedLanguage) ?? AppLanguage.current
     }
 

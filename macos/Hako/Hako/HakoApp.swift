@@ -14,7 +14,10 @@ struct HakoApp: App {
     private let services: HakoServices
 
     init() {
-        services = HakoServices.forCurrentLaunch()
+        let services = HakoServices.forCurrentLaunch()
+        self.services = services
+        appDelegate.renameExit = services.renameExit
+        appDelegate.services = services
     }
 
     var body: some Scene {
@@ -32,10 +35,6 @@ struct HakoApp: App {
                 .environment(services.quickLaunch)
                 .environment(services.updates)
                 .background(InstanceRenameWindowCloseGuard(coordinator: services.renameExit))
-                .onAppear {
-                    appDelegate.renameExit = services.renameExit
-                    appDelegate.services = services
-                }
                 .task { services.start() }
         }
         .modelContainer(services.modelContainer)

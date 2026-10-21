@@ -378,7 +378,11 @@ final class MinecraftCharacterEditorCoordinator {
             return false
         } catch {
             guard isCurrent(account, generation: saveGeneration) else { return false }
-            saveError = error.localizedDescription
+            if localPersistencePending {
+                saveError = String(appLocalized: "Изменения персонажа сохранены на сервере, но не удалось сохранить их в Hako: \(error.localizedDescription)")
+            } else {
+                saveError = error.localizedDescription
+            }
             return false
         }
     }

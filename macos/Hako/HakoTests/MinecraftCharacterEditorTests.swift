@@ -224,6 +224,8 @@ struct MinecraftCharacterEditorTests {
         #expect(!(await harness.editor.save()))
         #expect(harness.editor.localPersistencePending)
         #expect(harness.api.uploadedSkins.count == 1)
+        let expectedSaveError = String(appLocalized: "Изменения персонажа сохранены на сервере, но не удалось сохранить их в Hako: \(FixturePersistenceError.failed.localizedDescription)")
+        #expect(harness.editor.saveError == expectedSaveError)
         #expect(await harness.editor.save())
         #expect(harness.api.uploadedSkins.count == 1)
         #expect(!harness.editor.localPersistencePending)
