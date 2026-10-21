@@ -8,17 +8,27 @@
 import SwiftData
 import SwiftUI
 import AppKit
+import Foundation
 
 /// Корень окна: приветствие, вход или лаунчер с аккаунтом/гостевым режимом.
 struct ContentView: View {
+    var startsInCharacterEditor = false
     @Query private var accounts: [Account]
     @State private var isSigningIn = false
     @State private var isGuestLauncher = false
-    @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.current
+    @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.current.rawValue
     @Environment(MinecraftSessionCoordinator.self) private var sessions
+    @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
     @Environment(QuickLaunchCoordinator.self) private var quickLaunch
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(\.openWindow) private var openWindow
+
+    private var language: AppLanguage {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--character-editor-preview") { return AppLanguage.current }
+        #endif
+        return AppLanguage(rawValue: storedLanguage) ?? AppLanguage.current
+    }
 
     var body: some View {
         ZStack {
@@ -28,7 +38,7 @@ struct ContentView: View {
                 LoginView(onBack: { isSigningIn = false })
                     .transition(.blurReplace)
             } else if accounts.first != nil || isGuestLauncher {
-                LauncherView(account: accounts.first, onSignIn: { isSigningIn = true })
+                LauncherView(account: accounts.first, onSignIn: { isSigningIn = true }, startsInCharacterEditor: startsInCharacterEditor)
                     .transition(.blurReplace)
             } else {
                 WelcomeView(onStart: { isSigningIn = true }, onContinueWithoutAccount: { isGuestLauncher = true })
@@ -40,7 +50,8 @@ struct ContentView: View {
         .animation(.smooth, value: isGuestLauncher)
         // После входа и после выхода следующий экран без аккаунта — приветствие.
         .onChange(of: accounts.isEmpty) { isSigningIn = false; if accounts.isEmpty { sessions.signOut(); isGuestLauncher = false } }
-        .task(id: accounts.first?.xuid) { if let account = accounts.first { await sessions.monitor(account) } }
+        .onChange(of: accounts.first?.persistentModelID) { characterEditor.invalidateForAccountChange() }
+        .task(id: accounts.first?.persistentModelID) { if let account = accounts.first { await sessions.monitor(account) } }
         .onAppear {
             let renameExit = renameExit, openWindow = openWindow
             quickLaunch.registerWindowPresenter { [weak renameExit] in

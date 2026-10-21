@@ -11,21 +11,30 @@ import SwiftData
 @main
 struct HakoApp: App {
     @NSApplicationDelegateAdaptor(HakoApplicationDelegate.self) private var appDelegate
-    private let services = HakoServices.shared
+    private let services: HakoServices
+
+    init() {
+        let services = HakoServices.forCurrentLaunch()
+        self.services = services
+        appDelegate.renameExit = services.renameExit
+        appDelegate.services = services
+    }
 
     var body: some Scene {
         Window("Hako", id: "main") {
-            ContentView()
+            ContentView(startsInCharacterEditor: services.startsInCharacterEditor)
                 .environment(services.installations)
                 .environment(services.content)
                 .environment(services.sessions)
+                .environment(services.appearances)
+                .environment(services.skinLoader)
+                .environment(services.characterEditor)
                 .environment(services.games)
                 .environment(services.playtime)
                 .environment(services.renameExit)
                 .environment(services.quickLaunch)
                 .environment(services.updates)
                 .background(InstanceRenameWindowCloseGuard(coordinator: services.renameExit))
-                .onAppear { appDelegate.renameExit = services.renameExit }
                 .task { services.start() }
         }
         .modelContainer(services.modelContainer)

@@ -13,7 +13,8 @@ Windows-клиент — отдельный стек WinUI 3 в каталоге
 
 Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
 с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
-(карточки и профили сборок, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java и анимированным 3D-скином) и выход.
+(карточки и профили сборок, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java,
+редактор PNG-скина/плаща и анимированный 3D-скин) и выход.
 Создание сборки запускает независимую установку Java и Minecraft из официальных API Mojang в фоне; для собственной Fabric-сборки дополнительно устанавливаются закреплённый Loader и проверенный Fabric API. Готовые модпаки Modrinth сохраняют версии и состав автора; API берётся только из пакета.
 Установленные сборки запускаются онлайн или в offline-mode; гостевой вход открывает лаунчер без аккаунта.
 Поддерживаются Vanilla и Fabric, локальные моды и Fabric API из официального проекта Modrinth. Каталог Modrinth устанавливает моды и ресурспаки в сборку и датапаки в выбранный локальный мир ([[Minecraft/Modrinth]]); каталог CurseForge не реализован. В macOS-приложении сторонних зависимостей (Swift Package Manager,
@@ -31,7 +32,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 | UserDefaults / `@AppStorage` | Глобальные параметры игры, язык интерфейса | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift`, `macos/Hako/Hako/AppLanguage.swift` |
 | String Catalog | Русский и английский интерфейс | `macos/Hako/Hako/Localizable.xcstrings` |
 | Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
-| URLSession | Авторизация, Minecraft/Java, Fabric Meta, Fabric API, каталог Modrinth и обновления Hako | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
+| URLSession | Авторизация, Minecraft/Java, Fabric Meta, Fabric API, каталог Modrinth, Minecraft Java Profile API и обновления Hako | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Auth/MinecraftProfileAPI.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
 
 ## Структура репозитория
@@ -50,11 +51,14 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 
 ## Компоненты
 
-- `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: получает `HakoServices.shared`
+- `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: получает `HakoServices.forCurrentLaunch()`
   (`macos/Hako/Hako/HakoServices.swift`) и создаёт единственную сцену `Window("Hako", id: "main")`.
-  `HakoServices` владеет единственными `ModelContainer`, `InstallationCoordinator`, `InstanceContentController`,
-  `MinecraftSessionCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator`, `InstanceRenameExitCoordinator`
-  `QuickLaunchCoordinator` и `AppUpdateCoordinator`. Интерфейс и системные команды используют те же объекты.
+  Обычный запуск использует `HakoServices.shared`; редакторный fixture-флаг создаёт отдельные контейнер и
+  координаторы. `HakoServices` владеет `ModelContainer`, `InstallationCoordinator`, `InstanceContentController`,
+  `MinecraftSessionCoordinator`, `MinecraftAppearanceStore`, `MinecraftSkinLoader`,
+  `MinecraftCharacterEditorCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator`,
+  `InstanceRenameExitCoordinator`, `QuickLaunchCoordinator` и `AppUpdateCoordinator`. Интерфейс и системные
+  команды обычного процесса используют те же объекты.
   Устройство контейнера описано в [[Data/Persistence]], быстрый запуск — в [[UI/SystemIntegration]].
 - [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками и игровым временем, контейнер хранилища, токены в Keychain,
   глобальные параметры игры, независимые папки сборок и статистика времени по XUID.
@@ -75,10 +79,15 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 
 ### Запуск
 
-1. При первом обращении к `HakoServices.shared` создаётся `modelContainer`:
-   `HakoSchema.schema` + `ModelConfiguration(schema:url:)` с URL из `AppDataLocation` → `ModelContainer`.
-   `LaunchSettingsMigration.run` сохраняет прежние режимы аргументов, фиксирует окна и переносит предел heap в ползунки.
-   Ошибка создания контейнера или миграции завершает приложение через `fatalError`.
+1. `HakoApp` вызывает `HakoServices.forCurrentLaunch()`. В обычном режиме первый запрос к
+   `HakoServices.shared` создаёт `modelContainer`: `HakoSchema.schema` + `ModelConfiguration(schema:url:)`
+   с URL из `AppDataLocation` → `ModelContainer`. `LaunchSettingsMigration.run` сохраняет прежние режимы
+   аргументов, фиксирует окна и переносит предел heap в ползунки. Ошибка создания контейнера или миграции
+   завершает приложение через `fatalError`.
+   В Debug при `--character-editor-preview` создаются отдельный in-memory контейнер, временная папка игровых данных,
+   фиктивные токены и `URLSession` с `MinecraftCharacterPreviewFixture`; миграция не запускается, а
+   production store и Keychain не изменяются. `--character-editor-preview-language=ru|en` задаёт язык только для preview.
+   Подробная команда — [[UI/MinecraftSkin#PNG для редактора]].
 2. `Window("Hako", id: "main") { ContentView() }` получает контейнер через
    `.modelContainer(services.modelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. `ContentView`

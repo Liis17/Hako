@@ -6,7 +6,9 @@ Parent: [[Index]]
 
 `macos/Hako/Hako/HakoServices.swift` — `HakoServices.shared`: единственный контейнер SwiftData
 и набор координаторов основного процесса. `HakoApp` передаёт те же объекты в окружение единственного
-главного окна `Window("Hako", id: "main")`. `start()` восстанавливает игры до запуска очереди установки.
+главного окна `Window("Hako", id: "main")` и привязывает их к `HakoApplicationDelegate` в `init()`, до
+появления окна, чтобы системное меню Dock было доступно сразу при запуске. `start()` восстанавливает игры
+до запуска очереди установки.
 
 `macos/Hako/Hako/Instances/QuickLaunchCoordinator.swift` — `QuickLaunchCoordinator.launch(instanceID:)`:
 асинхронный запуск по UUID, возвращает `started` либо `alreadyRunning`. Повторные запросы одной сборки

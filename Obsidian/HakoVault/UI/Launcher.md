@@ -28,6 +28,8 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Instances/InstanceRenameExitCoordinator.swift` | `InstanceRenameExitCoordinator`, `InstanceRenameWindowCloseGuard` | Защита незавершённого переименования при закрытии окна или приложения |
 | `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Язык интерфейса, глобальные параметры игры, место на диске и сведения о приложении |
 | `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView`, `GuestProfileView` | Профиль аккаунта, повтор подключения Minecraft, выход и предложение входа гостю |
+| `macos/Hako/Hako/Views/Launcher/MinecraftCharacterEditorView.swift` | `MinecraftCharacterEditorView` | Загрузка PNG, выбор модели и плаща, локальное 3D-превью и действия редактора |
+| `macos/Hako/Hako/Auth/MinecraftCharacterEditorCoordinator.swift` | `MinecraftCharacterEditorCoordinator` | Черновик редактора, авторизованные чтения/записи, сверка частичных результатов и защита поколением |
 | `macos/Hako/Hako/Views/Launcher/PlaytimeSummaryView.swift` | `PlaytimeSummaryView` | Общее игровое время аккаунта или гостя и ошибка сохранения |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView` | Анимированная модель скина справа в профиле |
 | `macos/Hako/Hako/Views/Avatars.swift` | `AccountAvatar`, `XboxAvatar`, `MinecraftHead` | Аватары аккаунтов |
@@ -36,11 +38,11 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `LauncherView(account: Account?, onSignIn:)` | Требует SwiftData со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `MinecraftSessionCoordinator`, `GameLaunchCoordinator` и `PlaytimeCoordinator` в окружении. Начальная вкладка — `.instances`; `onSignIn` открывает вход из гостевого профиля |
+| `LauncherView(account: Account?, onSignIn:startsInCharacterEditor:)` | Требует SwiftData со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `InstanceContentController`, `MinecraftSessionCoordinator`, `MinecraftAppearanceStore`, `MinecraftSkinLoader`, `MinecraftCharacterEditorCoordinator`, `GameLaunchCoordinator` и `PlaytimeCoordinator` в окружении. Начальная вкладка — `.instances`; preview-флаг открывает редактор изолированного аккаунта |
 | `LauncherPage(caption:title:content:)` | Японская подпись, `heroTitle`, содержимое; выравнивание по верхнему левому краю, появление через `reveal` |
-| `AccountAvatar(account:)` | Голова Minecraft, если известен `minecraftSkinURL`, иначе `XboxAvatar` |
+| `AccountAvatar(account:)` | Голова из последнего авторитетного Java-профиля, если он загружен; иначе из сохранённого `minecraftSkinURL`; при отсутствии URL — `XboxAvatar` |
 | `XboxAvatar(url:name:)` | `AsyncImage`; пока картинки нет или она не загрузилась — первая буква `name` на градиенте `sakuraDeep` |
-| `MinecraftHead(skinURL:)` | Лицо (8×8 в 8,8) и слой шапки (8×8 в 40,8) из текстуры скина 64×64 или 64×32, `interpolation(.none)` |
+| `MinecraftHead(skinURL:revision:)` | Лицо (8×8 в 8,8) и слой шапки (8×8 в 40,8) из текстуры скина 64×64 или 64×32, `interpolation(.none)`; смена ревизии отменяет устаревшую загрузку |
 
 Форму (круг, скруглённый квадрат) и размер аватару задаёт вызывающий.
 
@@ -89,9 +91,32 @@ Parent: [[Index]]
 Ошибка записи отображается в строке статистики; игра продолжается. При Microsoft-входе накопленное
 гостевое время и работающие гостевые сессии переходят аккаунту ([[Data/Persistence]]).
 
-3D-превью использует UUID, URL и вариант скина из `Account`. До загрузки и при ошибке
-показывает классического Стива; реальные статус подключения и аватары строк остаются источником
-информации об аккаунтах. Детали формата, кэша и анимации — [[UI/MinecraftSkin]].
+3D-превью использует UUID, URL и вариант скина из `Account`, пока нет авторитетного ответа Java Profile API.
+После чтения или сохранения `MinecraftAppearanceStore` становится источником скина и плаща; при известном
+профиле `MinecraftSkinLoader` не подменяет его данными публичного sessionserver. Ревизия применяется к обеим
+головам и полной модели, чтобы сбросить кэш/устаревший render. Детали формата, кэша и анимации — [[UI/MinecraftSkin]].
+
+Кнопка «Изменить персонажа» расположена под 3D-моделью справа и видна только при UUID/нике и
+действующей Minecraft-сессии. Гостям и аккаунтам без Minecraft Java редактор недоступен. Он заменяет содержимое
+профиля отдельной страницей: слева локальный экземпляр `MinecraftSkinView` с вращением и ходьбой; справа
+выбор PNG, модель рук и принадлежащие аккаунту плащи по имени, включая «Без плаща». Пока инвентарь загружается
+есть индикатор; ошибка предлагает повторить GET, пустой список показывает состояние без плащей.
+
+Импорт PNG доступен после загрузки профиля. Файл считывается вне UI-потока с security-scoped доступом
+до закрытия файлового дескриптора. Размер ограничен 4 МиБ до чтения тела; до декодирования проверяются PNG-сигнатура,
+IHDR и размер 64×64 или legacy 64×32. Legacy фиксирует classic. Неудачный импорт не меняет предыдущий черновик.
+Модель slim/classic повторно отправляет исходные проверенные байты, а выбор плаща отображается в том же локальном
+RealityKit-превью. Save доступен только для фактически изменённого черновика после успешной подготовки render;
+до сохранения `Account` не меняется. Ошибки подготовки и отдельных плащей можно повторить. При утрате сессии
+редактор объясняет блокировку Save и позволяет повторить подключение без сброса черновика.
+Поведение API, refresh 401 и сверка частичного успеха описаны в
+[[Auth/MicrosoftAuth#Редактор персонажа]].
+
+Back/Profile, выбор вкладки рейла и quick launch проходят общий navigation gate. При грязном черновике
+показывается подтверждение discard: отмена оставляет редактор и черновик; подтверждение сбрасывает их и один раз
+выполняет назначенный переход. Отмена discard или отказ во время Save завершает только соответствующий
+quick-launch запрос с отменой, чтобы он не зависал и не запускался при последующем ручном переходе.
+Во время Save импорт, повторное сохранение и навигация заблокированы.
 
 «Выйти» сначала показывает подтверждение (`alert` «Выйти из аккаунта?», «Выйти» / «Отмена»),
 защита от случайного выхода. После подтверждения: `TokenKeychain.delete(for: xuid)`, `modelContext.delete(account)`, `modelContext.save()`;

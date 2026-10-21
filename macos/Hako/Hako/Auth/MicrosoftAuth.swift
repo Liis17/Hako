@@ -42,6 +42,7 @@ struct MinecraftProfile {
     let name: String
     let skinURL: URL?
     var skinVariant: MinecraftSkinVariant? = nil
+    var skinID: String? = nil
 }
 
 struct MinecraftSession {
@@ -323,27 +324,51 @@ private struct MinecraftLogin: Decodable {
 
 struct MinecraftProfileResponse: Decodable {
     struct Skin: Decodable {
+        let id: String?
         let url: URL
         let state: String
         let variant: String?
 
         /// textures.minecraft.net отдаёт ссылки http; App Transport Security пропускает только https.
         var secureURL: URL? {
+            guard url.host?.lowercased() == "textures.minecraft.net" else { return nil }
             var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
             components?.scheme = "https"
             return components?.url
         }
     }
 
+    struct Cape: Decodable, Identifiable, Hashable {
+        let id: String
+        let state: String
+        let url: URL
+        let alias: String?
+        var name: String { alias ?? id }
+
+        var secureURL: URL? {
+            guard url.host?.lowercased() == "textures.minecraft.net",
+                  var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  components.scheme == "http" || components.scheme == "https"
+            else { return nil }
+            components.scheme = "https"
+            return components.url
+        }
+    }
+
     let id: String
     let name: String
     let skins: [Skin]?
+    let capes: [Cape]?
+
+    var activeSkin: Skin? { skins?.first { $0.state == "ACTIVE" } ?? skins?.first }
+    var activeCape: Cape? { capes?.first { $0.state == "ACTIVE" } }
 
     var minecraftProfile: MinecraftProfile {
-        let skin = skins?.first { $0.state == "ACTIVE" } ?? skins?.first
+        let skin = activeSkin
         return MinecraftProfile(
             uuid: id, name: name, skinURL: skin?.secureURL,
-            skinVariant: skin?.variant.flatMap { MinecraftSkinVariant(rawValue: $0.uppercased()) }
+            skinVariant: skin?.variant.flatMap { MinecraftSkinVariant(rawValue: $0.uppercased()) },
+            skinID: skin?.id
         )
     }
 }

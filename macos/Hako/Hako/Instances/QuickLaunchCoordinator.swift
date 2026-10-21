@@ -99,3 +99,34 @@ nonisolated struct QuickLaunchPresentation: Identifiable, Equatable, Sendable {
         return .started
     }
 }
+
+/// Tracks only the quick-launch request owned by the character editor's discard prompt.
+/// Rejecting that navigation must release its continuation without affecting queued requests.
+@MainActor
+struct CharacterEditorNavigationGate {
+    enum Decision { case blocked, confirmDiscard, leave }
+    private(set) var pendingPresentationID: UUID?
+
+    mutating func request(presentationID: UUID?, isSaving: Bool, hasUnsavedChanges: Bool,
+                          quickLaunch: QuickLaunchCoordinator) -> Decision {
+        if pendingPresentationID != presentationID { cancel(quickLaunch: quickLaunch) }
+        if isSaving {
+            if let presentationID { quickLaunch.completePresentation(presentationID, error: CancellationError()) }
+            return .blocked
+        }
+        if hasUnsavedChanges {
+            pendingPresentationID = presentationID
+            return .confirmDiscard
+        }
+        return .leave
+    }
+
+    mutating func cancel(quickLaunch: QuickLaunchCoordinator) {
+        if let pendingPresentationID {
+            quickLaunch.completePresentation(pendingPresentationID, error: CancellationError())
+        }
+        pendingPresentationID = nil
+    }
+
+    mutating func finish() { pendingPresentationID = nil }
+}

@@ -18,19 +18,33 @@ enum LauncherTab: Hashable {
 struct LauncherView: View {
     let account: Account?
     var onSignIn: () -> Void = {}
+    var startsInCharacterEditor = false
     @State private var selectedResourcePack: String?
 
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(InstanceContentController.self) private var content
     @Environment(MinecraftSessionCoordinator.self) private var sessions
+    @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(QuickLaunchCoordinator.self) private var quickLaunch
     @Query(sort: \GameInstance.createdAt) private var instances: [GameInstance]
     @State private var tab = LauncherTab.instances
     @State private var creatingInstance = false
     @State private var pendingTab: LauncherTab?
+    @State private var characterNavigation = CharacterEditorNavigationGate()
+    @State private var pendingEditorDestination: LauncherTab?
+    @State private var isEditingCharacter = false
+    @State private var isConfirmingCharacterDiscard = false
     @State private var navigationError: String?
     @State private var deleteError: String?
+
+    init(account: Account?, onSignIn: @escaping () -> Void = {}, startsInCharacterEditor: Bool = false) {
+        self.account = account
+        self.onSignIn = onSignIn
+        self.startsInCharacterEditor = startsInCharacterEditor
+        _tab = State(initialValue: startsInCharacterEditor ? .profile : .instances)
+        _isEditingCharacter = State(initialValue: startsInCharacterEditor)
+    }
 
     var body: some View {
         let _ = renameExit.pendingRename
@@ -52,7 +66,19 @@ struct LauncherView: View {
                 case .settings:
                     SettingsView()
                 case .profile:
-                    if let account { ProfileView(account: account, minecraftStatus: sessions.statuses[account.xuid] ?? .idle) }
+                    if let account, isEditingCharacter {
+                        MinecraftCharacterEditorView(
+                            account: account,
+                            onBack: { requestTab(.profile) },
+                            onSaved: { requestTab(.profile) }
+                        )
+                    } else if let account {
+                        ProfileView(
+                            account: account,
+                            minecraftStatus: sessions.statuses[account.xuid] ?? .idle,
+                            onEditCharacter: { isEditingCharacter = true }
+                        )
+                    }
                     else { GuestProfileView(onSignIn: onSignIn) }
                 }
             }
@@ -67,9 +93,19 @@ struct LauncherView: View {
             }
         }
         .animation(.smooth, value: tab)
+        .confirmationDialog(
+            "Отбросить изменения персонажа?",
+            isPresented: $isConfirmingCharacterDiscard,
+            titleVisibility: .visible
+        ) {
+            Button("Отбросить изменения", role: .destructive) { discardCharacterDraftAndNavigate() }
+            Button("Продолжить редактирование", role: .cancel) { cancelCharacterNavigation() }
+        } message: {
+            Text("Несохранённые изменения скина и плаща будут удалены.")
+        }
         .task(id: quickLaunch.presentation?.id) {
             if let request = quickLaunch.presentation {
-                requestTab(.instance(request.instanceID))
+                requestTab(.instance(request.instanceID), presentationID: request.id)
                 completeQuickLaunchNavigation()
             }
         }
@@ -164,6 +200,27 @@ struct LauncherView: View {
     }
 
     private func requestTab(_ destination: LauncherTab) {
+        requestTab(destination, presentationID: nil)
+    }
+
+    private func requestTab(_ destination: LauncherTab, presentationID: UUID?) {
+        if isEditingCharacter {
+            switch characterNavigation.request(presentationID: presentationID, isSaving: characterEditor.isSaving,
+                                               hasUnsavedChanges: characterEditor.hasUnsavedChanges, quickLaunch: quickLaunch) {
+            case .blocked:
+                return
+            case .confirmDiscard:
+                pendingEditorDestination = destination
+                isConfirmingCharacterDiscard = true
+            case .leave:
+                finishCharacterNavigation(to: destination)
+            }
+            return
+        }
+        requestTabNormally(destination)
+    }
+
+    private func requestTabNormally(_ destination: LauncherTab) {
         guard destination != tab else { return }
         if case .instance(let currentID) = tab,
            renameExit.pendingRename?.instanceID == currentID {
@@ -171,6 +228,26 @@ struct LauncherView: View {
         } else {
             tab = destination
         }
+    }
+
+    private func cancelCharacterNavigation() {
+        characterNavigation.cancel(quickLaunch: quickLaunch)
+        pendingEditorDestination = nil
+    }
+
+    private func discardCharacterDraftAndNavigate() {
+        guard let destination = pendingEditorDestination else { return }
+        characterEditor.discardDraft()
+        finishCharacterNavigation(to: destination)
+    }
+
+    private func finishCharacterNavigation(to destination: LauncherTab) {
+        characterNavigation.finish()
+        pendingEditorDestination = nil
+        isConfirmingCharacterDiscard = false
+        isEditingCharacter = false
+        characterEditor.close()
+        if destination != .profile { requestTabNormally(destination) }
     }
 
     private func completeQuickLaunchNavigation() {
@@ -239,7 +316,10 @@ struct LauncherView: View {
     let container = try! ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: "steve@example.com")
     let installations = InstallationCoordinator(context: container.mainContext)
-    let sessions = MinecraftSessionCoordinator(context: container.mainContext)
+    let appearances = MinecraftAppearanceStore()
+    let sessions = MinecraftSessionCoordinator(context: container.mainContext, appearances: appearances)
+    let skinLoader = MinecraftSkinLoader.shared
+    let characterEditor = MinecraftCharacterEditorCoordinator(api: MinecraftProfileAPIClient(), sessions: sessions, context: container.mainContext, appearances: appearances)
     let playtime = try! PlaytimeCoordinator(context: container.mainContext)
     container.mainContext.insert(account)
     let games = GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime)
@@ -250,6 +330,9 @@ struct LauncherView: View {
         .environment(installations)
         .environment(InstanceContentController(installations: installations))
         .environment(sessions)
+        .environment(appearances)
+        .environment(skinLoader)
+        .environment(characterEditor)
         .environment(playtime)
         .environment(games)
         .environment(QuickLaunchCoordinator(store: installations.store, games: games))

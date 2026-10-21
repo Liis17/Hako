@@ -4,23 +4,37 @@
 //
 
 import Foundation
+import Observation
 
 struct MinecraftSkinSource: Hashable {
     let uuid: String?
     let skinURL: URL?
     let variant: MinecraftSkinVariant?
     let loadCape: Bool
+    let appearanceRevision: Int
+    let isAuthoritative: Bool
+    let capeURL: URL?
+    let capeIsKnown: Bool
 
-    init(uuid: String?, skinURL: URL?, variant: MinecraftSkinVariant?, loadCape: Bool = false) {
+    init(
+        uuid: String?, skinURL: URL?, variant: MinecraftSkinVariant?, loadCape: Bool = false,
+        appearanceRevision: Int = 0, isAuthoritative: Bool = false,
+        capeURL: URL? = nil, capeIsKnown: Bool = false
+    ) {
         self.uuid = uuid
         self.skinURL = skinURL
         self.variant = variant
         self.loadCape = loadCape
+        self.appearanceRevision = appearanceRevision
+        self.isAuthoritative = isAuthoritative
+        self.capeURL = capeURL
+        self.capeIsKnown = capeIsKnown
     }
 }
 
 /// Загрузка скина без токенов; старым аккаунтам восстанавливает метаданные по UUID.
 @MainActor
+@Observable
 final class MinecraftSkinLoader {
     static let shared = MinecraftSkinLoader()
 
@@ -42,7 +56,7 @@ final class MinecraftSkinLoader {
         guard let uuid = source.uuid else { return nil }
         if let cached = skins[source] { return cached }
 
-        let needsProfile = source.loadCape || source.skinURL == nil || source.variant == nil
+        let needsProfile = !source.isAuthoritative && (source.loadCape || source.skinURL == nil || source.variant == nil)
         let profile: ResolvedProfile?
         if !needsProfile {
             profile = nil
@@ -61,19 +75,37 @@ final class MinecraftSkinLoader {
             }
         }
 
-        guard let url = profile?.skinURL ?? source.skinURL.flatMap(Self.secureURL) else { return nil }
+        let url = source.isAuthoritative
+            ? source.skinURL.flatMap(Self.secureURL)
+            : profile?.skinURL ?? source.skinURL.flatMap(Self.secureURL)
+        guard let url else { return nil }
         let variant = source.variant ?? profile?.variant ?? .classic
         let capeData: Data?
-        if source.loadCape, let capeURL = profile?.capeURL {
+        if source.capeIsKnown, let capeURL = source.capeURL {
+            capeData = try? await data(from: capeURL)
+        } else if source.capeIsKnown {
+            capeData = nil
+        } else if source.loadCape, let capeURL = profile?.capeURL {
             capeData = try? await data(from: capeURL)
         } else {
             capeData = nil
         }
         try Task.checkCancellation()
-        let skin = try MinecraftSkin(data: await data(from: url), variant: variant, capeData: capeData)
+        let skinData = try await data(from: url)
+        let skin: MinecraftSkin
+        do {
+            skin = try MinecraftSkin(data: skinData, variant: variant, capeData: capeData)
+        } catch MinecraftSkin.DecodingError.invalidCape {
+            skin = try MinecraftSkin(data: skinData, variant: variant)
+        }
         try Task.checkCancellation()
-        skins[source] = skin
+        let expectsCape = source.capeIsKnown ? source.capeURL != nil : source.loadCape && profile?.capeURL != nil
+        if !expectsCape || skin.capeImage != nil { skins[source] = skin }
         return skin
+    }
+
+    func imageData(from url: URL) async throws -> Data {
+        try await data(from: url)
     }
 
     private func data(from url: URL) async throws -> Data {

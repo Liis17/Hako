@@ -9,10 +9,13 @@ import SwiftUI
 /// Аватар аккаунта: голова персонажа Minecraft, если скин известен, иначе аватар Xbox.
 struct AccountAvatar: View {
     let account: Account
+    @Environment(MinecraftAppearanceStore.self) private var appearances
 
     var body: some View {
-        if let skinURL = account.minecraftSkinURL {
-            MinecraftHead(skinURL: skinURL)
+        let profile = appearances.profile(for: account.xuid)
+        let skinURL = profile == nil ? account.minecraftSkinURL : profile?.minecraftProfile.skinURL
+        if let skinURL {
+            MinecraftHead(skinURL: skinURL, revision: appearances.revision(for: account.xuid))
         } else {
             XboxAvatar(url: account.xboxAvatarURL, name: account.gamertag)
         }
@@ -43,8 +46,15 @@ struct XboxAvatar: View {
 /// Скин 64×64 или старый 64×32.
 struct MinecraftHead: View {
     let skinURL: URL
+    var revision = 0
 
+    @Environment(MinecraftSkinLoader.self) private var skinLoader
     @State private var layers: [CGImage] = []
+
+    private struct Request: Hashable {
+        let url: URL
+        let revision: Int
+    }
 
     var body: some View {
         ZStack {
@@ -55,18 +65,23 @@ struct MinecraftHead: View {
                     .interpolation(.none)
             }
         }
-        .task(id: skinURL) { layers = await Self.headLayers(from: skinURL) }
+        .task(id: Request(url: skinURL, revision: revision)) {
+            do { layers = Self.headLayers(data: try await skinLoader.imageData(from: skinURL)) }
+            catch {
+                guard !Task.isCancelled else { return }
+                layers = []
+            }
+        }
     }
 
-    private static func headLayers(from url: URL) async -> [CGImage] {
-        guard let data = try? await URLSession.shared.data(from: url).0,
-              let source = CGImageSourceCreateWithData(data as CFData, nil),
+    private static func headLayers(data: Data) -> [CGImage] {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let skin = CGImageSourceCreateImageAtIndex(source, 0, nil),
               let face = skin.cropping(to: CGRect(x: 8, y: 8, width: 8, height: 8))
         else { return [] }
         // Как в игре: у старых скинов 64×32 слой одежды без прозрачных пикселей — это фон, а не шапка.
         let overlay = skin.cropping(to: CGRect(x: 32, y: 0, width: 32, height: 32))
-        guard skin.height == 64 || overlay.map(hasTransparency) == true,
+        guard skin.height == 64 || overlay.map({ hasTransparency($0) }) == true,
               let hat = skin.cropping(to: CGRect(x: 40, y: 8, width: 8, height: 8))
         else { return [face] }
         return [face, hat]
