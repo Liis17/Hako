@@ -162,7 +162,10 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 
 CI: `.github/workflows/tests.yml` запускает тесты macOS, Windows и релизных скриптов на pull request в `main`.
 `.github/workflows/release.yml` на каждый push в `main` собирает обе платформы и публикует общий prerelease
-`main-<полный SHA>` с DMG и Windows MSIX-ассетами. `.github/scripts/detect_release.py` сравнивает
+`main-<полный SHA>` с DMG и Windows MSIX-ассетами. Описание prerelease собирает `.github/scripts/prerelease_notes.py`:
+раздельные списки коммитов, изменивших `windows/` и `macos/`, с момента предыдущего тега `main-*`
+(fallback — `github.event.before`, без базы — вся история; пустой раздел помечается «Изменений нет»).
+`.github/scripts/detect_release.py` сравнивает
 `github.event.before` с текущим SHA; при повышении числовой версии изменённой платформы отдельно публикуется
 её стабильный релиз. Стабильные релизы имеют независимые теги `macos-vX.Y.Z` и `windows-vX.Y.Z`; старые релизы
 сохраняются. Платформенные очереди стабильной публикации не отменяют уже запущенные релизы.
