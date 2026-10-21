@@ -15,7 +15,9 @@ internal static class Program
         ComWrappersSupport.InitializeComWrappers();
 
         var activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
-        var mainInstance = AppInstance.FindOrRegisterForKey("Hako.Main");
+        App.LaunchOptions = ProfilePreviewOptions.Parse(args);
+        var instanceKey = App.LaunchOptions is null ? "Hako.Main" : "Hako.ProfilePreview";
+        var mainInstance = AppInstance.FindOrRegisterForKey(instanceKey);
         if (!mainInstance.IsCurrent)
         {
             RedirectActivationTo(mainInstance, activationArgs);

@@ -48,9 +48,13 @@ Hako</value></data>
   <data name="ProfileSignedOutDetails" xml:space="preserve"><value>You can continue without an account or sign in with Microsoft.</value></data>
   <data name="SignInButton" xml:space="preserve"><value>Sign in with Microsoft</value></data>
   <data name="XboxLabel" xml:space="preserve"><value>Xbox</value></data>
+  <data name="MinecraftEditionLabel" xml:space="preserve"><value>Java Edition</value></data>
   <data name="MinecraftNotAvailableTitle" xml:space="preserve"><value>Minecraft: Java Edition isn't connected</value></data>
   <data name="MinecraftNotAvailableDetails" xml:space="preserve"><value>Signing in to Microsoft confirms the Xbox account, but doesn't mean that it owns Minecraft: Java Edition.</value></data>
   <data name="MinecraftProfileDetails" xml:space="preserve"><value>A Minecraft profile was found. The game session connects when you launch the game.</value></data>
+  <data name="SkinViewAccessibilityLabel" xml:space="preserve"><value>Minecraft skin 3D model</value></data>
+  <data name="SkinViewAccessibilityHint" xml:space="preserve"><value>Drag to rotate the character. Arrow keys turn it in 15-degree steps.</value></data>
+  <data name="SkinViewUnavailable" xml:space="preserve"><value>The 3D preview is temporarily unavailable.</value></data>
   <data name="LogoutButton" xml:space="preserve"><value>Sign out</value></data>
   <data name="LogoutTitle" xml:space="preserve"><value>Sign out of this account?</value></data>
   <data name="LogoutMessage" xml:space="preserve"><value>The account data will be removed from this device. You'll need to confirm a new Microsoft code to sign in again.</value></data>

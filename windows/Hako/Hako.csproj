@@ -12,10 +12,12 @@
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Assets\Steve.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\SplashScreen.scale-200.png" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\Square150x150Logo.scale-200.png" />
@@ -40,6 +42,12 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Graphics\MinecraftSkin.hlsl" LogicalName="Hako.Graphics.MinecraftSkin.hlsl" />
   </ItemGroup>
 
   <ItemGroup>

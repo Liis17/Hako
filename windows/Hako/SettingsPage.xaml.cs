@@ -3,25 +3,48 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Hako;
+
+internal sealed record SettingsPageContext(
+    AppCoordinator Coordinator,
+    MinecraftSkinPreviewService SkinPreviewService,
+    ProfilePreviewOptions? PreviewOptions);
 
 public sealed partial class SettingsPage : Page
 {
     private AppCoordinator? _coordinator;
+    private MinecraftSkinPreviewService? _skinPreviewService;
+    private ProfilePreviewOptions? _previewOptions;
     private bool _updatingSelection;
     private bool _updatingLanguage;
+    private bool _windowVisible;
+    private bool _windowActive;
+    private bool _screenVisible;
+    private bool _languageChangedSubscribed;
+    private SettingsSection _selectedSection = SettingsSection.General;
+    private string? _modelAccountId;
+    private string? _modelProfileId;
+    private Guid _profileRequestScope;
+    private bool? _isWideProfileLayout;
 
     public SettingsPage()
     {
         InitializeComponent();
+        SkinView.HeadImageReady += SkinView_HeadImageReady;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        _coordinator = (AppCoordinator)e.Parameter;
-        HakoStrings.LanguageChanged += HakoStrings_LanguageChanged;
+        var context = (SettingsPageContext)e.Parameter;
+        _coordinator = context.Coordinator;
+        _skinPreviewService = context.SkinPreviewService;
+        _previewOptions = context.PreviewOptions;
+        _profileRequestScope = Guid.NewGuid();
+        _screenVisible = true;
+        SubscribeLanguageChanges();
         RefreshStrings();
         SelectSection(_coordinator.SelectedSettingsSection);
         RefreshProfile();
@@ -29,17 +52,66 @@ public sealed partial class SettingsPage : Page
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
-        HakoStrings.LanguageChanged -= HakoStrings_LanguageChanged;
+        UnsubscribeLanguageChanges();
+        _screenVisible = false;
+        SkinView.SetEligible(false);
+        SkinView.HeadImageReady -= SkinView_HeadImageReady;
+        SkinView.DisposeView();
+        _coordinator = null;
+        _skinPreviewService = null;
         base.OnNavigatedFrom(e);
+    }
+
+    public void SetWindowState(bool visible, bool active)
+    {
+        active &= visible;
+        if (_windowVisible == visible && _windowActive == active)
+        {
+            return;
+        }
+
+        _windowVisible = visible;
+        _windowActive = active;
+        UpdateSkinVisibility();
+    }
+
+    public void SetScreenVisible(bool visible)
+    {
+        if (_screenVisible == visible)
+        {
+            return;
+        }
+
+        _screenVisible = visible;
+        if (visible)
+        {
+            SubscribeLanguageChanges();
+            RefreshStrings();
+            RefreshProfile();
+        }
+        else
+        {
+            UnsubscribeLanguageChanges();
+        }
+
+        UpdateSkinVisibility();
     }
 
     public void SelectSection(SettingsSection section)
     {
+        var enteringProfile = section == SettingsSection.Profile && _selectedSection != SettingsSection.Profile;
+        _selectedSection = section;
+        if (enteringProfile)
+        {
+            _profileRequestScope = Guid.NewGuid();
+        }
+
         _updatingSelection = true;
         SettingsSections.SelectedIndex = section == SettingsSection.General ? 0 : 1;
         _updatingSelection = false;
         GeneralPanel.Visibility = section == SettingsSection.General ? Visibility.Visible : Visibility.Collapsed;
         ProfilePanel.Visibility = section == SettingsSection.Profile ? Visibility.Visible : Visibility.Collapsed;
+        UpdateSkinVisibility();
     }
 
     public void RefreshProfile()
@@ -48,16 +120,14 @@ public sealed partial class SettingsPage : Page
         var isGuest = account is null && _coordinator?.IsGuest == true;
         var hasAccount = account is not null;
 
-        ProfileStatus.Text = account?.Gamertag ?? HakoStrings.Get(isGuest ? "GuestProfileTitle" : "ProfileSignedOutTitle");
-        ProfileDetails.Text = isGuest
-            ? HakoStrings.Get("GuestProfileDetails")
-            : hasAccount ? string.Empty : HakoStrings.Get("ProfileSignedOutDetails");
-        ProfileDetails.Visibility = string.IsNullOrEmpty(ProfileDetails.Text) ? Visibility.Collapsed : Visibility.Visible;
+        ProfileCards.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
+        GuestProfilePanel.Visibility = isGuest ? Visibility.Visible : Visibility.Collapsed;
+        SignedOutProfilePanel.Visibility = !hasAccount && !isGuest ? Visibility.Visible : Visibility.Collapsed;
 
+        ProfileStatus.Text = account?.Gamertag ?? string.Empty;
         ProfileEmail.Text = account?.Email ?? string.Empty;
         ProfileEmail.Visibility = string.IsNullOrWhiteSpace(account?.Email) ? Visibility.Collapsed : Visibility.Visible;
         XboxBadge.Text = HakoStrings.Get("XboxLabel");
-        XboxBadge.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
 
         AccountAvatar.Source = null;
         AccountAvatar.Visibility = Visibility.Collapsed;
@@ -69,25 +139,131 @@ public sealed partial class SettingsPage : Page
             AvatarPlaceholder.Visibility = Visibility.Collapsed;
         }
 
-        MinecraftProfilePanel.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
-        if (account is not null)
-        {
-            MinecraftStatus.Text = account.MinecraftName ?? HakoStrings.Get("MinecraftNotAvailableTitle");
-            MinecraftDetails.Text = account.MinecraftName is null
-                ? HakoStrings.Get("MinecraftNotAvailableDetails")
-                : HakoStrings.Get("MinecraftProfileDetails");
-        }
+        MinecraftStatus.Text = account?.MinecraftName ?? HakoStrings.Get("MinecraftNotAvailableTitle");
+        MinecraftBadge.Text = HakoStrings.Get("MinecraftEditionLabel");
+        MinecraftDetails.Text = account?.MinecraftName is null
+            ? HakoStrings.Get("MinecraftNotAvailableDetails")
+            : HakoStrings.Get("MinecraftProfileDetails");
+        MinecraftDetails.Visibility = account?.MinecraftName is null ? Visibility.Visible : Visibility.Collapsed;
 
+        GuestProfileStatus.Text = HakoStrings.Get("GuestProfileTitle");
+        GuestProfileDetails.Text = HakoStrings.Get("GuestProfileDetails");
         SignInButton.Content = HakoStrings.Get("SignInButton");
-        SignInButton.Visibility = isGuest ? Visibility.Visible : Visibility.Collapsed;
+        SignedOutProfileStatus.Text = HakoStrings.Get("ProfileSignedOutTitle");
+        SignedOutProfileDetails.Text = HakoStrings.Get("ProfileSignedOutDetails");
+        SignedOutSignInButton.Content = HakoStrings.Get("SignInButton");
         SignOutButton.Content = HakoStrings.Get("LogoutButton");
         SignOutButton.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
+
+        var profileChanged = !string.Equals(_modelProfileId, account?.MinecraftProfileId, StringComparison.Ordinal);
+        var accountChanged = !string.Equals(_modelAccountId, account?.Xuid, StringComparison.Ordinal);
+        if (profileChanged || accountChanged)
+        {
+            _modelAccountId = account?.Xuid;
+            _modelProfileId = account?.MinecraftProfileId;
+            _profileRequestScope = Guid.NewGuid();
+            if (profileChanged)
+            {
+                MinecraftHead.Source = null;
+                MinecraftHead.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        UpdateSkinVisibility();
+    }
+
+    private void UpdateSkinVisibility()
+    {
+        var account = _coordinator?.Account;
+        var showModel = _screenVisible
+            && _windowVisible
+            && _coordinator?.Screen == LauncherScreen.Settings
+            && _selectedSection == SettingsSection.Profile
+            && account is not null;
+
+        SkinView.Visibility = showModel ? Visibility.Visible : Visibility.Collapsed;
+        if (!showModel || _skinPreviewService is null)
+        {
+            SkinView.SetEligible(false);
+            return;
+        }
+
+        SkinView.SetProfile(
+            _skinPreviewService,
+            account!.MinecraftProfileId,
+            _profileRequestScope,
+            _previewOptions?.Mode == ProfilePreviewMode.Fixture);
+        SkinView.SetWindowActive(_windowActive);
+        SkinView.SetEligible(true);
+    }
+
+    private void ProfilePanel_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var wide = e.NewSize.Width >= 800;
+        if (_isWideProfileLayout == wide)
+        {
+            return;
+        }
+
+        _isWideProfileLayout = wide;
+        ProfileLayout.ColumnDefinitions.Clear();
+        ProfileLayout.ColumnDefinitions.Add(new ColumnDefinition
+        {
+            Width = wide ? new GridLength(360) : new GridLength(1, GridUnitType.Star)
+        });
+        if (wide)
+        {
+            ProfileLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+
+        ProfileLayout.RowDefinitions.Clear();
+        ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        if (!wide)
+        {
+            ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        Grid.SetColumnSpan(ProfileTitle, wide ? 2 : 1);
+        Grid.SetColumn(ProfileCards, 0);
+        Grid.SetRow(ProfileCards, 1);
+        Grid.SetColumn(SkinView, wide ? 1 : 0);
+        Grid.SetRow(SkinView, wide ? 1 : 2);
+        Grid.SetColumnSpan(GuestProfilePanel, wide ? 2 : 1);
+        Grid.SetRow(GuestProfilePanel, 1);
+        Grid.SetColumnSpan(SignedOutProfilePanel, wide ? 2 : 1);
+        Grid.SetRow(SignedOutProfilePanel, 1);
+        ProfileLayout.ColumnSpacing = wide ? 24 : 0;
+        SkinView.MinHeight = wide ? 400 : 360;
+        SkinView.MinWidth = wide ? 240 : 0;
     }
 
     private void HakoStrings_LanguageChanged(object? sender, EventArgs e)
     {
         RefreshStrings();
         RefreshProfile();
+    }
+
+    private void SubscribeLanguageChanges()
+    {
+        if (_languageChangedSubscribed)
+        {
+            return;
+        }
+
+        HakoStrings.LanguageChanged += HakoStrings_LanguageChanged;
+        _languageChangedSubscribed = true;
+    }
+
+    private void UnsubscribeLanguageChanges()
+    {
+        if (!_languageChangedSubscribed)
+        {
+            return;
+        }
+
+        HakoStrings.LanguageChanged -= HakoStrings_LanguageChanged;
+        _languageChangedSubscribed = false;
     }
 
     private void RefreshStrings()
@@ -101,6 +277,20 @@ public sealed partial class SettingsPage : Page
         _updatingLanguage = true;
         LanguageBox.SelectedIndex = _coordinator?.Language == AppLanguage.Russian ? 0 : 1;
         _updatingLanguage = false;
+    }
+
+    private void SkinView_HeadImageReady(object? sender, byte[] rgba)
+    {
+        var bitmap = new WriteableBitmap(64, 64);
+        using (var stream = bitmap.PixelBuffer.AsStream())
+        {
+            var bgra = MinecraftSkinHeadBitmapConverter.ConvertStraightRgbaToPremultipliedBgra(rgba);
+            stream.Write(bgra, 0, bgra.Length);
+        }
+
+        bitmap.Invalidate();
+        MinecraftHead.Source = bitmap;
+        MinecraftHead.Visibility = Visibility.Visible;
     }
 
     private void SettingsSections_SelectionChanged(object sender, SelectionChangedEventArgs e)

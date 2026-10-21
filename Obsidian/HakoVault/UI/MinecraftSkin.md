@@ -18,6 +18,14 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Minecraft/MinecraftSkinScene.swift` | `MinecraftSkinScene` | Геометрия, материалы, камера, поза и ходьба |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView(source:)` | SwiftUI `RealityView`, загрузка, жесты и жизненный цикл |
 | `macos/Hako/Hako/Resources/Steve.png` | Резервная текстура | Штатный `wide/steve` из официального клиента Minecraft 1.21.9 |
+| `windows/Hako.Core/MinecraftSkinLoader.cs` | `MinecraftSkinLoader.LoadAsync(uuid, cancellationToken)` | Публичный профиль Mojang без токенов, безопасные HTTPS текстуры, кэш успешных метаданных в экземпляре |
+| `windows/Hako.Core/MinecraftSkinNormalizer.cs` | `MinecraftSkinNormalizer.NormalizeRgba` | Чистая нормализация RGBA и восстановление legacy 64×32; PNG-декодирование выполняется Windows UI-слоем |
+| `windows/Hako/Assets/Steve.png` | Резервная текстура Windows | Байтовая копия ресурса macOS; тестовый проект сравнивает оба файла и SHA-256 |
+| `windows/Hako/MinecraftSkinImageDecoder.cs` | `MinecraftSkinImageDecoder` | PNG container/dimensions, straight RGBA и вызов Core normalizer вне UI-потока |
+| `windows/Hako/MinecraftSkinPreviewService.cs` | `MinecraftSkinPreviewService` | App-lifetime HTTP loader, нормализованный UUID cache, Steve и cape retry policy |
+| `windows/Hako/MinecraftSkinHeadComposer.cs` | `MinecraftSkinHeadComposer` | Пиксельная голова из front-face и hat UV областей |
+| `windows/Hako/MinecraftSkinHeadBitmapConverter.cs` | `MinecraftSkinHeadBitmapConverter` | Преобразование straight RGBA в premultiplied BGRA для XAML bitmap |
+| `windows/Hako/MinecraftSkinView.xaml.cs` | `MinecraftSkinView` | Выбор источника, input камеры, frame lifecycle и владение renderer |
 
 `MinecraftSkin(data:variant:)` принимает текстуры 64×64 или 64×32; прочие размеры и
 нечитаемые данные дают `DecodingError.invalidTexture`. Формат 64×32 всегда классический:
@@ -48,6 +56,35 @@ Parent: [[Index]]
 в инициализатор для тестов. Уход с экрана или смена источника отменяет задачу;
 проверка отмены и ревизии сцены исключает применение позднего результата.
 
+Windows `MinecraftSkinLoader` принимает внедрённый `HttpClient` и возвращает PNG-байты скина,
+вариант `Classic`/`Slim` и необязательные PNG-байты плаща. Он принимает UUID в форматах `N` и `D`,
+нормализует его без дефисов и не отправляет запрос при отсутствующем UUID. Ответ профиля ограничен
+1 MiB, текстуры — 4 MiB; ссылки допускаются только для `textures.minecraft.net`, а HTTP ссылки
+этого хоста повышаются до HTTPS. `MinecraftSkinData.HasCape` показывает, присутствовал ли в профиле
+допустимый URL `CAPE`: при ошибке загрузки плаща `HasCape` остаётся `true`, а `CapePng` равен `null`;
+отсутствие плаща даёт `false`. Ошибка плаща не мешает загрузить скин. Экземпляр кэширует только
+успешные метаданные профиля; PNG не кэшируются в Core, так как он не декодирует изображения.
+Каждый вызов загрузки ограничен значением `HttpClient.Timeout` на получение заголовков и чтение тела;
+`Timeout.InfiniteTimeSpan` сохраняет отсутствие временного лимита.
+
+`MinecraftSkinNormalizer.NormalizeRgba` принимает straight-alpha RGBA в развёртке сверху вниз,
+возвращает 64×64 RGBA и вариант модели. Формат 64×32 всегда становится `Classic`; левые конечности
+восстанавливаются зеркально, старая непрозрачная шапка очищается при отсутствии прозрачности внешней
+одежды, базовые области принудительно делаются непрозрачными. Альфа внешних слоёв сохраняется.
+`NormalizeCapeRgba` принимает только 64×32 RGBA. PNG-декодер и нормализованный image cache находятся
+в Windows UI-слое: `MinecraftSkinImageDecoder` проверяет сигнатуру и PNG-контейнер, сверяет размеры
+64×64/64×32 до чтения полного массива пикселей и запрашивает straight-alpha RGBA. Декодирование и
+нормализация выполняются вне UI-потока. `MinecraftSkinPreviewService` хранит только успешно
+нормализованные данные по UUID в памяти приложения; ошибку скина можно повторить при следующем
+открытии. У отсутствующего плаща кэш остаётся успешным без повторных запросов; если допустимый
+плащ был объявлен, но не загрузился или не декодировался, сервис повторяет запрос при следующем
+открытии профиля. Ошибка плаща не заменяет удачно декодированный скин. `HttpClient` сервиса живёт
+до закрытия приложения, timeout — 15 секунд; токены и `AccountSession` не используются.
+
+Steve загружается через `File.ReadAllBytesAsync` из `AppContext.BaseDirectory/Assets/Steve.png`,
+поэтому одинаковый путь работает в unpackaged и packaged запуске; проект копирует ресурс также
+в publish output. Ошибка скина оставляет Steve, ошибка плаща оставляет скин.
+
 Резервный PNG извлечён из
 `https://piston-data.mojang.com/v1/objects/ce92fd8d1b2460c41ceda07ae7b3fe863a80d045/client.jar`,
 путь внутри — `assets/minecraft/textures/entity/player/wide/steve.png`.
@@ -72,8 +109,46 @@ RealityKit, без сторонних зависимостей. Шесть ча�
 Reduce Motion отключает цикл и оставляет спокойную приподнятую позу. Уход с экрана отменяет
 подписку. Камера с углом обзора 38° вписывает фигуру при изменении размера области.
 
+## Windows renderer
+
+`windows/Hako/Graphics/MinecraftSkinGeometry.cs` строит UV-геометрию и позу без зависимости от
+WinUI; `MinecraftSkinRenderer` (`Graphics/MinecraftSkinRenderer.cs`) рисует straight-RGBA скин
+и необязательный плащ в D3D11 через `CompositionDrawingSurface`. `MinecraftSkinView` владеет
+renderer и передаёт ему нормализованные текстуры из `MinecraftSkinPreviewService`.
+
+Локальная голова `MinecraftSkinHeadComposer` берёт переднюю грань лица и шапки, композитит
+straight-alpha слои в RGBA и увеличивает каждый пиксель 8× ближайшим повтором. При передаче
+в `WriteableBitmap` `MinecraftSkinHeadBitmapConverter` меняет каналы на BGRA и premultiply alpha;
+декодер и D3D11-рендерер продолжают использовать straight-alpha RGBA. В профиле Microsoft
+показываются две карточки: Xbox и Minecraft Java Edition; при отсутствии Minecraft справа
+остаётся Steve с пояснением, обычный гость видит прежнее гостевое состояние без модели. Скин начинает
+с yaw 30° и pitch 21°; полный drag по ширине даёт 360°, pitch ограничен ±45°, стрелки вращают
+на 15°. `CompositionTarget.Rendering` подключён только во время ходьбы. Системная настройка
+анимации читается при входе в профиль и активации окна; событие `AnimationsEnabledChanged`
+подписывается только при наличии API Windows 10 19041+, чтобы сохранить поддержку 17763.
+
+`MainWindow` передаёт Settings-странице видимость окна и его активность отдельно. При деактивации
+видимая модель и renderer сохраняются, ходьба приостанавливается и один раз рисуется статичная поза;
+неактивное окно не получает кадровых обновлений. При скрытии/сворачивании, выходе из Settings,
+выборе «Основные», смене аккаунта и закрытии отменяется текущая загрузка, останавливается кадровый
+цикл и renderer отсоединяется до освобождения D3D ресурсов. Повторное открытие использует сохранённый
+поворот камеры. Смена языка с тем же UUID не перезапускает загрузку и не сбрасывает положение камеры;
+изменение DPI/размера окна вызывает `Resize`. Байткод трёх HLSL шейдеров компилируется один раз за
+время процесса. После потери устройства renderer пересоздаёт ресурсы и один раз повторяет отрисовку;
+при неудаче показывается локализованная заглушка, карточки и выход остаются доступны.
+
+Для изолированной проверки `Program` принимает `--profile-preview` с режимами `account`,
+`no-minecraft`, `guest` и `fixture`. Они используют отдельный ключ единственного экземпляра,
+фейковые in-memory store и auth-сервис без сети и не открывают настоящие хранилища. `guest` после
+«Продолжить без аккаунта» открывает Settings → Profile. `fixture` показывает локальный Steve с тестовым
+плащом; `--preview-width`/`--preview-height` задают размер окна только preview. Режим подходит и для
+unpackaged published output.
+
 ## Проверка
 
 `macos/Hako/HakoTests/` — Swift Testing: ресурс Стива, форматы, зеркалирование граней,
 внешние слои, активный вариант профиля, HTTPS, кэш, HTTP-ошибки, повреждённые данные,
-отсутствие сети и отмена. Схема и команда запуска — [[Architecture]].
+отсутствие сети и отмена. `windows/Hako.Tests/` проверяет PNG decode (ресурс Steve, повреждённый
+PNG, размеры, straight alpha, скин/плащ), композит головы и BGRA bitmap conversion, geometry
+UV/legacy/slim/pose/cape, отсутствие/ошибку advertised CAPE и timeout при зависшем чтении тела. Схема и
+команда запуска — [[Architecture]].

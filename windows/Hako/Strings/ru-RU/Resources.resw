@@ -48,9 +48,13 @@
   <data name="ProfileSignedOutDetails" xml:space="preserve"><value>Вы можете продолжить без аккаунта или войти в Microsoft.</value></data>
   <data name="SignInButton" xml:space="preserve"><value>Войти в Microsoft</value></data>
   <data name="XboxLabel" xml:space="preserve"><value>Xbox</value></data>
+  <data name="MinecraftEditionLabel" xml:space="preserve"><value>Java Edition</value></data>
   <data name="MinecraftNotAvailableTitle" xml:space="preserve"><value>Minecraft: Java Edition не подключён</value></data>
   <data name="MinecraftNotAvailableDetails" xml:space="preserve"><value>Вход в Microsoft подтверждает аккаунт Xbox, но сам по себе не означает, что на нём есть Minecraft: Java Edition.</value></data>
   <data name="MinecraftProfileDetails" xml:space="preserve"><value>Профиль Minecraft найден. Игровая сессия подключается при запуске игры.</value></data>
+  <data name="SkinViewAccessibilityLabel" xml:space="preserve"><value>3D-модель скина Minecraft</value></data>
+  <data name="SkinViewAccessibilityHint" xml:space="preserve"><value>Перетащите, чтобы повернуть персонажа. Стрелки поворачивают его на 15 градусов.</value></data>
+  <data name="SkinViewUnavailable" xml:space="preserve"><value>3D-превью временно недоступно.</value></data>
   <data name="LogoutButton" xml:space="preserve"><value>Выйти</value></data>
   <data name="LogoutTitle" xml:space="preserve"><value>Выйти из аккаунта?</value></data>
   <data name="LogoutMessage" xml:space="preserve"><value>Данные аккаунта будут удалены с этого устройства. Для входа понадобится снова подтвердить код Microsoft.</value></data>

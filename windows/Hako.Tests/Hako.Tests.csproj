@@ -22,7 +22,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Hako\MinecraftSkinImageDecoder.cs" Link="MinecraftSkinImageDecoder.cs" />
+    <Compile Include="..\Hako\MinecraftSkinHeadComposer.cs" Link="MinecraftSkinHeadComposer.cs" />
+    <Compile Include="..\Hako\MinecraftSkinHeadBitmapConverter.cs" Link="MinecraftSkinHeadBitmapConverter.cs" />
+    <Compile Include="..\Hako\Graphics\MinecraftSkinGeometry.cs" Link="MinecraftSkinGeometry.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="..\Hako\Strings\**\Resources.resw" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Hako\Assets\Steve.png" Link="Fixtures\WindowsSteve.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\macos\Hako\Hako\Resources\Steve.png" Link="Fixtures\MacSteve.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
