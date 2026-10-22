@@ -261,6 +261,7 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
 | `windows/Hako.Core/Instances/InstanceStorage.cs`, `InstanceStore.cs` | `InstanceStorage`, `InstanceStore`, `InstanceRegistryFile` | Безопасные пути, `instances.json`, транзакционное создание и управление профилями |
 | `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `ModRegistry`, `ModOrigin`, `InstanceContentItem` | Реестры модов/ресурспаков, локальные импорт, включение, замена и корзина; установка Fabric API |
+| `windows/Hako.Core/Instances/InstanceContentController.cs` | `InstanceContentController`, `InstanceContentState`, `ContentConfirmationRequest` | Core-оркестрация локального контента, зависимостей Modrinth и обновлений; подтверждения без WinUI |
 | `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta; поиск и версии Modrinth, распознавание SHA-512, кэш и проверяемая потоковая загрузка |
 | `windows/Hako.Core/JsonContexts.cs` | `HakoJsonContext` | Source-generated JSON-контракты Hako, Fabric, контента Modrinth и его кэша |
 | `windows/Hako.Core/RecycleBin.cs` | `RecycleBin`, `IFileOperationProgressSink` | Перемещение в Корзину и подтверждённое безвозвратное удаление через API |
@@ -271,6 +272,7 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Tests/InstanceStoreTests.cs`, `UserSettingsServiceTests.cs`, `RecycleBinTests.cs` | — | Изоляция путей, файловые транзакции, настройки, блокировка и корзина |
 | `windows/Hako.Tests/ModrinthTests.cs` | — | Фасеты, совместимость версий, распознавание, кэш и проверяемые загрузки Modrinth |
 | `windows/Hako.Tests/InstanceContentTests.cs` | — | Реестры и локальные операции модов/паков, замена, корзина и reparse points |
+| `windows/Hako.Tests/InstanceContentControllerTests.cs` | — | Зависимости Modrinth, подтверждения, отмена, хеши, обновления, Fabric API и lease |
 | `windows/Hako.Tests/RedactionTests.cs` | — | `ToString()` записей `MicrosoftToken` и `AccountSession` без токенов |
 
 ### Аккаунт: `session.dat`
@@ -358,7 +360,23 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 - Реестры повреждённого формата не перезаписываются. Имена проверяются как Windows path segments; импорт и чтение
   папок паков отклоняют reparse points и junction внутри дерева. Поиск записей использует сравнение без учёта регистра,
   чтобы включение, отключение или замена не создали вторую запись того же логического файла. Локальные операции
-  датапаков и публичный UI-контроллер для каталога пока не реализованы.
+  датапаков пока не реализованы.
+- `InstanceContentController` — Core-only контроллер этапа 6b; persisted-схема реестров не меняется. `InstalledProjectsAsync`
+  группирует записи происхождения и распознаёт остальные файлы по SHA-512, включая отключённые. Узнанный вручную файл
+  получает `ModOrigin` под content-lease только после повторной проверки ожидаемого SHA-512. `RecordOriginUnderLeaseAsync`
+  обновляет только JSON-реестр и не меняет файл. Обновления связанных ZIP ресурспаков берут совместимую datapack-версию
+  и сохраняют `fileType` в origin.
+- Снимок `InstanceContentState` адресован парой instance UUID + kind; `StateChanged` не маршалит на UI-поток.
+  При обновлении с коллизией подтверждённый файл сохраняется в `.hako-backup-<UUID>` до commit общего registry;
+  до commit ошибки/отмена восстанавливают старый файл и коллизию независимо. После commit коллизия отправляется
+  в корзину без caller cancellation. При отказе Shell новая версия и registry остаются опубликованы, backup
+  сохраняется, `ContentOperationFailed.Arguments["diagnostic"]` сообщает путь для восстановления; JSON-форматы не меняются.
+  Обработчик WinUI этапа 6c должен публиковать снимок на `DispatcherQueue`. Подтверждения передаются callback-ом через
+  `ContentConfirmationRequest` с enum-кодами и string-аргументами для ru/en ресурсов; сам Core не содержит UI-локализации.
+  Callback получает `CancellationToken`, операции не блокируют поток UI и удерживают один content-lease без повторного
+  захвата через `InstanceContent.*UnderLeaseAsync`. `UpdateAllAsync` подтверждения не показывает: такие элементы получают
+  `ConfirmationRequired`, ошибки собираются по файлам, дальнейшие обновления продолжаются. Публичное подключение контроллера
+  в WinUI остаётся этапом 6c; миры и локальные операции датапаков не входят в 6b.
 - Кеш хешей Modrinth находится в `%LOCALAPPDATA%\Hako\Cache\Modrinth\files.json` (или в инжектируемом
   `HakoPaths.CacheRoot`); ключ файла содержит нормализованный путь, размер и время изменения. Удалённые пути и
   неиспользуемые версии очищаются при сохранении, неизвестные хеши живут только в памяти клиента. Клиенты в одном

@@ -89,6 +89,7 @@ public sealed class InstanceContent
     private readonly InstanceStore store;
     private readonly RecycleBin recycleBin;
     private readonly Action? beforeRegistryCommit;
+    private readonly Action? beforeReplacementPublish;
 
     [SupportedOSPlatform("windows")]
     public InstanceContent(InstanceStore store, RecycleBin? recycleBin = null)
@@ -97,21 +98,29 @@ public sealed class InstanceContent
     }
 
     [SupportedOSPlatform("windows")]
-    internal InstanceContent(InstanceStore store, RecycleBin? recycleBin, Action? beforeRegistryCommit)
+    internal InstanceContent(InstanceStore store, RecycleBin? recycleBin, Action? beforeRegistryCommit,
+        Action? beforeReplacementPublish = null)
     {
         this.store = store;
         this.recycleBin = recycleBin ?? new RecycleBin();
         this.beforeRegistryCommit = beforeRegistryCommit;
+        this.beforeReplacementPublish = beforeReplacementPublish;
     }
 
     /// <summary>Lists regular JARs, ZIPs, and resourcepack folders without following reparse points.</summary>
     public async Task<IReadOnlyList<InstanceContentItem>> ListAsync(Guid instanceId, ModrinthContentKind kind,
         bool includeDisabled = true, CancellationToken cancellationToken = default)
     {
+        return await ListAsync(instanceId, kind, includeDisabled, readOrigins: true, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task<IReadOnlyList<InstanceContentItem>> ListAsync(Guid instanceId, ModrinthContentKind kind,
+        bool includeDisabled, bool readOrigins, CancellationToken cancellationToken = default)
+    {
         var instance = store.List().FirstOrDefault(candidate => candidate.Id == instanceId)
             ?? throw new InstanceStorageException(InstanceStorageError.InstanceRegistryUnavailable, "The build no longer exists.");
         var root = await Task.Run(() => store.GetInstanceDirectory(instanceId), cancellationToken).ConfigureAwait(false);
-        return await ListUnderLeaseAsync(root, instance, kind, includeDisabled, cancellationToken).ConfigureAwait(false);
+        return await ListUnderLeaseAsync(root, instance, kind, includeDisabled, cancellationToken, readOrigins).ConfigureAwait(false);
     }
 
     /// <summary>Imports a local JAR, ZIP, or resourcepack folder. Local imports clear stored Modrinth origin.</summary>
@@ -172,16 +181,49 @@ public sealed class InstanceContent
     }
 
     internal Task<IReadOnlyList<InstanceContentItem>> ListUnderLeaseAsync(string instanceRoot, GameInstance instance,
-        ModrinthContentKind kind, bool includeDisabled, CancellationToken cancellationToken) =>
-        Task.Run(() => ListAtAsync(instanceRoot, instance, kind, includeDisabled, cancellationToken), cancellationToken);
+        ModrinthContentKind kind, bool includeDisabled, CancellationToken cancellationToken, bool readOrigins = true) =>
+        Task.Run(() => ListAtAsync(instanceRoot, instance, kind, includeDisabled, cancellationToken, readOrigins), cancellationToken);
+
+    internal async Task RecordOriginUnderLeaseAsync(string instanceRoot, GameInstance instance, InstanceContentItem item,
+        ModrinthContentKind kind, string expectedSha512, ModOrigin origin, CancellationToken cancellationToken)
+    {
+        if (item.IsDirectory || !IsHash(expectedSha512, 128) || !IsHash(origin.Sha512, 128)
+            || !string.Equals(expectedSha512, origin.Sha512, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The content origin does not match a regular file checksum.");
+        var folder = ContentFolder(instanceRoot, instance, kind);
+        var path = CheckedItemPath(instanceRoot, folder, kind, item);
+        if (!string.Equals(await HashFileAsync(path, cancellationToken).ConfigureAwait(false), expectedSha512,
+            StringComparison.OrdinalIgnoreCase))
+            throw new IOException("The installed content changed before origin recording.");
+        var registryName = RegistryNameFor(kind);
+        var registry = ReadRegistry(instanceRoot, registryName);
+        var files = new Dictionary<string, ModOrigin>(registry.Files, StringComparer.Ordinal)
+        {
+            [LogicalContentName(kind, item.Name).ToLowerInvariant()] = origin
+        };
+        cancellationToken.ThrowIfCancellationRequested();
+        CommitRegistry(instanceRoot, registryName, registry with { Files = files });
+    }
+
+    internal async Task ValidateExpectedHashUnderLeaseAsync(string instanceRoot, GameInstance instance,
+        InstanceContentItem item, ModrinthContentKind kind, string expectedSha512, CancellationToken cancellationToken)
+    {
+        if (item.IsDirectory || !IsHash(expectedSha512, 128))
+            throw new IOException("The installed content snapshot is invalid.");
+        var folder = ContentFolder(instanceRoot, instance, kind);
+        var path = CheckedItemPath(instanceRoot, folder, kind, item);
+        if (!string.Equals(await HashFileAsync(path, cancellationToken).ConfigureAwait(false), expectedSha512,
+            StringComparison.OrdinalIgnoreCase))
+            throw new IOException("The installed content changed before replacement.");
+    }
 
     internal async Task ReplaceUnderLeaseAsync(string instanceRoot, GameInstance instance, InstanceContentItem item,
         ModrinthContentKind kind, string sourcePath, string filename, string expectedSha512, ModOrigin? origin,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, InstanceContentItem? confirmedCollision = null)
     {
         var folder = ContentFolder(instanceRoot, instance, kind);
         await ReplaceAtAsync(instanceRoot, folder, kind, item, sourcePath, filename, expectedSha512, origin,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, confirmedCollision).ConfigureAwait(false);
     }
 
     internal void SetEnabledUnderLease(string instanceRoot, GameInstance instance, InstanceContentItem item,
@@ -200,10 +242,10 @@ public sealed class InstanceContent
     }
 
     private async Task<IReadOnlyList<InstanceContentItem>> ListAtAsync(string instanceRoot, GameInstance instance,
-        ModrinthContentKind kind, bool includeDisabled, CancellationToken cancellationToken)
+        ModrinthContentKind kind, bool includeDisabled, CancellationToken cancellationToken, bool readOrigins = true)
     {
         var folder = ContentFolder(instanceRoot, instance, kind);
-        var registry = ReadRegistry(instanceRoot, RegistryNameFor(kind));
+        var registry = readOrigins ? ReadRegistry(instanceRoot, RegistryNameFor(kind)) : new ModRegistry();
         var disabledFolder = IsPack(kind) ? DisabledPacksFolder(instanceRoot, folder) : null;
         var folders = new List<(string Path, bool Disabled)> { (folder, false) };
         if (includeDisabled && disabledFolder is not null) folders.Add((disabledFolder, true));
@@ -336,7 +378,7 @@ public sealed class InstanceContent
 
     private async Task ReplaceAtAsync(string instanceRoot, string folder, ModrinthContentKind kind,
         InstanceContentItem item, string sourcePath, string filename, string expectedSha512, ModOrigin? origin,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, InstanceContentItem? confirmedCollision)
     {
         ValidateContentFilename(filename, kind);
         if (!IsHash(expectedSha512, 128)) throw new ArgumentException("An expected SHA-512 is required.", nameof(expectedSha512));
@@ -353,7 +395,12 @@ public sealed class InstanceContent
         var registryName = RegistryNameFor(kind);
         var registry = ReadRegistry(instanceRoot, registryName);
         var match = FindExisting(instanceRoot, folder, kind, filename);
-        if (match is not null && !PathEquals(match.Value.Path, old)) throw new IOException($"Content named '{filename}' already exists.");
+        var collisionPath = match is not null && !PathEquals(match.Value.Path, old) ? match.Value.Path : null;
+        if (collisionPath is not null && (confirmedCollision is null
+            || !PathEquals(CheckedItemPath(instanceRoot, folder, kind, confirmedCollision), collisionPath)))
+            throw new IOException($"Content named '{filename}' already exists.");
+        if (confirmedCollision is not null && collisionPath is null)
+            throw new IOException("The confirmed collision changed before replacement.");
         var disabled = kind == ModrinthContentKind.Mod ? !item.Enabled : item.DisabledPack;
         var destinationFolder = disabled && IsPack(kind)
             ? DisabledPacksFolder(instanceRoot, folder)!
@@ -363,6 +410,9 @@ public sealed class InstanceContent
         var staged = ChildPath(instanceRoot, folder, ".hako-update-" + Guid.NewGuid().ToString("N") + ".tmp");
         var backup = old + ".hako-backup-" + Guid.NewGuid().ToString("N");
         var backupCreated = false;
+        var collisionBackup = collisionPath is null ? null : collisionPath + ".hako-backup-" + Guid.NewGuid().ToString("N");
+        var collisionBackupCreated = false;
+        var published = false;
         try
         {
             await CopyFileAsync(source, staged, cancellationToken).ConfigureAwait(false);
@@ -370,11 +420,19 @@ public sealed class InstanceContent
                 origin.Sha512, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The replacement file does not match its Modrinth origin.");
             cancellationToken.ThrowIfCancellationRequested();
-            MoveEntry(old, backup);
-            backupCreated = true;
             try
             {
+                if (collisionPath is not null)
+                {
+                    MoveEntry(collisionPath, collisionBackup!);
+                    collisionBackupCreated = true;
+                }
+                beforeReplacementPublish?.Invoke();
+                cancellationToken.ThrowIfCancellationRequested();
+                MoveEntry(old, backup);
+                backupCreated = true;
                 MoveEntry(staged, target);
+                published = true;
                 var files = new Dictionary<string, ModOrigin>(registry.Files, StringComparer.Ordinal);
                 files.Remove(item.LogicalName.ToLowerInvariant());
                 files.Remove(filename.ToLowerInvariant());
@@ -383,11 +441,23 @@ public sealed class InstanceContent
             }
             catch (Exception original)
             {
-                RollBackPublishedEntry(original, target, backup, old, backupCreated);
+                RollBackPublishedEntry(original, target, backup, old, backupCreated,
+                    collisionBackup, collisionPath, collisionBackupCreated, published);
                 throw;
             }
 
             TryDeleteEntry(backup);
+            if (collisionBackupCreated)
+            {
+                // Registry commit is the boundary: finish recycling even if the caller cancels now.
+                if (!OperatingSystem.IsWindows())
+                    throw new IOException($"Content replacement committed. Recycling requires Windows; backup remains at '{collisionBackup}'.");
+                var result = await recycleBin.DeleteAsync(collisionBackup!, CancellationToken.None).ConfigureAwait(false);
+                if (result.Items.Count != 1 || result.Items[0].Status != RecycleBinItemStatus.Recycled)
+                    throw new IOException("Content replacement committed, but recycling the displaced file failed. "
+                        + $"Backup remains at '{collisionBackup}'. "
+                        + string.Join("; ", result.Items.Select(entry => $"{entry.Status}: {entry.Error}")));
+            }
         }
         finally
         {
@@ -677,27 +747,38 @@ public sealed class InstanceContent
     }
 
     private static void RollBackPublishedEntry(Exception original, string publishedPath, string? backupPath,
-        string? restorePath, bool backupCreated)
+        string? restorePath, bool backupCreated, string? collisionBackup = null, string? collisionPath = null,
+        bool collisionBackupCreated = false, bool removePublished = true)
     {
         var failures = new List<(string Description, Exception Error)>();
-        try { TryDeleteEntry(publishedPath); }
+        try { if (removePublished) TryDeleteEntry(publishedPath); }
         catch (Exception error) { failures.Add(($"Could not remove published entry '{publishedPath}'", error)); }
 
-        var backupRetained = false;
+        var retainedBackups = new List<string>();
         if (backupCreated)
         {
             try { MoveEntry(backupPath!, restorePath!); }
             catch (Exception error)
             {
                 failures.Add(($"Could not restore backup '{backupPath}' to '{restorePath}'", error));
-                backupRetained = true;
+                retainedBackups.Add(backupPath!);
+            }
+        }
+
+        if (collisionBackupCreated)
+        {
+            try { MoveEntry(collisionBackup!, collisionPath!); }
+            catch (Exception error)
+            {
+                failures.Add(($"Could not restore backup '{collisionBackup}' to '{collisionPath}'", error));
+                retainedBackups.Add(collisionBackup!);
             }
         }
 
         if (failures.Count == 0) return;
         var rollbackDetails = string.Join("; ", failures.Select(failure =>
             $"{failure.Description}: {failure.Error.Message}"));
-        var backupDetails = backupRetained ? $" Backup remains at '{backupPath}'." : "";
+        var backupDetails = string.Concat(retainedBackups.Select(path => $" Backup remains at '{path}'."));
         throw new IOException($"Content operation failed: {original.Message} Rollback failed: {rollbackDetails}.{backupDetails}",
             new AggregateException("The original operation and rollback both failed.",
                 new[] { original }.Concat(failures.Select(failure => failure.Error))));

@@ -244,6 +244,16 @@ public sealed record ModrinthVersion
             && (kind != ModrinthContentKind.Datapack || !file.IsResourcePack)).ToArray();
         return candidates.FirstOrDefault(file => file.Primary) ?? candidates.FirstOrDefault();
     }
+
+    public ModrinthFile? UpdateFile(ModrinthContentKind kind, string? fileType, string filename)
+    {
+        if (kind == ModrinthContentKind.Mod) return InstallableFile(kind);
+        var candidates = Files.Where(file => file.IsInstallable(kind)
+            && (kind != ModrinthContentKind.Datapack || !file.IsResourcePack)
+            && string.Equals(file.FileType, fileType, StringComparison.Ordinal)).ToArray();
+        return candidates.FirstOrDefault(file => string.Equals(file.Filename, filename, StringComparison.OrdinalIgnoreCase))
+            ?? (candidates.Length == 1 ? candidates[0] : null);
+    }
 }
 
 public sealed record ModrinthDependency

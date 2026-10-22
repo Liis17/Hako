@@ -342,7 +342,17 @@ public sealed class ModrinthClient : IDisposable
     /// <summary>Looks up the latest compatible release, beta, then alpha version for each SHA-512.</summary>
     public async Task<IReadOnlyDictionary<string, ModrinthVersion>> LatestVersionsAsync(
         IReadOnlyList<string> hashes, ModrinthContentKind kind, string minecraft,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await LatestVersionsCoreAsync(hashes, kind, minecraft, publishedAfter: null, cancellationToken).ConfigureAwait(false);
+
+    internal Task<IReadOnlyDictionary<string, ModrinthVersion>> LatestVersionsAfterAsync(
+        IReadOnlyList<string> hashes, ModrinthContentKind kind, string minecraft,
+        IReadOnlyDictionary<string, DateTimeOffset> publishedAfter, CancellationToken cancellationToken = default) =>
+        LatestVersionsCoreAsync(hashes, kind, minecraft, publishedAfter, cancellationToken);
+
+    private async Task<IReadOnlyDictionary<string, ModrinthVersion>> LatestVersionsCoreAsync(
+        IReadOnlyList<string> hashes, ModrinthContentKind kind, string minecraft,
+        IReadOnlyDictionary<string, DateTimeOffset>? publishedAfter, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(minecraft);
         var loader = Loader(kind);
@@ -363,7 +373,9 @@ public sealed class ModrinthClient : IDisposable
                 if (!remaining.Contains(pair.Key) || version.VersionType != channel
                     || !version.GameVersions.Contains(minecraft, StringComparer.Ordinal)
                     || !version.Loaders.Contains(loader, StringComparer.Ordinal)
-                    || version.InstallableFile(kind) is null)
+                    || version.InstallableFile(kind) is null
+                    || (publishedAfter?.TryGetValue(pair.Key, out var oldPublished) == true
+                        && version.DatePublished <= oldPublished))
                     continue;
                 result[pair.Key.ToLowerInvariant()] = version;
                 remaining.Remove(pair.Key);
