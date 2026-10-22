@@ -1,5 +1,7 @@
 using Hako.Core;
 using Hako.Core.Instances;
+using Hako.Core.Minecraft;
+using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -10,6 +12,7 @@ public partial class App : Application
 {
     private static Window? _window;
     private static HakoRootLock? _previewRootLock;
+    private static LauncherServices? _services;
     private readonly AppCoordinator? _coordinator;
     private readonly MinecraftSkinPreviewService? _skinPreviewService;
     private readonly ProfilePreviewOptions? _previewOptions;
@@ -99,22 +102,94 @@ public partial class App : Application
         InstanceStore = new InstanceStore(LaunchPaths!);
         await InstanceStore.LoadAsync();
 
-        _window = new MainWindow(_coordinator!, _skinPreviewService!, _previewOptions);
+        var previewBuilds = _previewOptions?.Mode == ProfilePreviewMode.Builds;
+        var mojang = previewBuilds ? PreviewBuildsFixture.CreateMojangClient() : new MojangClient();
+        var installations = previewBuilds
+            ? PreviewBuildsFixture.CreateInstallations(InstanceStore)
+            : new InstallationCoordinator(InstanceStore, mojang, new MinecraftInstaller(mojang));
+        var previewInstance = previewBuilds && InstanceStore.LoadError is null ? PreviewBuildsFixture.Seed(InstanceStore) : (Guid?)null;
+        var games = new GameLaunchCoordinator(InstanceStore, UserSettingsService!, _coordinator!.MinecraftSessions, new GameProcessRunner());
+        _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang,
+            _skinPreviewService!, _previewOptions);
+
+        _window = new MainWindow(_services);
         _window.Activate();
 
-        await _coordinator!.InitializeAsync();
+        await _coordinator.InitializeAsync();
+        if (InstanceStore.LoadError is null)
+        {
+            _ = StartBuildServicesAsync(installations, games);
+        }
+
         if (_previewOptions is not null)
         {
             if (_previewOptions.Mode == ProfilePreviewMode.Guest)
             {
                 _coordinator.ContinueWithoutAccount();
-                _coordinator.OpenSettings(SettingsSection.Profile);
             }
-            else
+
+            switch (_previewOptions.Page)
             {
-                _coordinator.OpenSettings(SettingsSection.Profile);
+                case PreviewPage.Builds:
+                    _coordinator.OpenBuilds();
+                    break;
+                case PreviewPage.Create:
+                    _coordinator.OpenInstanceCreation();
+                    break;
+                case PreviewPage.Profile when previewInstance is { } id:
+                    _coordinator.OpenInstance(id);
+                    break;
+                case PreviewPage.SettingsGame:
+                    _coordinator.OpenSettings(SettingsSection.Game);
+                    break;
+                default:
+                    if (_previewOptions.Mode != ProfilePreviewMode.Builds)
+                    {
+                        _coordinator.OpenSettings(SettingsSection.Profile);
+                    }
+
+                    break;
             }
         }
+    }
+
+    private static async Task StartBuildServicesAsync(InstallationCoordinator installations, GameLaunchCoordinator games)
+    {
+        try
+        {
+            await installations.StartAsync();
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"Could not start the installation queue: {exception}");
+        }
+
+        try
+        {
+            await games.RestoreRunningGamesAsync();
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"Could not restore running games: {exception}");
+        }
+    }
+
+    internal static WindowId? MainWindowId => _window?.AppWindow.Id;
+
+    internal static Window? CurrentWindow => _window;
+
+    /// <summary>Stops app-lifetime services before the window closes. Exiting does not pause the installation queue.</summary>
+    internal static async Task ShutdownServicesAsync()
+    {
+        if (_services is not { } services)
+        {
+            return;
+        }
+
+        _services = null;
+        try { await services.Installations.DisposeAsync(); } catch (Exception) { }
+        try { await services.Store.DisposeAsync(); } catch (Exception) { }
+        services.Mojang.Dispose();
     }
 
     internal static void ActivateMainWindow()

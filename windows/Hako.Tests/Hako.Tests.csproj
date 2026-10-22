@@ -26,6 +26,9 @@
     <Compile Include="..\Hako\MinecraftSkinHeadComposer.cs" Link="MinecraftSkinHeadComposer.cs" />
     <Compile Include="..\Hako\MinecraftSkinHeadBitmapConverter.cs" Link="MinecraftSkinHeadBitmapConverter.cs" />
     <Compile Include="..\Hako\Graphics\MinecraftSkinGeometry.cs" Link="MinecraftSkinGeometry.cs" />
+    <Compile Include="..\Hako\InstanceIconGlyphs.cs" Link="InstanceIconGlyphs.cs" />
+    <Compile Include="..\Hako\InstanceIconImage.cs" Link="InstanceIconImage.cs" />
+    <Compile Include="..\Hako\DisplayPath.cs" Link="DisplayPath.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -11,13 +11,16 @@ public enum LauncherScreen
     Welcome,
     Login,
     Builds,
+    Instance,
+    InstanceCreation,
     Settings
 }
 
 public enum SettingsSection
 {
     General,
-    Profile
+    Profile,
+    Game
 }
 
 public enum StartupNotice
@@ -47,6 +50,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private AppLanguage _savedLanguage = AppLanguages.Default;
     private bool _isGuest;
     private SettingsSection _settingsSection = SettingsSection.General;
+    private Guid? _selectedInstanceId;
     private LauncherScreen _loginReturnScreen = LauncherScreen.Welcome;
     private SettingsSection _loginReturnSection = SettingsSection.General;
     private DeviceCode? _currentDeviceCode;
@@ -246,6 +250,39 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     public void OpenBuilds()
     {
         Screen = LauncherScreen.Builds;
+    }
+
+    /// <summary>The build shown by <see cref="LauncherScreen.Instance"/>.</summary>
+    public Guid? SelectedInstanceId
+    {
+        get => _selectedInstanceId;
+        private set => SetProperty(ref _selectedInstanceId, value);
+    }
+
+    public void OpenInstance(Guid id)
+    {
+        SelectedInstanceId = id;
+        Screen = LauncherScreen.Instance;
+    }
+
+    public void OpenInstanceCreation()
+    {
+        Screen = LauncherScreen.InstanceCreation;
+    }
+
+    /// <summary>Leaves the profile of a build that no longer exists.</summary>
+    public void CloseInstance(Guid id)
+    {
+        if (SelectedInstanceId != id)
+        {
+            return;
+        }
+
+        SelectedInstanceId = null;
+        if (Screen == LauncherScreen.Instance)
+        {
+            Screen = LauncherScreen.Builds;
+        }
     }
 
     public void OpenSettings(SettingsSection section = SettingsSection.General)

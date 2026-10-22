@@ -43,7 +43,8 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
     {
     }
 
-    internal InstallationCoordinator(
+    /// <summary>Uses custom preparation and installation steps (tests and the offline UI preview).</summary>
+    public InstallationCoordinator(
         InstanceStore store,
         Func<MojangVersionEntry, GameArchitecture?, CancellationToken, Task<PreparedInstallation>> prepare,
         Func<PreparedInstallation, string, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>> install,
@@ -706,6 +707,23 @@ public static class InstallationResourceKeys
         "storage.missingfabricloaderversion" => "InstallationErrorStorageMissingFabricLoaderVersion",
         "installation.cancelled" => "InstallationErrorCancelled",
         "installation.unexpected" => "InstallationErrorUnexpected",
+        _ => "InstallationErrorUnexpected"
+    };
+
+    public static string ResourceKey(this InstanceStorageError error) =>
+        ErrorResourceKey($"storage.{error.ToString().ToLowerInvariant()}");
+
+    public static string ResourceKey(this MojangError error) =>
+        ErrorResourceKey($"mojang.{error.ToString().ToLowerInvariant()}");
+
+    /// <summary>Localized text key for an exception from build creation, settings or the Mojang catalog.</summary>
+    public static string ErrorResourceKey(Exception exception) => exception switch
+    {
+        InstanceStorageException storage => storage.Error.ResourceKey(),
+        InstanceRegistryException registry => registry.ResourceKey,
+        MojangException mojang => mojang.Error.ResourceKey(),
+        HttpRequestException or TimeoutException or TaskCanceledException => "InstallationErrorMojangHttp",
+        IOException or UnauthorizedAccessException => "InstallationErrorStorageOperationFailed",
         _ => "InstallationErrorUnexpected"
     };
 

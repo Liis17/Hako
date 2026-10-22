@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -51,8 +52,9 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     private Task? _deleteStagingCleanupTask;
     private Task? _disposeTask;
     private bool _isLoaded;
-    private readonly HashSet<Guid> _launchBusy = [];
-    private readonly HashSet<Guid> _contentBusy = [];
+    // Written under _gate, read lock-free so UI-thread checks never wait for a long operation holding _gate.
+    private ImmutableHashSet<Guid> _launchBusy = ImmutableHashSet<Guid>.Empty;
+    private ImmutableHashSet<Guid> _contentBusy = ImmutableHashSet<Guid>.Empty;
 
     public InstanceStore(HakoPaths paths, Action? beforeRegistryCommit = null)
         : this(paths, beforeRegistryCommit, null)
@@ -116,6 +118,9 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
 
     public IReadOnlyList<GameInstance> List() => Instances;
 
+    /// <summary>Absolute folder that contains the build folders.</summary>
+    public string GameRoot => _storage.Root;
+
     public string GetInstanceDirectory(Guid id)
     {
         _gate.Wait();
@@ -129,31 +134,9 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         }
     }
 
-    public bool IsLaunchBusy(Guid id)
-    {
-        _gate.Wait();
-        try
-        {
-            return _launchBusy.Contains(id);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
+    public bool IsLaunchBusy(Guid id) => Volatile.Read(ref _launchBusy).Contains(id);
 
-    public bool IsContentBusy(Guid id)
-    {
-        _gate.Wait();
-        try
-        {
-            return _contentBusy.Contains(id);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
+    public bool IsContentBusy(Guid id) => Volatile.Read(ref _contentBusy).Contains(id);
 
     public bool TryBeginLaunch(Guid id, out IDisposable? lease, out InstanceStorageError? reason)
     {
@@ -175,8 +158,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                 return false;
             }
 
-            changed = _launchBusy.Add(id);
-            lease = new BusyLease(() => EndBusy(id, _launchBusy));
+            changed = AddBusy(ref _launchBusy, id);
+            lease = new BusyLease(() => EndBusy(id, launch: true));
         }
         finally
         {
@@ -212,8 +195,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                 return false;
             }
 
-            changed = _contentBusy.Add(id);
-            lease = new BusyLease(() => EndBusy(id, _contentBusy));
+            changed = AddBusy(ref _contentBusy, id);
+            lease = new BusyLease(() => EndBusy(id, launch: false));
         }
         finally
         {
@@ -263,8 +246,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                 return false;
             }
 
-            changed = _contentBusy.Add(id);
-            lease = new BusyLease(() => EndBusy(id, _contentBusy));
+            changed = AddBusy(ref _contentBusy, id);
+            lease = new BusyLease(() => EndBusy(id, launch: false));
             reason = null;
         }
         finally
@@ -280,13 +263,24 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         return true;
     }
 
-    private void EndBusy(Guid id, HashSet<Guid> busy)
+    private static bool AddBusy(ref ImmutableHashSet<Guid> busy, Guid id)
+    {
+        var updated = busy.Add(id);
+        var changed = !ReferenceEquals(updated, busy);
+        Volatile.Write(ref busy, updated);
+        return changed;
+    }
+
+    private void EndBusy(Guid id, bool launch)
     {
         _gate.Wait();
         bool changed;
         try
         {
-            changed = busy.Remove(id);
+            ref var busy = ref launch ? ref _launchBusy : ref _contentBusy;
+            var updated = busy.Remove(id);
+            changed = !ReferenceEquals(updated, busy);
+            Volatile.Write(ref busy, updated);
         }
         finally
         {
@@ -623,7 +617,12 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         {
             var registry = GetRegistrySnapshot();
             var current = Find(registry, id);
-            ThrowIfManagementBlocked(current);
+            // Like macOS, a running game doesn't block profile settings: they apply on the next launch.
+            if (GetManagementBlock(current) is { } error and not InstanceStorageError.BuildRunning)
+            {
+                throw new InstanceStorageException(error, ManagementMessage(error));
+            }
+
             ValidateOffline(draft);
             var updated = ApplyDraft(current, draft, includeName: false);
             UpdateCore(registry, current, updated, draft.IconData);
@@ -661,18 +660,11 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         }
     }
 
-    public string? ManagementBlockedReason(GameInstance instance)
-    {
-        _gate.Wait();
-        try
-        {
-            return GetManagementBlock(instance) is { } error ? ManagementMessage(error) : null;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
+    public string? ManagementBlockedReason(GameInstance instance) =>
+        GetManagementBlock(instance) is { } error ? ManagementMessage(error) : null;
+
+    /// <summary>The reason rename and delete are blocked, for localized UI text; does not wait for running store operations.</summary>
+    public InstanceStorageError? ManagementBlockedError(GameInstance instance) => GetManagementBlock(instance);
 
     public void Delete(Guid id)
     {
@@ -1240,12 +1232,12 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
             return InstanceStorageError.BuildInstalling;
         }
 
-        if (_launchBusy.Contains(instance.Id))
+        if (Volatile.Read(ref _launchBusy).Contains(instance.Id))
         {
             return InstanceStorageError.BuildRunning;
         }
 
-        if (_contentBusy.Contains(instance.Id))
+        if (Volatile.Read(ref _contentBusy).Contains(instance.Id))
         {
             return InstanceStorageError.BuildFilesBusy;
         }

@@ -13,6 +13,12 @@
                         <TextBlock x:Name="GeneralSectionLabel" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListViewItem>
+                <ListViewItem Tag="Game">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <FontIcon Glyph="&#xE7FC;" />
+                        <TextBlock x:Name="GameSectionLabel" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListViewItem>
                 <ListViewItem Tag="Profile">
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <SymbolIcon Symbol="Contact" />
@@ -32,6 +38,48 @@
                                 <ComboBoxItem Content="English" />
                             </ComboBox>
                         </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="GamePanel" Spacing="20" Visibility="Collapsed" MaxWidth="760" HorizontalAlignment="Left">
+                        <TextBlock x:Name="GameTitle" FontSize="24" FontWeight="SemiBold" />
+                        <TextBlock x:Name="GameDescription" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="Java" FontSize="18" FontWeight="SemiBold" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <TextBox x:Name="JavaPathBox" FontFamily="Consolas" TextChanged="GameText_TextChanged" />
+                                    <Button x:Name="ChooseJavaButton" Grid.Column="1" VerticalAlignment="Bottom" Click="ChooseJavaButton_Click" />
+                                </Grid>
+                                <TextBlock x:Name="JavaPathCaption" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBox x:Name="GlobalJavaArgumentsBox" FontFamily="Consolas" TextWrapping="Wrap" MaxHeight="96" TextChanged="GameText_TextChanged" />
+                                <local:JavaMemorySlider x:Name="GlobalMemorySlider" />
+                                <TextBlock x:Name="GlobalMemoryCaption" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="Minecraft" FontSize="18" FontWeight="SemiBold" />
+                                <TextBox x:Name="GlobalMinecraftArgumentsBox" FontFamily="Consolas" TextWrapping="Wrap" MaxHeight="96" TextChanged="GameText_TextChanged" />
+                            </StackPanel>
+                        </Border>
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="14">
+                                <TextBlock x:Name="WindowCardTitle" FontSize="18" FontWeight="SemiBold" />
+                                <ToggleSwitch x:Name="GlobalFullscreenSwitch" Toggled="GlobalFullscreenSwitch_Toggled" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                                    <StackPanel Spacing="4">
+                                        <TextBox x:Name="GlobalWidthBox" TextChanged="GameText_TextChanged" />
+                                        <TextBlock x:Name="GlobalWidthError" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="4">
+                                        <TextBox x:Name="GlobalHeightBox" TextChanged="GameText_TextChanged" />
+                                        <TextBlock x:Name="GlobalHeightError" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock x:Name="WindowCaption" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock x:Name="GameSaveError" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
                     </StackPanel>
 
                     <Grid x:Name="ProfilePanel" Visibility="Collapsed" SizeChanged="ProfilePanel_SizeChanged">

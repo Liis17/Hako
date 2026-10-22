@@ -29,6 +29,12 @@ public sealed record GameLaunchDefaults(
             NormalizeMemory(settings?.MaximumMemoryMiB ?? standard.MaximumMemoryMiB));
     }
 
+    /// <summary>A window size typed by the user: a positive integer, otherwise null.</summary>
+    public static int? WindowDimension(string? text) =>
+        int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var value) && value > 0
+            ? value
+            : null;
+
     public static int NormalizeMemory(int value)
     {
         if (value <= 0)

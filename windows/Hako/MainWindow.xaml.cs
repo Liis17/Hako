@@ -1,7 +1,11 @@
+using System.Collections.Generic;
+using System.Linq;
 using Hako.Core;
+using Hako.Core.Instances;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
 using WinRT.Interop;
@@ -10,34 +14,45 @@ namespace Hako;
 
 public sealed partial class MainWindow : Window
 {
+    private readonly LauncherServices _services;
     private readonly AppCoordinator _coordinator;
     private readonly MinecraftSkinPreviewService _skinPreviewService;
     private readonly ProfilePreviewOptions? _previewOptions;
+    private readonly Dictionary<Guid, NavigationViewItem> _instanceItems = [];
+    private readonly Dictionary<Guid, Guid> _instanceIconRevisions = [];
+    private readonly CoalescedRefresh _instancesRefresh;
     private bool _changingSelection;
     private bool _windowActive;
     private bool _windowVisible;
     private bool _closed;
+    private bool _closeConfirmed;
+    private bool _closeRequested;
+    private bool _navigating;
+    private Guid? _shownInstanceId;
 
-    internal MainWindow(
-        AppCoordinator coordinator,
-        MinecraftSkinPreviewService skinPreviewService,
-        ProfilePreviewOptions? previewOptions)
+    internal MainWindow(LauncherServices services)
     {
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        _coordinator = coordinator;
-        _skinPreviewService = skinPreviewService;
-        _previewOptions = previewOptions;
+        _services = services;
+        _coordinator = services.App;
+        _skinPreviewService = services.SkinPreview;
+        _previewOptions = services.PreviewOptions;
+        _instancesRefresh = new CoalescedRefresh(DispatcherQueue, RefreshInstanceItems);
         SetInitialWindowSize();
         _coordinator.PropertyChanged += Coordinator_PropertyChanged;
+        _services.Store.InstancesChanged += Store_InstancesChanged;
+        RootGrid.Loaded += (_, _) => HakoDialogs.Root = RootGrid.XamlRoot;
         Activated += Window_Activated;
         VisibilityChanged += Window_VisibilityChanged;
         AppWindow.Changed += AppWindow_Changed;
+        AppWindow.Closing += AppWindow_Closing;
         Closed += Window_Closed;
         HakoStrings.SetLanguage(_coordinator.Language, true);
         UpdateNavigationLabels();
+        RefreshInstanceItems();
         ShowScreen();
         UpdateSkinAvailability();
     }
@@ -79,9 +94,15 @@ public sealed partial class MainWindow : Window
         {
             HakoStrings.SetLanguage(_coordinator.Language);
             UpdateNavigationLabels();
+            RefreshInstanceItems();
         }
 
         if (e.PropertyName == nameof(AppCoordinator.Screen))
+        {
+            ShowScreen();
+        }
+        else if (e.PropertyName == nameof(AppCoordinator.SelectedInstanceId)
+                 && _coordinator.Screen == LauncherScreen.Instance)
         {
             ShowScreen();
         }
@@ -89,19 +110,17 @@ public sealed partial class MainWindow : Window
                  && ShellFrame.Content is SettingsPage settingsPage)
         {
             settingsPage.SelectSection(_coordinator.SelectedSettingsSection);
+            UpdateSelection();
             UpdateSkinAvailability();
         }
-        else if (e.PropertyName == nameof(AppCoordinator.IsGuest)
-                 && ShellFrame.Content is SettingsPage currentSettingsPage)
+        else if (e.PropertyName is nameof(AppCoordinator.IsGuest) or nameof(AppCoordinator.Account))
         {
-            currentSettingsPage.RefreshProfile();
-            UpdateSkinAvailability();
-        }
-        else if (e.PropertyName == nameof(AppCoordinator.Account)
-                 && ShellFrame.Content is SettingsPage accountSettingsPage)
-        {
-            accountSettingsPage.RefreshProfile();
-            UpdateSkinAvailability();
+            UpdateNavigationLabels();
+            if (ShellFrame.Content is SettingsPage currentSettingsPage)
+            {
+                currentSettingsPage.RefreshProfile();
+                UpdateSkinAvailability();
+            }
         }
         else if (e.PropertyName == nameof(AppCoordinator.CurrentStartupNotice)
                  && FlowFrame.Content is WelcomePage welcomePage)
@@ -112,41 +131,266 @@ public sealed partial class MainWindow : Window
 
     private void ShowScreen()
     {
-        if (_coordinator.Screen is LauncherScreen.Builds or LauncherScreen.Settings)
+        var screen = _coordinator.Screen;
+        if (screen is LauncherScreen.Builds or LauncherScreen.Instance or LauncherScreen.InstanceCreation or LauncherScreen.Settings)
         {
             FlowFrame.Visibility = Visibility.Collapsed;
             RootNavigation.Visibility = Visibility.Visible;
-            _changingSelection = true;
-            RootNavigation.SelectedItem = _coordinator.Screen == LauncherScreen.Builds
-                ? BuildsNavigationItem
-                : SettingsNavigationItem;
-            _changingSelection = false;
+            UpdateSelection();
 
-            if (_coordinator.Screen == LauncherScreen.Builds)
+            switch (screen)
             {
-                ShellFrame.Navigate(typeof(BuildsPage), _coordinator);
+                case LauncherScreen.Builds when ShellFrame.Content is not BuildsPage:
+                    ShellFrame.Navigate(typeof(BuildsPage), _services);
+                    break;
+                case LauncherScreen.Instance when _coordinator.SelectedInstanceId is { } id
+                                                  && (ShellFrame.Content is not InstanceProfilePage || _shownInstanceId != id):
+                    _shownInstanceId = id;
+                    ShellFrame.Navigate(typeof(InstanceProfilePage), new InstanceProfileContext(_services, id));
+                    break;
+                case LauncherScreen.InstanceCreation when ShellFrame.Content is not InstanceCreationPage:
+                    ShellFrame.Navigate(typeof(InstanceCreationPage), _services);
+                    break;
+                case LauncherScreen.Settings when ShellFrame.Content is not SettingsPage:
+                    ShellFrame.Navigate(
+                        typeof(SettingsPage),
+                        new SettingsPageContext(_coordinator, _skinPreviewService, _previewOptions, _services.Settings));
+                    break;
             }
-            else
+
+            if (screen != LauncherScreen.Instance)
             {
-                ShellFrame.Navigate(
-                    typeof(SettingsPage),
-                    new SettingsPageContext(_coordinator, _skinPreviewService, _previewOptions));
+                _shownInstanceId = null;
             }
 
             UpdateSkinAvailability();
             return;
         }
 
+        _shownInstanceId = null;
         RootNavigation.Visibility = Visibility.Collapsed;
         UpdateSkinAvailability();
         FlowFrame.Visibility = Visibility.Visible;
-        var page = _coordinator.Screen switch
+        var page = screen switch
         {
             LauncherScreen.Login => typeof(LoginPage),
             LauncherScreen.Welcome => typeof(WelcomePage),
             _ => typeof(LoadingPage)
         };
         FlowFrame.Navigate(page, _coordinator);
+    }
+
+    private void UpdateSelection()
+    {
+        _changingSelection = true;
+        RootNavigation.SelectedItem = _coordinator.Screen switch
+        {
+            LauncherScreen.Builds => BuildsNavigationItem,
+            LauncherScreen.Instance when _coordinator.SelectedInstanceId is { } id => _instanceItems.GetValueOrDefault(id),
+            LauncherScreen.Settings => _coordinator.SelectedSettingsSection == SettingsSection.Profile
+                ? AccountNavigationItem
+                : SettingsNavigationItem,
+            _ => null
+        };
+        _changingSelection = false;
+    }
+
+    private void Store_InstancesChanged(object? sender, EventArgs e) => _instancesRefresh.Request();
+
+    /// <summary>Updates rail items in place so selection and the shown page survive store notifications.</summary>
+    private void RefreshInstanceItems()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        var instances = _services.Store.Instances.OrderBy(instance => instance.CreatedAt).ThenBy(instance => instance.Id).ToList();
+        var present = instances.Select(instance => instance.Id).ToHashSet();
+        _changingSelection = true;
+        try
+        {
+            foreach (var removed in _instanceItems.Keys.Where(id => !present.Contains(id)).ToList())
+            {
+                RootNavigation.MenuItems.Remove(_instanceItems[removed]);
+                _instanceItems.Remove(removed);
+                _instanceIconRevisions.Remove(removed);
+            }
+
+            for (var index = 0; index < instances.Count; index++)
+            {
+                var instance = instances[index];
+                if (!_instanceItems.TryGetValue(instance.Id, out var item))
+                {
+                    item = new NavigationViewItem { Tag = instance.Id };
+                    _instanceItems[instance.Id] = item;
+                }
+
+                item.Content = instance.Name;
+                ToolTipService.SetToolTip(item, $"{instance.Name}\n{InstanceText.Details(instance)}");
+                if (!_instanceIconRevisions.TryGetValue(instance.Id, out var revision) || revision != instance.IconRevision
+                    || item.Icon is null)
+                {
+                    _instanceIconRevisions[instance.Id] = instance.IconRevision;
+                    item.Icon = new FontIcon { Glyph = InstanceIconGlyphs.Glyph(instance.IconSymbol), FontFamily = new FontFamily("Segoe Fluent Icons") };
+                    _ = LoadNavigationIconAsync(item, instance);
+                }
+
+                // Builds follow the "Сборки" item and its separator.
+                var target = index + 2;
+                var current = RootNavigation.MenuItems.IndexOf(item);
+                if (current != target)
+                {
+                    if (current >= 0)
+                    {
+                        RootNavigation.MenuItems.RemoveAt(current);
+                    }
+
+                    RootNavigation.MenuItems.Insert(target, item);
+                }
+            }
+
+            BuildsSeparator.Visibility = instances.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            CreateNavigationItem.IsEnabled = _services.Store.LoadError is null;
+        }
+        finally
+        {
+            _changingSelection = false;
+        }
+
+        if (_coordinator.SelectedInstanceId is { } selected && !present.Contains(selected))
+        {
+            _coordinator.CloseInstance(selected);
+        }
+
+        UpdateSelection();
+    }
+
+    private async Task LoadNavigationIconAsync(NavigationViewItem item, GameInstance instance)
+    {
+        var data = await InstanceIconSource.ReadAsync(_services.Store, instance);
+        if (data is null || await InstanceIconSource.CreateAsync(data) is not { } image)
+        {
+            return;
+        }
+
+        if (_instanceIconRevisions.GetValueOrDefault(instance.Id) == instance.IconRevision)
+        {
+            item.Icon = new ImageIcon { Source = image };
+        }
+    }
+
+    private void RootNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (_changingSelection || args.SelectedItemContainer?.Tag is not { } tag)
+        {
+            return;
+        }
+
+        Action? action = tag switch
+        {
+            "Builds" => _coordinator.OpenBuilds,
+            "Settings" => () => _coordinator.OpenSettings(),
+            "Account" => () => _coordinator.OpenSettings(SettingsSection.Profile),
+            Guid id => () => _coordinator.OpenInstance(id),
+            _ => null
+        };
+        if (action is not null)
+        {
+            _ = NavigateAsync(action);
+        }
+    }
+
+    private void RootNavigation_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItemContainer == CreateNavigationItem)
+        {
+            _ = NavigateAsync(null, chooseCreation: true);
+        }
+    }
+
+    /// <summary>Asks the current page about unsaved input before leaving it; restores the rail selection when it stays.</summary>
+    private async Task NavigateAsync(Action? action, bool chooseCreation = false)
+    {
+        if (_navigating)
+        {
+            UpdateSelection();
+            return;
+        }
+
+        _navigating = true;
+        try
+        {
+            UpdateSelection();
+            if (chooseCreation && ShellFrame.Content is InstanceCreationPage)
+            {
+                return;
+            }
+
+            if (ShellFrame.Content is INavigationGuard guard && !await guard.ConfirmLeaveAsync())
+            {
+                return;
+            }
+
+            if (chooseCreation)
+            {
+                if (await InstanceCreationChoiceDialog.ShowAsync() == InstanceCreationChoice.Custom)
+                {
+                    _coordinator.OpenInstanceCreation();
+                }
+
+                return;
+            }
+
+            action?.Invoke();
+        }
+        finally
+        {
+            _navigating = false;
+            UpdateSelection();
+        }
+    }
+
+    /// <summary>Opens the build creation flow from a page (the empty state of Сборки) with the same guard as the rail.</summary>
+    internal static void RequestCreation(Window? window)
+    {
+        if (window is MainWindow main)
+        {
+            _ = main.NavigateAsync(null, chooseCreation: true);
+        }
+    }
+
+    private async void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_closeConfirmed)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        if (_closeRequested)
+        {
+            return;
+        }
+
+        _closeRequested = true;
+        try
+        {
+            if (RootNavigation.Visibility == Visibility.Visible
+                && ShellFrame.Content is INavigationGuard guard
+                && !await guard.ConfirmLeaveAsync())
+            {
+                return;
+            }
+
+            _closeConfirmed = true;
+            await App.ShutdownServicesAsync();
+            Close();
+        }
+        finally
+        {
+            _closeRequested = false;
+        }
     }
 
     private void Window_Activated(object sender, WindowActivatedEventArgs e)
@@ -175,8 +419,11 @@ public sealed partial class MainWindow : Window
         _closed = true;
         _windowActive = false;
         _windowVisible = false;
+        _instancesRefresh.Stop();
         _coordinator.PropertyChanged -= Coordinator_PropertyChanged;
+        _services.Store.InstancesChanged -= Store_InstancesChanged;
         AppWindow.Changed -= AppWindow_Changed;
+        AppWindow.Closing -= AppWindow_Closing;
         _coordinator.CancelSignIn();
         UpdateSkinAvailability();
         _skinPreviewService.Dispose();
@@ -198,27 +445,15 @@ public sealed partial class MainWindow : Window
         settingsPage.SetWindowState(windowVisible, windowVisible && _windowActive);
     }
 
-    private void RootNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
-    {
-        if (_changingSelection || args.SelectedItemContainer?.Tag is not string tag)
-        {
-            return;
-        }
-
-        if (tag == "Builds")
-        {
-            _coordinator.OpenBuilds();
-        }
-        else if (tag == "Settings")
-        {
-            _coordinator.OpenSettings();
-        }
-    }
-
     private void UpdateNavigationLabels()
     {
         BuildsNavigationItem.Content = HakoStrings.Get("BuildsTitle");
         SettingsNavigationItem.Content = HakoStrings.Get("SettingsTitle");
+        CreateNavigationItem.Content = HakoStrings.Get("CreateBuildButton");
+        ToolTipService.SetToolTip(CreateNavigationItem, HakoStrings.Get("CreateBuildButton"));
+        AccountNavigationItem.Content = _coordinator.Account?.MinecraftName
+            ?? _coordinator.Account?.Gamertag
+            ?? HakoStrings.Get(_coordinator.IsGuest ? "GuestProfileTitle" : "ProfileTitle");
     }
 
     [DllImport("user32.dll")]

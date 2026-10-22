@@ -125,4 +125,121 @@
   <data name="LaunchProcessRecordInvalid" xml:space="preserve"><value>Не удалось восстановить состояние запущенной игры.</value></data>
   <data name="LaunchGameExitCode" xml:space="preserve"><value>Minecraft завершился с кодом {0}. Подробности — в журнале запуска.</value></data>
   <data name="LaunchMemoryWarning" xml:space="preserve"><value>Выбранный лимит памяти превышает 70% физической памяти компьютера.</value></data>
+  <data name="ChooseButton" xml:space="preserve"><value>Выбрать…</value></data>
+  <data name="CreateBuildButton" xml:space="preserve"><value>Создать сборку</value></data>
+  <data name="CreationTitle" xml:space="preserve"><value>Новая сборка</value></data>
+  <data name="CreationChoiceSubtitle" xml:space="preserve"><value>Выберите, как создать сборку.</value></data>
+  <data name="CreationCustomTitle" xml:space="preserve"><value>Своя сборка</value></data>
+  <data name="CreationCustomDetails" xml:space="preserve"><value>Выберите Minecraft и загрузчик, затем добавьте свои моды.</value></data>
+  <data name="CreationModrinthTitle" xml:space="preserve"><value>Готовая с Modrinth</value></data>
+  <data name="CreationModrinthUnavailable" xml:space="preserve"><value>Готовые модпаки с Modrinth появятся в одном из следующих обновлений.</value></data>
+  <data name="CreationNameLabel" xml:space="preserve"><value>Название</value></data>
+  <data name="CreationNamePlaceholder" xml:space="preserve"><value>Например, My Vanilla Pack</value></data>
+  <data name="CreationNameHint" xml:space="preserve"><value>Пробелы в имени папки будут заменены на _.</value></data>
+  <data name="CreationVersionLabel" xml:space="preserve"><value>Версия Minecraft</value></data>
+  <data name="CreationCatalogLoading" xml:space="preserve"><value>Загружаем версии…</value></data>
+  <data name="CreationCatalogRetry" xml:space="preserve"><value>Повторить загрузку каталога</value></data>
+  <data name="CreationFilterReleases" xml:space="preserve"><value>Релизы</value></data>
+  <data name="CreationFilterSnapshots" xml:space="preserve"><value>Снапшоты</value></data>
+  <data name="CreationFilterHistorical" xml:space="preserve"><value>История</value></data>
+  <data name="CreationFilterAll" xml:space="preserve"><value>Все</value></data>
+  <data name="CreationSearchPlaceholder" xml:space="preserve"><value>Поиск версии</value></data>
+  <data name="CreationNoVersions" xml:space="preserve"><value>Версии не найдены.</value></data>
+  <data name="CreationChecking" xml:space="preserve"><value>Проверяем совместимость с вашим компьютером…</value></data>
+  <data name="CreationCheckRetry" xml:space="preserve"><value>Повторить проверку</value></data>
+  <data name="CreationSupported" xml:space="preserve"><value>Поддерживается · Java {0}</value></data>
+  <data name="CreationLoaderLabel" xml:space="preserve"><value>Загрузчик модов</value></data>
+  <data name="CreationLoaderVanilla" xml:space="preserve"><value>Vanilla — без загрузчика</value></data>
+  <data name="CreationAdvanced" xml:space="preserve"><value>Дополнительные настройки</value></data>
+  <data name="CreationFooter" xml:space="preserve"><value>Java и игра установятся в фоне.</value></data>
+  <data name="CreationSave" xml:space="preserve"><value>Сохранить сборку</value></data>
+  <data name="CreationCancelTitle" xml:space="preserve"><value>Отменить создание сборки?</value></data>
+  <data name="CreationCancelMessage" xml:space="preserve"><value>Название, иконка и выбранные параметры не будут сохранены.</value></data>
+  <data name="CreationCancelConfirm" xml:space="preserve"><value>Отменить создание</value></data>
+  <data name="CreationContinue" xml:space="preserve"><value>Продолжить создание</value></data>
+  <data name="IconBox" xml:space="preserve"><value>Коробка</value></data>
+  <data name="IconCube" xml:space="preserve"><value>Куб</value></data>
+  <data name="IconLeaf" xml:space="preserve"><value>Лист</value></data>
+  <data name="IconFlame" xml:space="preserve"><value>Пламя</value></data>
+  <data name="IconBolt" xml:space="preserve"><value>Молния</value></data>
+  <data name="IconMoon" xml:space="preserve"><value>Луна</value></data>
+  <data name="IconAccessibilityFormat" xml:space="preserve"><value>Иконка: {0}</value></data>
+  <data name="IconCustomButton" xml:space="preserve"><value>Своя картинка…</value></data>
+  <data name="IconCustomError" xml:space="preserve"><value>Не удалось открыть картинку. Выберите PNG или JPEG.</value></data>
+  <data name="InstanceDetailsFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="InstanceDetailsJavaFormat" xml:space="preserve"><value>Minecraft {0} · {1} · Java {2}</value></data>
+  <data name="InstanceFolderFormat" xml:space="preserve"><value>Папка: {0}</value></data>
+  <data name="InstanceProfileSection" xml:space="preserve"><value>Профиль сборки</value></data>
+  <data name="InstanceActions" xml:space="preserve"><value>Действия со сборкой</value></data>
+  <data name="DeleteBuildMenu" xml:space="preserve"><value>Удалить сборку…</value></data>
+  <data name="DeleteBuildTitle" xml:space="preserve"><value>Удалить сборку «{0}»?</value></data>
+  <data name="DeleteBuildMessage" xml:space="preserve"><value>Папка {0} со всеми мирами, модами и Java будет удалена без возможности восстановления.</value></data>
+  <data name="DeleteBuildConfirm" xml:space="preserve"><value>Удалить</value></data>
+  <data name="DeletingBuild" xml:space="preserve"><value>Удаляем сборку…</value></data>
+  <data name="PermanentDeleteTitle" xml:space="preserve"><value>Не удалось переместить в корзину</value></data>
+  <data name="PermanentDeleteMessage" xml:space="preserve"><value>Эти объекты нельзя переместить в корзину. Удалить их безвозвратно?
+{0}</value></data>
+  <data name="PermanentDeleteConfirm" xml:space="preserve"><value>Удалить безвозвратно</value></data>
+  <data name="PlayButton" xml:space="preserve"><value>Играть</value></data>
+  <data name="PlayHint" xml:space="preserve"><value>Запустить Minecraft</value></data>
+  <data name="PlayAccessibilityFormat" xml:space="preserve"><value>Играть в {0}</value></data>
+  <data name="PlayPreparing" xml:space="preserve"><value>Подготавливаем запуск…</value></data>
+  <data name="PlayBlockedFilesBusy" xml:space="preserve"><value>Дождитесь завершения операций с файлами сборки.</value></data>
+  <data name="PlayBlockedNotReady" xml:space="preserve"><value>Дождитесь завершения установки сборки.</value></data>
+  <data name="PlayBlockedRunning" xml:space="preserve"><value>Эта сборка уже запущена.</value></data>
+  <data name="PlayBlockedOfflineName" xml:space="preserve"><value>Проверьте ник в настройках offline-mode.</value></data>
+  <data name="PlayBlockedNoSession" xml:space="preserve"><value>Нужен вход в Minecraft. Войдите в аккаунт или включите offline-mode в настройках сборки.</value></data>
+  <data name="GameRunning" xml:space="preserve"><value>Игра запущена</value></data>
+  <data name="OpenLaunchLog" xml:space="preserve"><value>Журнал запуска</value></data>
+  <data name="RetrySessionButton" xml:space="preserve"><value>Повторить подключение</value></data>
+  <data name="OfflineNameFormat" xml:space="preserve"><value>Offline-mode: {0}</value></data>
+  <data name="InstallationPause" xml:space="preserve"><value>Остановить</value></data>
+  <data name="InstallationResume" xml:space="preserve"><value>Продолжить</value></data>
+  <data name="InstallationRetry" xml:space="preserve"><value>Повторить</value></data>
+  <data name="InstallationQueuedHint" xml:space="preserve"><value>Загрузка начнётся, когда завершится предыдущая сборка.</value></data>
+  <data name="RenameBlocked" xml:space="preserve"><value>Переименование доступно после остановки загрузки, закрытия игры и завершения операций с файлами.</value></data>
+  <data name="SaveNameButton" xml:space="preserve"><value>Сохранить имя</value></data>
+  <data name="RenameTitle" xml:space="preserve"><value>Переименовать сборку?</value></data>
+  <data name="RenameMessage" xml:space="preserve"><value>Будет переименована папка с файлами этой сборки в %USERPROFILE%\.hako.</value></data>
+  <data name="RenameConfirm" xml:space="preserve"><value>Переименовать</value></data>
+  <data name="RenameSkip" xml:space="preserve"><value>Продолжить без переименования</value></data>
+  <data name="InvalidDraftTitle" xml:space="preserve"><value>Изменения не сохранены</value></data>
+  <data name="InvalidDraftMessage" xml:space="preserve"><value>Изменения содержат ошибки и не будут сохранены. Уйти без сохранения?</value></data>
+  <data name="InvalidDraftStay" xml:space="preserve"><value>Остаться</value></data>
+  <data name="InvalidDraftLeave" xml:space="preserve"><value>Уйти</value></data>
+  <data name="LaunchParametersTitle" xml:space="preserve"><value>Параметры запуска</value></data>
+  <data name="SettingsBlockedInstalling" xml:space="preserve"><value>Настройки можно изменить после остановки загрузки и завершения операций с файлами.</value></data>
+  <data name="ManifestMissing" xml:space="preserve"><value>Параметры Mojang появятся после установки сборки.</value></data>
+  <data name="SettingsAutosave" xml:space="preserve"><value>Иконка и параметры сохраняются автоматически.</value></data>
+  <data name="SettingsNextLaunch" xml:space="preserve"><value>Изменения параметров применятся при следующем запуске игры.</value></data>
+  <data name="ParametersUseGlobal" xml:space="preserve"><value>Использовать глобальные параметры</value></data>
+  <data name="ParametersUseMojang" xml:space="preserve"><value>Использовать параметры Mojang</value></data>
+  <data name="ParametersGlobalCaption" xml:space="preserve"><value>Аргументы и память наследуются из текущих настроек лаунчера.</value></data>
+  <data name="ParametersMojangCaption" xml:space="preserve"><value>Используются обязательные и рекомендуемые аргументы из описания версии Mojang. Пути и значения аккаунта в ${…} будут подставлены при запуске.</value></data>
+  <data name="ParametersGlobalEmptyWarning" xml:space="preserve"><value>Глобальные аргументы не заданы. Рекомендуется использовать параметры Mojang.</value></data>
+  <data name="ParametersGlobalJavaWarning" xml:space="preserve"><value>Эта сборка использует пользовательскую Java из глобальных настроек. Это может привести к проблемам в игре.</value></data>
+  <data name="ParametersJavaArguments" xml:space="preserve"><value>Аргументы Java</value></data>
+  <data name="ParametersMinecraftArguments" xml:space="preserve"><value>Аргументы Minecraft</value></data>
+  <data name="ParametersMemoryCaption" xml:space="preserve"><value>Значения -Xmx и MaxHeapSize в аргументах заменяются лимитом ползунка при запуске.</value></data>
+  <data name="ParametersFullscreen" xml:space="preserve"><value>Полноэкранный режим</value></data>
+  <data name="ParametersWidth" xml:space="preserve"><value>Ширина, px</value></data>
+  <data name="ParametersHeight" xml:space="preserve"><value>Высота, px</value></data>
+  <data name="ParametersDimensionError" xml:space="preserve"><value>Введите целые размеры окна больше 0.</value></data>
+  <data name="ParametersOfflineMode" xml:space="preserve"><value>offline-mode</value></data>
+  <data name="ParametersOfflineName" xml:space="preserve"><value>Имя в игре</value></data>
+  <data name="ParametersOfflineWarning" xml:space="preserve"><value>Offline-mode не рекомендуется. Часть серверов может быть недоступна. Рекомендуется вход с аккаунтом Minecraft.</value></data>
+  <data name="ParametersOfflineNameError" xml:space="preserve"><value>Ник: от 3 до 16 латинских букв, цифр или _.</value></data>
+  <data name="JavaMemoryTitle" xml:space="preserve"><value>Максимальная память Java</value></data>
+  <data name="JavaMemoryValue" xml:space="preserve"><value>{0:0.00} ГиБ</value></data>
+  <data name="JavaMemoryCaption" xml:space="preserve"><value>Предел Java heap. Общий расход процесса может быть выше. На компьютере: {0:0} ГиБ.</value></data>
+  <data name="JavaMemoryCaptionX86" xml:space="preserve"><value>Предел Java heap для 32-битной Java — не более 1,5 ГиБ. На компьютере: {0:0} ГиБ.</value></data>
+  <data name="GameSection" xml:space="preserve"><value>Игра</value></data>
+  <data name="GameSettingsDescription" xml:space="preserve"><value>Аргументы, память и путь Java для сборок с глобальными параметрами. Настройки окна служат начальными только при создании сборки. Изменения сохраняются автоматически.</value></data>
+  <data name="JavaPathLabel" xml:space="preserve"><value>Путь к Java</value></data>
+  <data name="JavaPathPlaceholder" xml:space="preserve"><value>Не задан</value></data>
+  <data name="JavaPathCaption" xml:space="preserve"><value>Если путь задан, сборки с глобальными параметрами используют эту Java (javaw.exe) вместо рекомендуемой Java внутри сборки.</value></data>
+  <data name="WindowCardTitle" xml:space="preserve"><value>Окно</value></data>
+  <data name="DimensionError" xml:space="preserve"><value>Введите целое число больше 0</value></data>
+  <data name="WindowCaption" xml:space="preserve"><value>Размер окна указан в пикселях и применяется в оконном режиме.</value></data>
+  <data name="GameSettingsSaveError" xml:space="preserve"><value>Не удалось сохранить настройки игры.</value></data>
 </root>

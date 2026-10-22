@@ -184,6 +184,8 @@ public sealed partial class JavaMemoryPolicy
 
     public static JavaMemoryPolicy Current => new(ReadPhysicalMemoryBytes());
 
+    public ulong PhysicalBytes => _physicalBytes;
+
     public int MaximumMiB(GameArchitecture architecture)
     {
         var physicalMiB = _physicalBytes / (ulong)MiB;

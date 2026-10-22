@@ -488,6 +488,30 @@ public sealed class InstanceStoreTests
     }
 
     [TestMethod]
+    public async Task SettingsCanChangeWhileTheGameRunsButRenameCannot()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
+        var created = store.Create(new InstanceDraft { Name = "Running Build" }, "1.20.4");
+        await SetStateAsync(temporary.Paths, store, InstanceInstallationState.Ready);
+
+        Assert.IsTrue(store.TryBeginLaunch(created.Id, out var lease, out _));
+        using (lease)
+        {
+            store.UpdateSettings(created.Id, new InstanceDraft { Name = "Ignored", OfflineMode = true, OfflineUsername = "Steve" });
+            var rename = Assert.ThrowsExactly<InstanceStorageException>(() => store.Rename(created.Id, "Other Name"));
+
+            Assert.AreEqual(InstanceStorageError.BuildRunning, rename.Error);
+            Assert.AreEqual(InstanceStorageError.BuildRunning, store.ManagementBlockedError(store.List().Single()));
+        }
+
+        var updated = store.List().Single();
+        Assert.IsTrue(updated.OfflineMode);
+        Assert.AreEqual("Running Build", updated.Name);
+        Assert.IsNull(store.ManagementBlockedError(updated));
+    }
+
+    [TestMethod]
     public async Task TryBeginLaunchAndDeleteAreSerializedByTheStoreGate()
     {
         await using var temporary = new TemporaryDirectory();
@@ -570,6 +594,43 @@ public sealed class InstanceStoreTests
         Assert.IsTrue(store.IsLaunchBusy(id));
         Assert.IsTrue(notificationCount > 0);
         finalLease!.Dispose();
+    }
+
+    [TestMethod]
+    public async Task BusyChecksDoNotWaitForRunningStoreOperation()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
+        initial.Create(new InstanceDraft { Name = "Busy Build" }, "1.20.4");
+        await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
+        using var committing = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var store = await LoadStoreAsync(temporary, () =>
+        {
+            committing.Set();
+            release.Wait();
+        });
+        var instance = store.List().Single();
+        Assert.IsTrue(store.TryBeginContent(instance.Id, out var lease, out _));
+        lease!.Dispose();
+        Assert.IsTrue(store.TryBeginLaunch(instance.Id, out var launch, out _));
+
+        var update = Task.Run(() => store.UpdateSettings(instance.Id, new InstanceDraft { Name = instance.Name, OfflineMode = true, OfflineUsername = "Steve" }));
+        try
+        {
+            Assert.IsTrue(committing.Wait(TimeSpan.FromSeconds(10)));
+            Assert.IsTrue(store.IsLaunchBusy(instance.Id));
+            Assert.IsFalse(store.IsContentBusy(instance.Id));
+            Assert.AreEqual(InstanceStorageError.BuildRunning, store.ManagementBlockedError(instance));
+        }
+        finally
+        {
+            release.Set();
+            await update;
+            launch!.Dispose();
+        }
+
+        Assert.IsFalse(store.IsLaunchBusy(instance.Id));
     }
 
     [TestMethod]
