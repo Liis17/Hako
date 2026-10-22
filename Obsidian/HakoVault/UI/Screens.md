@@ -90,8 +90,11 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
 | `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage`, `BuildCardModel` | Раздел «Сборки»: пустое состояние или карточки сборок — [[UI/Launcher#Windows-клиент]] |
 | `windows/Hako/InstanceCreationPage.xaml(.cs)`, `InstanceCreationChoiceDialog.cs` | `InstanceCreationPage`, `InstanceCreationChoiceDialog` | Создание Vanilla-сборки |
-| `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: заголовок, «Играть», установка, «⋯», настройки |
-| `windows/Hako/LauncherServices.cs` | `LauncherServices`, `INavigationGuard`, `CoalescedRefresh`, `HakoDialogs` | Сервисы app-lifetime для страниц, защита ухода со страницы, маршалинг событий Core, единый показ `ContentDialog` |
+| `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: заголовок, запуск, установка, разделы модов/ресурспаков и настройки |
+| `windows/Hako/InstanceContentView.xaml(.cs)` | `InstanceContentView`, `InstanceContentRow` | Локальные моды/ресурспаки, импорт, включение, обновление, удаление и открытие папок |
+| `windows/Hako/ModrinthCatalogView.xaml(.cs)` | `ModrinthCatalogView`, `ModrinthCatalogRow` | Поиск, сортировка, пагинация и установка контента Modrinth в текущую сборку |
+| `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Сопоставление UI-кодов подтверждений и ошибок Core с локализованными ресурсами |
+| `windows/Hako/LauncherServices.cs` | `LauncherServices`, `INavigationGuard`, `CoalescedRefresh`, `HakoDialogs` | App-lifetime сервисы, защита ухода со страницы, маршалинг событий Core, очередь диалогов и отмена подтверждения при закрытии окна |
 | `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные», «Игра» и «Профиль», выход |
 | `windows/Hako/MinecraftSkinView.xaml`, `windows/Hako/MinecraftSkinView.xaml.cs` | `MinecraftSkinView` | Скин, камера, кадры ходьбы, отмена и владение renderer по видимости профиля |
 | `windows/Hako/MinecraftSkinPreviewService.cs`, `MinecraftSkinImageDecoder.cs` | `MinecraftSkinPreviewService`, `MinecraftSkinImageDecoder` | Mojang skin PNG, проверка контейнера/размера, straight RGBA, нормализованный cache по UUID |
@@ -105,7 +108,7 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
 | `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`). `LoginNotice` (`InfoBar`) показывает `OpenVerificationFailed` или `CopyCodeFailed`, если открыть страницу или скопировать код не удалось; при сбое копирования кнопка снова «Скопировать код»; копирование перехватывает любое исключение. Уведомление сбрасывается при следующем нажатии этих кнопок и при «Попробовать снова»; закрытое крестиком (`LoginNotice_Closed`) не открывается повторно при обновлении состояния |
 | `Builds` | `BuildsPage` | Пустое состояние с кнопкой «Создать сборку» или сетка карточек; ошибка реестра `instances.json` — `InfoBar` |
-| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId` |
+| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: моды только для Fabric, ресурспаки и настройки |
 | `InstanceCreation` | `InstanceCreationPage` | Форма «Своя сборка» |
 | `Settings` | `SettingsPage` | Слева `ListView` из трёх разделов (`SettingsSection.General`, `Game`, `Profile`), справа панель выбранного |
 
@@ -123,7 +126,13 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
   форма создания подтверждает отмену, профиль сборки дописывает настройки и спрашивает о несохранённом имени.
   Закрытие перехватывается в `AppWindow.Closing`, затем `App.ShutdownServicesAsync` освобождает
   `InstallationCoordinator` (выход не ставит установку на паузу), `InstanceStore` и `MojangClient`.
-- Все `ContentDialog` показываются через `HakoDialogs.ShowAsync`: WinUI допускает один открытый диалог на `XamlRoot`.
+- Все `ContentDialog`, включая выход и ошибки Settings/Welcome, показываются через очередь `HakoDialogs`: WinUI допускает один открытый диалог на `XamlRoot`.
+  Ожидание асинхронное; закрытие окна отменяет показанные и ожидающие диалоги. Settings перечитывает строки при показе из очереди и смене языка, сохраняя исходную кнопку по умолчанию.
+- `InstanceContentController.StateChanged` приходит на потоке операции. `InstanceContentView` ставит обновление
+  в `DispatcherQueue`, заново читает актуальный снимок по UUID/kind и отбрасывает ревизии старше уже применённой.
+  При уходе со страницы отменяются её чтение и поиск; установка контента продолжается в app-lifetime контроллере.
+- Подтверждения замены, удаления, зависимостей и несовместимости локализует `HakoDialogs.ConfirmContentAsync`.
+  Закрытие окна отменяет ожидающее подтверждение и завершает callback выбором «Отмена».
 - Закрытие окна вызывает `CancelSignIn()` и завершает preview service; текущая страница сначала отменяет
   загрузку и останавливает frame callback, затем освобождает renderer. Деактивация или сворачивание окна,
   переход на другой корневой экран и выбор «Основные» выключают skin control без сброса камеры.

@@ -44,7 +44,10 @@ public sealed partial class MainWindow : Window
         SetInitialWindowSize();
         _coordinator.PropertyChanged += Coordinator_PropertyChanged;
         _services.Store.InstancesChanged += Store_InstancesChanged;
-        RootGrid.Loaded += (_, _) => HakoDialogs.Root = RootGrid.XamlRoot;
+        RootGrid.Loaded += (_, _) =>
+        {
+            if (RootGrid.XamlRoot is { } root) HakoDialogs.AttachWindow(DispatcherQueue, root);
+        };
         Activated += Window_Activated;
         VisibilityChanged += Window_VisibilityChanged;
         AppWindow.Changed += AppWindow_Changed;
@@ -374,6 +377,7 @@ public sealed partial class MainWindow : Window
         }
 
         _closeRequested = true;
+        HakoDialogs.BeginWindowClose();
         try
         {
             if (RootNavigation.Visibility == Visibility.Visible
@@ -390,6 +394,7 @@ public sealed partial class MainWindow : Window
         finally
         {
             _closeRequested = false;
+            if (!_closeConfirmed) HakoDialogs.EndWindowClose();
         }
     }
 
@@ -417,6 +422,7 @@ public sealed partial class MainWindow : Window
     private void Window_Closed(object sender, WindowEventArgs e)
     {
         _closed = true;
+        HakoDialogs.CloseWindow();
         _windowActive = false;
         _windowVisible = false;
         _instancesRefresh.Stop();

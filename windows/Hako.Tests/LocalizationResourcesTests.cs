@@ -1,6 +1,7 @@
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
+using Hako;
 using System.Xml.Linq;
 
 namespace Hako.Tests;
@@ -103,6 +104,55 @@ public sealed class LocalizationResourcesTests
             CollectionAssert.Contains(russian, key);
             CollectionAssert.Contains(english, key);
         }
+    }
+
+    [TestMethod]
+    public void EveryContentConfirmationNoteAndFailureCodeMapsToRussianAndEnglishResources()
+    {
+        var russian = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "ru-RU", "Resources.resw"));
+        var english = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "en-US", "Resources.resw"));
+        var keys = Enum.GetValues<ContentConfirmationCode>()
+            .SelectMany(code => new[]
+            {
+                ContentResourceKeys.ConfirmationTitle(code),
+                ContentResourceKeys.ConfirmationMessage(code),
+                ContentResourceKeys.ConfirmationPrimary(code),
+                ContentResourceKeys.ConfirmationAlternative(code)
+            })
+            .Concat(Enum.GetValues<ContentConfirmationNoteCode>().Select(ContentResourceKeys.ConfirmationNote))
+            .Concat(Enum.GetValues<ContentFailureCode>().Select(ContentResourceKeys.Failure));
+
+        foreach (var key in keys)
+        {
+            CollectionAssert.Contains(russian, key);
+            CollectionAssert.Contains(english, key);
+        }
+    }
+
+    [TestMethod]
+    [DataRow("ru-RU")]
+    [DataRow("en-US")]
+    public void ContentFailuresFormatArgumentsAndPreserveRecoveryDiagnostic(string language)
+    {
+        var strings = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Resources", language, "Resources.resw"))
+            .Root!.Elements("data").ToDictionary(element => (string)element.Attribute("name")!, element => element.Element("value")!.Value);
+        var failure = new ContentFailure(ContentFailureCode.FabricApiIncompatible,
+            new Dictionary<string, string> { ["version"] = "0.100.8", ["loader"] = ">=0.16.3", ["java"] = ">=21" });
+
+        var message = ContentResourceKeys.FormatFailureDetails(failure, key => strings[key]);
+        StringAssert.Contains(message, "0.100.8");
+        StringAssert.Contains(message, ">=0.16.3");
+        StringAssert.Contains(message, ">=21");
+        Assert.IsFalse(message.Contains('{'));
+        Assert.AreEqual(ContentResourceKeys.FormatFailure(failure, key => strings[key]), message);
+
+        var recovery = new ContentFailure(ContentFailureCode.ContentOperationFailed,
+            new Dictionary<string, string> { ["diagnostic"] = @"Recovery backup: C:\isolated\.hako-backup-123" });
+        Assert.AreEqual(strings["ContentFailureOperationFailed"] + "\n" + strings["ContentDiagnosticLabel"] + " " + recovery.Arguments["diagnostic"],
+            ContentResourceKeys.FormatFailureDetails(recovery, key => strings[key]));
+        var bulk = new ContentFailure(ContentFailureCode.BulkUpdateFailed,
+            new Dictionary<string, string> { ["failureCount"] = "7" });
+        StringAssert.Contains(ContentResourceKeys.FormatFailure(bulk, key => strings[key]), "7");
     }
 
     private static List<string> ReadResourceNames(string path) => XDocument.Load(path)

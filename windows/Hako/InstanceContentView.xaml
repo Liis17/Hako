@@ -1,0 +1,84 @@
+<UserControl
+    x:Class="Hako.InstanceContentView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Hako">
+    <Grid>
+        <StackPanel x:Name="LocalContentPane" Spacing="14">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock x:Name="ContentTitle" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock x:Name="ContentCount" Grid.Column="1" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+            </Grid>
+            <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="ImportFilesButton" Click="ImportFilesButton_Click" />
+                    <Button x:Name="ImportFolderButton" Click="ImportFolderButton_Click" Visibility="Collapsed" />
+                    <Button x:Name="CatalogButton" Click="CatalogButton_Click" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="CheckUpdatesButton" Click="CheckUpdatesButton_Click" />
+                    <Button x:Name="UpdateAllButton" Click="UpdateAllButton_Click" Visibility="Collapsed" />
+                    <Button x:Name="OpenFolderButton" Click="OpenFolderButton_Click" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock x:Name="BlockReasonText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+            <StackPanel x:Name="ContentProgressPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                <ProgressRing x:Name="ContentProgress" Width="18" Height="18" IsActive="False" />
+                <TextBlock x:Name="ContentProgressText" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock x:Name="ContentEmptyText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+            <TextBlock x:Name="ContentErrorText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+            <TextBlock x:Name="ContentDiagnosticText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+            <TextBlock x:Name="ContentUpdateMessageText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="Collapsed" />
+            <TextBlock x:Name="ContentActionFeedbackText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+            <Border x:Name="DropTarget" Padding="14" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" AllowDrop="True" DragOver="DropTarget_DragOver" Drop="DropTarget_Drop">
+                <TextBlock x:Name="DropHintText" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Border>
+            <ItemsRepeater x:Name="ContentItems" Margin="0,0,0,20">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="8" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="local:InstanceContentRow">
+                        <Border Padding="12" CornerRadius="10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <Grid ColumnDefinitions="44,*,Auto,Auto" ColumnSpacing="12">
+                                <Grid Width="40" Height="40">
+                                    <FontIcon Glyph="{x:Bind PlaceholderGlyph}" FontSize="22" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                              Visibility="{x:Bind PlaceholderVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Image Source="{x:Bind Icon}" Stretch="UniformToFill" Visibility="{x:Bind IconVisibility}" />
+                                </Grid>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <HyperlinkButton Content="{x:Bind SourceText}" Tag="{x:Bind PageUrl}" Click="ContentSource_Click"
+                                                         IsEnabled="{x:Bind HasPageUrl}" Padding="0" FontSize="12" />
+                                        <TextBlock Text="{x:Bind VersionText}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="{x:Bind UpdateText}" Tag="{x:Bind Item}" Click="UpdateItem_Click" ToolTipService.ToolTip="{x:Bind BlockReason}"
+                                        Visibility="{x:Bind UpdateVisibility}" IsEnabled="{x:Bind CanUpdate}" VerticalAlignment="Center" />
+                                <Grid Grid.Column="3" ColumnDefinitions="Auto,Auto" ColumnSpacing="8" VerticalAlignment="Center">
+                                    <ToggleSwitch IsOn="{x:Bind Enabled}" IsEnabled="{x:Bind CanToggle}" Tag="{x:Bind Item}" ToolTipService.ToolTip="{x:Bind BlockReason}"
+                                                  Toggled="EnabledToggle_Toggled" OnContent="{x:Bind EnabledOnText}" OffContent="{x:Bind EnabledOffText}"
+                                                  MinWidth="88" />
+                                    <Button Grid.Column="1" Content="⋯" Tag="{x:Bind Item}">
+                                        <Button.Flyout>
+                                            <MenuFlyout Opened="ItemMenu_Opened">
+                                                <MenuFlyoutItem Text="{x:Bind RevealText}" Tag="{x:Bind Item}" Click="RevealItem_Click" />
+                                                <MenuFlyoutItem Text="{x:Bind DeleteText}" Tag="{x:Bind Item}" Click="DeleteItem_Click" ToolTipService.ToolTip="{x:Bind BlockReason}"
+                                                                IsEnabled="{x:Bind CanToggle}" />
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
+        <local:ModrinthCatalogView x:Name="CatalogPane" Visibility="Collapsed" />
+    </Grid>
+</UserControl>

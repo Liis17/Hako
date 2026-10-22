@@ -81,7 +81,7 @@ public sealed partial class WelcomePage : Page
             CloseButtonText = HakoStrings.Get("CloseButton"),
             XamlRoot = XamlRoot
         };
-        await dialog.ShowAsync();
+        await HakoDialogs.ShowAsync(dialog);
     }
 
     private void StartButton_Click(object sender, RoutedEventArgs e) => _coordinator?.BeginSignIn();

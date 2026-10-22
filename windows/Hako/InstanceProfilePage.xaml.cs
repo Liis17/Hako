@@ -15,6 +15,8 @@ namespace Hako;
 /// <summary>Build profile (InstanceProfileView on macOS): header, «Играть», installation controls, «⋯» and the «Настройки» section.</summary>
 public sealed partial class InstanceProfilePage : Page, INavigationGuard
 {
+    private enum ProfileSection { Mods, ResourcePacks, Settings }
+
     private LauncherServices? _services;
     private Guid _id;
     private GameInstance? _instance;
@@ -34,6 +36,8 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
     private string? _nameErrorKey;
     private readonly NameValidation _nameValidation = new();
     private int _instancesChangedPending;
+    private ProfileSection _selectedSection = ProfileSection.Settings;
+    private bool _updatingSectionTabs;
 
     public InstanceProfilePage()
     {
@@ -72,17 +76,32 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         _instance = Current();
         if (_instance is { } instance)
         {
+            _selectedSection = instance.ModLoader == InstanceModLoader.Fabric
+                ? ProfileSection.Mods : ProfileSection.ResourcePacks;
+            if (_services.PreviewOptions is { Mode: ProfilePreviewMode.Builds } preview)
+            {
+                _selectedSection = preview.Page switch
+                {
+                    PreviewPage.Content or PreviewPage.Catalog => ProfileSection.Mods,
+                    PreviewPage.ResourcePacks => ProfileSection.ResourcePacks,
+                    _ => _selectedSection
+                };
+            }
+
             NameBox.Text = instance.Name;
             LoadSettings(instance);
         }
 
         RefreshStrings();
+        if (_services.PreviewOptions is { Mode: ProfilePreviewMode.Builds, Page: PreviewPage.Catalog })
+            ContentSection.OpenCatalog();
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         _refresh?.Stop();
         _saveTimer?.Stop();
+        ContentSection.SetActive(false);
         InvalidateNameValidation();
         _ = FlushSettingsAsync();
         if (_services is { } services)
@@ -122,6 +141,9 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ActionsButton, HakoStrings.Get("InstanceActions"));
         DeleteMenuItem.Text = HakoStrings.Get("DeleteBuildMenu");
         SettingsTitle.Text = HakoStrings.Get("SettingsTitle");
+        ModsSectionButton.Content = HakoStrings.Get("InstanceSectionMods");
+        ResourcePacksSectionButton.Content = HakoStrings.Get("InstanceSectionResourcePacks");
+        SettingsSectionButton.Content = HakoStrings.Get("SettingsTitle");
         ProfileSectionTitle.Text = HakoStrings.Get("InstanceProfileSection");
         NameLabel.Text = HakoStrings.Get("CreationNameLabel");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(NameBox, HakoStrings.Get("CreationNameLabel"));
@@ -203,6 +225,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
 
         RefreshPlayControls(services, instance);
         RefreshInstallation(services, instance);
+        RefreshSections(services, instance);
 
         var installing = instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing;
         var settingsEditable = !installing && !services.Store.IsContentBusy(instance.Id);
@@ -219,6 +242,45 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         VersionInfoText.Text = InstanceText.Details(instance);
         FolderText.Text = string.Format(HakoStrings.Get("InstanceFolderFormat"), FolderDisplayPath(services, instance));
         UpdateName();
+    }
+
+    private void RefreshSections(LauncherServices services, GameInstance instance)
+    {
+        var hasMods = instance.ModLoader == InstanceModLoader.Fabric;
+        ModsSectionButton.Visibility = hasMods ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasMods && _selectedSection == ProfileSection.Mods)
+            _selectedSection = ProfileSection.ResourcePacks;
+
+        var showContent = _selectedSection != ProfileSection.Settings;
+        SettingsSection.Visibility = showContent ? Visibility.Collapsed : Visibility.Visible;
+        ContentSection.Visibility = showContent ? Visibility.Visible : Visibility.Collapsed;
+        SectionTabs.Visibility = Visibility.Visible;
+
+        _updatingSectionTabs = true;
+        SectionTabs.SelectedIndex = (int)_selectedSection;
+        _updatingSectionTabs = false;
+        if (showContent)
+        {
+            var kind = _selectedSection == ProfileSection.Mods
+                ? ModrinthContentKind.Mod : ModrinthContentKind.ResourcePack;
+            ContentSection.Configure(services, instance, kind);
+        }
+
+        ContentSection.SetActive(showContent);
+    }
+
+    private void SelectSection(ProfileSection section)
+    {
+        if (_instance is not { } instance || _services is not { } services) return;
+        if (section == ProfileSection.Mods && instance.ModLoader != InstanceModLoader.Fabric) return;
+        _selectedSection = section;
+        RefreshSections(services, instance);
+    }
+
+    private void SectionTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingSectionTabs || SectionTabs.SelectedItem is not RadioButton { Tag: string tag }) return;
+        if (Enum.TryParse<ProfileSection>(tag, out var section)) SelectSection(section);
     }
 
     private static string FolderDisplayPath(LauncherServices services, GameInstance instance) =>

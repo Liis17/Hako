@@ -248,4 +248,114 @@ Hako</value></data>
   <data name="DimensionError" xml:space="preserve"><value>Enter a whole number greater than 0</value></data>
   <data name="WindowCaption" xml:space="preserve"><value>The window size is in pixels and applies in windowed mode.</value></data>
   <data name="GameSettingsSaveError" xml:space="preserve"><value>Could not save the game settings.</value></data>
+  <data name="InstanceSectionMods" xml:space="preserve"><value>Mods</value></data>
+  <data name="InstanceSectionResourcePacks" xml:space="preserve"><value>Resource packs</value></data>
+  <data name="ContentSectionTitleMods" xml:space="preserve"><value>Mods</value></data>
+  <data name="ContentSectionTitleResourcePacks" xml:space="preserve"><value>Resource packs</value></data>
+  <data name="ContentActiveCount" xml:space="preserve"><value>{0} active of {1}</value></data>
+  <data name="ContentImportFiles" xml:space="preserve"><value>Add files…</value></data>
+  <data name="ContentImportFolder" xml:space="preserve"><value>Add folder…</value></data>
+  <data name="ContentCheckUpdates" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="ContentUpdateAll" xml:space="preserve"><value>Update all</value></data>
+  <data name="ContentOpenFolder" xml:space="preserve"><value>Open folder</value></data>
+  <data name="ContentOpenModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="ContentDropHint" xml:space="preserve"><value>Drop mod JAR files here</value></data>
+  <data name="ContentDropHintResourcePacks" xml:space="preserve"><value>Drop ZIP files or folders with pack.mcmeta</value></data>
+  <data name="ContentEmptyMods" xml:space="preserve"><value>This build has no mods yet.</value></data>
+  <data name="ContentEmptyResourcePacks" xml:space="preserve"><value>This build has no resource packs yet.</value></data>
+  <data name="ContentLoading" xml:space="preserve"><value>Loading content…</value></data>
+  <data name="ContentCheckingUpdates" xml:space="preserve"><value>Checking for updates…</value></data>
+  <data name="ContentNoUpdates" xml:space="preserve"><value>No updates found.</value></data>
+  <data name="ContentUpdateItem" xml:space="preserve"><value>Update to {0}</value></data>
+  <data name="ContentUpdateButton" xml:space="preserve"><value>Update</value></data>
+  <data name="ContentSourceLocal" xml:space="preserve"><value>Local</value></data>
+  <data name="ContentSourceModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="ContentSourceCurseForge" xml:space="preserve"><value>CurseForge</value></data>
+  <data name="ContentVersionUnknown" xml:space="preserve"><value>Version unknown</value></data>
+  <data name="ContentEnabledOn" xml:space="preserve"><value>Enabled</value></data>
+  <data name="ContentEnabledOff" xml:space="preserve"><value>Disabled</value></data>
+  <data name="ContentDeleteItem" xml:space="preserve"><value>Delete…</value></data>
+  <data name="ContentRevealItem" xml:space="preserve"><value>Show in File Explorer</value></data>
+  <data name="ContentActionBusy" xml:space="preserve"><value>A content operation is in progress…</value></data>
+  <data name="ContentBlockedBuild" xml:space="preserve"><value>Content is available after the build finishes installing.</value></data>
+  <data name="ContentBlockedInstall" xml:space="preserve"><value>Content operations are unavailable while the build is installing.</value></data>
+  <data name="ContentBlockedFabric" xml:space="preserve"><value>Mods are available only in Fabric builds.</value></data>
+  <data name="ContentBlockedFilesBusy" xml:space="preserve"><value>Build files are busy with another operation.</value></data>
+  <data name="ContentImportSuccess" xml:space="preserve"><value>Imported: {0}</value></data>
+  <data name="ContentImportCancelled" xml:space="preserve"><value>Import cancelled: {0}</value></data>
+  <data name="ContentImportFailureLine" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="ContentInvalidModFile" xml:space="preserve"><value>{0}: choose a .jar file.</value></data>
+  <data name="ContentInvalidPackFile" xml:space="preserve"><value>{0}: choose a resource pack ZIP file.</value></data>
+  <data name="ContentInvalidPackFolder" xml:space="preserve"><value>{0}: the folder must contain pack.mcmeta.</value></data>
+  <data name="ContentInvalidDrop" xml:space="preserve"><value>Some dropped items could not be imported. Choose JAR files for mods or ZIP files/folders with pack.mcmeta for resource packs.</value></data>
+  <data name="ContentUpdateAllSummary" xml:space="preserve"><value>Updated: {0}. Failed or needing confirmation: {1}.</value></data>
+  <data name="ContentBulkFailureLine" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="ContentDiagnosticLabel" xml:space="preserve"><value>Details:</value></data>
+  <data name="ContentOpenFailed" xml:space="preserve"><value>Could not open this location.</value></data>
+  <data name="ContentLinkFailed" xml:space="preserve"><value>Could not open the Modrinth page.</value></data>
+  <data name="ContentCatalogTitleMods" xml:space="preserve"><value>Mods on Modrinth</value></data>
+  <data name="ContentCatalogTitleResourcePacks" xml:space="preserve"><value>Resource packs on Modrinth</value></data>
+  <data name="ContentCatalogBack" xml:space="preserve"><value>Back to build</value></data>
+  <data name="ContentCatalogContext" xml:space="preserve"><value>{0} · Minecraft {1}</value></data>
+  <data name="ContentCatalogSearchPlaceholder" xml:space="preserve"><value>Search Modrinth</value></data>
+  <data name="ContentCatalogSortRelevance" xml:space="preserve"><value>Relevance</value></data>
+  <data name="ContentCatalogSortDownloads" xml:space="preserve"><value>Most downloads</value></data>
+  <data name="ContentCatalogSortNewest" xml:space="preserve"><value>Newest</value></data>
+  <data name="ContentCatalogSortUpdated" xml:space="preserve"><value>Recently updated</value></data>
+  <data name="ContentCatalogLoading" xml:space="preserve"><value>Searching projects…</value></data>
+  <data name="ContentCatalogNoResults" xml:space="preserve"><value>No projects found.</value></data>
+  <data name="ContentCatalogRetry" xml:space="preserve"><value>Retry</value></data>
+  <data name="ContentCatalogLoadMore" xml:space="preserve"><value>Load more</value></data>
+  <data name="ContentCatalogAdd" xml:space="preserve"><value>Add</value></data>
+  <data name="ContentCatalogInstalled" xml:space="preserve"><value>Installed</value></data>
+  <data name="ContentCatalogAdding" xml:space="preserve"><value>Adding…</value></data>
+  <data name="ContentCatalogBusy" xml:space="preserve"><value>Wait for the current content operation to finish.</value></data>
+  <data name="ContentCatalogNoRelease" xml:space="preserve"><value>No compatible stable version. Check beta and alpha versions in the menu.</value></data>
+  <data name="ContentCatalogVersionsLoading" xml:space="preserve"><value>Checking versions…</value></data>
+  <data name="ContentCatalogInstallBeta" xml:space="preserve"><value>Install beta {0}</value></data>
+  <data name="ContentCatalogInstallAlpha" xml:space="preserve"><value>Install alpha {0}</value></data>
+  <data name="ContentCatalogBetaUnavailable" xml:space="preserve"><value>No compatible beta version</value></data>
+  <data name="ContentCatalogAlphaUnavailable" xml:space="preserve"><value>No compatible alpha version</value></data>
+  <data name="ContentCatalogInstalledLoadFailed" xml:space="preserve"><value>Could not check installed content. Installation is still available.</value></data>
+  <data name="ContentConfirmationDependenciesTitle" xml:space="preserve"><value>Modrinth dependencies</value></data>
+  <data name="ContentConfirmationDependenciesMessage" xml:space="preserve"><value>Project “{0}” needs these projects in build “{1}”.</value></data>
+  <data name="ContentConfirmationDependenciesPrimary" xml:space="preserve"><value>Add dependencies</value></data>
+  <data name="ContentConfirmationDependenciesAlternative" xml:space="preserve"><value>Only this project</value></data>
+  <data name="ContentConfirmationIncompatibleTitle" xml:space="preserve"><value>Incompatible content</value></data>
+  <data name="ContentConfirmationIncompatibleMessage" xml:space="preserve"><value>Some projects may be incompatible with “{1}”. Install them anyway?</value></data>
+  <data name="ContentConfirmationIncompatiblePrimary" xml:space="preserve"><value>Install anyway</value></data>
+  <data name="ContentConfirmationIncompatibleAlternative" xml:space="preserve"><value>Not available</value></data>
+  <data name="ContentConfirmationReplaceTitle" xml:space="preserve"><value>Replace file?</value></data>
+  <data name="ContentConfirmationReplaceMessage" xml:space="preserve"><value>“{0}” is already installed in build “{1}”. Replace it?</value></data>
+  <data name="ContentConfirmationReplacePrimary" xml:space="preserve"><value>Replace</value></data>
+  <data name="ContentConfirmationReplaceAlternative" xml:space="preserve"><value>Not available</value></data>
+  <data name="ContentConfirmationDeleteTitle" xml:space="preserve"><value>Delete content?</value></data>
+  <data name="ContentConfirmationDeleteMessage" xml:space="preserve"><value>Move “{0}” from build “{1}” to the Recycle Bin?</value></data>
+  <data name="ContentConfirmationDeletePrimary" xml:space="preserve"><value>Delete</value></data>
+  <data name="ContentConfirmationDeleteAlternative" xml:space="preserve"><value>Not available</value></data>
+  <data name="ContentNoteDisabledWillBeEnabled" xml:space="preserve"><value>The disabled project will be enabled.</value></data>
+  <data name="ContentNoteUnsupported" xml:space="preserve"><value>This dependency type is not supported.</value></data>
+  <data name="ContentNoteRequiresFabric" xml:space="preserve"><value>This project requires a Fabric build.</value></data>
+  <data name="ContentNoteNoCompatibleVersion" xml:space="preserve"><value>No version is compatible with this build.</value></data>
+  <data name="ContentNoteProjectLimitReached" xml:space="preserve"><value>The limit of {0} dependency projects was reached.</value></data>
+  <data name="ContentNoteProjectUnavailable" xml:space="preserve"><value>The project is unavailable or could not be checked.</value></data>
+  <data name="ContentNoteFabricLoaderRequirement" xml:space="preserve"><value>Requires Fabric Loader {0}; the installed version is {1}.</value></data>
+  <data name="ContentNoteJavaRequirement" xml:space="preserve"><value>Requires Java {0}; this build uses Java {1}.</value></data>
+  <data name="ContentNoteIncompatibleWith" xml:space="preserve"><value>Incompatible with “{0}”.</value></data>
+  <data name="ContentFailureBuildUnavailable" xml:space="preserve"><value>This build is no longer available.</value></data>
+  <data name="ContentFailureBuildBusy" xml:space="preserve"><value>The build is busy. Try again after file operations or the game finish.</value></data>
+  <data name="ContentFailureBuildInstalling" xml:space="preserve"><value>Wait for the build to finish installing.</value></data>
+  <data name="ContentFailureModRequiresFabric" xml:space="preserve"><value>Mods are available only in Fabric builds.</value></data>
+  <data name="ContentFailureInvalidChannel" xml:space="preserve"><value>Unknown Modrinth version channel.</value></data>
+  <data name="ContentFailureNoCompatibleVersion" xml:space="preserve"><value>No compatible version was found for this project.</value></data>
+  <data name="ContentFailureRegistryCorrupt" xml:space="preserve"><value>The content registry is damaged. Files were left unchanged.</value></data>
+  <data name="ContentFailureRegistryUnavailable" xml:space="preserve"><value>The build registry could not be read.</value></data>
+  <data name="ContentFailureStaleContent" xml:space="preserve"><value>The file changed. Refresh the list and try again.</value></data>
+  <data name="ContentFailureConfirmationRequired" xml:space="preserve"><value>This update needs individual confirmation. Update this item separately.</value></data>
+  <data name="ContentFailureConfirmationDeclined" xml:space="preserve"><value>The action was cancelled.</value></data>
+  <data name="ContentFailureFabricApiIncompatible" xml:space="preserve"><value>Fabric API {0} is incompatible with Loader {1} and Java {2}.</value></data>
+  <data name="ContentFailureModrinthRequestFailed" xml:space="preserve"><value>Could not get data from Modrinth. Check your connection and try again.</value></data>
+  <data name="ContentFailureOperationFailed" xml:space="preserve"><value>The content operation failed.</value></data>
+  <data name="ContentFailureBulkUpdateFailed" xml:space="preserve"><value>{0} updates could not be completed. See the per-file details.</value></data>
+  <data name="ContentFailureCancelled" xml:space="preserve"><value>The operation was cancelled.</value></data>
 </root>

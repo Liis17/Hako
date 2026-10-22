@@ -348,7 +348,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
 
     private async void SignOutButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_coordinator is null)
+        if (_coordinator is not { } coordinator)
         {
             return;
         }
@@ -362,14 +362,20 @@ public sealed partial class SettingsPage : Page, INavigationGuard
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (await HakoDialogs.ShowAsync(dialog, current =>
+        {
+            current.Title = HakoStrings.Get("LogoutTitle");
+            current.Content = HakoStrings.Get("LogoutMessage");
+            current.PrimaryButtonText = HakoStrings.Get("LogoutConfirm");
+            current.CloseButtonText = HakoStrings.Get("CancelButton");
+        }) != ContentDialogResult.Primary || _coordinator != coordinator || !_screenVisible)
         {
             return;
         }
 
         try
         {
-            await _coordinator.LogoutAsync();
+            await coordinator.LogoutAsync();
         }
         catch (Exception exception) when (exception is AccountStoreException or IOException or UnauthorizedAccessException)
         {
@@ -386,7 +392,12 @@ public sealed partial class SettingsPage : Page, INavigationGuard
             CloseButtonText = HakoStrings.Get("CloseButton"),
             XamlRoot = XamlRoot
         };
-        await dialog.ShowAsync();
+        await HakoDialogs.ShowAsync(dialog, current =>
+        {
+            current.Title = HakoStrings.Get("ErrorTitle");
+            current.Content = HakoStrings.Get(resourceKey);
+            current.CloseButtonText = HakoStrings.Get("CloseButton");
+        });
     }
 
     private void AccountAvatar_ImageFailed(object sender, ExceptionRoutedEventArgs e)

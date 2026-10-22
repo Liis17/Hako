@@ -374,9 +374,12 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   Обработчик WinUI этапа 6c должен публиковать снимок на `DispatcherQueue`. Подтверждения передаются callback-ом через
   `ContentConfirmationRequest` с enum-кодами и string-аргументами для ru/en ресурсов; сам Core не содержит UI-локализации.
   Callback получает `CancellationToken`, операции не блокируют поток UI и удерживают один content-lease без повторного
-  захвата через `InstanceContent.*UnderLeaseAsync`. `UpdateAllAsync` подтверждения не показывает: такие элементы получают
+  захвата через `InstanceContent.*UnderLeaseAsync`. Windows UI подключён через app-lifetime `LauncherServices`:
+  `InstanceContentView` и `ModrinthCatalogView` применяют актуальный снимок по UUID/kind на `DispatcherQueue`, сверяя
+  `Revision`; уход со страницы отменяет её чтение и поиск, но не уже начатую установку. Общий `HakoDialogs` сериализует
+  `ContentDialog` одного окна и завершает ожидающее подтверждение отменой при закрытии окна. `UpdateAllAsync` подтверждения не показывает: такие элементы получают
   `ConfirmationRequired`, ошибки собираются по файлам, дальнейшие обновления продолжаются. Публичное подключение контроллера
-  в WinUI остаётся этапом 6c; миры и локальные операции датапаков не входят в 6b.
+  не меняет JSON-реестры; миры и локальные операции датапаков остаются вне текущего UI-среза.
 - Кеш хешей Modrinth находится в `%LOCALAPPDATA%\Hako\Cache\Modrinth\files.json` (или в инжектируемом
   `HakoPaths.CacheRoot`); ключ файла содержит нормализованный путь, размер и время изменения. Удалённые пути и
   неиспользуемые версии очищаются при сохранении, неизвестные хеши живут только в памяти клиента. Клиенты в одном

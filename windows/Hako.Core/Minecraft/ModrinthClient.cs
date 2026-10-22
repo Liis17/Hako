@@ -71,7 +71,9 @@ internal sealed class ModrinthProjectJsonConverter : JsonConverter<ModrinthProje
         if (value.IconUrl is not null) writer.WriteString("icon_url", value.IconUrl.AbsoluteUri);
         writer.WriteString("project_type", value.ProjectType);
         writer.WritePropertyName("all_project_types");
-        JsonSerializer.Serialize(writer, value.AllProjectTypes, options);
+        writer.WriteStartArray();
+        foreach (var projectType in value.AllProjectTypes) writer.WriteStringValue(projectType);
+        writer.WriteEndArray();
         writer.WriteEndObject();
     }
 

@@ -248,4 +248,114 @@
   <data name="DimensionError" xml:space="preserve"><value>Введите целое число больше 0</value></data>
   <data name="WindowCaption" xml:space="preserve"><value>Размер окна указан в пикселях и применяется в оконном режиме.</value></data>
   <data name="GameSettingsSaveError" xml:space="preserve"><value>Не удалось сохранить настройки игры.</value></data>
+  <data name="InstanceSectionMods" xml:space="preserve"><value>Моды</value></data>
+  <data name="InstanceSectionResourcePacks" xml:space="preserve"><value>Ресурспаки</value></data>
+  <data name="ContentSectionTitleMods" xml:space="preserve"><value>Моды</value></data>
+  <data name="ContentSectionTitleResourcePacks" xml:space="preserve"><value>Ресурспаки</value></data>
+  <data name="ContentActiveCount" xml:space="preserve"><value>{0} активно из {1}</value></data>
+  <data name="ContentImportFiles" xml:space="preserve"><value>Добавить файлы…</value></data>
+  <data name="ContentImportFolder" xml:space="preserve"><value>Добавить папку…</value></data>
+  <data name="ContentCheckUpdates" xml:space="preserve"><value>Проверить обновления</value></data>
+  <data name="ContentUpdateAll" xml:space="preserve"><value>Обновить все</value></data>
+  <data name="ContentOpenFolder" xml:space="preserve"><value>Открыть папку</value></data>
+  <data name="ContentOpenModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="ContentDropHint" xml:space="preserve"><value>Перетащите сюда JAR-файлы модов</value></data>
+  <data name="ContentDropHintResourcePacks" xml:space="preserve"><value>Перетащите ZIP-файлы или папки с pack.mcmeta</value></data>
+  <data name="ContentEmptyMods" xml:space="preserve"><value>В этой сборке пока нет модов.</value></data>
+  <data name="ContentEmptyResourcePacks" xml:space="preserve"><value>В этой сборке пока нет ресурспаков.</value></data>
+  <data name="ContentLoading" xml:space="preserve"><value>Загружаем содержимое…</value></data>
+  <data name="ContentCheckingUpdates" xml:space="preserve"><value>Проверяем обновления…</value></data>
+  <data name="ContentNoUpdates" xml:space="preserve"><value>Обновлений нет.</value></data>
+  <data name="ContentUpdateItem" xml:space="preserve"><value>Обновить до {0}</value></data>
+  <data name="ContentUpdateButton" xml:space="preserve"><value>Обновить</value></data>
+  <data name="ContentSourceLocal" xml:space="preserve"><value>Локальный</value></data>
+  <data name="ContentSourceModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="ContentSourceCurseForge" xml:space="preserve"><value>CurseForge</value></data>
+  <data name="ContentVersionUnknown" xml:space="preserve"><value>Версия не указана</value></data>
+  <data name="ContentEnabledOn" xml:space="preserve"><value>Включено</value></data>
+  <data name="ContentEnabledOff" xml:space="preserve"><value>Выключено</value></data>
+  <data name="ContentDeleteItem" xml:space="preserve"><value>Удалить…</value></data>
+  <data name="ContentRevealItem" xml:space="preserve"><value>Показать в Проводнике</value></data>
+  <data name="ContentActionBusy" xml:space="preserve"><value>Выполняется операция с содержимым…</value></data>
+  <data name="ContentBlockedBuild" xml:space="preserve"><value>Содержимое доступно после завершения установки сборки.</value></data>
+  <data name="ContentBlockedInstall" xml:space="preserve"><value>Операции с контентом недоступны во время установки.</value></data>
+  <data name="ContentBlockedFabric" xml:space="preserve"><value>Моды доступны только в сборках Fabric.</value></data>
+  <data name="ContentBlockedFilesBusy" xml:space="preserve"><value>Файлы сборки заняты другой операцией.</value></data>
+  <data name="ContentImportSuccess" xml:space="preserve"><value>Импортировано: {0}</value></data>
+  <data name="ContentImportCancelled" xml:space="preserve"><value>Импорт отменён: {0}</value></data>
+  <data name="ContentImportFailureLine" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="ContentInvalidModFile" xml:space="preserve"><value>{0}: выберите файл .jar.</value></data>
+  <data name="ContentInvalidPackFile" xml:space="preserve"><value>{0}: выберите ZIP-файл ресурспака.</value></data>
+  <data name="ContentInvalidPackFolder" xml:space="preserve"><value>{0}: в папке должен быть файл pack.mcmeta.</value></data>
+  <data name="ContentInvalidDrop" xml:space="preserve"><value>Не удалось обработать перетащенные элементы. Выберите JAR для модов или ZIP/папку с pack.mcmeta для ресурспаков.</value></data>
+  <data name="ContentUpdateAllSummary" xml:space="preserve"><value>Обновлено: {0}. С ошибками или требующие подтверждения: {1}.</value></data>
+  <data name="ContentBulkFailureLine" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="ContentDiagnosticLabel" xml:space="preserve"><value>Подробности:</value></data>
+  <data name="ContentOpenFailed" xml:space="preserve"><value>Не удалось открыть расположение.</value></data>
+  <data name="ContentLinkFailed" xml:space="preserve"><value>Не удалось открыть страницу Modrinth.</value></data>
+  <data name="ContentCatalogTitleMods" xml:space="preserve"><value>Моды с Modrinth</value></data>
+  <data name="ContentCatalogTitleResourcePacks" xml:space="preserve"><value>Ресурспаки с Modrinth</value></data>
+  <data name="ContentCatalogBack" xml:space="preserve"><value>Назад к сборке</value></data>
+  <data name="ContentCatalogContext" xml:space="preserve"><value>{0} · Minecraft {1}</value></data>
+  <data name="ContentCatalogSearchPlaceholder" xml:space="preserve"><value>Поиск на Modrinth</value></data>
+  <data name="ContentCatalogSortRelevance" xml:space="preserve"><value>По релевантности</value></data>
+  <data name="ContentCatalogSortDownloads" xml:space="preserve"><value>По загрузкам</value></data>
+  <data name="ContentCatalogSortNewest" xml:space="preserve"><value>Сначала новые</value></data>
+  <data name="ContentCatalogSortUpdated" xml:space="preserve"><value>Недавно обновлённые</value></data>
+  <data name="ContentCatalogLoading" xml:space="preserve"><value>Ищем проекты…</value></data>
+  <data name="ContentCatalogNoResults" xml:space="preserve"><value>Ничего не найдено.</value></data>
+  <data name="ContentCatalogRetry" xml:space="preserve"><value>Повторить</value></data>
+  <data name="ContentCatalogLoadMore" xml:space="preserve"><value>Загрузить ещё</value></data>
+  <data name="ContentCatalogAdd" xml:space="preserve"><value>Добавить</value></data>
+  <data name="ContentCatalogInstalled" xml:space="preserve"><value>Установлен</value></data>
+  <data name="ContentCatalogAdding" xml:space="preserve"><value>Добавляем…</value></data>
+  <data name="ContentCatalogBusy" xml:space="preserve"><value>Дождитесь завершения текущей операции с контентом.</value></data>
+  <data name="ContentCatalogNoRelease" xml:space="preserve"><value>Нет совместимой стабильной версии. Проверьте бета- и альфа-версии в меню.</value></data>
+  <data name="ContentCatalogVersionsLoading" xml:space="preserve"><value>Проверяем версии…</value></data>
+  <data name="ContentCatalogInstallBeta" xml:space="preserve"><value>Установить бету {0}</value></data>
+  <data name="ContentCatalogInstallAlpha" xml:space="preserve"><value>Установить альфу {0}</value></data>
+  <data name="ContentCatalogBetaUnavailable" xml:space="preserve"><value>Совместимой бета-версии нет</value></data>
+  <data name="ContentCatalogAlphaUnavailable" xml:space="preserve"><value>Совместимой альфа-версии нет</value></data>
+  <data name="ContentCatalogInstalledLoadFailed" xml:space="preserve"><value>Не удалось проверить установленное содержимое. Установка по-прежнему доступна.</value></data>
+  <data name="ContentConfirmationDependenciesTitle" xml:space="preserve"><value>Зависимости Modrinth</value></data>
+  <data name="ContentConfirmationDependenciesMessage" xml:space="preserve"><value>Для проекта «{0}» нужны эти проекты в сборке «{1}».</value></data>
+  <data name="ContentConfirmationDependenciesPrimary" xml:space="preserve"><value>Добавить зависимости</value></data>
+  <data name="ContentConfirmationDependenciesAlternative" xml:space="preserve"><value>Только этот проект</value></data>
+  <data name="ContentConfirmationIncompatibleTitle" xml:space="preserve"><value>Несовместимый контент</value></data>
+  <data name="ContentConfirmationIncompatibleMessage" xml:space="preserve"><value>Некоторые проекты несовместимы с «{1}». Установить их всё равно?</value></data>
+  <data name="ContentConfirmationIncompatiblePrimary" xml:space="preserve"><value>Установить всё равно</value></data>
+  <data name="ContentConfirmationIncompatibleAlternative" xml:space="preserve"><value></value></data>
+  <data name="ContentConfirmationReplaceTitle" xml:space="preserve"><value>Заменить файл?</value></data>
+  <data name="ContentConfirmationReplaceMessage" xml:space="preserve"><value>Файл «{0}» уже есть в сборке «{1}». Заменить его?</value></data>
+  <data name="ContentConfirmationReplacePrimary" xml:space="preserve"><value>Заменить</value></data>
+  <data name="ContentConfirmationReplaceAlternative" xml:space="preserve"><value></value></data>
+  <data name="ContentConfirmationDeleteTitle" xml:space="preserve"><value>Удалить содержимое?</value></data>
+  <data name="ContentConfirmationDeleteMessage" xml:space="preserve"><value>Переместить «{0}» из сборки «{1}» в Корзину?</value></data>
+  <data name="ContentConfirmationDeletePrimary" xml:space="preserve"><value>Удалить</value></data>
+  <data name="ContentConfirmationDeleteAlternative" xml:space="preserve"><value></value></data>
+  <data name="ContentNoteDisabledWillBeEnabled" xml:space="preserve"><value>Отключённый проект будет включён.</value></data>
+  <data name="ContentNoteUnsupported" xml:space="preserve"><value>Тип зависимости не поддерживается.</value></data>
+  <data name="ContentNoteRequiresFabric" xml:space="preserve"><value>Для проекта нужна сборка Fabric.</value></data>
+  <data name="ContentNoteNoCompatibleVersion" xml:space="preserve"><value>Нет совместимой версии для этой сборки.</value></data>
+  <data name="ContentNoteProjectLimitReached" xml:space="preserve"><value>Превышен предел в {0} проектов-зависимостей.</value></data>
+  <data name="ContentNoteProjectUnavailable" xml:space="preserve"><value>Проект недоступен или его нельзя проверить.</value></data>
+  <data name="ContentNoteFabricLoaderRequirement" xml:space="preserve"><value>Требуется Fabric Loader {0}; установлен {1}.</value></data>
+  <data name="ContentNoteJavaRequirement" xml:space="preserve"><value>Требуется Java {0}; в сборке используется Java {1}.</value></data>
+  <data name="ContentNoteIncompatibleWith" xml:space="preserve"><value>Несовместим с «{0}».</value></data>
+  <data name="ContentFailureBuildUnavailable" xml:space="preserve"><value>Сборка больше недоступна.</value></data>
+  <data name="ContentFailureBuildBusy" xml:space="preserve"><value>Сборка занята. Повторите после завершения операции с файлами или игры.</value></data>
+  <data name="ContentFailureBuildInstalling" xml:space="preserve"><value>Дождитесь завершения установки сборки.</value></data>
+  <data name="ContentFailureModRequiresFabric" xml:space="preserve"><value>Моды доступны только в сборках Fabric.</value></data>
+  <data name="ContentFailureInvalidChannel" xml:space="preserve"><value>Неизвестный канал версии Modrinth.</value></data>
+  <data name="ContentFailureNoCompatibleVersion" xml:space="preserve"><value>Для проекта не найдена совместимая версия.</value></data>
+  <data name="ContentFailureRegistryCorrupt" xml:space="preserve"><value>Реестр контента повреждён. Файлы оставлены без изменений.</value></data>
+  <data name="ContentFailureRegistryUnavailable" xml:space="preserve"><value>Не удалось прочитать реестр сборок.</value></data>
+  <data name="ContentFailureStaleContent" xml:space="preserve"><value>Файл изменился. Обновите список и повторите действие.</value></data>
+  <data name="ContentFailureConfirmationRequired" xml:space="preserve"><value>Для этого обновления нужно отдельное подтверждение. Обновите элемент отдельно.</value></data>
+  <data name="ContentFailureConfirmationDeclined" xml:space="preserve"><value>Действие отменено.</value></data>
+  <data name="ContentFailureFabricApiIncompatible" xml:space="preserve"><value>Fabric API {0} несовместим с Loader {1} и Java {2}.</value></data>
+  <data name="ContentFailureModrinthRequestFailed" xml:space="preserve"><value>Не удалось получить данные Modrinth. Проверьте подключение и повторите попытку.</value></data>
+  <data name="ContentFailureOperationFailed" xml:space="preserve"><value>Не удалось выполнить операцию с содержимым.</value></data>
+  <data name="ContentFailureBulkUpdateFailed" xml:space="preserve"><value>Не удалось выполнить {0} обновлений. Подробности указаны по файлам.</value></data>
+  <data name="ContentFailureCancelled" xml:space="preserve"><value>Операция отменена.</value></data>
 </root>

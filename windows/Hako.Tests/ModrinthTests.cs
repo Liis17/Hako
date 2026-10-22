@@ -9,6 +9,33 @@ namespace Hako.Tests;
 [TestClass]
 public sealed class ModrinthTests
 {
+    [TestMethod]
+    public void ProjectArraysRoundTripWithSourceGeneratedContext()
+    {
+        ModrinthProject[] projects =
+        [
+            new() { Id = "dual", Slug = "dual-pack", Title = "Pack", Description = "Both types",
+                ProjectType = "resourcepack", AllProjectTypes = ["resourcepack", "datapack"],
+                IconUrl = new Uri("https://cdn.test/icon.png") },
+            new() { Id = "empty-types", ProjectType = "mod", AllProjectTypes = [] }
+        ];
+        var json = JsonSerializer.Serialize(projects, Hako.Core.HakoJsonContext.Default.ModrinthProjectArray);
+        var restored = JsonSerializer.Deserialize(json, Hako.Core.HakoJsonContext.Default.ModrinthProjectArray)!;
+        Assert.AreEqual(2, restored.Length);
+        Assert.AreEqual(projects[0].Id, restored[0].Id);
+        Assert.AreEqual(projects[0].Slug, restored[0].Slug);
+        Assert.AreEqual(projects[0].Title, restored[0].Title);
+        Assert.AreEqual(projects[0].Description, restored[0].Description);
+        Assert.AreEqual(projects[0].IconUrl, restored[0].IconUrl);
+        Assert.AreEqual(projects[0].ProjectType, restored[0].ProjectType);
+        CollectionAssert.AreEqual(projects[0].AllProjectTypes.ToArray(), restored[0].AllProjectTypes.ToArray());
+        Assert.AreEqual(0, restored[1].AllProjectTypes.Count);
+
+        var emptyJson = JsonSerializer.Serialize(Array.Empty<ModrinthProject>(), Hako.Core.HakoJsonContext.Default.ModrinthProjectArray);
+        Assert.AreEqual("[]", emptyJson);
+        Assert.AreEqual(0, JsonSerializer.Deserialize(emptyJson, Hako.Core.HakoJsonContext.Default.ModrinthProjectArray)!.Length);
+    }
+
     private static readonly Uri ApiBase = new("https://api.test/v2/");
 
     [TestMethod]

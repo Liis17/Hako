@@ -30,6 +30,7 @@
     <Compile Include="..\Hako\InstanceIconImage.cs" Link="InstanceIconImage.cs" />
     <Compile Include="..\Hako\NameValidation.cs" Link="NameValidation.cs" />
     <Compile Include="..\Hako\DisplayPath.cs" Link="DisplayPath.cs" />
+    <Compile Include="..\Hako\ContentResourceKeys.cs" Link="ContentResourceKeys.cs" />
   </ItemGroup>
 
   <ItemGroup>
