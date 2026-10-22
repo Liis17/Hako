@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Hako.Core.Instances;
+using Hako.Core.Minecraft;
 
 namespace Hako.Core;
 
@@ -10,6 +11,7 @@ namespace Hako.Core;
 [JsonSerializable(typeof(UserSettings))]
 [JsonSerializable(typeof(InstanceRegistryFile))]
 [JsonSerializable(typeof(AccountSession))]
+[JsonSerializable(typeof(GameProcessRecord))]
 [JsonSerializable(typeof(DeviceCodeResponse))]
 [JsonSerializable(typeof(MicrosoftTokenResponse))]
 [JsonSerializable(typeof(OAuthErrorResponse))]

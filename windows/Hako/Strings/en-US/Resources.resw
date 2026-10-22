@@ -102,4 +102,27 @@ Hako</value></data>
   <data name="InstallationErrorStorageMissingFabricLoaderVersion" xml:space="preserve"><value>Choose a Fabric Loader version.</value></data>
   <data name="InstallationErrorCancelled" xml:space="preserve"><value>The installation was cancelled.</value></data>
   <data name="InstallationErrorUnexpected" xml:space="preserve"><value>An unexpected error occurred during installation.</value></data>
+  <data name="MinecraftRefreshTokenRejected" xml:space="preserve"><value>The Microsoft session expired or was revoked. Sign in to the account again.</value></data>
+  <data name="MinecraftLicenseMissing" xml:space="preserve"><value>This account doesn't have a Minecraft: Java Edition license.</value></data>
+  <data name="MinecraftProfileMissing" xml:space="preserve"><value>No Minecraft: Java Edition profile was found for this account.</value></data>
+  <data name="LaunchInvalidManifest" xml:space="preserve"><value>The Minecraft version metadata is damaged or doesn't match this build.</value></data>
+  <data name="LaunchInvalidOfflineName" xml:space="preserve"><value>Check the offline-mode player name.</value></data>
+  <data name="LaunchReservedGameArgument" xml:space="preserve"><value>This launch argument is controlled by the launcher settings.</value></data>
+  <data name="LaunchBuildNotReady" xml:space="preserve"><value>This build isn't ready to launch yet.</value></data>
+  <data name="LaunchBuildAlreadyRunning" xml:space="preserve"><value>This build is already running or preparing to launch.</value></data>
+  <data name="LaunchJavaMissing" xml:space="preserve"><value>The selected Java executable could not be found.</value></data>
+  <data name="LaunchJavaVersionMismatch" xml:space="preserve"><value>The selected Java version isn't suitable for this build.</value></data>
+  <data name="LaunchJavaArchitectureMismatch" xml:space="preserve"><value>Java's architecture doesn't match the architecture pinned to this build.</value></data>
+  <data name="LaunchJavaProbeTimeout" xml:space="preserve"><value>Checking Java exceeded the time limit.</value></data>
+  <data name="LaunchJavaProbeFailed" xml:space="preserve"><value>The selected Java executable couldn't be checked.</value></data>
+  <data name="LaunchMetadataInvalid" xml:space="preserve"><value>The version metadata failed its integrity check.</value></data>
+  <data name="LaunchAssetIndexInvalid" xml:space="preserve"><value>The Minecraft asset index is damaged or failed its integrity check.</value></data>
+  <data name="LaunchClientMissing" xml:space="preserve"><value>The Minecraft client file is missing or failed its integrity check. Reinstall this build.</value></data>
+  <data name="LaunchSessionChanged" xml:space="preserve"><value>The Minecraft session changed while preparing. Try launching again.</value></data>
+  <data name="LaunchProcessStartFailed" xml:space="preserve"><value>Java couldn't be started. See the launch log for details.</value></data>
+  <data name="LaunchCommandLineTooLong" xml:space="preserve"><value>The launch command is too long for this Java version. Remove some arguments.</value></data>
+  <data name="LaunchArgumentFileEncoding" xml:space="preserve"><value>Launch paths or arguments contain characters that Java can't read in the system code page. Move the build to a folder with Latin characters.</value></data>
+  <data name="LaunchProcessRecordInvalid" xml:space="preserve"><value>The running game state couldn't be restored.</value></data>
+  <data name="LaunchGameExitCode" xml:space="preserve"><value>Minecraft exited with code {0}. See the launch log for details.</value></data>
+  <data name="LaunchMemoryWarning" xml:space="preserve"><value>The selected memory limit exceeds 70% of the computer's physical memory.</value></data>
 </root>

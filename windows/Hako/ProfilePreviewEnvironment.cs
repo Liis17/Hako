@@ -144,6 +144,7 @@ internal sealed class PreviewAuthService : IMicrosoftAuthService
     public Task<DeviceCode> RequestDeviceCodeAsync(CancellationToken cancellationToken) => Unsupported<DeviceCode>();
     public Task<MicrosoftToken> WaitForTokenAsync(DeviceCode deviceCode, CancellationToken cancellationToken) => Unsupported<MicrosoftToken>();
     public Task<AccountSession> SignInAsync(MicrosoftToken token, CancellationToken cancellationToken) => Unsupported<AccountSession>();
+    public Task<MinecraftConnection> ConnectMinecraftAsync(string refreshToken, Func<string, CancellationToken, Task> persistRefreshToken, CancellationToken cancellationToken) => Unsupported<MinecraftConnection>();
 
     private static Task<T> Unsupported<T>() => Task.FromException<T>(new NotSupportedException("Sign-in is disabled in profile preview mode."));
 }

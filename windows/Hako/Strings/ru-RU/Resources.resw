@@ -102,4 +102,27 @@
   <data name="InstallationErrorStorageMissingFabricLoaderVersion" xml:space="preserve"><value>Выберите версию Fabric Loader.</value></data>
   <data name="InstallationErrorCancelled" xml:space="preserve"><value>Установка отменена.</value></data>
   <data name="InstallationErrorUnexpected" xml:space="preserve"><value>Во время установки произошла непредвиденная ошибка.</value></data>
+  <data name="MinecraftRefreshTokenRejected" xml:space="preserve"><value>Сессия Microsoft истекла или была отозвана. Войдите в аккаунт снова.</value></data>
+  <data name="MinecraftLicenseMissing" xml:space="preserve"><value>У этого аккаунта нет лицензии Minecraft: Java Edition.</value></data>
+  <data name="MinecraftProfileMissing" xml:space="preserve"><value>Для этого аккаунта не найден профиль Minecraft: Java Edition.</value></data>
+  <data name="LaunchInvalidManifest" xml:space="preserve"><value>Описание версии Minecraft повреждено или не соответствует сборке.</value></data>
+  <data name="LaunchInvalidOfflineName" xml:space="preserve"><value>Проверьте ник для автономного режима.</value></data>
+  <data name="LaunchReservedGameArgument" xml:space="preserve"><value>Этот параметр запуска задаётся настройками лаунчера.</value></data>
+  <data name="LaunchBuildNotReady" xml:space="preserve"><value>Сборка ещё не готова к запуску.</value></data>
+  <data name="LaunchBuildAlreadyRunning" xml:space="preserve"><value>Эта сборка уже запущена или подготавливается.</value></data>
+  <data name="LaunchJavaMissing" xml:space="preserve"><value>Не найден выбранный исполняемый файл Java.</value></data>
+  <data name="LaunchJavaVersionMismatch" xml:space="preserve"><value>Версия выбранной Java не подходит для этой сборки.</value></data>
+  <data name="LaunchJavaArchitectureMismatch" xml:space="preserve"><value>Архитектура Java не совпадает с закреплённой архитектурой сборки.</value></data>
+  <data name="LaunchJavaProbeTimeout" xml:space="preserve"><value>Проверка Java превысила время ожидания.</value></data>
+  <data name="LaunchJavaProbeFailed" xml:space="preserve"><value>Не удалось проверить выбранный исполняемый файл Java.</value></data>
+  <data name="LaunchMetadataInvalid" xml:space="preserve"><value>Файл описания версии не прошёл проверку целостности.</value></data>
+  <data name="LaunchAssetIndexInvalid" xml:space="preserve"><value>Индекс ресурсов Minecraft повреждён или не прошёл проверку.</value></data>
+  <data name="LaunchClientMissing" xml:space="preserve"><value>Файл игры Minecraft отсутствует или не прошёл проверку. Повторите установку сборки.</value></data>
+  <data name="LaunchSessionChanged" xml:space="preserve"><value>Сессия Minecraft изменилась во время подготовки. Повторите запуск.</value></data>
+  <data name="LaunchProcessStartFailed" xml:space="preserve"><value>Не удалось запустить Java. Подробности доступны в журнале запуска.</value></data>
+  <data name="LaunchCommandLineTooLong" xml:space="preserve"><value>Команда запуска слишком длинная для этой версии Java. Удалите лишние аргументы.</value></data>
+  <data name="LaunchArgumentFileEncoding" xml:space="preserve"><value>Пути или аргументы запуска содержат символы, которые Java не может прочитать в системной кодировке. Перенесите сборку в папку с латинскими символами.</value></data>
+  <data name="LaunchProcessRecordInvalid" xml:space="preserve"><value>Не удалось восстановить состояние запущенной игры.</value></data>
+  <data name="LaunchGameExitCode" xml:space="preserve"><value>Minecraft завершился с кодом {0}. Подробности — в журнале запуска.</value></data>
+  <data name="LaunchMemoryWarning" xml:space="preserve"><value>Выбранный лимит памяти превышает 70% физической памяти компьютера.</value></data>
 </root>

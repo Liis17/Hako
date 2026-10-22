@@ -56,21 +56,36 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private AccountSession? _account;
     private CancellationTokenSource? _activeAttempt;
     private long _attemptGeneration;
+    private long _accountGeneration;
     private long _languageSelection;
 
-    public AppCoordinator(IUserSettingsStore settingsStore, IAccountStore accountStore, IMicrosoftAuthService authService)
-        : this(new UserSettingsService(settingsStore), accountStore, authService)
+    public AppCoordinator(
+        IUserSettingsStore settingsStore,
+        IAccountStore accountStore,
+        IMicrosoftAuthService authService,
+        TimeProvider? timeProvider = null)
+        : this(new UserSettingsService(settingsStore), accountStore, authService, timeProvider)
     {
     }
 
-    public AppCoordinator(UserSettingsService settingsService, IAccountStore accountStore, IMicrosoftAuthService authService)
+    public AppCoordinator(
+        UserSettingsService settingsService,
+        IAccountStore accountStore,
+        IMicrosoftAuthService authService,
+        TimeProvider? timeProvider = null)
     {
         _settingsService = settingsService;
         _accountStore = accountStore;
         _authService = authService;
+        MinecraftSessions = new MinecraftSessionCoordinator(this, _accountStore, _authService, timeProvider);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Raised on the calling thread when the signed-in account is replaced or invalidated.</summary>
+    public event EventHandler? AccountGenerationChanged;
+
+    public MinecraftSessionCoordinator MinecraftSessions { get; }
 
     public LauncherScreen Screen
     {
@@ -123,7 +138,6 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     public AccountSession? Account
     {
         get => _account;
-        private set => SetProperty(ref _account, value);
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -147,7 +161,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
 
         try
         {
-            Account = await _accountStore.LoadAsync(cancellationToken);
+            SetAccount(await _accountStore.LoadAsync(cancellationToken), invalidateSessions: true);
             IsGuest = false;
             Screen = Account is null ? LauncherScreen.Welcome : LauncherScreen.Builds;
         }
@@ -157,7 +171,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         }
         catch
         {
-            Account = null;
+            SetAccount(null, invalidateSessions: true);
             IsGuest = false;
             CurrentStartupNotice = StartupNotice.AccountUnavailable;
             Screen = LauncherScreen.Welcome;
@@ -251,6 +265,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         lock (_commitLock)
         {
             InvalidateAttemptLocked();
+            InvalidateAccountOperationsLocked();
             generation = _attemptGeneration;
         }
 
@@ -264,7 +279,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
                 }
 
                 action();
-                Account = null;
+                SetAccount(null, invalidateSessions: false);
                 IsGuest = false;
                 CurrentDeviceCode = null;
                 LoginError = null;
@@ -286,6 +301,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         long generation;
         lock (_commitLock)
         {
+            InvalidateAccountOperationsLocked();
             InvalidateAttemptLocked();
             generation = _attemptGeneration;
             attempt = new CancellationTokenSource();
@@ -330,7 +346,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
                     }
 
                     replaceFile();
-                    Account = account;
+                    SetAccount(account, invalidateSessions: true);
                     IsGuest = false;
                     CurrentDeviceCode = null;
                     LoginError = null;
@@ -408,6 +424,69 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         generation == _attemptGeneration
         && ReferenceEquals(_activeAttempt, attempt)
         && !attempt.IsCancellationRequested;
+
+    internal (AccountSession? Account, long Generation) CaptureAccountState()
+    {
+        lock (_commitLock)
+        {
+            return (_account, _accountGeneration);
+        }
+    }
+
+    internal bool TryCommitAccountUpdate(
+        AccountSession expectedAccount,
+        long generation,
+        AccountSession updatedAccount,
+        Action persist)
+    {
+        lock (_commitLock)
+        {
+            if (generation != _accountGeneration || !ReferenceEquals(_account, expectedAccount))
+            {
+                return false;
+            }
+
+            persist();
+            SetAccount(updatedAccount, invalidateSessions: false);
+            return true;
+        }
+    }
+
+    private void SetAccount(AccountSession? account, bool invalidateSessions)
+    {
+        if (ReferenceEquals(_account, account))
+        {
+            return;
+        }
+
+        _account = account;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Account)));
+        if (invalidateSessions)
+        {
+            InvalidateAccountOperationsLocked();
+        }
+    }
+
+    private void InvalidateAccountOperationsLocked()
+    {
+        _accountGeneration++;
+        var handlers = AccountGenerationChanged;
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
 
     private void InvalidateAttemptLocked()
     {

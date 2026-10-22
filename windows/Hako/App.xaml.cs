@@ -152,6 +152,9 @@ public partial class App : Application
         catch (UnauthorizedAccessException)
         {
         }
+        catch (ArgumentException)
+        {
+        }
 
         PreviewRoot = null;
     }

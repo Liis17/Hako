@@ -172,3 +172,22 @@ email и, если доступен, профиль Minecraft. Без Minecraft 
   внутри этого условия. Устаревший вход не заменит аккаунт, а завершившийся вход не восстановит аккаунт после выхода.
 - Выход: `LogoutAsync` сначала инвалидирует попытку, затем удаляет `session.dat` под тем же условием. Выбранный язык
   при выходе сохраняется (тест `LogoutKeepsSelectedLanguage`).
+
+### Обновление сессии для онлайн-запуска
+
+Строгий путь, отдельный от мягкого шага 4 первого входа (тот не изменён).
+`IMicrosoftAuthService.ConnectMinecraftAsync(refreshToken, persistRefreshToken, ct)`: refresh-grant Microsoft →
+**сразу** `persistRefreshToken` с ротированным токеном → Xbox → XSTS Minecraft → `login_with_xbox` → профиль.
+Сбой после refresh не теряет новый токен. Ошибки различимы: `invalid_grant` → `RefreshTokenRejected`,
+403/404 входа или 403 профиля → `MinecraftLicenseMissing`, 404 профиля или пустой профиль → `MinecraftProfileMissing`;
+сеть/таймаут → `Network`. Ключи resw: `MinecraftRefreshTokenRejected`, `MinecraftLicenseMissing`, `MinecraftProfileMissing`.
+`MinecraftConnection.ToString()` не выводит access token.
+
+`MinecraftSessionCoordinator` (`AppCoordinator.MinecraftSessions`, `windows/Hako.Core/MinecraftSessionCoordinator.cs`):
+- `ConnectForLaunchAsync` возвращает текущий `AccountSession`, если Minecraft-токен действует ещё больше минуты
+  (время — через `TimeProvider`), иначе запускает refresh. Параллельные вызовы ждут одну операцию.
+- Каждая запись (`session.dat` и `AppCoordinator.Account`) идёт через `AppCoordinator.TryCommitAccountUpdate` внутри
+  `commitIfCurrent` с поколением аккаунта; вход, загрузка и выход увеличивают поколение (`AccountGenerationChanged`)
+  и отменяют refresh. Поздний результат не восстановит удалённый `session.dat` и не заменит новый аккаунт.
+- `Status` (`Idle`/`Connecting`/`Connected`/`Failed`) и `Error` для UI; события приходят с потока refresh —
+  UI маршалит их в `DispatcherQueue`.

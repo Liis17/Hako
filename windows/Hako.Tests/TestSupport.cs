@@ -290,6 +290,54 @@ internal sealed class SequenceAuthService : IMicrosoftAuthService
     }
 
     public Task<AccountSession> SignInAsync(MicrosoftToken token, CancellationToken cancellationToken) => _signIn(Interlocked.Increment(ref _attempt));
+
+    public async Task<MinecraftConnection> ConnectMinecraftAsync(
+        string refreshToken,
+        Func<string, CancellationToken, Task> persistRefreshToken,
+        CancellationToken cancellationToken)
+    {
+        await persistRefreshToken(refreshToken + "-rotated", cancellationToken);
+        return TestData.MinecraftConnection();
+    }
+}
+
+internal sealed class RefreshAuthService : IMicrosoftAuthService
+{
+    private readonly Func<string, Func<string, CancellationToken, Task>, CancellationToken, Task<MinecraftConnection>> _connect;
+    private int _connectionCount;
+
+    public RefreshAuthService(
+        Func<string, Func<string, CancellationToken, Task>, CancellationToken, Task<MinecraftConnection>>? connect = null)
+    {
+        _connect = connect ?? DefaultConnectAsync;
+    }
+
+    public int ConnectionCount => Volatile.Read(ref _connectionCount);
+    public TaskCompletionSource ConnectStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task<DeviceCode> RequestDeviceCodeAsync(CancellationToken cancellationToken) => Task.FromResult(TestData.DeviceCode());
+    public Task<MicrosoftToken> WaitForTokenAsync(DeviceCode deviceCode, CancellationToken cancellationToken) =>
+        Task.FromResult(new MicrosoftToken("access", "refresh", null));
+    public Task<AccountSession> SignInAsync(MicrosoftToken token, CancellationToken cancellationToken) => Task.FromResult(TestData.Account());
+
+    public Task<MinecraftConnection> ConnectMinecraftAsync(
+        string refreshToken,
+        Func<string, CancellationToken, Task> persistRefreshToken,
+        CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _connectionCount);
+        ConnectStarted.TrySetResult();
+        return _connect(refreshToken, persistRefreshToken, cancellationToken);
+    }
+
+    private static async Task<MinecraftConnection> DefaultConnectAsync(
+        string refreshToken,
+        Func<string, CancellationToken, Task> persistRefreshToken,
+        CancellationToken cancellationToken)
+    {
+        await persistRefreshToken("rotated-refresh", cancellationToken);
+        return TestData.MinecraftConnection();
+    }
 }
 
 internal static class TestData
@@ -298,6 +346,9 @@ internal static class TestData
 
     public static AccountSession Account(string xuid = "123", string gamertag = "HakoPlayer") =>
         new(xuid, gamertag, "player@example.com", null, "profile-id", "Player", "refresh-secret", "minecraft-secret", DateTimeOffset.Parse("2025-01-01T01:00:00Z"));
+
+    public static MinecraftConnection MinecraftConnection() =>
+        new("profile-id", "Player", "minecraft-connected-secret", DateTimeOffset.Parse("2025-01-01T02:00:00Z"));
 
     public static HttpResponseMessage Json(HttpStatusCode status, string content) =>
         new(status) { Content = new StringContent(content, Encoding.UTF8, "application/json") };
@@ -323,4 +374,30 @@ internal static class TestData
         .ToDictionary(
             pair => Uri.UnescapeDataString(pair[0].Replace('+', ' ')),
             pair => Uri.UnescapeDataString((pair.Length > 1 ? pair[1] : string.Empty).Replace('+', ' ')));
+}
+
+internal sealed class TemporaryDirectory : IDisposable, IAsyncDisposable
+{
+    public TemporaryDirectory()
+    {
+        Root = Path.Combine(Path.GetTempPath(), "Hako.Tests", Guid.NewGuid().ToString("N"));
+        Paths = HakoPaths.CreateIsolated(Path.Combine(Root, "Game"), Path.Combine(Root, "Data"));
+    }
+
+    public string Root { get; }
+    public HakoPaths Paths { get; }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(Root))
+        {
+            Directory.Delete(Root, recursive: true);
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Dispose();
+        return ValueTask.CompletedTask;
+    }
 }

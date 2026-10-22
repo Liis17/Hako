@@ -67,6 +67,135 @@ public sealed class MicrosoftDeviceAuthTests
     }
 
     [TestMethod]
+    public async Task MinecraftRefreshPersistsRotatedTokenBeforeXboxAndConnectsProfile()
+    {
+        var persistedRefreshToken = "";
+        var handler = new CallbackHttpHandler(async (request, cancellationToken) =>
+        {
+            var uri = request.RequestUri?.AbsoluteUri;
+            if (uri == "https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+            {
+                var form = TestData.ParseForm(await request.Content!.ReadAsStringAsync(cancellationToken));
+                Assert.AreEqual("refresh_token", form["grant_type"]);
+                Assert.AreEqual("old-refresh", form["refresh_token"]);
+                return TestData.Json(HttpStatusCode.OK, """{"access_token":"new-ms-access","refresh_token":"rotated-refresh"}""");
+            }
+
+            if (uri == "https://user.auth.xboxlive.com/user/authenticate")
+            {
+                Assert.AreEqual("rotated-refresh", persistedRefreshToken);
+                return TestData.Json(HttpStatusCode.OK, """{"Token":"user-token"}""");
+            }
+
+            return uri switch
+            {
+                "https://xsts.auth.xboxlive.com/xsts/authorize" => TestData.Json(HttpStatusCode.OK,
+                    """{"Token":"minecraft-xsts","DisplayClaims":{"xui":[{"uhs":"user-hash"}]}}"""),
+                "https://api.minecraftservices.com/authentication/login_with_xbox" => TestData.Json(HttpStatusCode.OK,
+                    """{"access_token":"minecraft-access","expires_in":3600}"""),
+                "https://api.minecraftservices.com/minecraft/profile" => TestData.Json(HttpStatusCode.OK,
+                    """{"id":"profile-id","name":"Player"}"""),
+                _ => throw new AssertFailedException("Unexpected refresh endpoint."),
+            };
+        });
+        using var http = new HttpClient(handler);
+        var auth = new MicrosoftDeviceAuth(http, new ManualTimeProvider());
+
+        var connection = await auth.ConnectMinecraftAsync("old-refresh", (token, _) =>
+        {
+            Assert.AreEqual(1, handler.RequestCount);
+            persistedRefreshToken = token;
+            return Task.CompletedTask;
+        }, CancellationToken.None);
+
+        Assert.AreEqual("profile-id", connection.ProfileId);
+        Assert.AreEqual("Player", connection.ProfileName);
+        Assert.AreEqual("minecraft-access", connection.AccessToken);
+        Assert.AreEqual(5, handler.RequestCount);
+        Assert.IsFalse(connection.ToString().Contains("minecraft-access", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task MinecraftRefreshKeepsRotatedTokenWhenXboxFailsAfterRefresh()
+    {
+        var rotated = "";
+        var handler = new CallbackHttpHandler((request, _) =>
+        {
+            if (request.RequestUri?.AbsoluteUri == "https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+            {
+                return Task.FromResult(TestData.Json(HttpStatusCode.OK,
+                    """{"access_token":"new-access","refresh_token":"rotated"}"""));
+            }
+
+            throw new HttpRequestException("simulated network failure");
+        });
+        using var http = new HttpClient(handler);
+        var auth = new MicrosoftDeviceAuth(http, TimeProvider.System);
+
+        await Assert.ThrowsExactlyAsync<HttpRequestException>(() => auth.ConnectMinecraftAsync("old", (token, _) =>
+        {
+            rotated = token;
+            return Task.CompletedTask;
+        }, CancellationToken.None));
+
+        Assert.AreEqual("rotated", rotated);
+        Assert.AreEqual(2, handler.RequestCount);
+    }
+
+    [TestMethod]
+    public async Task RejectedRefreshTokenHasSpecificError()
+    {
+        var handler = new CallbackHttpHandler((_, _) => Task.FromResult(
+            TestData.Json(HttpStatusCode.BadRequest, """{"error":"invalid_grant"}""")));
+        using var http = new HttpClient(handler);
+        var auth = new MicrosoftDeviceAuth(http, TimeProvider.System);
+
+        var error = await Assert.ThrowsExactlyAsync<AuthServiceException>(() => auth.ConnectMinecraftAsync(
+            "revoked", (_, _) => Task.CompletedTask, CancellationToken.None));
+
+        Assert.AreEqual(AuthErrorKind.RefreshTokenRejected, error.Kind);
+        Assert.AreEqual("MinecraftRefreshTokenRejected", error.Kind.ResourceKey());
+        Assert.AreEqual(1, handler.RequestCount);
+    }
+
+    [TestMethod]
+    public async Task StrictRefreshSeparatesMissingMinecraftLicenseAndProfile()
+    {
+        foreach (var (status, endpoint, expected) in new[]
+                 {
+                     (HttpStatusCode.Forbidden, "https://api.minecraftservices.com/authentication/login_with_xbox", AuthErrorKind.MinecraftLicenseMissing),
+                     (HttpStatusCode.NotFound, "https://api.minecraftservices.com/minecraft/profile", AuthErrorKind.MinecraftProfileMissing)
+                 })
+        {
+            var rotated = false;
+            var handler = new CallbackHttpHandler((request, _) => Task.FromResult(request.RequestUri?.AbsoluteUri switch
+            {
+                "https://login.microsoftonline.com/consumers/oauth2/v2.0/token" => TestData.Json(HttpStatusCode.OK,
+                    """{"access_token":"new-access","refresh_token":"rotated"}"""),
+                "https://user.auth.xboxlive.com/user/authenticate" => TestData.Json(HttpStatusCode.OK, """{"Token":"user-token"}"""),
+                "https://xsts.auth.xboxlive.com/xsts/authorize" => TestData.Json(HttpStatusCode.OK,
+                    """{"Token":"xsts","DisplayClaims":{"xui":[{"uhs":"hash"}]}}"""),
+                "https://api.minecraftservices.com/authentication/login_with_xbox" when endpoint.EndsWith("login_with_xbox", StringComparison.Ordinal)
+                    && status == HttpStatusCode.Forbidden => TestData.Json(status, "{}"),
+                "https://api.minecraftservices.com/authentication/login_with_xbox" => TestData.Json(HttpStatusCode.OK,
+                    """{"access_token":"minecraft","expires_in":3600}"""),
+                _ => TestData.Json(status, "{}")
+            }));
+            using var http = new HttpClient(handler);
+            var auth = new MicrosoftDeviceAuth(http, TimeProvider.System);
+
+            var error = await Assert.ThrowsExactlyAsync<AuthServiceException>(() => auth.ConnectMinecraftAsync("old", (token, _) =>
+            {
+                rotated = token == "rotated";
+                return Task.CompletedTask;
+            }, CancellationToken.None));
+
+            Assert.IsTrue(rotated);
+            Assert.AreEqual(expected, error.Kind);
+        }
+    }
+
+    [TestMethod]
     public async Task SlowDownAddsFiveSecondsToFollowingPolls()
     {
         var time = new ManualTimeProvider();
