@@ -126,10 +126,28 @@ public sealed class MojangClient : IDisposable
         if (expectedSize is { } expectedContentLength && response.Content.Headers.ContentLength is { } contentLength
             && contentLength > expectedContentLength)
         {
-            throw Invalid("A Mojang response is larger than its declared size.");
+            throw new MojangException(MojangError.Integrity, "A Mojang response is larger than its declared size.");
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        Stream stream;
+        try
+        {
+            stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new MojangException(MojangError.Http, "The Mojang response stream timed out.", innerException: exception);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new MojangException(MojangError.Http, "The Mojang response stream could not be opened.", innerException: exception);
+        }
+
+        await using var responseStream = stream;
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         while (true)
@@ -137,7 +155,7 @@ public sealed class MojangClient : IDisposable
             var sizeLimit = expectedSize is { } size ? Math.Min(size, MaximumMetadataBytes) : MaximumMetadataBytes;
             var remaining = sizeLimit - buffer.Length;
             var readLength = remaining < chunk.Length ? (int)remaining + 1 : chunk.Length;
-            var read = await ReadWithIdleTimeoutAsync(stream, chunk.AsMemory(0, readLength), cancellationToken).ConfigureAwait(false);
+            var read = await ReadWithIdleTimeoutAsync(responseStream, chunk.AsMemory(0, readLength), cancellationToken).ConfigureAwait(false);
             if (read == 0)
             {
                 break;
@@ -146,9 +164,12 @@ public sealed class MojangClient : IDisposable
             if (buffer.Length + read > MaximumMetadataBytes
                 || expectedSize is { } expectedSizeLimit && buffer.Length + read > expectedSizeLimit)
             {
-                throw Invalid(expectedSize is null
-                    ? "Mojang metadata exceeds the supported size limit."
-                    : "A Mojang response is larger than its declared size.");
+                if (expectedSize is { } declaredSize && buffer.Length + read > declaredSize)
+                {
+                    throw new MojangException(MojangError.Integrity, "A Mojang response is larger than its declared size.");
+                }
+
+                throw Invalid("Mojang metadata exceeds the supported size limit.");
             }
 
             await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
@@ -206,7 +227,7 @@ public sealed class MojangClient : IDisposable
         if (!string.Equals(hash, download.Sha1, StringComparison.OrdinalIgnoreCase)
             || download.Size is { } expectedSize && bytes.Length != expectedSize)
         {
-            throw Invalid("A downloaded Mojang file failed its SHA-1 or size check.");
+            throw new MojangException(MojangError.Integrity, "A downloaded Mojang file failed its SHA-1 or size check.");
         }
     }
 

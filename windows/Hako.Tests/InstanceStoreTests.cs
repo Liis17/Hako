@@ -14,8 +14,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task NamesAreTrimmedAndRestrictedToOneToSixtyAsciiLettersDigitsAndSpaces()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
 
         Assert.AreEqual("My_Build_2", store.ValidateName("  My Build 2  "));
         foreach (var value in new[] { "", " ", new string('a', 61), "Build!", "Сборка" })
@@ -27,8 +27,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task ReservedAndCaseInsensitiveNameCollisionsAreRejected()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
         foreach (var value in new[] { "backups", "WORLDS", "con", "PRN", "Aux", "nul", "COM1", "com9", "LPT1", "lpt9" })
         {
             Assert.ThrowsExactly<InstanceStorageException>(() => store.ValidateName(value));
@@ -42,10 +42,10 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task CaseInsensitiveFilesystemCollisionIsRejected()
     {
-        using var temporary = new TemporaryDirectory();
+        await using var temporary = new TemporaryDirectory();
         Directory.CreateDirectory(temporary.Paths.GameRoot);
         Directory.CreateDirectory(Path.Combine(temporary.Paths.GameRoot, "Loose_Files"));
-        var store = await LoadStoreAsync(temporary.Paths);
+        var store = await LoadStoreAsync(temporary);
 
         Assert.ThrowsExactly<InstanceStorageException>(() => store.ValidateName("loose files"));
     }
@@ -53,8 +53,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task RegistryIsCamelCaseAndContainsFullProfileState()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
         var instance = store.Create(new InstanceDraft
         {
             Name = "Fabric Build",
@@ -70,6 +70,7 @@ public sealed class InstanceStoreTests
         StringAssert.Contains(json, "\"formatVersion\": 1");
         StringAssert.Contains(json, "\"folderName\": \"Fabric_Build\"");
         StringAssert.Contains(json, "\"argumentSource\": \"custom\"");
+        StringAssert.Contains(json, "\"modLoader\": \"fabric\"");
         StringAssert.Contains(json, "\"state\": \"queued\"");
         StringAssert.Contains(json, "\"pauseRequested\": false");
         StringAssert.Contains(json, "\"fabricConfiguration\":");
@@ -79,13 +80,13 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task FailedAtomicWriteLeavesPreviousRegistryAndRemovesTemporaryFile()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         var instance = initial.Create(new InstanceDraft { Name = "Original" }, "1.20.4");
         await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
         var registryPath = Path.Combine(temporary.Paths.GameRoot, "instances.json");
         var original = File.ReadAllBytes(registryPath);
-        var failing = await LoadStoreAsync(temporary.Paths, () => throw new IOException("Injected before atomic replace."));
+        var failing = await LoadStoreAsync(temporary, () => throw new IOException("Injected before atomic replace."));
 
         Assert.ThrowsExactly<IOException>(() => failing.Rename(instance.Id, "Changed"));
 
@@ -98,10 +99,10 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task CorruptAndUnknownVersionRegistriesAreNeverOverwritten()
     {
-        using var temporary = new TemporaryDirectory();
+        await using var temporary = new TemporaryDirectory();
         Directory.CreateDirectory(temporary.Paths.GameRoot);
         var registryPath = Path.Combine(temporary.Paths.GameRoot, "instances.json");
-        var store = await LoadStoreAsync(temporary.Paths);
+        var store = await LoadStoreAsync(temporary);
         var instance = store.Create(new InstanceDraft { Name = "Protected Build" }, "1.20.4");
         var update = new InstanceDraft { Name = "Renamed Build" };
         foreach (var content in new[] { "{ broken", "{\"formatVersion\":2,\"instances\":[]}" })
@@ -136,7 +137,7 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task InvalidRegistryEntriesAreReportedAsCorrupt()
     {
-        using var temporary = new TemporaryDirectory();
+        await using var temporary = new TemporaryDirectory();
         Directory.CreateDirectory(temporary.Paths.GameRoot);
         var registryPath = Path.Combine(temporary.Paths.GameRoot, "instances.json");
         var valid = new GameInstance { Name = "First", FolderName = "First" };
@@ -158,7 +159,7 @@ public sealed class InstanceStoreTests
         {
             var original = JsonSerializer.SerializeToUtf8Bytes(invalid, HakoJsonContext.Default.InstanceRegistryFile);
             await File.WriteAllBytesAsync(registryPath, original);
-            var store = new InstanceStore(temporary.Paths);
+            var store = temporary.CreateStore();
 
             await store.LoadAsync();
 
@@ -171,7 +172,7 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task RegistrySymlinkIsReportedAsLoadErrorInsteadOfThrowingFromConstruction()
     {
-        using var temporary = new TemporaryDirectory();
+        await using var temporary = new TemporaryDirectory();
         Directory.CreateDirectory(temporary.Paths.GameRoot);
         var target = Path.Combine(temporary.Path, "external-instances.json");
         await File.WriteAllTextAsync(target, "{\"formatVersion\":1,\"instances\":[]}");
@@ -185,7 +186,7 @@ public sealed class InstanceStoreTests
             Assert.Inconclusive("This environment does not allow creating a file symlink: " + exception.Message);
         }
 
-        var store = new InstanceStore(temporary.Paths);
+        var store = temporary.CreateStore();
         await store.LoadAsync();
 
         Assert.IsNotNull(store.LoadError);
@@ -197,8 +198,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task InstanceListsUseTheLoadedSnapshotAndEventFailuresDoNotFailCommittedOperations()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
         store.InstancesChanged += (_, _) => throw new InvalidOperationException("Injected observer failure.");
         store.PropertyChanged += (_, _) => throw new InvalidOperationException("Injected observer failure.");
 
@@ -211,15 +212,41 @@ public sealed class InstanceStoreTests
 
         await store.LoadAsync();
 
-        Assert.AreEqual(created, store.List().Single());
+        Assert.AreEqual(0, store.List().Count);
         Assert.AreEqual(InstanceRegistryError.Corrupt, store.LoadError?.Error);
+    }
+
+    [TestMethod]
+    public async Task TryBeginOperationsReturnRegistryReasonsBeforeLoadAndAfterLoadFailure()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var store = temporary.CreateStore();
+        var id = Guid.NewGuid();
+
+        Assert.IsFalse(store.TryBeginLaunch(id, out var launchBeforeLoad, out var launchBeforeLoadReason));
+        Assert.IsNull(launchBeforeLoad);
+        Assert.AreEqual(InstanceStorageError.InstanceRegistryNotLoaded, launchBeforeLoadReason);
+        Assert.IsFalse(store.TryBeginContent(id, out var contentBeforeLoad, out var contentBeforeLoadReason));
+        Assert.IsNull(contentBeforeLoad);
+        Assert.AreEqual(InstanceStorageError.InstanceRegistryNotLoaded, contentBeforeLoadReason);
+
+        Directory.CreateDirectory(temporary.Paths.GameRoot);
+        await File.WriteAllTextAsync(Path.Combine(temporary.Paths.GameRoot, "instances.json"), "{ broken");
+        await store.LoadAsync();
+
+        Assert.IsFalse(store.TryBeginLaunch(id, out var launchAfterFailure, out var launchAfterFailureReason));
+        Assert.IsNull(launchAfterFailure);
+        Assert.AreEqual(InstanceStorageError.InstanceRegistryUnavailable, launchAfterFailureReason);
+        Assert.IsFalse(store.TryBeginContent(id, out var contentAfterFailure, out var contentAfterFailureReason));
+        Assert.IsNull(contentAfterFailure);
+        Assert.AreEqual(InstanceStorageError.InstanceRegistryUnavailable, contentAfterFailureReason);
     }
 
     [TestMethod]
     public async Task CreateFailureRemovesOnlyItsNewFolder()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths, () => throw new IOException("Injected registry failure."));
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary, () => throw new IOException("Injected registry failure."));
 
         Assert.ThrowsExactly<IOException>(() => store.Create(new InstanceDraft { Name = "New Build" }, "1.20.4"));
 
@@ -231,11 +258,11 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task RenameFailureRollsBackAndCaseOnlyRenameUsesTemporaryFolder()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         var instance = initial.Create(new InstanceDraft { Name = "First Build" }, "1.20.4");
         await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
-        var failing = await LoadStoreAsync(temporary.Paths, () => throw new IOException("Injected registry failure."));
+        var failing = await LoadStoreAsync(temporary, () => throw new IOException("Injected registry failure."));
 
         Assert.ThrowsExactly<IOException>(() => failing.Rename(instance.Id, "Second Build"));
         Assert.IsTrue(Directory.Exists(Path.Combine(temporary.Paths.GameRoot, "First_Build")));
@@ -250,12 +277,12 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task RenameRollbackFailureKeepsTheOriginalOperationFailureAsPrimary()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         var instance = initial.Create(new InstanceDraft { Name = "Original" }, "1.20.4");
         await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
         var primaryFailure = new IOException("Primary registry failure.");
-        var failing = await LoadStoreAsync(temporary.Paths, () =>
+        var failing = await LoadStoreAsync(temporary, () =>
         {
             File.WriteAllText(Path.Combine(temporary.Paths.GameRoot, instance.FolderName), "blocks rollback");
             throw primaryFailure;
@@ -269,11 +296,11 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task DeleteFailureRestoresFolderAndMissingFolderDoesNotBlockRemoval()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         var instance = initial.Create(new InstanceDraft { Name = "Delete Me" }, "1.20.4");
         await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
-        var failing = await LoadStoreAsync(temporary.Paths, () => throw new IOException("Injected registry failure."));
+        var failing = await LoadStoreAsync(temporary, () => throw new IOException("Injected registry failure."));
 
         Assert.ThrowsExactly<IOException>(() => failing.Delete(instance.Id));
         Assert.IsTrue(Directory.Exists(Path.Combine(temporary.Paths.GameRoot, "Delete_Me")));
@@ -288,10 +315,33 @@ public sealed class InstanceStoreTests
     }
 
     [TestMethod]
+    public async Task DeleteAfterDisposeLeavesStagingForTheNextLoadToClean()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
+        await store.DeleteStagingCleanupTask!.WaitAsync(TimeSpan.FromSeconds(10));
+        var instance = store.Create(new InstanceDraft { Name = "Delete After Dispose" }, "1.20.4");
+        await SetStateAsync(temporary.Paths, store, InstanceInstallationState.Ready);
+        await store.DisposeAsync();
+
+        store.Delete(instance.Id);
+
+        Assert.AreEqual(0, store.List().Count);
+        var staging = Directory.EnumerateDirectories(temporary.Paths.GameRoot)
+            .Single(path => Path.GetFileName(path).StartsWith(".delete-", StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(Directory.Exists(staging));
+
+        var nextStore = await LoadStoreAsync(temporary);
+        await nextStore.DeleteStagingCleanupTask!.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.IsFalse(Directory.Exists(staging));
+    }
+
+    [TestMethod]
     public async Task DeleteCleanupRemovesNestedJunctionWithoutTouchingItsTarget()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
         var instance = store.Create(new InstanceDraft { Name = "Junction Build" }, "1.20.4");
         var buildDirectory = Path.Combine(temporary.Paths.GameRoot, instance.FolderName);
         var outsideTarget = Path.Combine(temporary.Path, "outside-target");
@@ -325,15 +375,16 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task LoadPublishesSnapshotBeforeBackgroundStagingCleanupCompletes()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         await initial.DeleteStagingCleanupTask!.WaitAsync(TimeSpan.FromSeconds(10));
         var instance = initial.Create(new InstanceDraft { Name = "Background Cleanup" }, "1.20.4");
         var staging = Path.Combine(temporary.Paths.GameRoot, ".delete-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
         var cleanupStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var continueCleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var store = new InstanceStore(temporary.Paths, null, () =>
+        Task? disposeTask = null;
+        var store = temporary.CreateStore(null, () =>
         {
             cleanupStarted.TrySetResult();
             continueCleanup.Task.GetAwaiter().GetResult();
@@ -346,20 +397,22 @@ public sealed class InstanceStoreTests
             Assert.AreEqual(instance.Id, store.List().Single().Id);
             await cleanupStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.IsTrue(Directory.Exists(staging));
+            disposeTask = store.DisposeAsync().AsTask();
+            Assert.IsFalse(disposeTask.IsCompleted);
         }
         finally
         {
             continueCleanup.TrySetResult();
         }
 
-        await store.DeleteStagingCleanupTask!.WaitAsync(TimeSpan.FromSeconds(10));
+        await disposeTask!.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.IsFalse(Directory.Exists(staging));
     }
 
     [TestMethod]
     public async Task LoadCleansOnlyExactLegacyAndNewDeleteStagingNames()
     {
-        using var temporary = new TemporaryDirectory();
+        await using var temporary = new TemporaryDirectory();
         Directory.CreateDirectory(temporary.Paths.GameRoot);
         var foreign = Path.Combine(temporary.Paths.GameRoot, ".delete-whatever");
         var legacyN = Path.Combine(temporary.Paths.GameRoot, ".delete-" + Guid.NewGuid().ToString("N"));
@@ -371,7 +424,7 @@ public sealed class InstanceStoreTests
         Directory.CreateDirectory(legacyD);
         Directory.CreateDirectory(newFormat);
 
-        var store = new InstanceStore(temporary.Paths);
+        var store = temporary.CreateStore();
         await store.LoadAsync();
         await store.DeleteStagingCleanupTask!.WaitAsync(TimeSpan.FromSeconds(10));
 
@@ -384,8 +437,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task LoadReconcilesInterruptedDeleteAndKeepsBuildWhenItsFolderWasRestored()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         await initial.DeleteStagingCleanupTask!.WaitAsync(TimeSpan.FromSeconds(10));
         var moved = initial.Create(new InstanceDraft { Name = "Interrupted Delete" }, "1.20.4");
         var restored = initial.Create(new InstanceDraft { Name = "Restored Build" }, "1.20.4");
@@ -395,7 +448,7 @@ public sealed class InstanceStoreTests
         Directory.CreateDirectory(restoredStaging);
         await File.WriteAllTextAsync(Path.Combine(restoredStaging, "leftover.txt"), "leftover");
 
-        var store = new InstanceStore(temporary.Paths);
+        var store = temporary.CreateStore();
         await store.LoadAsync();
         await store.DeleteStagingCleanupTask!.WaitAsync(TimeSpan.FromSeconds(10));
 
@@ -409,28 +462,36 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task RenameAndUpdateAreBlockedWhileQueuedOrInstalling()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
         var created = store.Create(new InstanceDraft { Name = "Queued Build" }, "1.20.4");
         var update = new InstanceDraft { Name = "Renamed Build" };
 
         var queuedRename = Assert.ThrowsExactly<InstanceStorageException>(() => store.Rename(created.Id, "Renamed Build"));
         var queuedUpdate = Assert.ThrowsExactly<InstanceStorageException>(() => store.Update(created.Id, update));
+        var queuedSettingsUpdate = Assert.ThrowsExactly<InstanceStorageException>(() => store.UpdateSettings(created.Id, update));
+        var queuedDelete = Assert.ThrowsExactly<InstanceStorageException>(() => store.Delete(created.Id));
         Assert.AreEqual(InstanceStorageError.BuildInstalling, queuedRename.Error);
         Assert.AreEqual(InstanceStorageError.BuildInstalling, queuedUpdate.Error);
+        Assert.AreEqual(InstanceStorageError.BuildInstalling, queuedSettingsUpdate.Error);
+        Assert.AreEqual(InstanceStorageError.BuildInstalling, queuedDelete.Error);
 
         await SetStateAsync(temporary.Paths, store, InstanceInstallationState.Installing);
         var installingRename = Assert.ThrowsExactly<InstanceStorageException>(() => store.Rename(created.Id, "Renamed Build"));
         var installingUpdate = Assert.ThrowsExactly<InstanceStorageException>(() => store.Update(created.Id, update));
+        var installingSettingsUpdate = Assert.ThrowsExactly<InstanceStorageException>(() => store.UpdateSettings(created.Id, update));
+        var installingDelete = Assert.ThrowsExactly<InstanceStorageException>(() => store.Delete(created.Id));
         Assert.AreEqual(InstanceStorageError.BuildInstalling, installingRename.Error);
         Assert.AreEqual(InstanceStorageError.BuildInstalling, installingUpdate.Error);
+        Assert.AreEqual(InstanceStorageError.BuildInstalling, installingSettingsUpdate.Error);
+        Assert.AreEqual(InstanceStorageError.BuildInstalling, installingDelete.Error);
     }
 
     [TestMethod]
     public async Task TryBeginLaunchAndDeleteAreSerializedByTheStoreGate()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         var created = initial.Create(new InstanceDraft { Name = "Atomic Busy" }, "1.20.4");
         await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
 
@@ -444,7 +505,7 @@ public sealed class InstanceStoreTests
 
         var deleteEnteredCommit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var continueDelete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var deleting = await LoadStoreAsync(temporary.Paths, () =>
+        var deleting = await LoadStoreAsync(temporary, () =>
         {
             deleteEnteredCommit.TrySetResult();
             continueDelete.Task.GetAwaiter().GetResult();
@@ -476,8 +537,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task BusyFlagsRemainSafeUnderConcurrentReadsAndWrites()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
         var instance = store.Create(new InstanceDraft { Name = "Busy Build" }, "1.20.4");
         await SetStateAsync(temporary.Paths, store, InstanceInstallationState.Ready);
         var id = instance.Id;
@@ -610,7 +671,7 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task RootJunctionIsAcceptedButNestedJunctionIsRejected()
     {
-        using var temporary = new TemporaryDirectory();
+        await using var temporary = new TemporaryDirectory();
         var target = Path.Combine(temporary.Path, "game-target");
         var rootJunction = Path.Combine(temporary.Path, "game-link");
         var nestedTarget = Path.Combine(temporary.Path, "nested-target");
@@ -626,7 +687,8 @@ public sealed class InstanceStoreTests
             using var rootLock = HakoRootLock.Acquire(paths);
             Assert.AreEqual(Path.Combine(rootJunction, "Build"), storage.Directory("Build"));
             Assert.ThrowsExactly<InstanceStorageException>(() => storage.Directory("nested-link"));
-            var store = await LoadStoreAsync(paths);
+            var store = temporary.Track(new InstanceStore(paths));
+            await store.LoadAsync();
             Assert.AreEqual(0, store.List().Count);
         }
         finally
@@ -639,7 +701,7 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task KilledLockHolderReleasesGameRootForTheNextProcess()
     {
-        using var temporary = new TemporaryDirectory();
+        await using var temporary = new TemporaryDirectory();
         Directory.CreateDirectory(temporary.Paths.GameRoot);
         var powerShell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
             "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -697,8 +759,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task UpdateIsTransactionalAndManagementBlockReasonsTrackBusyFlags()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         var created = initial.Create(new InstanceDraft { Name = "Original" }, "1.20.4");
         Assert.IsNotNull(initial.ManagementBlockedReason(created));
         await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
@@ -710,7 +772,7 @@ public sealed class InstanceStoreTests
             ArgumentSource = LaunchArgumentSource.Custom,
             Parameters = new InstanceParameters { JavaArguments = "-Dchanged=yes", MaximumMemoryMiB = 1024 }
         };
-        var failing = await LoadStoreAsync(temporary.Paths, () => throw new IOException("Injected registry failure."));
+        var failing = await LoadStoreAsync(temporary, () => throw new IOException("Injected registry failure."));
 
         Assert.ThrowsExactly<IOException>(() => failing.Update(created.Id, draft));
         Assert.IsTrue(Directory.Exists(Path.Combine(temporary.Paths.GameRoot, "Original")));
@@ -744,11 +806,12 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task UpdateSettingsChangesOnlyProfileSettingsAndRollsBackIconOnFailure()
     {
-        using var temporary = new TemporaryDirectory();
-        var initial = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var initial = await LoadStoreAsync(temporary);
         var created = initial.Create(new InstanceDraft { Name = "Settings Build" }, "1.20.4");
         var originalIcon = new byte[] { 1, 2, 3 };
         File.WriteAllBytes(Path.Combine(temporary.Paths.GameRoot, "Settings_Build", "icon.png"), originalIcon);
+        await SetStateAsync(temporary.Paths, initial, InstanceInstallationState.Ready);
         var update = new InstanceDraft
         {
             Name = "Ignored Name",
@@ -757,7 +820,7 @@ public sealed class InstanceStoreTests
             ArgumentSource = LaunchArgumentSource.Global,
             Parameters = new InstanceParameters { MinecraftArguments = "--new", MaximumMemoryMiB = 1024 }
         };
-        var failing = await LoadStoreAsync(temporary.Paths, () => throw new IOException("Injected registry failure."));
+        var failing = await LoadStoreAsync(temporary, () => throw new IOException("Injected registry failure."));
 
         Assert.ThrowsExactly<IOException>(() => failing.UpdateSettings(created.Id, update));
         CollectionAssert.AreEqual(originalIcon, File.ReadAllBytes(Path.Combine(temporary.Paths.GameRoot, "Settings_Build", "icon.png")));
@@ -773,8 +836,8 @@ public sealed class InstanceStoreTests
     [TestMethod]
     public async Task RenamePreservesCustomIconFile()
     {
-        using var temporary = new TemporaryDirectory();
-        var store = await LoadStoreAsync(temporary.Paths);
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
         var created = store.Create(new InstanceDraft { Name = "Icon Build" }, "1.20.4");
         var icon = new byte[] { 8, 6, 7, 5, 3, 0, 9 };
         var oldIconPath = Path.Combine(temporary.Paths.GameRoot, created.FolderName, "icon.png");
@@ -807,8 +870,10 @@ public sealed class InstanceStoreTests
         Assert.AreEqual(Path.Combine(data, "Cache"), paths.CacheRoot);
     }
 
-    private sealed class TemporaryDirectory : IDisposable
+    private sealed class TemporaryDirectory : IDisposable, IAsyncDisposable
     {
+        private readonly List<IAsyncDisposable> _resources = [];
+
         public TemporaryDirectory()
         {
             Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Hako.Tests", Guid.NewGuid().ToString("N"));
@@ -819,8 +884,40 @@ public sealed class InstanceStoreTests
         public string Path { get; }
         public HakoPaths Paths { get; }
 
-        public void Dispose()
+        public InstanceStore CreateStore(
+            Action? beforeRegistryCommit = null,
+            Action? beforeDeleteStagingCleanup = null) =>
+            Track(new InstanceStore(Paths, beforeRegistryCommit, beforeDeleteStagingCleanup));
+
+        public T Track<T>(T resource) where T : IAsyncDisposable
         {
+            _resources.Add(resource);
+            return resource;
+        }
+
+        public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        public async ValueTask DisposeAsync()
+        {
+            List<Exception>? errors = null;
+            for (var index = _resources.Count - 1; index >= 0; index--)
+            {
+                try
+                {
+                    await _resources[index].DisposeAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    errors ??= [];
+                    errors.Add(exception);
+                }
+            }
+
+            if (errors is not null)
+            {
+                throw new AggregateException("Failed to dispose test resources.", errors);
+            }
+
             if (Directory.Exists(Path))
             {
                 Directory.Delete(Path, recursive: true);
@@ -837,11 +934,11 @@ public sealed class InstanceStoreTests
     }
 
     private static async Task<InstanceStore> LoadStoreAsync(
-        HakoPaths paths,
+        TemporaryDirectory temporary,
         Action? beforeRegistryCommit = null,
         Action? beforeDeleteStagingCleanup = null)
     {
-        var store = new InstanceStore(paths, beforeRegistryCommit, beforeDeleteStagingCleanup);
+        var store = temporary.CreateStore(beforeRegistryCommit, beforeDeleteStagingCleanup);
         await store.LoadAsync();
         return store;
     }

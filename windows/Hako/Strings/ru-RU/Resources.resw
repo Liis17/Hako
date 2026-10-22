@@ -69,4 +69,37 @@
   <data name="StartupStorageUnavailable" xml:space="preserve"><value>Hako не удалось получить доступ к папкам данных. Проверьте разрешения и попробуйте снова.</value></data>
   <data name="InstanceRegistryDamaged" xml:space="preserve"><value>Реестр сборок повреждён или имеет неподдерживаемую версию. Файл сохранён, изменения сборок отключены.</value></data>
   <data name="InstanceRegistryUnavailable" xml:space="preserve"><value>Не удалось прочитать реестр сборок. Изменения сборок отключены.</value></data>
+  <data name="InstallationStateQueued" xml:space="preserve"><value>В очереди</value></data>
+  <data name="InstallationStateInstalling" xml:space="preserve"><value>Устанавливается</value></data>
+  <data name="InstallationStatePaused" xml:space="preserve"><value>Приостановлена</value></data>
+  <data name="InstallationStateReady" xml:space="preserve"><value>Готова</value></data>
+  <data name="InstallationStateFailed" xml:space="preserve"><value>Ошибка установки</value></data>
+  <data name="InstallationStagePreparingMetadata" xml:space="preserve"><value>Проверяем описание Minecraft…</value></data>
+  <data name="InstallationStagePreparingFiles" xml:space="preserve"><value>Подготавливаем файлы…</value></data>
+  <data name="InstallationStageDownloading" xml:space="preserve"><value>Загружаем файлы Minecraft…</value></data>
+  <data name="InstallationStagePreparingLibraries" xml:space="preserve"><value>Подготавливаем библиотеки…</value></data>
+  <data name="InstallationStagePreparingAssets" xml:space="preserve"><value>Подготавливаем ресурсы…</value></data>
+  <data name="InstallationStageComplete" xml:space="preserve"><value>Установка завершена</value></data>
+  <data name="InstallationStagePausing" xml:space="preserve"><value>Останавливаем загрузку…</value></data>
+  <data name="InstallationErrorMojangHttp" xml:space="preserve"><value>Не удалось получить данные с серверов Minecraft. Проверьте подключение и попробуйте снова.</value></data>
+  <data name="InstallationErrorMojangUnsupported" xml:space="preserve"><value>Эта версия Minecraft не поддерживается на устройстве.</value></data>
+  <data name="InstallationErrorMojangIntegrity" xml:space="preserve"><value>Загруженный файл Minecraft не прошёл проверку целостности. Попробуйте снова.</value></data>
+  <data name="InstallationErrorMojangInvalid" xml:space="preserve"><value>Сервер Minecraft прислал некорректные данные.</value></data>
+  <data name="InstallationErrorStorageOperationFailed" xml:space="preserve"><value>Не удалось сохранить состояние установки.</value></data>
+  <data name="InstallationErrorStorageInvalidPath" xml:space="preserve"><value>Путь к файлам сборки некорректен.</value></data>
+  <data name="InstallationErrorStoragePathTraversal" xml:space="preserve"><value>Путь установки выходит за пределы папки сборки.</value></data>
+  <data name="InstallationErrorStorageReparsePoint" xml:space="preserve"><value>Установка остановлена: в пути обнаружена ссылка на другую папку.</value></data>
+  <data name="InstallationErrorStorageInvalidBuildName" xml:space="preserve"><value>Имя сборки некорректно.</value></data>
+  <data name="InstallationErrorStorageReservedBuildName" xml:space="preserve"><value>Это имя сборки зарезервировано системой.</value></data>
+  <data name="InstallationErrorStorageDuplicateBuildName" xml:space="preserve"><value>Сборка с таким именем уже существует.</value></data>
+  <data name="InstallationErrorStorageBuildFolderExists" xml:space="preserve"><value>Папка сборки уже существует.</value></data>
+  <data name="InstallationErrorStorageBuildInstalling" xml:space="preserve"><value>Сборка уже устанавливается.</value></data>
+  <data name="InstallationErrorStorageBuildRunning" xml:space="preserve"><value>Сборка сейчас запущена.</value></data>
+  <data name="InstallationErrorStorageBuildFilesBusy" xml:space="preserve"><value>Файлы сборки заняты другой операцией.</value></data>
+  <data name="InstallationErrorStorageRegistryNotLoaded" xml:space="preserve"><value>Список сборок ещё не загружен.</value></data>
+  <data name="InstallationErrorStorageRegistryUnavailable" xml:space="preserve"><value>Список сборок временно недоступен.</value></data>
+  <data name="InstallationErrorStorageInvalidOfflineUsername" xml:space="preserve"><value>Имя игрока для автономного режима некорректно.</value></data>
+  <data name="InstallationErrorStorageMissingFabricLoaderVersion" xml:space="preserve"><value>Выберите версию Fabric Loader.</value></data>
+  <data name="InstallationErrorCancelled" xml:space="preserve"><value>Установка отменена.</value></data>
+  <data name="InstallationErrorUnexpected" xml:space="preserve"><value>Во время установки произошла непредвиденная ошибка.</value></data>
 </root>

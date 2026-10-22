@@ -7,11 +7,13 @@ namespace Hako.Core.Minecraft;
 
 public enum InstallationProgressStage
 {
+    PreparingMetadata,
     PreparingFiles,
     Downloading,
     PreparingLibraries,
     PreparingAssets,
-    Complete
+    Complete,
+    Pausing
 }
 
 public sealed record InstallationProgress(
@@ -77,7 +79,7 @@ public sealed class MinecraftInstaller(MojangClient client)
         var root = Path.GetFullPath(instanceRoot);
         Directory.CreateDirectory(root);
         _ = InstanceStorage.ContainedPath("installation-check", root);
-        CleanStaleTemporaryFiles(root);
+        CleanStaleTemporaryFiles(root, cancellationToken);
 
         var manifest = prepared.Manifest;
         var versionDirectory = $"minecraft/versions/{manifest.Id}";
@@ -336,10 +338,28 @@ public sealed class MinecraftInstaller(MojangClient client)
                 if (job.Download.Size is { } expectedContentLength && response.Content.Headers.ContentLength is { } contentLength
                     && contentLength > expectedContentLength)
                 {
-                    throw new MojangException(MojangError.Invalid, $"The downloaded file is larger than declared: {job.RelativePath}.");
+                    throw new MojangException(MojangError.Integrity, $"The downloaded file is larger than declared: {job.RelativePath}.");
                 }
 
-                await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                Stream source;
+                try
+                {
+                    source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new MojangException(MojangError.Http, "The Mojang response stream timed out.", innerException: exception);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    throw new MojangException(MojangError.Http, "The Mojang response stream could not be opened.", innerException: exception);
+                }
+
+                await using var responseStream = source;
                 using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
                 var buffer = new byte[BufferSize];
                 long size = 0;
@@ -367,7 +387,7 @@ public sealed class MinecraftInstaller(MojangClient client)
 
                         if (job.Download.Size is { } maximumSize && read > maximumSize - size)
                         {
-                            throw new MojangException(MojangError.Invalid, $"The downloaded file is larger than declared: {job.RelativePath}.");
+                            throw new MojangException(MojangError.Integrity, $"The downloaded file is larger than declared: {job.RelativePath}.");
                         }
 
                         size += read;
@@ -384,7 +404,7 @@ public sealed class MinecraftInstaller(MojangClient client)
                 if (!string.Equals(actualHash, job.Download.Sha1, StringComparison.OrdinalIgnoreCase)
                     || job.Download.Size is { } expectedSize && size != expectedSize)
                 {
-                    throw new MojangException(MojangError.Invalid, $"The downloaded file failed its SHA-1 or size check: {job.RelativePath}.");
+                    throw new MojangException(MojangError.Integrity, $"The downloaded file failed its SHA-1 or size check: {job.RelativePath}.");
                 }
 
                 File.Move(temporary, destination, overwrite: true);
@@ -475,7 +495,7 @@ public sealed class MinecraftInstaller(MojangClient client)
         CreateDirectory(Path.GetDirectoryName(destinationRelativePath)!, root);
         if (!await IsValidFileAsync(source, download, cancellationToken).ConfigureAwait(false))
         {
-            throw new MojangException(MojangError.Invalid, "An asset object changed before it could be copied.");
+            throw new MojangException(MojangError.Integrity, "An asset object changed before it could be copied.");
         }
 
         if (await IsValidFileAsync(destination, download, cancellationToken).ConfigureAwait(false))
@@ -497,7 +517,7 @@ public sealed class MinecraftInstaller(MojangClient client)
             cancellationToken.ThrowIfCancellationRequested();
             if (!await IsValidFileAsync(temporary, download, cancellationToken).ConfigureAwait(false))
             {
-                throw new MojangException(MojangError.Invalid, "An asset copy failed its SHA-1 or size check.");
+                throw new MojangException(MojangError.Integrity, "An asset copy failed its SHA-1 or size check.");
             }
 
             File.Move(temporary, destination, overwrite: true);
@@ -754,7 +774,7 @@ public sealed class MinecraftInstaller(MojangClient client)
     private static string TemporaryPathFor(string destination) =>
         Path.Combine(Path.GetDirectoryName(destination)!, $".hako-{Guid.NewGuid():N}.tmp");
 
-    private static void CleanStaleTemporaryFiles(string root)
+    internal static void CleanStaleTemporaryFiles(string root, CancellationToken cancellationToken)
     {
         // InstanceStore prevents concurrent installs for one root; only installer-owned folders are cleaned here.
         foreach (var relativeDirectory in new[]
@@ -767,18 +787,25 @@ public sealed class MinecraftInstaller(MojangClient client)
             "minecraft/resources"
         })
         {
-            CleanStaleTemporaryEntries(root, Path.Combine(root, relativeDirectory), recurse: true);
+            cancellationToken.ThrowIfCancellationRequested();
+            CleanStaleTemporaryEntries(root, Path.Combine(root, relativeDirectory), recurse: true, cancellationToken);
         }
 
-        CleanStaleTemporaryEntries(root, Path.Combine(root, "minecraft"), recurse: false);
+        cancellationToken.ThrowIfCancellationRequested();
+        CleanStaleTemporaryEntries(root, Path.Combine(root, "minecraft"), recurse: false, cancellationToken);
     }
 
-    private static void CleanStaleTemporaryEntries(string root, string directory, bool recurse)
+    private static void CleanStaleTemporaryEntries(
+        string root,
+        string directory,
+        bool recurse,
+        CancellationToken cancellationToken)
     {
         var pending = new Stack<string>();
         pending.Push(directory);
         while (pending.TryPop(out var currentDirectory))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 var safeDirectory = InstanceStorage.ContainedPath(Path.GetRelativePath(root, currentDirectory), root);
@@ -789,6 +816,7 @@ public sealed class MinecraftInstaller(MojangClient client)
 
                 foreach (var entry in Directory.EnumerateFileSystemEntries(safeDirectory))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var safeEntry = InstanceStorage.ContainedPath(Path.GetRelativePath(root, entry), root);

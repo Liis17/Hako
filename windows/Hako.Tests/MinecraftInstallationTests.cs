@@ -377,7 +377,7 @@ public sealed class MinecraftInstallationTests
 
         var exception = await Assert.ThrowsExactlyAsync<MojangException>(() => installer.InstallAsync(fixture.Prepared, temporary.Path));
 
-        Assert.AreEqual(MojangError.Invalid, exception.Error);
+        Assert.AreEqual(MojangError.Integrity, exception.Error);
         Assert.IsFalse(File.Exists(Path.Combine(temporary.Path, "minecraft", "versions", "install-test", "install-test.jar")));
         Assert.AreEqual(0, Directory.EnumerateFiles(temporary.Path, "*.tmp", SearchOption.AllDirectories).Count());
     }
@@ -526,6 +526,49 @@ public sealed class MinecraftInstallationTests
 
         Assert.AreEqual(MojangError.Http, exception.Error);
         Assert.IsInstanceOfType<IOException>(exception.InnerException);
+    }
+
+    [TestMethod]
+    public async Task MojangReadAsStreamFailureIsAHttpFailure()
+    {
+        using var http = new HttpClient(new StreamOpenFailureHandler());
+        using var client = new MojangClient(http);
+
+        var exception = await Assert.ThrowsExactlyAsync<MojangException>(() =>
+            client.GetBytesAsync("https://test/unreadable-body", CancellationToken.None));
+
+        Assert.AreEqual(MojangError.Http, exception.Error);
+        Assert.IsInstanceOfType<IOException>(exception.InnerException);
+    }
+
+    [TestMethod]
+    public async Task InstallerReadAsStreamFailureIsAHttpFailure()
+    {
+        using var temporary = new TestDirectory();
+        var fixture = CreateInstallFixture(includeAssets: false, streamOpenFailureUrl: "https://test/client.jar");
+        using var client = new MojangClient(new HttpClient(fixture.Handler));
+        var installer = new MinecraftInstaller(client);
+
+        var exception = await Assert.ThrowsExactlyAsync<MojangException>(() => installer.InstallAsync(fixture.Prepared, temporary.Path));
+
+        Assert.AreEqual(MojangError.Http, exception.Error);
+        Assert.IsInstanceOfType<IOException>(exception.InnerException);
+    }
+
+    [TestMethod]
+    public void InstallerStaleTemporaryCleanupObservesCancellation()
+    {
+        using var temporary = new TestDirectory();
+        var javaDirectory = Path.Combine(temporary.Path, "java");
+        Directory.CreateDirectory(javaDirectory);
+        var staleTemporaryFile = Path.Combine(javaDirectory, ".hako-stale.tmp");
+        File.WriteAllText(staleTemporaryFile, "still writing");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.ThrowsExactly<OperationCanceledException>(() =>
+            MinecraftInstaller.CleanStaleTemporaryFiles(temporary.Path, cancellation.Token));
+        Assert.IsTrue(File.Exists(staleTemporaryFile));
     }
 
     [TestMethod]
@@ -977,7 +1020,8 @@ public sealed class MinecraftInstallationTests
         IReadOnlyCollection<LibraryInstallation>? libraries = null,
         byte[]? nativeArchiveBytes = null,
         IReadOnlyDictionary<string, byte[]>? downloadPayloadOverrides = null,
-        CancellationTokenSource? cancelOnFailFast = null)
+        CancellationTokenSource? cancelOnFailFast = null,
+        string? streamOpenFailureUrl = null)
     {
         var javaBytes = Encoding.UTF8.GetBytes("javaw content");
         var clientBytes = Encoding.UTF8.GetBytes("client content");
@@ -1084,7 +1128,7 @@ public sealed class MinecraftInstallationTests
 
         return new InstallFixture(
             prepared,
-            new PayloadHandler(payloads, blockDownloads, failingUrl, blockedUrl, gateDownloads, cancelOnFailFast),
+            new PayloadHandler(payloads, blockDownloads, failingUrl, blockedUrl, gateDownloads, cancelOnFailFast, streamOpenFailureUrl),
             clientBytes);
     }
 
@@ -1137,7 +1181,8 @@ public sealed class MinecraftInstallationTests
         string? failingUrl = null,
         string? blockedUrl = null,
         bool gateDownloads = false,
-        CancellationTokenSource? cancelOnFailFast = null) : HttpMessageHandler
+        CancellationTokenSource? cancelOnFailFast = null,
+        string? streamOpenFailureUrl = null) : HttpMessageHandler
     {
         private readonly ConcurrentDictionary<string, int> _requests = new(StringComparer.Ordinal);
         private readonly ConcurrentBag<string> _userAgents = [];
@@ -1168,6 +1213,11 @@ public sealed class MinecraftInstallationTests
                 {
                     Content = cancelOnFailFast is null ? null : new CancelOnDisposeContent(cancelOnFailFast)
                 };
+            }
+
+            if (string.Equals(url, streamOpenFailureUrl, StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamOpenFailureContent() };
             }
 
             if (!payloads.TryGetValue(url, out var bytes))
@@ -1329,6 +1379,26 @@ public sealed class MinecraftInstallationTests
             {
                 Content = new StreamContent(createStream())
             });
+    }
+
+    private sealed class StreamOpenFailureHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamOpenFailureContent() });
+    }
+
+    private sealed class StreamOpenFailureContent : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext? context) => Task.CompletedTask;
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return true;
+        }
+
+        protected override Task<Stream> CreateContentReadStreamAsync() =>
+            Task.FromException<Stream>(new IOException("The response stream could not be opened."));
     }
 
     private sealed class IOExceptionAfterChunkStream(byte[] bytes) : MemoryStream(bytes, writable: false)

@@ -388,7 +388,8 @@ public enum MojangError
 {
     Unsupported,
     Invalid,
-    Http
+    Http,
+    Integrity
 }
 
 public sealed class MojangException(MojangError error, string message, int? statusCode = null, Exception? innerException = null)

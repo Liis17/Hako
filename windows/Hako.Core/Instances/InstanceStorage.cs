@@ -16,6 +16,8 @@ public enum InstanceStorageError
     BuildInstalling,
     BuildRunning,
     BuildFilesBusy,
+    InstanceRegistryNotLoaded,
+    InstanceRegistryUnavailable,
     InvalidOfflineUsername,
     MissingFabricLoaderVersion
 }

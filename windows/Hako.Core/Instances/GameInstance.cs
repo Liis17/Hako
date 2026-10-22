@@ -88,6 +88,7 @@ public sealed record GameInstance
     [JsonRequired]
     public bool PauseRequested { get; init; }
     public string? ErrorMessage { get; init; }
+    public string? ErrorCode { get; init; }
     [JsonRequired]
     public string JavaExecutable { get; init; } = "bin/javaw.exe";
     [JsonRequired]

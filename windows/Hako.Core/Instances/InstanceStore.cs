@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Hako.Core;
+using Hako.Core.Minecraft;
 
 namespace Hako.Core.Instances;
 
@@ -35,7 +36,7 @@ public sealed class InstanceRegistryException : IOException
 
 public sealed record InstanceRegistryFile(int FormatVersion, List<GameInstance> Instances);
 
-public sealed class InstanceStore : INotifyPropertyChanged
+public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
 {
     private static readonly HashSet<string> ReservedNames = CreateReservedNames();
     private readonly InstanceStorage _storage;
@@ -48,6 +49,7 @@ public sealed class InstanceStore : INotifyPropertyChanged
     private IReadOnlyList<GameInstance> _instances = Array.AsReadOnly(Array.Empty<GameInstance>());
     private InstanceRegistryException? _loadError;
     private Task? _deleteStagingCleanupTask;
+    private Task? _disposeTask;
     private bool _isLoaded;
     private readonly HashSet<Guid> _launchBusy = [];
     private readonly HashSet<Guid> _contentBusy = [];
@@ -65,6 +67,15 @@ public sealed class InstanceStore : INotifyPropertyChanged
     }
 
     internal Task? DeleteStagingCleanupTask => Volatile.Read(ref _deleteStagingCleanupTask);
+
+    public ValueTask DisposeAsync()
+    {
+        lock (_deleteStagingTasksSync)
+        {
+            _disposeTask ??= _deleteStagingCleanupTask ?? Task.CompletedTask;
+            return new ValueTask(_disposeTask);
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler? InstancesChanged;
@@ -105,6 +116,19 @@ public sealed class InstanceStore : INotifyPropertyChanged
 
     public IReadOnlyList<GameInstance> List() => Instances;
 
+    public string GetInstanceDirectory(Guid id)
+    {
+        _gate.Wait();
+        try
+        {
+            return _storage.Directory(Find(GetRegistrySnapshot(), id).FolderName);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public bool IsLaunchBusy(Guid id)
     {
         _gate.Wait();
@@ -137,7 +161,13 @@ public sealed class InstanceStore : INotifyPropertyChanged
         _gate.Wait();
         try
         {
-            var instance = Find(GetRegistrySnapshot(), id);
+            if (!TryGetRegistrySnapshot(out var registry, out reason))
+            {
+                lease = null;
+                return false;
+            }
+
+            var instance = Find(registry, id);
             reason = GetManagementBlock(instance);
             if (reason is not null)
             {
@@ -168,7 +198,13 @@ public sealed class InstanceStore : INotifyPropertyChanged
         _gate.Wait();
         try
         {
-            var instance = Find(GetRegistrySnapshot(), id);
+            if (!TryGetRegistrySnapshot(out var registry, out reason))
+            {
+                lease = null;
+                return false;
+            }
+
+            var instance = Find(registry, id);
             reason = GetManagementBlock(instance);
             if (reason is not null)
             {
@@ -190,6 +226,57 @@ public sealed class InstanceStore : INotifyPropertyChanged
         }
 
         reason = null;
+        return true;
+    }
+
+    internal bool TryBeginInstallation(Guid id, out IDisposable? lease, out InstanceStorageError? reason)
+    {
+        bool changed;
+        _gate.Wait();
+        try
+        {
+            if (!TryGetRegistrySnapshot(out var registry, out reason))
+            {
+                lease = null;
+                return false;
+            }
+
+            var instance = Find(registry, id);
+            if (instance.State != InstanceInstallationState.Queued)
+            {
+                lease = null;
+                reason = InstanceStorageError.BuildInstalling;
+                return false;
+            }
+
+            if (_launchBusy.Contains(id))
+            {
+                lease = null;
+                reason = InstanceStorageError.BuildRunning;
+                return false;
+            }
+
+            if (_contentBusy.Contains(id))
+            {
+                lease = null;
+                reason = InstanceStorageError.BuildFilesBusy;
+                return false;
+            }
+
+            changed = _contentBusy.Add(id);
+            lease = new BusyLease(() => EndBusy(id, _contentBusy));
+            reason = null;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        if (changed)
+        {
+            NotifyBusyStateChanged();
+        }
+
         return true;
     }
 
@@ -237,6 +324,7 @@ public sealed class InstanceStore : INotifyPropertyChanged
             {
                 lock (_snapshotSync)
                 {
+                    _instances = Array.AsReadOnly(Array.Empty<GameInstance>());
                     _loadError = exception;
                     _isLoaded = true;
                 }
@@ -263,6 +351,11 @@ public sealed class InstanceStore : INotifyPropertyChanged
     {
         lock (_deleteStagingTasksSync)
         {
+            if (_disposeTask is not null)
+            {
+                return;
+            }
+
             var previous = _deleteStagingCleanupTask ?? Task.CompletedTask;
             var cleanupTask = Task.Run(async () =>
             {
@@ -302,7 +395,8 @@ public sealed class InstanceStore : INotifyPropertyChanged
         string versionID,
         string metadataURL = "",
         string metadataSHA1 = "",
-        bool legacyTexturepacks = false)
+        bool legacyTexturepacks = false,
+        int javaMajorVersion = 0)
     {
         ArgumentNullException.ThrowIfNull(draft);
         _gate.Wait();
@@ -338,7 +432,7 @@ public sealed class InstanceStore : INotifyPropertyChanged
                     OfflineMode = draft.OfflineMode,
                     OfflineUsername = draft.OfflineUsername,
                     Parameters = NormalizeParameters(draft.Parameters),
-                    JavaMajorVersion = draft.JavaMajorVersion,
+                    JavaMajorVersion = javaMajorVersion > 0 ? javaMajorVersion : draft.JavaMajorVersion,
                     LegacyTexturepacks = legacyTexturepacks || draft.LegacyTexturepacks,
                     ModLoader = draft.ModLoader,
                     FabricConfiguration = draft.ModLoader == InstanceModLoader.Fabric ? draft.FabricConfiguration : null,
@@ -360,6 +454,139 @@ public sealed class InstanceStore : INotifyPropertyChanged
             }
             NotifyInstancesChanged();
             return instance;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>Creates a queued build from a version that was already verified by MojangClient.PrepareAsync.</summary>
+    public GameInstance Create(InstanceDraft draft, PreparedInstallation prepared, bool legacyTexturepacks = false)
+    {
+        ArgumentNullException.ThrowIfNull(prepared);
+        if (!string.Equals(prepared.Version.Id, prepared.Manifest.Id, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(prepared.Version.Url)
+            || string.IsNullOrWhiteSpace(prepared.Version.Sha1)
+            || !Enum.IsDefined(prepared.Architecture))
+        {
+            throw new InstanceStorageException(InstanceStorageError.OperationFailed,
+                "The prepared Minecraft version is incomplete.");
+        }
+
+        return Create(
+            draft with { Architecture = prepared.Architecture.ToString() },
+            prepared.Version.Id,
+            prepared.Version.Url,
+            prepared.Version.Sha1,
+            legacyTexturepacks,
+            prepared.Manifest.Java.MajorVersion);
+    }
+
+    public void SetInstallationStatus(
+        Guid id,
+        InstanceInstallationState state,
+        bool pauseRequested,
+        string? errorCode = null,
+        string? errorMessage = null)
+    {
+        _gate.Wait();
+        try
+        {
+            var registry = GetRegistrySnapshot();
+            var current = Find(registry, id);
+            var updated = current with
+            {
+                State = state,
+                PauseRequested = pauseRequested,
+                ErrorCode = errorCode,
+                ErrorMessage = errorMessage
+            };
+            WriteRegistry(registry with
+            {
+                Instances = registry.Instances.Select(instance => instance.Id == id ? updated : instance).ToList()
+            });
+            NotifyInstancesChanged();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public void PinArchitecture(Guid id, GameArchitecture architecture)
+    {
+        if (!Enum.IsDefined(architecture))
+        {
+            throw new ArgumentOutOfRangeException(nameof(architecture));
+        }
+
+        _gate.Wait();
+        try
+        {
+            var registry = GetRegistrySnapshot();
+            var current = Find(registry, id);
+            var architectureName = architecture.ToString();
+            if (current.Architecture is { } pinned
+                && !string.Equals(pinned, architectureName, StringComparison.Ordinal))
+            {
+                throw new InstanceStorageException(InstanceStorageError.OperationFailed,
+                    "The build architecture has already been pinned.");
+            }
+
+            if (current.Architecture is not null)
+            {
+                return;
+            }
+
+            var updated = current with { Architecture = architectureName };
+            WriteRegistry(registry with
+            {
+                Instances = registry.Instances.Select(instance => instance.Id == id ? updated : instance).ToList()
+            });
+            NotifyInstancesChanged();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public void CompleteInstallation(Guid id, InstallationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        _gate.Wait();
+        try
+        {
+            var registry = GetRegistrySnapshot();
+            var current = Find(registry, id);
+            if (current.PauseRequested)
+            {
+                throw new OperationCanceledException("The installation was paused.");
+            }
+
+            var expectedArchitecture = current.Architecture;
+            if (!string.Equals(expectedArchitecture, result.Architecture.ToString(), StringComparison.Ordinal))
+            {
+                throw new InstanceStorageException(InstanceStorageError.OperationFailed,
+                    "The installer returned a different architecture than the build's pinned architecture.");
+            }
+
+            var updated = current with
+            {
+                State = InstanceInstallationState.Ready,
+                PauseRequested = false,
+                ErrorCode = null,
+                ErrorMessage = null,
+                JavaExecutable = result.JavaExecutable,
+                JavaMajorVersion = result.JavaMajorVersion,
+                LegacyTexturepacks = result.LegacyTexturepacks
+            };
+            WriteRegistry(registry with
+            {
+                Instances = registry.Instances.Select(instance => instance.Id == id ? updated : instance).ToList()
+            });
+            NotifyInstancesChanged();
         }
         finally
         {
@@ -396,6 +623,7 @@ public sealed class InstanceStore : INotifyPropertyChanged
         {
             var registry = GetRegistrySnapshot();
             var current = Find(registry, id);
+            ThrowIfManagementBlocked(current);
             ValidateOffline(draft);
             var updated = ApplyDraft(current, draft, includeName: false);
             UpdateCore(registry, current, updated, draft.IconData);
@@ -573,6 +801,30 @@ public sealed class InstanceStore : INotifyPropertyChanged
             }
 
             return new InstanceRegistryFile(1, _instances.ToList());
+        }
+    }
+
+    private bool TryGetRegistrySnapshot(out InstanceRegistryFile registry, out InstanceStorageError? reason)
+    {
+        lock (_snapshotSync)
+        {
+            if (!_isLoaded)
+            {
+                registry = new InstanceRegistryFile(1, []);
+                reason = InstanceStorageError.InstanceRegistryNotLoaded;
+                return false;
+            }
+
+            if (_loadError is not null)
+            {
+                registry = new InstanceRegistryFile(1, []);
+                reason = InstanceStorageError.InstanceRegistryUnavailable;
+                return false;
+            }
+
+            registry = new InstanceRegistryFile(1, _instances.ToList());
+            reason = null;
+            return true;
         }
     }
 
@@ -873,6 +1125,10 @@ public sealed class InstanceStore : INotifyPropertyChanged
             try
             {
                 InstanceStorage.DeleteCreatedDirectory(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Another cleanup pass or the delete operation already removed this staging path.
             }
             catch (Exception exception)
             {
