@@ -9,7 +9,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -26,6 +26,7 @@
             IsSettingsVisible="False"
             PaneDisplayMode="LeftCompact"
             SelectionChanged="RootNavigation_SelectionChanged"
+            ItemInvoked="RootNavigation_ItemInvoked"
             Visibility="Collapsed">
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="BuildsNavigationItem" Tag="Builds">
@@ -33,12 +34,25 @@
                         <SymbolIcon Symbol="Library" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItemSeparator x:Name="BuildsSeparator" />
+                <NavigationViewItem x:Name="CreateNavigationItem" Tag="Create" SelectsOnInvoked="False">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Add" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
                 <NavigationViewItem x:Name="SettingsNavigationItem" Tag="Settings">
                     <NavigationViewItem.Icon>
                         <SymbolIcon Symbol="Setting" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-            </NavigationView.MenuItems>
+                <NavigationViewItem x:Name="AccountNavigationItem" Tag="Account">
+                    <NavigationViewItem.Icon>
+                        <SymbolIcon Symbol="Contact" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
 
             <Frame x:Name="ShellFrame" />
         </NavigationView>

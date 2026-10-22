@@ -60,6 +60,51 @@ public sealed class LocalizationResourcesTests
         Assert.AreEqual("InstallationErrorUnexpected", InstallationResourceKeys.ErrorResourceKey("unrecognized.error"));
     }
 
+    [TestMethod]
+    public void UiExceptionsMapToSpecificLocalizedErrors()
+    {
+        var russian = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "ru-RU", "Resources.resw"));
+        var english = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "en-US", "Resources.resw"));
+        var keys = Enum.GetValues<InstanceStorageError>().Select(error => error.ResourceKey())
+            .Concat(Enum.GetValues<MojangError>().Select(error => error.ResourceKey()))
+            .ToList();
+
+        foreach (var key in keys)
+        {
+            Assert.AreNotEqual("InstallationErrorUnexpected", key);
+            CollectionAssert.Contains(russian, key);
+            CollectionAssert.Contains(english, key);
+        }
+
+        Assert.AreEqual("InstallationErrorStorageDuplicateBuildName", InstallationResourceKeys.ErrorResourceKey(
+            new InstanceStorageException(InstanceStorageError.DuplicateBuildName, "duplicate")));
+        Assert.AreEqual("InstanceRegistryDamaged", InstallationResourceKeys.ErrorResourceKey(
+            new InstanceRegistryException("damaged")));
+        Assert.AreEqual("InstallationErrorMojangUnsupported", InstallationResourceKeys.ErrorResourceKey(
+            new MojangException(MojangError.Unsupported, "unsupported")));
+        Assert.AreEqual("InstallationErrorMojangHttp", InstallationResourceKeys.ErrorResourceKey(new HttpRequestException()));
+        Assert.AreEqual("InstallationErrorStorageOperationFailed", InstallationResourceKeys.ErrorResourceKey(new IOException("in use")));
+        Assert.AreEqual("InstallationErrorUnexpected", InstallationResourceKeys.ErrorResourceKey(new InvalidOperationException()));
+    }
+
+    [TestMethod]
+    public void EveryLaunchErrorShownByTheProfileHasRussianAndEnglishText()
+    {
+        var russian = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "ru-RU", "Resources.resw"));
+        var english = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "en-US", "Resources.resw"));
+        var keys = Enum.GetValues<MinecraftLaunchError>().Select(error => new MinecraftLaunchException(error).ResourceKey)
+            .Concat(Enum.GetValues<JavaValidationError>().Select(error => new JavaLaunchValidationException(error).ResourceKey))
+            .Concat(Enum.GetValues<InstanceRegistryError>().Select(error => new InstanceRegistryException(error, "registry").ResourceKey))
+            // Keys GameLaunchCoordinator assigns directly to GameRunState.
+            .Concat(["LaunchProcessRecordInvalid", "LaunchProcessStartFailed", "LaunchGameExitCode"]);
+
+        foreach (var key in keys)
+        {
+            CollectionAssert.Contains(russian, key);
+            CollectionAssert.Contains(english, key);
+        }
+    }
+
     private static List<string> ReadResourceNames(string path) => XDocument.Load(path)
         .Root!
         .Elements("data")

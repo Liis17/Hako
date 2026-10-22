@@ -44,7 +44,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
 | `windows/Hako/` | Windows-клиент: WinUI 3-приложение, конфигурация пакета MSIX, страницы, `MainWindow`, точка входа, ресурсы `.resw`, решение `Hako.slnx` |
-| `windows/Hako.Core/` | Логика Windows-клиента без WinUI: вход Microsoft, хранение аккаунта и настроек, язык |
+| `windows/Hako.Core/` | Логика Windows-клиента без WinUI: вход Microsoft, хранение аккаунта и настроек, язык, сборки (`Instances/`), установка и запуск Minecraft (`Minecraft/`) |
 | `windows/Hako.Tests/` | MSTest-тесты `Hako.Core` и ресурсов Windows-клиента |
 | `Obsidian/HakoVault/` | Эта база знаний |
 
@@ -239,8 +239,11 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 ## Windows-клиент
 
 Клиент для Windows в каталоге `windows/` на первом этапе паритета с macOS: приветствие, вход в Microsoft
-по коду, главная с разделами «Сборки» и «Настройки», язык, профиль с 3D-превью скина и выход. Сборки,
-запуск игры, моды, ресурспаки и самообновление пока не реализованы.
+по коду, главная с рейлом сборок и «Настройками» (разделы «Основные», «Игра», «Профиль»), язык, профиль
+с 3D-превью скина и выход. Vanilla-сборки создаются, ставятся в фоновую очередь (пауза, продолжение, повтор),
+настраиваются, удаляются и запускаются онлайн или в offline-mode — [[UI/Launcher#Windows-клиент]].
+Fabric, моды, ресурспаки, миры и самообновление пока не реализованы.
+Сервисы сборок живут всё время работы приложения и создаются в `App.OnLaunched` (`LauncherServices`).
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
 Экраны — [[UI/Screens#Windows-клиент]], вход — [[Auth/MicrosoftAuth#Windows-клиент]],
@@ -338,10 +341,10 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: UI и установка сборок (вкладка «Сборки» показывает пустое состояние), запуск Minecraft, моды и ресурспаки,
-  каталоги Modrinth и CurseForge, самообновление.
-- Обновление токенов не реализовано: `MicrosoftRefreshToken` сохраняется, refresh-grant в коде нет.
-- `MinecraftAccessToken` сохраняется и нигде не читается. Игровой сессии на Windows пока нет.
+- Не реализованы: Fabric, моды и ресурспаки, миры, скриншоты, модпаки, дублирование и резервные копии сборок,
+  учёт времени игры, каталоги Modrinth и CurseForge, самообновление.
+- Онлайн-запуск обновляет Minecraft-сессию через `MinecraftSessionCoordinator.ConnectForLaunchAsync` (refresh-grant
+  с сохранением нового refresh token); без Minecraft-профиля доступен только offline-mode сборки.
 
 ### Решения и основания
 

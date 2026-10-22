@@ -623,7 +623,12 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         {
             var registry = GetRegistrySnapshot();
             var current = Find(registry, id);
-            ThrowIfManagementBlocked(current);
+            // Like macOS, a running game doesn't block profile settings: they apply on the next launch.
+            if (GetManagementBlock(current) is { } error and not InstanceStorageError.BuildRunning)
+            {
+                throw new InstanceStorageException(error, ManagementMessage(error));
+            }
+
             ValidateOffline(draft);
             var updated = ApplyDraft(current, draft, includeName: false);
             UpdateCore(registry, current, updated, draft.IconData);
@@ -667,6 +672,20 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             return GetManagementBlock(instance) is { } error ? ManagementMessage(error) : null;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>The reason rename and delete are blocked, for localized UI text.</summary>
+    public InstanceStorageError? ManagementBlockedError(GameInstance instance)
+    {
+        _gate.Wait();
+        try
+        {
+            return GetManagementBlock(instance);
         }
         finally
         {

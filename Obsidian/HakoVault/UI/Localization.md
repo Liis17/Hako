@@ -94,6 +94,7 @@ Parent: [[Index]]
 | `windows/Hako/HakoStrings.cs` | `HakoStrings.Get`, `SetLanguage`, `LanguageChanged` | Чтение строк и смена языка |
 | `windows/Hako.Core/AuthContracts.cs` | `AuthErrorKindExtensions.ResourceKey` | Ключи ошибок входа |
 | `windows/Hako.Core/AppCoordinator.cs` | `StartupNoticeExtensions.ResourceKey`, `SetLanguageAsync` | Ключи уведомлений запуска и смена языка |
+| `windows/Hako.Core/Instances/InstallationCoordinator.cs` | `InstallationResourceKeys` | Ключи состояний и стадий установки, кодов ошибок установки, `InstanceStorageError.ResourceKey()`, `MojangError.ResourceKey()` и `ErrorResourceKey(Exception)` для ошибок UI |
 | `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ключей ошибок и уведомлений |
 
 ### Публичные контракты
@@ -113,7 +114,7 @@ Parent: [[Index]]
 1. `AppCoordinator.SetLanguageAsync` меняет `Language` и сохраняет `settings.json`; сохранения сериализованы и пишут текущий язык, поэтому побеждает последний выбор.
 2. `MainWindow.Coordinator_PropertyChanged` при изменении `Language` вызывает `HakoStrings.SetLanguage`.
 3. `HakoStrings` поднимает `LanguageChanged`. Страницы, которые сейчас открыты (`WelcomePage`, `LoginPage`,
-   `SettingsPage`, `BuildsPage`), подписываются на событие в `OnNavigatedTo` и перечитывают строки;
+   `SettingsPage`, `BuildsPage`, `InstanceCreationPage`, `InstanceProfilePage`), подписываются на событие в `OnNavigatedTo` и перечитывают строки;
    в `OnNavigatedFrom` подписка снимается.
 
 Язык при старте: `AppCoordinator.InitializeAsync` берёт `AppLanguages.Parse(settings?.Language)`.
@@ -126,6 +127,10 @@ Parent: [[Index]]
 - Ключи ошибок и уведомлений берутся через `ResourceKey()`. `EveryMappedErrorAndStartupNoticeHasRussianAndEnglishText`
   проверяет, что они есть в обоих файлах. Ключи `CopyCodeFailed` и `OpenVerificationFailed` задаются в `LoginPage` литералами;
   проверки их наличия в `.resw` нет, `RussianAndEnglishResourcesHaveTheSameNonemptyKeys` сверяет только наборы ru/en.
+- Ошибки сборок в UI не показывают `Exception.Message` (тексты Core английские): страницы берут ключ через
+  `InstallationResourceKeys.ErrorResourceKey(exception)` (хранилище, реестр, Mojang, сеть; иное — `InstallationErrorUnexpected`),
+  ошибки запуска — через `GameRunState.ErrorResourceKey`. `UiExceptionsMapToSpecificLocalizedErrors` проверяет покрытие.
 - Тексты страниц задаются в коде через `HakoStrings.Get` в методе `RefreshStrings()`; `x:Uid` не используется.
 - Названия языков («Русский», «English») и заголовок окна `Title="Hako"` заданы литералами в XAML. Подписи пунктов
-  навигации присваиваются из `BuildsTitle` и `SettingsTitle` в `MainWindow.UpdateNavigationLabels`.
+  навигации присваиваются из `BuildsTitle`, `SettingsTitle` и `CreateBuildButton` в `MainWindow.UpdateNavigationLabels`;
+  пункты сборок показывают имя сборки без перевода.

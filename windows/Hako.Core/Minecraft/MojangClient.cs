@@ -220,6 +220,30 @@ public sealed class MojangClient : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads the version description installed in a build, verified against the SHA-1 pinned in its profile.
+    /// Returns null when the build has no matching installed description yet.
+    /// </summary>
+    public static MojangVersionMetadata? ReadInstalledManifest(string instanceRoot, Instances.GameInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        var path = Instances.InstanceStorage.ContainedPath(
+            $"minecraft/versions/{instance.VersionID}/{instance.VersionID}.json", instanceRoot, allowBaseReparsePoint: true);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        var data = File.ReadAllBytes(path);
+        if (!string.Equals(Convert.ToHexString(SHA1.HashData(data)), instance.MetadataSHA1, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var manifest = JsonSerializer.Deserialize(data, MojangJsonContext.Default.MojangVersionMetadata);
+        return manifest is not null && string.Equals(manifest.Id, instance.VersionID, StringComparison.Ordinal) ? manifest : null;
+    }
+
     internal static void Verify(ReadOnlySpan<byte> bytes, MojangDownload download)
     {
         ValidateDownload(download);

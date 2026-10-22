@@ -488,6 +488,30 @@ public sealed class InstanceStoreTests
     }
 
     [TestMethod]
+    public async Task SettingsCanChangeWhileTheGameRunsButRenameCannot()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var store = await LoadStoreAsync(temporary);
+        var created = store.Create(new InstanceDraft { Name = "Running Build" }, "1.20.4");
+        await SetStateAsync(temporary.Paths, store, InstanceInstallationState.Ready);
+
+        Assert.IsTrue(store.TryBeginLaunch(created.Id, out var lease, out _));
+        using (lease)
+        {
+            store.UpdateSettings(created.Id, new InstanceDraft { Name = "Ignored", OfflineMode = true, OfflineUsername = "Steve" });
+            var rename = Assert.ThrowsExactly<InstanceStorageException>(() => store.Rename(created.Id, "Other Name"));
+
+            Assert.AreEqual(InstanceStorageError.BuildRunning, rename.Error);
+            Assert.AreEqual(InstanceStorageError.BuildRunning, store.ManagementBlockedError(store.List().Single()));
+        }
+
+        var updated = store.List().Single();
+        Assert.IsTrue(updated.OfflineMode);
+        Assert.AreEqual("Running Build", updated.Name);
+        Assert.IsNull(store.ManagementBlockedError(updated));
+    }
+
+    [TestMethod]
     public async Task TryBeginLaunchAndDeleteAreSerializedByTheStoreGate()
     {
         await using var temporary = new TemporaryDirectory();

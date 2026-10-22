@@ -117,6 +117,18 @@ public sealed class GameProcessRunner
         return (executable, arguments);
     }
 
+    /// <summary>
+    /// Creates the folders substituted into launch arguments. 8.3 names exist only for existing paths, so a
+    /// missing folder under a non-ANSI root would otherwise fail <see cref="PrepareArguments"/>.
+    /// </summary>
+    internal static void EnsureLaunchDirectories(string instanceRoot)
+    {
+        foreach (var relative in new[] { "minecraft/natives", "minecraft/libraries", "minecraft/assets", "minecraft/logs" })
+        {
+            System.IO.Directory.CreateDirectory(InstanceStorage.ContainedPath(relative, instanceRoot, allowBaseReparsePoint: true));
+        }
+    }
+
     internal static byte[] EncodeArgumentFile(IReadOnlyList<string> arguments, uint codePage) =>
         JavaAnsiEncoding.Encode(string.Join("\r\n", arguments.Select(FormatArgumentFileValue)) + "\r\n", codePage);
 
@@ -130,6 +142,7 @@ public sealed class GameProcessRunner
         Action<int?>? onExit)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        EnsureLaunchDirectories(instanceRoot);
         var (executable, javaArguments) = PrepareArguments(plan, codePage);
         string? argumentFile = null;
         if (plan.JavaMajorVersion >= 9)

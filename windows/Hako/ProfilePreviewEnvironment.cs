@@ -7,10 +7,20 @@ internal enum ProfilePreviewMode
     Account,
     NoMinecraft,
     Guest,
-    Fixture
+    Fixture,
+    Builds
 }
 
-internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? ClientWidth, int? ClientHeight)
+internal enum PreviewPage
+{
+    Default,
+    Builds,
+    Create,
+    Profile,
+    SettingsGame
+}
+
+internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? ClientWidth, int? ClientHeight, PreviewPage Page = PreviewPage.Default)
 {
     public static ProfilePreviewOptions? Parse(string[] args)
     {
@@ -18,6 +28,7 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
         var mode = ProfilePreviewMode.Account;
         int? width = null;
         int? height = null;
+        var page = PreviewPage.Default;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -36,8 +47,19 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
                 enabled = true;
                 if (!TryParseMode(argument[18..], out mode))
                 {
-                    throw new ArgumentException("Profile preview mode must be account, no-minecraft, guest, or fixture.", nameof(args));
+                    throw new ArgumentException("Profile preview mode must be account, no-minecraft, guest, fixture, or builds.", nameof(args));
                 }
+            }
+            else if (argument == "--preview-page")
+            {
+                page = index + 1 < args.Length ? args[++index] switch
+                {
+                    "builds" => PreviewPage.Builds,
+                    "create" => PreviewPage.Create,
+                    "profile" => PreviewPage.Profile,
+                    "settings-game" => PreviewPage.SettingsGame,
+                    _ => throw new ArgumentException("Preview page must be builds, create, profile, or settings-game.", nameof(args))
+                } : throw new ArgumentException("Preview page is missing.", nameof(args));
             }
             else if (argument is "--preview-width" or "--preview-height")
             {
@@ -58,7 +80,7 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
             }
         }
 
-        return enabled ? new(mode, width, height) : null;
+        return enabled ? new(mode, width, height, page) : null;
     }
 
     public AccountSession? CreateAccount() => Mode switch
@@ -87,6 +109,7 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
             "no-minecraft" => ProfilePreviewMode.NoMinecraft,
             "guest" => ProfilePreviewMode.Guest,
             "fixture" => ProfilePreviewMode.Fixture,
+            "builds" => ProfilePreviewMode.Builds,
             _ => (ProfilePreviewMode)(-1)
         };
         return Enum.IsDefined(mode);

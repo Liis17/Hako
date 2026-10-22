@@ -42,6 +42,30 @@ public sealed class AppCoordinatorTests
     }
 
     [TestMethod]
+    public async Task BackFromSignInReturnsToTheSameBuildAndClosingDeletedBuildOpensBuilds()
+    {
+        var auth = new SequenceAuthService { HoldTokenWait = true };
+        var coordinator = new AppCoordinator(new MemorySettingsStore(), new MemoryAccountStore(), auth);
+        await coordinator.InitializeAsync();
+        coordinator.ContinueWithoutAccount();
+        var id = Guid.NewGuid();
+        coordinator.OpenInstance(id);
+        var attempt = coordinator.BeginSignIn();
+        await auth.TokenWaitStarted.Task;
+
+        coordinator.BackFromSignIn();
+        await attempt;
+
+        Assert.AreEqual(LauncherScreen.Instance, coordinator.Screen);
+        Assert.AreEqual(id, coordinator.SelectedInstanceId);
+        coordinator.CloseInstance(Guid.NewGuid());
+        Assert.AreEqual(LauncherScreen.Instance, coordinator.Screen);
+        coordinator.CloseInstance(id);
+        Assert.AreEqual(LauncherScreen.Builds, coordinator.Screen);
+        Assert.IsNull(coordinator.SelectedInstanceId);
+    }
+
+    [TestMethod]
     public async Task BackFromGuestProfileReturnsToSameProfileAndLanguageSwitchKeepsLoginAttempt()
     {
         var settings = new MemorySettingsStore();

@@ -125,4 +125,117 @@ Hako</value></data>
   <data name="LaunchProcessRecordInvalid" xml:space="preserve"><value>The running game state couldn't be restored.</value></data>
   <data name="LaunchGameExitCode" xml:space="preserve"><value>Minecraft exited with code {0}. See the launch log for details.</value></data>
   <data name="LaunchMemoryWarning" xml:space="preserve"><value>The selected memory limit exceeds 70% of the computer's physical memory.</value></data>
+  <data name="ChooseButton" xml:space="preserve"><value>Choose…</value></data>
+  <data name="CreateBuildButton" xml:space="preserve"><value>Create build</value></data>
+  <data name="CreationTitle" xml:space="preserve"><value>New build</value></data>
+  <data name="CreationChoiceSubtitle" xml:space="preserve"><value>Choose how to create the build.</value></data>
+  <data name="CreationCustomTitle" xml:space="preserve"><value>Custom build</value></data>
+  <data name="CreationCustomDetails" xml:space="preserve"><value>Choose Minecraft and a loader, then add your own mods.</value></data>
+  <data name="CreationModrinthTitle" xml:space="preserve"><value>Ready-made from Modrinth</value></data>
+  <data name="CreationModrinthUnavailable" xml:space="preserve"><value>Ready-made Modrinth modpacks will arrive in a future update.</value></data>
+  <data name="CreationNameLabel" xml:space="preserve"><value>Name</value></data>
+  <data name="CreationNamePlaceholder" xml:space="preserve"><value>For example, My Vanilla Pack</value></data>
+  <data name="CreationNameHint" xml:space="preserve"><value>Spaces in the folder name will be replaced with _.</value></data>
+  <data name="CreationVersionLabel" xml:space="preserve"><value>Minecraft version</value></data>
+  <data name="CreationCatalogLoading" xml:space="preserve"><value>Loading versions…</value></data>
+  <data name="CreationCatalogRetry" xml:space="preserve"><value>Reload the catalog</value></data>
+  <data name="CreationFilterReleases" xml:space="preserve"><value>Releases</value></data>
+  <data name="CreationFilterSnapshots" xml:space="preserve"><value>Snapshots</value></data>
+  <data name="CreationFilterHistorical" xml:space="preserve"><value>Historical</value></data>
+  <data name="CreationFilterAll" xml:space="preserve"><value>All</value></data>
+  <data name="CreationSearchPlaceholder" xml:space="preserve"><value>Search versions</value></data>
+  <data name="CreationNoVersions" xml:space="preserve"><value>No versions found.</value></data>
+  <data name="CreationChecking" xml:space="preserve"><value>Checking compatibility with your computer…</value></data>
+  <data name="CreationCheckRetry" xml:space="preserve"><value>Check again</value></data>
+  <data name="CreationSupported" xml:space="preserve"><value>Supported · Java {0}</value></data>
+  <data name="CreationLoaderLabel" xml:space="preserve"><value>Mod loader</value></data>
+  <data name="CreationLoaderVanilla" xml:space="preserve"><value>Vanilla — no loader</value></data>
+  <data name="CreationAdvanced" xml:space="preserve"><value>Advanced settings</value></data>
+  <data name="CreationFooter" xml:space="preserve"><value>Java and the game will install in the background.</value></data>
+  <data name="CreationSave" xml:space="preserve"><value>Save build</value></data>
+  <data name="CreationCancelTitle" xml:space="preserve"><value>Cancel creating the build?</value></data>
+  <data name="CreationCancelMessage" xml:space="preserve"><value>The name, icon and chosen settings will not be saved.</value></data>
+  <data name="CreationCancelConfirm" xml:space="preserve"><value>Cancel creation</value></data>
+  <data name="CreationContinue" xml:space="preserve"><value>Keep creating</value></data>
+  <data name="IconBox" xml:space="preserve"><value>Box</value></data>
+  <data name="IconCube" xml:space="preserve"><value>Cube</value></data>
+  <data name="IconLeaf" xml:space="preserve"><value>Leaf</value></data>
+  <data name="IconFlame" xml:space="preserve"><value>Flame</value></data>
+  <data name="IconBolt" xml:space="preserve"><value>Bolt</value></data>
+  <data name="IconMoon" xml:space="preserve"><value>Moon</value></data>
+  <data name="IconAccessibilityFormat" xml:space="preserve"><value>Icon: {0}</value></data>
+  <data name="IconCustomButton" xml:space="preserve"><value>Custom picture…</value></data>
+  <data name="IconCustomError" xml:space="preserve"><value>Could not open the picture. Choose a PNG or JPEG.</value></data>
+  <data name="InstanceDetailsFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="InstanceDetailsJavaFormat" xml:space="preserve"><value>Minecraft {0} · {1} · Java {2}</value></data>
+  <data name="InstanceFolderFormat" xml:space="preserve"><value>Folder: {0}</value></data>
+  <data name="InstanceProfileSection" xml:space="preserve"><value>Build profile</value></data>
+  <data name="InstanceActions" xml:space="preserve"><value>Build actions</value></data>
+  <data name="DeleteBuildMenu" xml:space="preserve"><value>Delete build…</value></data>
+  <data name="DeleteBuildTitle" xml:space="preserve"><value>Delete the build “{0}”?</value></data>
+  <data name="DeleteBuildMessage" xml:space="preserve"><value>The folder {0} with all worlds, mods and Java will be deleted permanently.</value></data>
+  <data name="DeleteBuildConfirm" xml:space="preserve"><value>Delete</value></data>
+  <data name="DeletingBuild" xml:space="preserve"><value>Deleting the build…</value></data>
+  <data name="PermanentDeleteTitle" xml:space="preserve"><value>Could not move to the Recycle Bin</value></data>
+  <data name="PermanentDeleteMessage" xml:space="preserve"><value>These items can’t be moved to the Recycle Bin. Delete them permanently?
+{0}</value></data>
+  <data name="PermanentDeleteConfirm" xml:space="preserve"><value>Delete permanently</value></data>
+  <data name="PlayButton" xml:space="preserve"><value>Play</value></data>
+  <data name="PlayHint" xml:space="preserve"><value>Launch Minecraft</value></data>
+  <data name="PlayAccessibilityFormat" xml:space="preserve"><value>Play {0}</value></data>
+  <data name="PlayPreparing" xml:space="preserve"><value>Preparing the launch…</value></data>
+  <data name="PlayBlockedFilesBusy" xml:space="preserve"><value>Wait until the build’s file operations finish.</value></data>
+  <data name="PlayBlockedNotReady" xml:space="preserve"><value>Wait until the build finishes installing.</value></data>
+  <data name="PlayBlockedRunning" xml:space="preserve"><value>This build is already running.</value></data>
+  <data name="PlayBlockedOfflineName" xml:space="preserve"><value>Check the nickname in the offline-mode settings.</value></data>
+  <data name="PlayBlockedNoSession" xml:space="preserve"><value>A Minecraft sign-in is required. Sign in or turn on offline-mode in the build settings.</value></data>
+  <data name="GameRunning" xml:space="preserve"><value>The game is running</value></data>
+  <data name="OpenLaunchLog" xml:space="preserve"><value>Launch log</value></data>
+  <data name="RetrySessionButton" xml:space="preserve"><value>Reconnect</value></data>
+  <data name="OfflineNameFormat" xml:space="preserve"><value>Offline-mode: {0}</value></data>
+  <data name="InstallationPause" xml:space="preserve"><value>Pause</value></data>
+  <data name="InstallationResume" xml:space="preserve"><value>Resume</value></data>
+  <data name="InstallationRetry" xml:space="preserve"><value>Retry</value></data>
+  <data name="InstallationQueuedHint" xml:space="preserve"><value>The download starts when the previous build finishes.</value></data>
+  <data name="RenameBlocked" xml:space="preserve"><value>Renaming is available after the download stops, the game closes and file operations finish.</value></data>
+  <data name="SaveNameButton" xml:space="preserve"><value>Save name</value></data>
+  <data name="RenameTitle" xml:space="preserve"><value>Rename the build?</value></data>
+  <data name="RenameMessage" xml:space="preserve"><value>The folder with this build’s files in %USERPROFILE%\.hako will be renamed.</value></data>
+  <data name="RenameConfirm" xml:space="preserve"><value>Rename</value></data>
+  <data name="RenameSkip" xml:space="preserve"><value>Continue without renaming</value></data>
+  <data name="LaunchParametersTitle" xml:space="preserve"><value>Launch parameters</value></data>
+  <data name="SettingsBlockedInstalling" xml:space="preserve"><value>Settings can be changed after the download stops and file operations finish.</value></data>
+  <data name="ManifestMissing" xml:space="preserve"><value>Mojang parameters appear after the build is installed.</value></data>
+  <data name="SettingsAutosave" xml:space="preserve"><value>The icon and parameters are saved automatically.</value></data>
+  <data name="SettingsNextLaunch" xml:space="preserve"><value>Parameter changes apply the next time the game starts.</value></data>
+  <data name="ParametersUseGlobal" xml:space="preserve"><value>Use global parameters</value></data>
+  <data name="ParametersUseMojang" xml:space="preserve"><value>Use Mojang parameters</value></data>
+  <data name="ParametersGlobalCaption" xml:space="preserve"><value>Arguments and memory come from the current launcher settings.</value></data>
+  <data name="ParametersMojangCaption" xml:space="preserve"><value>The required and recommended arguments from the Mojang version description are used. Paths and account values in ${…} are filled in at launch.</value></data>
+  <data name="ParametersGlobalEmptyWarning" xml:space="preserve"><value>Global arguments are not set. Using the Mojang parameters is recommended.</value></data>
+  <data name="ParametersGlobalJavaWarning" xml:space="preserve"><value>This build uses the custom Java from the global settings. This may cause problems in the game.</value></data>
+  <data name="ParametersJavaArguments" xml:space="preserve"><value>Java arguments</value></data>
+  <data name="ParametersMinecraftArguments" xml:space="preserve"><value>Minecraft arguments</value></data>
+  <data name="ParametersMemoryCaption" xml:space="preserve"><value>-Xmx and MaxHeapSize in the arguments are replaced with the slider limit at launch.</value></data>
+  <data name="ParametersFullscreen" xml:space="preserve"><value>Fullscreen</value></data>
+  <data name="ParametersWidth" xml:space="preserve"><value>Width, px</value></data>
+  <data name="ParametersHeight" xml:space="preserve"><value>Height, px</value></data>
+  <data name="ParametersDimensionError" xml:space="preserve"><value>Enter whole window sizes greater than 0.</value></data>
+  <data name="ParametersOfflineMode" xml:space="preserve"><value>offline-mode</value></data>
+  <data name="ParametersOfflineName" xml:space="preserve"><value>In-game name</value></data>
+  <data name="ParametersOfflineWarning" xml:space="preserve"><value>Offline-mode is not recommended. Some servers may be unavailable. Signing in with a Minecraft account is recommended.</value></data>
+  <data name="ParametersOfflineNameError" xml:space="preserve"><value>Nickname: 3 to 16 Latin letters, digits or _.</value></data>
+  <data name="JavaMemoryTitle" xml:space="preserve"><value>Maximum Java memory</value></data>
+  <data name="JavaMemoryValue" xml:space="preserve"><value>{0:0.00} GiB</value></data>
+  <data name="JavaMemoryCaption" xml:space="preserve"><value>Java heap limit. The whole process may use more. This computer has {0:0} GiB.</value></data>
+  <data name="JavaMemoryCaptionX86" xml:space="preserve"><value>The Java heap limit for 32-bit Java is at most 1.5 GiB. This computer has {0:0} GiB.</value></data>
+  <data name="GameSection" xml:space="preserve"><value>Game</value></data>
+  <data name="GameSettingsDescription" xml:space="preserve"><value>Arguments, memory and the Java path for builds that use global parameters. Window settings are only the defaults for new builds. Changes are saved automatically.</value></data>
+  <data name="JavaPathLabel" xml:space="preserve"><value>Java path</value></data>
+  <data name="JavaPathPlaceholder" xml:space="preserve"><value>Not set</value></data>
+  <data name="JavaPathCaption" xml:space="preserve"><value>When set, builds with global parameters use this Java (javaw.exe) instead of the recommended Java inside the build.</value></data>
+  <data name="WindowCardTitle" xml:space="preserve"><value>Window</value></data>
+  <data name="DimensionError" xml:space="preserve"><value>Enter a whole number greater than 0</value></data>
+  <data name="WindowCaption" xml:space="preserve"><value>The window size is in pixels and applies in windowed mode.</value></data>
+  <data name="GameSettingsSaveError" xml:space="preserve"><value>Could not save the game settings.</value></data>
 </root>

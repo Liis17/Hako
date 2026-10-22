@@ -137,6 +137,29 @@ public sealed class JavaArgumentFileTests
     }
 
     [TestMethod]
+    public void MissingNativesFolderUnderNonAnsiRootIsCreatedBeforeShortNamesAreResolved()
+    {
+        using var temporary = new TemporaryDirectory();
+        var root = Path.Combine(temporary.Root, "Сборка");
+        Directory.CreateDirectory(Path.Combine(root, "minecraft"));
+        if (JavaAnsiEncoding.GetShortPath(root) is not { } shortRoot || !JavaAnsiEncoding.CanRepresent(shortRoot, 1252))
+        {
+            Assert.Inconclusive("The temporary volume has no 8.3 names.");
+            return;
+        }
+
+        var natives = Path.Combine(root, "minecraft", "natives");
+        var plan = new MinecraftLaunchPlan("C:\\Java\\bin\\javaw.exe", ["-Djava.library.path=" + natives, "Main"], root, 17);
+        Assert.ThrowsExactly<MinecraftLaunchException>(() => GameProcessRunner.PrepareArguments(plan, 1252));
+
+        GameProcessRunner.EnsureLaunchDirectories(root);
+        var argument = GameProcessRunner.PrepareArguments(plan, 1252).Arguments[0];
+
+        Assert.IsTrue(JavaAnsiEncoding.CanRepresent(argument, 1252), argument);
+        Assert.IsTrue(Directory.Exists(Path.Combine(root, "minecraft", "logs")));
+    }
+
+    [TestMethod]
     public void UnrepresentablePathsUseShortNamesOrFail()
     {
         static string? ShortPath(string path) => path switch
