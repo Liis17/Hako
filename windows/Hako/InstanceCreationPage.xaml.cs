@@ -20,6 +20,12 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
     private List<MojangVersionEntry> _visible = [];
     private string _selectedId = "";
     private PreparedInstallation? _prepared;
+    private FabricPreparation? _fabricPreparation;
+    private FabricProfile? _fabricProfile;
+    private string? _fabricVersionId;
+    private int? _fabricJavaMajor;
+    private string? _selectedLoaderVersion;
+    private string? _validatedFabricSelectionKey;
     private Exception? _compatibilityError;
     private Exception? _catalogError;
     private CancellationTokenSource? _catalogCancellation;
@@ -27,11 +33,14 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
     private string? _nameErrorKey;
     private string? _nameToValidate;
     private string? _validatedName;
+    private readonly NameValidation _nameValidation = new();
     private DispatcherQueueTimer? _nameTimer;
     private bool _checking;
     private bool _saving;
     private bool _leaving;
     private bool _updatingVersions;
+    private bool _updatingLoaderVersions;
+    private bool _isLoaded;
 
     public InstanceCreationPage()
     {
@@ -43,6 +52,8 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
     {
         base.OnNavigatedTo(e);
         _services = (LauncherServices)e.Parameter;
+        _isLoaded = true;
+        _services.Store.InstancesChanged += Store_InstancesChanged;
         var global = _services.Settings.GetGameLaunchDefaults();
         var draft = new InstanceDraft
         {
@@ -67,8 +78,10 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
+        _isLoaded = false;
+        if (_services is { } services) services.Store.InstancesChanged -= Store_InstancesChanged;
         HakoStrings.LanguageChanged -= HakoStrings_LanguageChanged;
-        _nameTimer?.Stop();
+        InvalidateNameValidation();
         _catalogCancellation?.Cancel();
         _checkCancellation?.Cancel();
         base.OnNavigatedFrom(e);
@@ -115,6 +128,9 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
         CompatibilityRetryButton.Content = HakoStrings.Get("CreationCheckRetry");
         LoaderLabel.Text = HakoStrings.Get("CreationLoaderLabel");
         VanillaLoaderItem.Content = HakoStrings.Get("CreationLoaderVanilla");
+        FabricLoaderItem.Content = HakoStrings.Get("CreationLoaderFabric");
+        FabricLoaderLabel.Text = HakoStrings.Get("CreationFabricLoaderLabel");
+        FabricVersionBox.PlaceholderText = HakoStrings.Get("CreationFabricLoaderPlaceholder");
         AdvancedExpander.Header = HakoStrings.Get("CreationAdvanced");
         FooterText.Text = HakoStrings.Get("CreationFooter");
         CancelButton.Content = HakoStrings.Get("CancelButton");
@@ -167,12 +183,16 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
         CatalogErrorPanel.Visibility = _catalogError is null ? Visibility.Collapsed : Visibility.Visible;
         CatalogErrorText.Text = _catalogError is null ? "" : InstanceText.Error(_catalogError);
         CatalogPanel.Visibility = _catalog is null ? Visibility.Collapsed : Visibility.Visible;
+        FabricLoaderPanel.Visibility = IsFabric ? Visibility.Visible : Visibility.Collapsed;
         CheckingPanel.Visibility = _checking ? Visibility.Visible : Visibility.Collapsed;
         SupportedText.Visibility = _prepared is null ? Visibility.Collapsed : Visibility.Visible;
-        SupportedText.Text = _prepared is null ? "" : string.Format(HakoStrings.Get("CreationSupported"), _prepared.Manifest.Java.MajorVersion);
+        SupportedText.Text = _prepared is null ? ""
+            : IsFabric && _fabricPreparation is not null
+                ? string.Format(HakoStrings.Get("CreationFabricSupported"), _fabricPreparation.Api.Version, _prepared.Manifest.Java.MajorVersion)
+                : string.Format(HakoStrings.Get("CreationSupported"), _prepared.Manifest.Java.MajorVersion);
         CompatibilityErrorPanel.Visibility = _compatibilityError is null ? Visibility.Collapsed : Visibility.Visible;
         CompatibilityErrorText.Text = _compatibilityError is null ? "" : InstanceText.Error(_compatibilityError);
-        CompatibilityRetryButton.Visibility = _compatibilityError is MojangException { Error: MojangError.Unsupported }
+        CompatibilityRetryButton.Visibility = !IsFabric && _compatibilityError is MojangException { Error: MojangError.Unsupported }
             ? Visibility.Collapsed
             : Visibility.Visible;
         UpdateSaveState();
@@ -197,9 +217,21 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
         _visible = _catalog.Versions
             .Where(version => Includes(version) && (search.Length == 0 || version.Id.Contains(search, StringComparison.OrdinalIgnoreCase)))
             .ToList();
+        var priorSelectedId = _selectedId;
         if (!_visible.Any(version => version.Id == _selectedId))
         {
             _selectedId = _visible.FirstOrDefault()?.Id ?? "";
+        }
+
+        if (_selectedId != priorSelectedId)
+        {
+            _prepared = null;
+            _fabricPreparation = null;
+            _fabricVersionId = null;
+            _fabricJavaMajor = null;
+            _fabricProfile = null;
+            _selectedLoaderVersion = null;
+            _validatedFabricSelectionKey = null;
         }
 
         _updatingVersions = true;
@@ -211,58 +243,137 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
         _ = CheckCompatibilityAsync();
     }
 
+    private bool IsFabric => (LoaderBox.SelectedItem as ComboBoxItem)?.Tag as string == "fabric";
+
+    private string SelectionKey() => $"{_selectedId}\0{(IsFabric ? "fabric" : "vanilla")}\0{(IsFabric ? _selectedLoaderVersion : "")}";
+
     private async Task CheckCompatibilityAsync()
     {
-        if (_services is not { } services)
-        {
-            return;
-        }
-
+        if (_services is not { } services) return;
         var version = _catalog?.Versions.FirstOrDefault(item => item.Id == _selectedId);
-        if (_prepared?.Version.Id == version?.Id && _prepared is not null)
-        {
-            return;
-        }
-
-        _checkCancellation?.Cancel();
-        _prepared = null;
-        _compatibilityError = null;
-        _checking = version is not null;
-        UpdateCatalogState();
         if (version is null)
         {
+            _checkCancellation?.Cancel();
+            _prepared = null;
+            _fabricPreparation = null;
+            _fabricProfile = null;
+            _checking = false;
+            UpdateCatalogState();
             return;
         }
 
+        var fabric = IsFabric;
+        var selectionKey = SelectionKey();
+        if (_prepared?.Version.Id == version.Id && _validatedFabricSelectionKey == selectionKey
+            && (!fabric || _fabricProfile is not null)) return;
+
+        _checkCancellation?.Cancel();
         var cancellation = _checkCancellation = new CancellationTokenSource();
+        if (_prepared?.Version.Id != version.Id)
+        {
+            _prepared = null;
+            _fabricPreparation = null;
+            _fabricVersionId = null;
+            _fabricJavaMajor = null;
+            _fabricProfile = null;
+            _selectedLoaderVersion = null;
+            _validatedFabricSelectionKey = null;
+            ParametersEditor.SetFabricProfile(null);
+            _updatingLoaderVersions = true;
+            FabricVersionBox.ItemsSource = null;
+            FabricVersionBox.SelectedItem = null;
+            _updatingLoaderVersions = false;
+        }
+
+        _compatibilityError = null;
+        _checking = true;
+        UpdateCatalogState();
         try
         {
-            var prepared = await services.Mojang.PrepareAsync(version, cancellation.Token);
-            if (cancellation.IsCancellationRequested || _selectedId != version.Id)
+            if (_prepared is null)
             {
+                var prepared = await services.Mojang.PrepareAsync(version, cancellation.Token);
+                if (!IsCurrent(cancellation, version.Id, fabric)) return;
+                _prepared = prepared;
+                ParametersEditor.SetManifest(prepared.Manifest, prepared.Architecture);
+            }
+
+            if (!fabric)
+            {
+                _fabricProfile = null;
+                ParametersEditor.SetFabricProfile(null);
+                _validatedFabricSelectionKey = SelectionKey();
                 return;
             }
 
-            _prepared = prepared;
-            ParametersEditor.SetManifest(prepared.Manifest, prepared.Architecture);
-        }
-        catch (Exception exception) when (!cancellation.IsCancellationRequested)
-        {
-            if (_selectedId != version.Id)
+            var java = _prepared!.Manifest.Java.MajorVersion;
+            if (_fabricPreparation is null || _fabricVersionId != version.Id || _fabricJavaMajor != java)
             {
-                return;
+                var currentPreparation = await FabricPreparationCommit.PrepareAndCommitIfCurrentAsync(
+                    () => services.Fabric.PrepareAsync(version.Id, java, cancellation.Token),
+                    () => IsCurrent(cancellation, version.Id, fabric),
+                    preparation => _fabricPreparation = preparation);
+                if (!currentPreparation) return;
+                _fabricVersionId = version.Id;
+                _fabricJavaMajor = java;
+                PopulateLoaderVersions();
             }
 
-            _compatibilityError = exception;
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
+            if (_selectedLoaderVersion is not { } loader
+                || !_fabricPreparation!.Loaders.Any(item => item.Version == loader))
+            {
+                throw new MojangException(MojangError.Unsupported, "Choose a Fabric Loader version compatible with this Java version.");
+            }
 
-        _checking = false;
-        UpdateCatalogState();
+            selectionKey = SelectionKey();
+            var loaded = await services.Fabric.GetProfileAsync(version.Id, loader, cancellation.Token);
+            if (!IsCurrent(cancellation, version.Id, fabric: true) || SelectionKey() != selectionKey) return;
+            _fabricProfile = loaded.Profile;
+            ParametersEditor.SetFabricProfile(loaded.Profile);
+            _validatedFabricSelectionKey = selectionKey;
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (IsCurrent(cancellation, version.Id, fabric))
+            {
+                _compatibilityError = exception;
+                _validatedFabricSelectionKey = null;
+                _fabricProfile = null;
+                ParametersEditor.SetFabricProfile(null);
+            }
+        }
+        finally
+        {
+            if (IsCurrent(cancellation, version.Id, fabric))
+            {
+                _checking = false;
+                UpdateCatalogState();
+            }
+        }
     }
+
+    private bool IsCurrent(CancellationTokenSource cancellation, string versionId, bool fabric) =>
+        _isLoaded && !cancellation.IsCancellationRequested && _selectedId == versionId && IsFabric == fabric;
+
+    private void PopulateLoaderVersions()
+    {
+        var loaders = _fabricPreparation?.Loaders ?? [];
+        var selected = loaders.FirstOrDefault(loader => loader.Version == _selectedLoaderVersion)
+            ?? loaders.FirstOrDefault(loader => loader.Stable)
+            ?? loaders.FirstOrDefault();
+        _updatingLoaderVersions = true;
+        FabricVersionBox.ItemsSource = loaders.Select(loader => new FabricLoaderChoice(
+            loader.Version + (loader.Stable ? HakoStrings.Get("CreationFabricLoaderStable") : ""), loader.Version, loader.Stable)).ToList();
+        FabricVersionBox.SelectedItem = selected is null ? null : FabricVersionBox.Items.Cast<FabricLoaderChoice>()
+            .FirstOrDefault(item => item.Version == selected.Version);
+        _selectedLoaderVersion = selected?.Version;
+        _updatingLoaderVersions = false;
+    }
+
+    private sealed record FabricLoaderChoice(string Display, string Version, bool Stable);
 
     private void UpdateName()
     {
@@ -271,6 +382,7 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
         if (_validatedName != name && _nameToValidate != name && _nameTimer is { } timer)
         {
             // ValidateName waits for the store gate and checks the disk, so it runs off the UI thread after typing pauses.
+            _nameValidation.Invalidate();
             _nameToValidate = name;
             timer.Stop();
             timer.Start();
@@ -284,40 +396,46 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
 
     private async Task ValidateNameAsync()
     {
-        if (_services is not { } services || _nameToValidate is not { } name)
+        if (!_isLoaded || _services is not { } services || _nameToValidate is not { } name)
         {
             return;
         }
 
-        var errorKey = await Task.Run(() =>
+        var result = await _nameValidation.ValidateAsync(name, input => Task.Run(() =>
         {
             try
             {
-                services.Store.ValidateName(name);
+                services.Store.ValidateName(input);
                 return null;
             }
             catch (Exception exception)
             {
                 return InstallationResourceKeys.ErrorResourceKey(exception);
             }
-        });
-        if (NameBox.Text != name || _nameToValidate != name)
+        }));
+        if (!_isLoaded || !result.IsCurrent || NameBox.Text != name || _nameToValidate != name)
         {
             return;
         }
 
         _nameToValidate = null;
         _validatedName = name;
-        _nameErrorKey = errorKey;
+        _nameErrorKey = result.ErrorKey;
         UpdateName();
     }
 
     private void UpdateSaveState()
     {
+        var fabricReady = !IsFabric || (_fabricPreparation is not null
+            && _fabricProfile is not null
+            && _selectedLoaderVersion is not null
+            && _fabricPreparation.Loaders.Any(loader => loader.Version == _selectedLoaderVersion)
+            && _validatedFabricSelectionKey == SelectionKey());
         SaveButton.IsEnabled = !_saving
             && _prepared is not null
             && _prepared.Version.Id == _selectedId
             && !_checking
+            && fabricReady
             && _validatedName == NameBox.Text
             && _nameErrorKey is null
             && ParametersEditor.IsValid
@@ -340,8 +458,10 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
             Name = NameBox.Text,
             IconSymbol = IconPicker.Symbol,
             IconData = IconPicker.IconData,
-            ModLoader = InstanceModLoader.Vanilla,
-            FabricConfiguration = null
+            ModLoader = IsFabric ? InstanceModLoader.Fabric : InstanceModLoader.Vanilla,
+            FabricConfiguration = IsFabric && _fabricPreparation is not null && _selectedLoaderVersion is not null
+                ? new FabricConfiguration(_selectedLoaderVersion, _fabricPreparation.Api)
+                : null
         };
         try
         {
@@ -398,5 +518,52 @@ public sealed partial class InstanceCreationPage : Page, INavigationGuard
 
         _selectedId = id;
         _ = CheckCompatibilityAsync();
+    }
+
+    private void LoaderBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded) return;
+        _compatibilityError = null;
+        _fabricProfile = null;
+        _validatedFabricSelectionKey = null;
+        ParametersEditor.SetFabricProfile(null);
+        UpdateCatalogState();
+        _ = CheckCompatibilityAsync();
+    }
+
+    private void FabricVersionBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingLoaderVersions || !_isLoaded || FabricVersionBox.SelectedItem is not FabricLoaderChoice loader
+            || loader.Version == _selectedLoaderVersion) return;
+        _selectedLoaderVersion = loader.Version;
+        _fabricProfile = null;
+        _validatedFabricSelectionKey = null;
+        _compatibilityError = null;
+        ParametersEditor.SetFabricProfile(null);
+        UpdateCatalogState();
+        _ = CheckCompatibilityAsync();
+    }
+
+    private void Store_InstancesChanged(object? sender, EventArgs e)
+    {
+        _nameValidation.Invalidate();
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_isLoaded) return;
+            _validatedName = null;
+            _nameToValidate = null;
+            _nameErrorKey = null;
+            _nameTimer?.Stop();
+            UpdateName();
+        });
+    }
+
+    private void InvalidateNameValidation()
+    {
+        _nameValidation.Invalidate();
+        _validatedName = null;
+        _nameToValidate = null;
+        _nameErrorKey = null;
+        _nameTimer?.Stop();
     }
 }

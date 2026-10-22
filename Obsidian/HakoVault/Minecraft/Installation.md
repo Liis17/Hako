@@ -178,6 +178,23 @@ Fabric profile/json проверяется по `inheritsFrom`, сохраняе
 `minecraft/.hako-mods.json` хранит происхождение внешних модов и `apiProvisioned`; повторная установка
 не возвращает API после пользовательского удаления или отключения. Готовность включает все компоненты.
 
+## Windows: Fabric
+
+`windows/Hako.Core/Minecraft/FabricClient.cs` запрашивает Fabric Meta и использует минимальный
+`windows/Hako.Core/Minecraft/ModrinthClient.cs` для версий официального проекта Modrinth `P7dR8mSH` и проверяемых
+загрузок; этап каталога расширяет `ModrinthClient`. Запросы используют User-Agent Hako и только HTTPS.
+Кэш API — `HakoPaths.CacheRoot/FabricAPI` (в production `%LOCALAPPDATA%\Hako\Cache\FabricAPI`). Загрузка
+публикуется после проверки размера, SHA-1 и SHA-512. `fabric.mod.json` читается из JAR через `ZipArchive` с лимитом
+1 МиБ; требования Loader и Java фильтруют список Meta, а первым выбирается стабильный Loader.
+
+`InstanceCreationPage` до сохранения проверяет Minecraft/Java, API и Fabric-профиль выбранного Loader; выбор
+Vanilla/Fabric и Loader является частью ключа проверки, а смена выбора отменяет устаревшие запросы. Очередь
+передаёт сохранённый `FabricConfiguration` в `MinecraftInstaller.InstallFabricAsync`: профиль проверяется по
+`inheritsFrom` и ID Loader, исходный JSON пишется в `minecraft/.hako-fabric.json`, SHA-1 закрепляется в сборке.
+Maven-библиотеки профиля получают SHA-1 из JSON или `.jar.sha1` и загружаются общим проверяющим установщиком.
+Fabric API проверяется по требованиям JAR и публикуется в `minecraft/mods`; установка завершится ошибкой,
+если не готовы Minecraft, Java, Loader или API.
+
 ## Установка готового модпака
 
 `InstallationCoordinator.modpacks` — общий `ModpackInstaller`. Перед установкой он сверяет сохранённый

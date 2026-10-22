@@ -574,7 +574,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                 ErrorMessage = null,
                 JavaExecutable = result.JavaExecutable,
                 JavaMajorVersion = result.JavaMajorVersion,
-                LegacyTexturepacks = result.LegacyTexturepacks
+                LegacyTexturepacks = result.LegacyTexturepacks,
+                FabricProfileSHA1 = result.FabricProfileSHA1
             };
             WriteRegistry(registry with
             {

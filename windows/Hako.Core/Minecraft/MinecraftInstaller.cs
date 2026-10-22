@@ -27,15 +27,17 @@ public sealed record InstallationResult(
     GameArchitecture Architecture,
     string JavaExecutable,
     int JavaMajorVersion,
-    bool LegacyTexturepacks);
+    bool LegacyTexturepacks,
+    string? FabricProfileSHA1 = null);
 
-public sealed class MinecraftInstaller(MojangClient client)
+public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabricClient = null)
 {
     private const int MaximumConcurrentDownloads = 4;
     private const int MaximumNativeArchiveEntries = 100_000;
     private const long MaximumNativeArchiveSize = 1024L * 1024 * 1024;
     private const int BufferSize = 81920;
     private static readonly HashSet<string> ReservedDeviceNames = BuildReservedDeviceNames();
+    private readonly FabricClient _fabricClient = fabricClient ?? new FabricClient();
 
     private sealed record DownloadJob(MojangDownload Download, string RelativePath);
     private sealed record AssetCopy(string Name, MojangDownload Download);
@@ -46,7 +48,7 @@ public sealed class MinecraftInstaller(MojangClient client)
         string instanceRoot,
         IProgress<InstallationProgress>? progress = null,
         CancellationToken cancellationToken = default) =>
-        Task.Run(() => InstallCoreAsync(prepared, instanceRoot, [], progress, cancellationToken), cancellationToken);
+        Task.Run(() => InstallCoreAsync(prepared, instanceRoot, [], null, progress, cancellationToken), cancellationToken);
 
     public Task<InstallationResult> InstallAsync(
         PreparedInstallation prepared,
@@ -54,12 +56,21 @@ public sealed class MinecraftInstaller(MojangClient client)
         IReadOnlyCollection<LibraryInstallation> additionalLibraries,
         IProgress<InstallationProgress>? progress = null,
         CancellationToken cancellationToken = default) =>
-        Task.Run(() => InstallCoreAsync(prepared, instanceRoot, additionalLibraries, progress, cancellationToken), cancellationToken);
+        Task.Run(() => InstallCoreAsync(prepared, instanceRoot, additionalLibraries, null, progress, cancellationToken), cancellationToken);
+
+    public Task<InstallationResult> InstallFabricAsync(
+        PreparedInstallation prepared,
+        string instanceRoot,
+        FabricConfiguration? fabric,
+        IProgress<InstallationProgress>? progress = null,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() => InstallCoreAsync(prepared, instanceRoot, [], fabric, progress, cancellationToken), cancellationToken);
 
     private async Task<InstallationResult> InstallCoreAsync(
         PreparedInstallation prepared,
         string instanceRoot,
         IReadOnlyCollection<LibraryInstallation> additionalLibraries,
+        FabricConfiguration? fabric,
         IProgress<InstallationProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -82,6 +93,23 @@ public sealed class MinecraftInstaller(MojangClient client)
         CleanStaleTemporaryFiles(root, cancellationToken);
 
         var manifest = prepared.Manifest;
+        FabricProfile? fabricProfile = null;
+        byte[]? fabricProfileData = null;
+        string? fabricProfileSha1 = null;
+        IReadOnlyList<LibraryInstallation> fabricLibraries = [];
+        if (fabric is not null)
+        {
+            if (string.IsNullOrWhiteSpace(fabric.LoaderVersion))
+            {
+                throw new MojangException(MojangError.Unsupported, "A Fabric Loader version is required.");
+            }
+
+            (fabricProfile, fabricProfileData) = await _fabricClient.GetProfileAsync(manifest.Id, fabric.LoaderVersion, cancellationToken)
+                .ConfigureAwait(false);
+            fabricLibraries = await _fabricClient.ResolveLibrariesAsync(fabricProfile, cancellationToken).ConfigureAwait(false);
+            fabricProfileSha1 = Convert.ToHexString(SHA1.HashData(fabricProfileData)).ToLowerInvariant();
+        }
+
         var versionDirectory = $"minecraft/versions/{manifest.Id}";
         var jobsByPath = new Dictionary<string, DownloadJob>(StringComparer.OrdinalIgnoreCase);
         var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -172,7 +200,16 @@ public sealed class MinecraftInstaller(MojangClient client)
         }
 
         AddJob(clientDownload, $"{versionDirectory}/{manifest.Id}.jar");
-        foreach (var library in prepared.Libraries.Concat(additionalLibraries))
+        var allLibraries = prepared.Libraries.Concat(additionalLibraries).ToArray();
+        if (fabricProfile is not null)
+        {
+            var fabricKeys = fabricProfile.Libraries.Select(library => FabricMavenLibrary.Parse(library.Name).Key)
+                .ToHashSet(StringComparer.Ordinal);
+            allLibraries = fabricLibraries.Concat(allLibraries.Where(library => FabricMavenLibrary.KeyFromPath(library.Path) is not { } key
+                || !fabricKeys.Contains(key))).ToArray();
+        }
+
+        foreach (var library in allLibraries)
         {
             var libraryPath = NormalizeRelativePath(Path.Combine("minecraft/libraries", library.Path));
             AddJob(library.Download, libraryPath);
@@ -232,6 +269,10 @@ public sealed class MinecraftInstaller(MojangClient client)
 
         await WriteAtomicallyAsync($"{versionDirectory}/{manifest.Id}.json", prepared.ManifestData, root, cancellationToken)
             .ConfigureAwait(false);
+        if (fabricProfileData is not null)
+        {
+            await WriteAtomicallyAsync("minecraft/.hako-fabric.json", fabricProfileData, root, cancellationToken).ConfigureAwait(false);
+        }
         await WriteAtomicallyAsync("java/runtime-manifest.json", prepared.RuntimeManifestData, root, cancellationToken)
             .ConfigureAwait(false);
 
@@ -305,12 +346,28 @@ public sealed class MinecraftInstaller(MojangClient client)
         cancellationToken.ThrowIfCancellationRequested();
         CreateDirectory("minecraft/mods", root);
         CreateDirectory(manifest.LegacyTexturepacks ? "minecraft/texturepacks" : "minecraft/resourcepacks", root);
+        if (fabricProfile is not null && fabric is not null && fabric.Api is { } api)
+        {
+            if (!InstanceContent.ApiWasProvisioned(root))
+            {
+                var cachedApi = await _fabricClient.DownloadApiAsync(api, cancellationToken).ConfigureAwait(false);
+                var metadata = await FabricClient.ReadModMetadataAsync(cachedApi, cancellationToken).ConfigureAwait(false);
+                if (!metadata.Supports(fabric.LoaderVersion, manifest.Java.MajorVersion))
+                {
+                    throw new MojangException(MojangError.Unsupported, "Fabric API is incompatible with the selected Loader or Java version.");
+                }
+
+                await InstanceContent.ProvisionAPIAsync(api, cachedApi, root, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         progress?.Report(new InstallationProgress(InstallationProgressStage.Complete, totalBytes, totalBytes, jobs.Length, jobs.Length));
         return new InstallationResult(
             prepared.Architecture,
             "bin/javaw.exe",
             manifest.Java.MajorVersion,
-            manifest.LegacyTexturepacks);
+            manifest.LegacyTexturepacks,
+            fabricProfileSha1);
     }
 
     private async Task DownloadAsync(

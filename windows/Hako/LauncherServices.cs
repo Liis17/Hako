@@ -21,6 +21,7 @@ internal sealed record LauncherServices(
     InstallationCoordinator Installations,
     GameLaunchCoordinator Games,
     MojangClient Mojang,
+    FabricClient Fabric,
     MinecraftSkinPreviewService SkinPreview,
     ProfilePreviewOptions? PreviewOptions);
 
@@ -216,7 +217,9 @@ internal static class InstanceIconSource
 
 internal static class InstanceText
 {
-    public static string LoaderTitle(GameInstance instance) => instance.ModLoader == InstanceModLoader.Fabric ? "Fabric" : "Vanilla";
+    public static string LoaderTitle(GameInstance instance) => instance.ModLoader == InstanceModLoader.Fabric
+        ? $"Fabric {instance.FabricConfiguration?.LoaderVersion}"
+        : "Vanilla";
 
     public static string Details(GameInstance instance) =>
         string.Format(HakoStrings.Get("InstanceDetailsFormat"), instance.VersionID, LoaderTitle(instance));

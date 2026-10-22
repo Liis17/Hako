@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Generic;
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
@@ -12,6 +13,7 @@ public sealed partial class InstanceParametersEditor : UserControl
 {
     private InstanceDraft _draft = new();
     private MojangVersionMetadata? _manifest;
+    private FabricProfile? _fabricProfile;
     private GameArchitecture _architecture = GameArchitecture.X64;
     private GameLaunchDefaults _global = GameLaunchDefaults.Standard;
     private bool _loading;
@@ -38,6 +40,7 @@ public sealed partial class InstanceParametersEditor : UserControl
         _loading = true;
         _draft = draft;
         _manifest = manifest;
+        _fabricProfile = null;
         _architecture = architecture;
         _global = global;
         FullscreenSwitch.IsOn = draft.Parameters.Fullscreen;
@@ -53,6 +56,12 @@ public sealed partial class InstanceParametersEditor : UserControl
     {
         _manifest = manifest;
         _architecture = architecture;
+        Update();
+    }
+
+    internal void SetFabricProfile(FabricProfile? profile)
+    {
+        _fabricProfile = profile;
         Update();
     }
 
@@ -151,7 +160,14 @@ public sealed partial class InstanceParametersEditor : UserControl
         {
             try
             {
-                var templates = MinecraftLaunchPlan.ArgumentTemplates(_manifest, source, parameters, _architecture, JavaMemorySlider.Policy);
+                var profile = _fabricProfile is null ? null : new MinecraftLaunchProfile(
+                    _fabricProfile.MainClass,
+                    _fabricProfile.InheritsFrom,
+                    _fabricProfile.Id,
+                    JvmArguments: _fabricProfile.Arguments?.GetValueOrDefault("jvm"),
+                    GameArguments: _fabricProfile.Arguments?.GetValueOrDefault("game"));
+                var templates = MinecraftLaunchPlan.ArgumentTemplates(_manifest, source, parameters, _architecture,
+                    JavaMemorySlider.Policy, profile);
                 return (LaunchArguments.Format(templates.Java), LaunchArguments.Format(templates.Minecraft));
             }
             catch (Exception)

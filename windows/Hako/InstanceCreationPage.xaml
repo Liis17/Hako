@@ -58,9 +58,15 @@
                 <StackPanel Spacing="6">
                     <TextBlock x:Name="LoaderLabel" FontWeight="SemiBold" />
                     <!-- Fabric is added to this list in the next stage. -->
-                    <ComboBox x:Name="LoaderBox" MinWidth="260" SelectedIndex="0">
-                        <ComboBoxItem x:Name="VanillaLoaderItem" />
+                    <ComboBox x:Name="LoaderBox" MinWidth="260" SelectedIndex="0" SelectionChanged="LoaderBox_SelectionChanged">
+                        <ComboBoxItem x:Name="VanillaLoaderItem" Tag="vanilla" />
+                        <ComboBoxItem x:Name="FabricLoaderItem" Tag="fabric" />
                     </ComboBox>
+                    <StackPanel x:Name="FabricLoaderPanel" Spacing="6" Visibility="Collapsed">
+                        <TextBlock x:Name="FabricLoaderLabel" FontWeight="SemiBold" />
+                        <ComboBox x:Name="FabricVersionBox" MinWidth="260" PlaceholderText="Choose a version"
+                                  DisplayMemberPath="Display" SelectionChanged="FabricVersionBox_SelectionChanged" />
+                    </StackPanel>
                 </StackPanel>
 
                 <Expander x:Name="AdvancedExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">

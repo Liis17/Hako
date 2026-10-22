@@ -389,10 +389,22 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
 
         var major = await _javaValidation.ValidateAsync(request.Executable, manifest.Java.MajorVersion,
             request.Architecture, cancellationToken: cancellationToken).ConfigureAwait(false);
+        MinecraftLaunchProfile? profile = null;
+        if (request.Instance.ModLoader == InstanceModLoader.Fabric)
+        {
+            profile = await LoadFabricProfileAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+
         return MinecraftLaunchPlan.Build(manifest, request.InstanceRoot, request.Executable, request.Identity,
             request.ArgumentSource, request.Parameters, request.Architecture, assetIndex,
-            javaMajorVersion: major);
+            javaMajorVersion: major, profile: profile);
     }
+
+    private static Task<MinecraftLaunchProfile> LoadFabricProfileAsync(MinecraftLaunchRequest request, CancellationToken cancellationToken) =>
+        request.Instance.FabricConfiguration is { } configuration
+            ? MinecraftLaunchPlan.LoadInstalledFabricProfileAsync(request.InstanceRoot, request.Instance.VersionID,
+                configuration.LoaderVersion, request.Instance.FabricProfileSHA1, cancellationToken)
+            : throw new MinecraftLaunchException(MinecraftLaunchError.FabricProfileMissing);
 
     private static string ResolveJavaExecutable(
         GameInstance instance,

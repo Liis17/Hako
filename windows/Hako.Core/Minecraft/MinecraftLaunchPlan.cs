@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Hako.Core.Instances;
 
@@ -37,6 +38,8 @@ public sealed record MinecraftLaunchIdentity(
 
 public sealed record MinecraftLaunchProfile(
     string? MainClass = null,
+    string? InheritsFrom = null,
+    string? Id = null,
     IReadOnlyList<LibraryInstallation>? Libraries = null,
     IReadOnlyList<MojangArgument>? JvmArguments = null,
     IReadOnlyList<MojangArgument>? GameArguments = null);
@@ -62,6 +65,54 @@ public sealed class MinecraftLaunchPlan
     public IReadOnlyList<string> Arguments { get; }
     public string WorkingDirectory { get; }
     public int JavaMajorVersion { get; }
+
+    internal static async Task<MinecraftLaunchProfile> LoadInstalledFabricProfileAsync(
+        string instanceRoot,
+        string minecraft,
+        string loader,
+        string? profileSha1,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(loader) || string.IsNullOrWhiteSpace(profileSha1))
+            throw new MinecraftLaunchException(MinecraftLaunchError.FabricProfileMissing);
+        try
+        {
+            var profile = await FabricClient.ReadInstalledProfileAsync(instanceRoot, minecraft, loader, profileSha1, cancellationToken)
+                .ConfigureAwait(false);
+            var libraries = new List<LibraryInstallation>(profile.Libraries.Count);
+            foreach (var library in profile.Libraries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var maven = FabricMavenLibrary.Parse(library.Name);
+                var path = InstanceStorage.ContainedPath("minecraft/libraries/" + maven.Path, instanceRoot, allowBaseReparsePoint: true);
+                if (!File.Exists(path) || (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                    throw new MinecraftLaunchException(MinecraftLaunchError.FabricProfileMissing,
+                        "A Fabric library is missing. Reinstall this build.");
+                libraries.Add(new LibraryInstallation(new MojangDownload
+                {
+                    Url = new Uri(library.Url, maven.Path).AbsoluteUri,
+                    Sha1 = library.Sha1 ?? "",
+                    Size = library.Size,
+                    Path = maven.Path
+                }, maven.Path));
+            }
+
+            return new MinecraftLaunchProfile(profile.MainClass, profile.InheritsFrom, profile.Id, libraries,
+                profile.Arguments?.GetValueOrDefault("jvm"), profile.Arguments?.GetValueOrDefault("game"));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (MinecraftLaunchException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is MojangException or IOException or JsonException or ArgumentException)
+        {
+            throw new MinecraftLaunchException(MinecraftLaunchError.FabricProfileMissing, innerException: exception);
+        }
+    }
 
     public static MinecraftLaunchPlan Build(
         MojangVersionMetadata manifest,
@@ -106,7 +157,20 @@ public sealed class MinecraftLaunchPlan
             ["is_demo_user"] = false
         };
         var resolvedLibraries = libraries ?? MojangCompatibility.Libraries(manifest, architecture, features);
-        resolvedLibraries = resolvedLibraries.Concat(profile?.Libraries ?? []).ToArray();
+        if (profile is not null && profile.InheritsFrom is { } parent
+            && !string.Equals(parent, manifest.Id, StringComparison.Ordinal))
+        {
+            throw new MinecraftLaunchException(MinecraftLaunchError.FabricProfileMissing,
+                "Fabric profile inherits from a different Minecraft version.");
+        }
+
+        if (profile?.Libraries is { } profileLibraries)
+        {
+            var fabricKeys = profileLibraries.Select(library => FabricMavenLibrary.KeyFromPath(library.Path))
+                .Where(key => key is not null).ToHashSet(StringComparer.Ordinal);
+            resolvedLibraries = profileLibraries.Concat(resolvedLibraries.Where(library =>
+                FabricMavenLibrary.KeyFromPath(library.Path) is not { } key || !fabricKeys.Contains(key))).ToArray();
+        }
         var classpath = new List<string>(resolvedLibraries.Count + 1);
         foreach (var library in resolvedLibraries)
         {
@@ -131,7 +195,7 @@ public sealed class MinecraftLaunchPlan
             ["user_properties"] = "{}",
             ["profile_properties"] = "{}",
             ["clientid"] = clientId,
-            ["version_name"] = manifest.Id,
+            ["version_name"] = profile?.Id ?? manifest.Id,
             ["version_type"] = manifest.Type ?? "release",
             ["game_directory"] = gameDirectory,
             ["assets_root"] = assetsDirectory,
@@ -262,6 +326,7 @@ public enum MinecraftLaunchError
     AssetIndexInvalid,
     ClientMissing,
     SessionChanged,
+    FabricProfileMissing,
     ProcessStartFailed,
     CommandLineTooLong,
     ArgumentFileEncoding,
@@ -284,6 +349,7 @@ public sealed class MinecraftLaunchException(MinecraftLaunchError error, string?
         MinecraftLaunchError.AssetIndexInvalid => "LaunchAssetIndexInvalid",
         MinecraftLaunchError.ClientMissing => "LaunchClientMissing",
         MinecraftLaunchError.SessionChanged => "LaunchSessionChanged",
+        MinecraftLaunchError.FabricProfileMissing => "LaunchFabricProfileMissing",
         MinecraftLaunchError.ProcessStartFailed => "LaunchProcessStartFailed",
         MinecraftLaunchError.CommandLineTooLong => "LaunchCommandLineTooLong",
         MinecraftLaunchError.ArgumentFileEncoding => "LaunchArgumentFileEncoding",

@@ -260,6 +260,9 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Core/HakoPaths.cs`, `HakoRootLock.cs` | `HakoPaths`, `HakoRootLock` | Пути корней, изолированные запуски и блокировки game-root/data-root |
 | `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
 | `windows/Hako.Core/Instances/InstanceStorage.cs`, `InstanceStore.cs` | `InstanceStorage`, `InstanceStore`, `InstanceRegistryFile` | Безопасные пути, `instances.json`, транзакционное создание и управление профилями |
+| `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `ModRegistry`, `ModOrigin` | `.hako-mods.json`, атомарная публикация JAR и однократная установка Fabric API |
+| `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta, минимальные запросы версий и проверяемые загрузки Modrinth, требования Loader/Java |
+| `windows/Hako.Core/JsonContexts.cs` | `HakoJsonContext` | Source-generated JSON-контракты Hako, включая Fabric и реестр модов |
 | `windows/Hako.Core/RecycleBin.cs` | `RecycleBin`, `IFileOperationProgressSink` | Перемещение в Корзину и подтверждённое безвозвратное удаление через API |
 | `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, изменение языка через общий сервис настроек, выход |
 | `windows/Hako/Program.cs`, `App.xaml.cs` | `Program.Main`, `App` | Проверка аргументов до `AppInstance`, выбор путей, блокировка корня и сервисы приложения |
@@ -307,6 +310,10 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   `HakoJsonContext` пишет camelCase; значения источника аргументов, состояния установки и загрузчика — `global`/`mojang`/`custom`,
   `queued`/`installing`/`paused`/`ready`/`failed`, `vanilla`/`fabric`. В записи сохраняются параметры сборки, offline-ник,
   конфигурация Fabric, состояние паузы, Java, совместимость текстурпаков и архитектура.
+- `FabricConfiguration` хранит `loaderVersion` и optional `api`; в API-дескрипторе JSON-ключи `projectID`, `versionID`,
+  `version`, `channel`, `filename`, `url`, `size`, `sha1`, `sha512` совпадают со Swift. После установки SHA-1 точного
+  профиля из Fabric Meta сохраняется в `fabricProfileSHA1`; профиль расположен в `minecraft/.hako-fabric.json`.
+  Временные и API JSON-типы зарегистрированы в source-generated контекстах, а сохранённые optional-поля `null` опускаются.
 - `InstanceStore.LoadAsync` асинхронно загружает реестр при старте. `Instances` и `List()` возвращают снимок в памяти;
   успешная фиксация записи обновляет его. Ошибка чтения доступна в `LoadError`; повреждённый или неизвестный формат
   остаётся нетронутым, но не блокирует открытие главного окна. Операции создания и изменения профилей блокируются
@@ -326,6 +333,12 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   При ошибке фиксации реестра каталог восстанавливается. `TryBeginLaunch` и `TryBeginContent` выдают одноразовые
   `IDisposable`-leases; занятость снимается только при Dispose. Начало операций и блокировки Delete/Rename/Update
   сериализованы общим `_gate`; состояния очереди/установки также блокируют эти операции.
+- `minecraft/.hako-mods.json` повторяет Swift-контракт: `{ "apiProvisioned": bool, "files": { "<lowercase JAR>": ModOrigin } }`.
+  `source` записывается как `local`, `modrinth` или `curseForge`; ключи Origin — camelCase, включая `projectID`, `pageURL`,
+  `sha512`, `api`, `versionNumber`, `iconURL`, `fileType`. Необязательные null-поля не записываются. Реестр читается и
+  пишется через `HakoJsonContext`, публикуется атомарно; повреждённый файл, каталог или reparse point не заменяется.
+  `InstanceContent.PublishJarAsync` берёт content-lease, а установка использует lease очереди, поэтому пользовательская
+  публикация и установка сериализованы. `apiProvisioned` не сбрасывается при удалении/отключении API пользователем.
 - `HakoRootLock` удерживает lock-файлы в игровом и data-root с `FileShare.None` до завершения приложения; lock data-root
   защищает `session.dat` и `settings.json` от другого экземпляра. Сам game-root может быть junction или symlink. Только
   sharing/lock violation считается уже запущенным экземпляром; прочие ошибки остаются обычными ошибками старта. При конфликте

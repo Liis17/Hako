@@ -119,6 +119,7 @@
   <data name="LaunchAssetIndexInvalid" xml:space="preserve"><value>Индекс ресурсов Minecraft повреждён или не прошёл проверку.</value></data>
   <data name="LaunchClientMissing" xml:space="preserve"><value>Файл игры Minecraft отсутствует или не прошёл проверку. Повторите установку сборки.</value></data>
   <data name="LaunchSessionChanged" xml:space="preserve"><value>Сессия Minecraft изменилась во время подготовки. Повторите запуск.</value></data>
+  <data name="LaunchFabricProfileMissing" xml:space="preserve"><value>Профиль Fabric отсутствует, повреждён или не соответствует сборке. Переустановите сборку.</value></data>
   <data name="LaunchProcessStartFailed" xml:space="preserve"><value>Не удалось запустить Java. Подробности доступны в журнале запуска.</value></data>
   <data name="LaunchCommandLineTooLong" xml:space="preserve"><value>Команда запуска слишком длинная для этой версии Java. Удалите лишние аргументы.</value></data>
   <data name="LaunchArgumentFileEncoding" xml:space="preserve"><value>Пути или аргументы запуска содержат символы, которые Java не может прочитать в системной кодировке. Перенесите сборку в папку с латинскими символами.</value></data>
@@ -150,6 +151,11 @@
   <data name="CreationSupported" xml:space="preserve"><value>Поддерживается · Java {0}</value></data>
   <data name="CreationLoaderLabel" xml:space="preserve"><value>Загрузчик модов</value></data>
   <data name="CreationLoaderVanilla" xml:space="preserve"><value>Vanilla — без загрузчика</value></data>
+  <data name="CreationLoaderFabric" xml:space="preserve"><value>Fabric</value></data>
+  <data name="CreationFabricLoaderLabel" xml:space="preserve"><value>Версия Fabric Loader</value></data>
+  <data name="CreationFabricLoaderPlaceholder" xml:space="preserve"><value>Выберите версию Fabric</value></data>
+  <data name="CreationFabricLoaderStable" xml:space="preserve"><value> · стабильная</value></data>
+  <data name="CreationFabricSupported" xml:space="preserve"><value>Fabric API {0} совместим · Java {1}</value></data>
   <data name="CreationAdvanced" xml:space="preserve"><value>Дополнительные настройки</value></data>
   <data name="CreationFooter" xml:space="preserve"><value>Java и игра установятся в фоне.</value></data>
   <data name="CreationSave" xml:space="preserve"><value>Сохранить сборку</value></data>

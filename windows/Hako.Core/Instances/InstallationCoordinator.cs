@@ -13,7 +13,7 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
 {
     private readonly InstanceStore _store;
     private readonly Func<MojangVersionEntry, GameArchitecture?, CancellationToken, Task<PreparedInstallation>> _prepare;
-    private readonly Func<PreparedInstallation, string, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>> _install;
+    private readonly Func<PreparedInstallation, string, FabricConfiguration?, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>> _installFabric;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _startGate = new(1, 1);
     private readonly object _sync = new();
@@ -39,7 +39,9 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
             (version, pinned, cancellationToken) => pinned is { } architecture
                 ? client.PrepareAsync(version, architecture, cancellationToken)
                 : client.PrepareAsync(version, cancellationToken),
-            (prepared, root, progress, cancellationToken) => installer.InstallAsync(prepared, root, progress, cancellationToken))
+            (prepared, root, progress, cancellationToken) => installer.InstallAsync(prepared, root, progress, cancellationToken),
+            installFabric: (prepared, root, fabric, progress, cancellationToken) =>
+                installer.InstallFabricAsync(prepared, root, fabric, progress, cancellationToken))
     {
     }
 
@@ -48,11 +50,13 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
         InstanceStore store,
         Func<MojangVersionEntry, GameArchitecture?, CancellationToken, Task<PreparedInstallation>> prepare,
         Func<PreparedInstallation, string, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>> install,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        Func<PreparedInstallation, string, FabricConfiguration?, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>>? installFabric = null)
     {
         _store = store;
         _prepare = prepare;
-        _install = install;
+        _installFabric = installFabric ?? ((prepared, root, _, progress, cancellationToken) =>
+            install(prepared, root, progress, cancellationToken));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _store.BusyStateChanged += OnBusyStateChanged;
     }
@@ -440,7 +444,8 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
             _store.PinArchitecture(id, prepared.Architecture);
 
             var progress = new InlineProgress<InstallationProgress>(value => SetProgress(id, value));
-            result = await _install(prepared, _store.GetInstanceDirectory(id), progress, cancellation.Token).ConfigureAwait(false);
+            result = await _installFabric(prepared, _store.GetInstanceDirectory(id), instance.FabricConfiguration, progress,
+                cancellation.Token).ConfigureAwait(false);
             cancellation.Token.ThrowIfCancellationRequested();
         }
         catch (Exception exception)

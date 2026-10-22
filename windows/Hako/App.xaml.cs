@@ -104,12 +104,13 @@ public partial class App : Application
 
         var previewBuilds = _previewOptions?.Mode == ProfilePreviewMode.Builds;
         var mojang = previewBuilds ? PreviewBuildsFixture.CreateMojangClient() : new MojangClient();
+        var fabric = new FabricClient(paths: LaunchPaths);
         var installations = previewBuilds
             ? PreviewBuildsFixture.CreateInstallations(InstanceStore)
-            : new InstallationCoordinator(InstanceStore, mojang, new MinecraftInstaller(mojang));
+            : new InstallationCoordinator(InstanceStore, mojang, new MinecraftInstaller(mojang, fabric));
         var previewInstance = previewBuilds && InstanceStore.LoadError is null ? PreviewBuildsFixture.Seed(InstanceStore) : (Guid?)null;
         var games = new GameLaunchCoordinator(InstanceStore, UserSettingsService!, _coordinator!.MinecraftSessions, new GameProcessRunner());
-        _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang,
+        _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang, fabric,
             _skinPreviewService!, _previewOptions);
 
         _window = new MainWindow(_services);
@@ -190,6 +191,7 @@ public partial class App : Application
         try { await services.Installations.DisposeAsync(); } catch (Exception) { }
         try { await services.Store.DisposeAsync(); } catch (Exception) { }
         services.Mojang.Dispose();
+        services.Fabric.Dispose();
     }
 
     internal static void ActivateMainWindow()

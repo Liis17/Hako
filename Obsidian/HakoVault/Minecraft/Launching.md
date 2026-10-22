@@ -150,6 +150,13 @@ Swift Testing проверяет официальный JSON для соврем
 | `Minecraft/Win32Process.cs`, `GameProcessRunner.cs`, `JavaAnsiEncoding.cs` | `GameProcessRunner`, `GameProcessRecord`, `JavaAnsiEncoding` | Запуск, `@argfile`, `.hako-running.json`, восстановление |
 | `Instances/GameLaunchCoordinator.cs` | `GameLaunchCoordinator` | Порядок запуска, `GameRunState`, события сессий |
 
+Для Fabric `GameLaunchCoordinator` читает исходный профиль из `minecraft/.hako-fabric.json`, проверяет SHA-1 из
+`GameInstance.FabricProfileSHA1`, родительскую версию и `fabric-loader-{loader}-{minecraft}` ID. Отсутствующий,
+неизвестный или повреждённый профиль и отсутствующая Maven-библиотека завершают запуск ошибкой без перехода
+на Vanilla. `MinecraftLaunchPlan` использует Fabric `mainClass`, дочерний ID для `version_name` и обязательные
+аргументы профиля во всех режимах; Maven-конфликты group/artifact/classifier разрешаются в пользу Fabric.
+Профиль и библиотеки читаются локально, сетевые запросы при запуске не выполняются.
+
 - **Аргументы.** Правила OS/arch/features вычисляются для закреплённой архитектуры сборки (`${arch}` в natives тоже).
   Пользовательские game-флаги, которыми управляет лаунчер (`--username`, `--gameDir`, `--width` и др.), отклоняются
   (`LaunchReservedGameArgument`). Все `-Xmx`/`-XX:MaxHeapSize` заменяются одним лимитом; начальный heap больше лимита уменьшается.

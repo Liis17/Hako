@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
@@ -31,6 +32,8 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
     private string? _nameToValidate;
     private string? _validatedName;
     private string? _nameErrorKey;
+    private readonly NameValidation _nameValidation = new();
+    private int _instancesChangedPending;
 
     public InstanceProfilePage()
     {
@@ -58,7 +61,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         _nameTimer.Interval = TimeSpan.FromMilliseconds(300);
         _nameTimer.IsRepeating = false;
         _nameTimer.Tick += (_, _) => _ = ValidateNameAsync();
-        _services.Store.InstancesChanged += Changed;
+        _services.Store.InstancesChanged += Store_InstancesChanged;
         _services.Store.BusyStateChanged += Changed;
         _services.Installations.PropertyChanged += Changed;
         _services.Games.RunStateChanged += Changed;
@@ -80,11 +83,11 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
     {
         _refresh?.Stop();
         _saveTimer?.Stop();
-        _nameTimer?.Stop();
+        InvalidateNameValidation();
         _ = FlushSettingsAsync();
         if (_services is { } services)
         {
-            services.Store.InstancesChanged -= Changed;
+            services.Store.InstancesChanged -= Store_InstancesChanged;
             services.Store.BusyStateChanged -= Changed;
             services.Installations.PropertyChanged -= Changed;
             services.Games.RunStateChanged -= Changed;
@@ -99,6 +102,13 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
     private GameInstance? Current() => _services?.Store.Instances.FirstOrDefault(instance => instance.Id == _id);
 
     private void Changed(object? sender, EventArgs e) => _refresh?.Request();
+
+    private void Store_InstancesChanged(object? sender, EventArgs e)
+    {
+        _nameValidation.Invalidate();
+        Interlocked.Exchange(ref _instancesChangedPending, 1);
+        _refresh?.Request();
+    }
 
     private void HakoStrings_LanguageChanged(object? sender, EventArgs e) => RefreshStrings();
 
@@ -162,6 +172,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
             return;
         }
 
+        var instancesChanged = Interlocked.Exchange(ref _instancesChangedPending, 0) != 0;
         var previous = _instance;
         _instance = instance;
         NameText.Text = instance.Name;
@@ -174,9 +185,14 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
             _ = LoadIconAsync(instance);
         }
 
-        if (previous is not null && previous.Name != instance.Name && NameBox.Text == previous.Name)
+        if (previous is not null && previous.Name != instance.Name)
         {
-            NameBox.Text = instance.Name;
+            if (NameBox.Text == previous.Name) NameBox.Text = instance.Name;
+            InvalidateNameValidation();
+        }
+        else if (instancesChanged && NameBox.Text != instance.Name)
+        {
+            InvalidateNameValidation();
         }
 
         if (_manifestState != instance.State)
@@ -301,6 +317,10 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         var name = NameBox.Text;
         if (name == instance.Name)
         {
+            if (_nameToValidate is not null)
+            {
+                _nameValidation.Invalidate();
+            }
             _nameTimer?.Stop();
             _nameToValidate = null;
             _validatedName = name;
@@ -309,6 +329,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         else if (_validatedName != name && _nameToValidate != name && _nameTimer is { } timer)
         {
             // ValidateName waits for the store gate and checks the disk, so it runs off the UI thread after typing pauses.
+            _nameValidation.Invalidate();
             _nameToValidate = name;
             timer.Stop();
             timer.Start();
@@ -328,27 +349,36 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         }
 
         var id = _id;
-        var errorKey = await Task.Run(() =>
+        var result = await _nameValidation.ValidateAsync(name, input => Task.Run(() =>
         {
             try
             {
-                services.Store.ValidateName(name, id);
+                services.Store.ValidateName(input, id);
                 return null;
             }
             catch (Exception exception)
             {
                 return InstallationResourceKeys.ErrorResourceKey(exception);
             }
-        });
-        if (NameBox.Text != name || _nameToValidate != name)
+        }));
+        if (!result.IsCurrent || NameBox.Text != name || _nameToValidate != name)
         {
             return;
         }
 
         _nameToValidate = null;
         _validatedName = name;
-        _nameErrorKey = errorKey;
+        _nameErrorKey = result.ErrorKey;
         UpdateName();
+    }
+
+    private void InvalidateNameValidation()
+    {
+        _nameValidation.Invalidate();
+        _nameToValidate = null;
+        _validatedName = null;
+        _nameErrorKey = null;
+        _nameTimer?.Stop();
     }
 
     private async Task LoadIconAsync(GameInstance instance)
@@ -391,6 +421,30 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         if (_instance?.Id == instance.Id)
         {
             ParametersEditor.SetManifest(manifest, Architecture(instance));
+            ParametersEditor.SetFabricProfile(null);
+            if (manifest is not null && instance.ModLoader == InstanceModLoader.Fabric
+                && instance.FabricConfiguration is { LoaderVersion: { Length: > 0 } loaderVersion })
+            {
+                _ = LoadFabricProfileAsync(instance, loaderVersion);
+            }
+        }
+    }
+
+    private async Task LoadFabricProfileAsync(GameInstance instance, string loaderVersion)
+    {
+        if (_services is not { } services || instance.FabricProfileSHA1 is not { } sha1) return;
+        try
+        {
+            var root = await Task.Run(() => services.Store.GetInstanceDirectory(instance.Id));
+            var profile = await FabricClient.ReadInstalledProfileAsync(root, instance.VersionID, loaderVersion, sha1);
+            if (_instance?.Id == instance.Id && Current()?.FabricConfiguration?.LoaderVersion == loaderVersion)
+            {
+                ParametersEditor.SetFabricProfile(profile);
+            }
+        }
+        catch (Exception)
+        {
+            if (_instance?.Id == instance.Id) ParametersEditor.SetFabricProfile(null);
         }
     }
 
