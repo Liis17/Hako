@@ -260,15 +260,17 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Core/HakoPaths.cs`, `HakoRootLock.cs` | `HakoPaths`, `HakoRootLock` | Пути корней, изолированные запуски и блокировки game-root/data-root |
 | `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
 | `windows/Hako.Core/Instances/InstanceStorage.cs`, `InstanceStore.cs` | `InstanceStorage`, `InstanceStore`, `InstanceRegistryFile` | Безопасные пути, `instances.json`, транзакционное создание и управление профилями |
-| `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `ModRegistry`, `ModOrigin` | `.hako-mods.json`, атомарная публикация JAR и однократная установка Fabric API |
-| `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta, минимальные запросы версий и проверяемые загрузки Modrinth, требования Loader/Java |
-| `windows/Hako.Core/JsonContexts.cs` | `HakoJsonContext` | Source-generated JSON-контракты Hako, включая Fabric и реестр модов |
+| `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `ModRegistry`, `ModOrigin`, `InstanceContentItem` | Реестры модов/ресурспаков, локальные импорт, включение, замена и корзина; установка Fabric API |
+| `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta; поиск и версии Modrinth, распознавание SHA-512, кэш и проверяемая потоковая загрузка |
+| `windows/Hako.Core/JsonContexts.cs` | `HakoJsonContext` | Source-generated JSON-контракты Hako, Fabric, контента Modrinth и его кэша |
 | `windows/Hako.Core/RecycleBin.cs` | `RecycleBin`, `IFileOperationProgressSink` | Перемещение в Корзину и подтверждённое безвозвратное удаление через API |
 | `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, изменение языка через общий сервис настроек, выход |
 | `windows/Hako/Program.cs`, `App.xaml.cs` | `Program.Main`, `App` | Проверка аргументов до `AppInstance`, выбор путей, блокировка корня и сервисы приложения |
 | `windows/Hako/AppDataDirectory.cs` | `AppDataDirectory.GetLocalPath` | Каталог данных |
 | `windows/Hako.Tests/StorageTests.cs` | — | DPAPI без открытого текста токенов, очистка, повреждённый файл, сбой замены |
 | `windows/Hako.Tests/InstanceStoreTests.cs`, `UserSettingsServiceTests.cs`, `RecycleBinTests.cs` | — | Изоляция путей, файловые транзакции, настройки, блокировка и корзина |
+| `windows/Hako.Tests/ModrinthTests.cs` | — | Фасеты, совместимость версий, распознавание, кэш и проверяемые загрузки Modrinth |
+| `windows/Hako.Tests/InstanceContentTests.cs` | — | Реестры и локальные операции модов/паков, замена, корзина и reparse points |
 | `windows/Hako.Tests/RedactionTests.cs` | — | `ToString()` записей `MicrosoftToken` и `AccountSession` без токенов |
 
 ### Аккаунт: `session.dat`
@@ -339,6 +341,29 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   пишется через `HakoJsonContext`, публикуется атомарно; повреждённый файл, каталог или reparse point не заменяется.
   `InstanceContent.PublishJarAsync` берёт content-lease, а установка использует lease очереди, поэтому пользовательская
   публикация и установка сериализованы. `apiProvisioned` не сбрасывается при удалении/отключении API пользователем.
+- `InstanceContent.ListAsync`, `ImportAsync`, `SetEnabledAsync`, `ReplaceAsync` и `TrashAsync` — локальные операции этапа 6a.
+  Каждая публичная мутация берёт `InstanceStore` content-lease; внутренний `WithContentLeaseAsync` позволяет будущему
+  контроллеру удерживать один lease для нескольких публикаций без повторного захвата. Моды находятся в
+  `minecraft/mods`; отключённый JAR остаётся там же с суффиксом `.disabled`. Ресурспаки находятся в `resourcepacks`
+  или в старой папке `texturepacks`; ZIP остаются файлами, папки принимаются только с обычным `pack.mcmeta`.
+  Отключённые пакеты переносятся в `.hako-disabled-resourcepacks` или `.hako-disabled-texturepacks` соответственно.
+  Импорт локального файла/папки удаляет его прежнее происхождение, ключи файлов в реестрах всегда lowercase.
+- `minecraft/.hako-resourcepacks.json` использует ту же форму `{ "apiProvisioned": bool, "files": { ... } }` и поля
+  `ModOrigin`, что и реестр модов; флаг `apiProvisioned` сохраняет совместимость, хотя для паков он не используется.
+  Замена требует ожидаемый SHA-512 текущего файла и сохраняет его enabled/disabled-состояние. При ошибке публикации
+  новый файл удаляется и старый восстанавливается независимо; если откат не завершён, исходная и ошибки отката
+  включаются в исключение, а оставшаяся резервная копия не удаляется и указывается в сообщении. Перемещение в Корзину
+  удаляет запись происхождения только при статусе `Recycled`;
+  отказ или частичная ошибка оставляет реестр нетронутым. Папки паков локальные, их origin не записывается.
+- Реестры повреждённого формата не перезаписываются. Имена проверяются как Windows path segments; импорт и чтение
+  папок паков отклоняют reparse points и junction внутри дерева. Поиск записей использует сравнение без учёта регистра,
+  чтобы включение, отключение или замена не создали вторую запись того же логического файла. Локальные операции
+  датапаков и публичный UI-контроллер для каталога пока не реализованы.
+- Кеш хешей Modrinth находится в `%LOCALAPPDATA%\Hako\Cache\Modrinth\files.json` (или в инжектируемом
+  `HakoPaths.CacheRoot`); ключ файла содержит нормализованный путь, размер и время изменения. Удалённые пути и
+  неиспользуемые версии очищаются при сохранении, неизвестные хеши живут только в памяти клиента. Клиенты в одном
+  процессе с одинаковым путём используют общую блокировку и перечитывают последний снимок до сохранения; разные корни
+  не блокируют друг друга. Межпроцессная синхронизация не применяется.
 - `HakoRootLock` удерживает lock-файлы в игровом и data-root с `FileShare.None` до завершения приложения; lock data-root
   защищает `session.dat` и `settings.json` от другого экземпляра. Сам game-root может быть junction или symlink. Только
   sharing/lock violation считается уже запущенным экземпляром; прочие ошибки остаются обычными ошибками старта. При конфликте

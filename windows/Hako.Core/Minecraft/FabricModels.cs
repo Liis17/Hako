@@ -236,6 +236,24 @@ public sealed record ModrinthVersion
     public List<string> GameVersions { get; init; } = [];
     public List<string> Loaders { get; init; } = [];
     public List<ModrinthFile> Files { get; init; } = [];
+    public List<ModrinthDependency> Dependencies { get; init; } = [];
+
+    public ModrinthFile? InstallableFile(ModrinthContentKind kind)
+    {
+        var candidates = Files.Where(file => file.IsInstallable(kind)
+            && (kind != ModrinthContentKind.Datapack || !file.IsResourcePack)).ToArray();
+        return candidates.FirstOrDefault(file => file.Primary) ?? candidates.FirstOrDefault();
+    }
+}
+
+public sealed record ModrinthDependency
+{
+    [JsonPropertyName("version_id")]
+    public string? VersionId { get; init; }
+    [JsonPropertyName("project_id")]
+    public string? ProjectId { get; init; }
+    [JsonPropertyName("dependency_type")]
+    public string Type { get; init; } = "";
 }
 
 public sealed record ModrinthFile
@@ -247,6 +265,34 @@ public sealed record ModrinthFile
     public bool Primary { get; init; }
     [JsonPropertyName("file_type")]
     public string? FileType { get; init; }
+
+    public string Sha1 => Hashes.GetValueOrDefault("sha1", "").ToLowerInvariant();
+    public string Sha512 => Hashes.GetValueOrDefault("sha512", "").ToLowerInvariant();
+    public bool IsResourcePack => FileType is "required-resource-pack" or "optional-resource-pack";
+
+    public bool IsInstallable(ModrinthContentKind kind) => IsInstallable(kind switch
+    {
+        ModrinthContentKind.Mod => ".jar",
+        ModrinthContentKind.ResourcePack or ModrinthContentKind.Datapack => ".zip",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    });
+
+    public bool IsInstallable(string fileExtension)
+    {
+        if (!InstanceStorage.IsSinglePathSegment(Filename) || Filename.StartsWith('.')
+            || !Filename.EndsWith(fileExtension, StringComparison.OrdinalIgnoreCase)
+            || !Uri.TryCreate(Url.ToString(), UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps
+            || Size <= 0 || !IsHash(Sha1, 40) || !IsHash(Sha512, 128)
+            || FileType is "sources-jar" or "dev-jar" or "javadoc-jar")
+        {
+            return false;
+        }
+
+        var suffix = Path.GetFileNameWithoutExtension(Filename).Split('-', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        return suffix is not ("sources" or "source" or "dev" or "javadoc");
+    }
+
+    private static bool IsHash(string value, int length) => value.Length == length && value.All(Uri.IsHexDigit);
 }
 
 internal readonly record struct FabricSemanticVersion(IReadOnlyList<int> Numbers, IReadOnlyList<string> Prerelease) : IComparable<FabricSemanticVersion>

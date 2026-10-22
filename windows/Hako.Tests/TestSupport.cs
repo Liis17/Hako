@@ -1,4 +1,5 @@
 using Hako.Core;
+using Hako.Core.Instances;
 using System.Net;
 using System.Text;
 
@@ -378,6 +379,8 @@ internal static class TestData
 
 internal sealed class TemporaryDirectory : IDisposable, IAsyncDisposable
 {
+    private readonly List<IAsyncDisposable> _resources = [];
+
     public TemporaryDirectory()
     {
         Root = Path.Combine(Path.GetTempPath(), "Hako.Tests", Guid.NewGuid().ToString("N"));
@@ -387,17 +390,26 @@ internal sealed class TemporaryDirectory : IDisposable, IAsyncDisposable
     public string Root { get; }
     public HakoPaths Paths { get; }
 
-    public void Dispose()
+    public InstanceStore CreateStore() => Track(new InstanceStore(Paths));
+
+    public T Track<T>(T resource) where T : IAsyncDisposable
     {
+        _resources.Add(resource);
+        return resource;
+    }
+
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    public async ValueTask DisposeAsync()
+    {
+        for (var index = _resources.Count - 1; index >= 0; index--)
+        {
+            await _resources[index].DisposeAsync().ConfigureAwait(false);
+        }
+
         if (Directory.Exists(Root))
         {
             Directory.Delete(Root, recursive: true);
         }
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        Dispose();
-        return ValueTask.CompletedTask;
     }
 }

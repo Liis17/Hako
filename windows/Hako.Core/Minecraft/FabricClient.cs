@@ -28,7 +28,7 @@ public sealed class FabricClient : IDisposable
         _cacheRoot = Path.GetFullPath(cacheRoot ?? Path.Combine(paths?.CacheRoot
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Hako", "Cache"), "FabricAPI"));
         _metaBase = EnsureTrailingSlash(metaBase ?? new Uri("https://meta.fabricmc.net/v2/"));
-        _modrinth = new ModrinthClient(_httpClient, modrinthBase);
+        _modrinth = new ModrinthClient(_httpClient, modrinthBase, paths);
     }
 
     public async Task<FabricPreparation> PrepareAsync(string minecraft, int java, CancellationToken cancellationToken = default)

@@ -125,10 +125,24 @@ public sealed class InstanceStorage(HakoPaths paths)
 
     internal static void MoveDirectory(string from, string to) => System.IO.Directory.Move(from, to);
 
-    internal static bool IsSinglePathSegment(string value) => !string.IsNullOrWhiteSpace(value)
-        && value is not "." and not ".."
-        && !value.Contains('\\') && !value.Contains('/') && !value.Contains(':') && !value.Contains('\0')
-        && !Path.IsPathRooted(value);
+    internal static bool IsSinglePathSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value is "." or ".."
+            || value.Contains('\\') || value.Contains('/') || value.Contains(':') || value.Contains('\0')
+            || value.EndsWith(' ') || value.EndsWith('.') || Path.IsPathRooted(value)
+            || value.Any(character => character < 32 || "<>\"|?*".Contains(character)))
+        {
+            return false;
+        }
+
+        var stem = value.Split('.')[0];
+        return !stem.Equals("CON", StringComparison.OrdinalIgnoreCase)
+            && !stem.Equals("PRN", StringComparison.OrdinalIgnoreCase)
+            && !stem.Equals("AUX", StringComparison.OrdinalIgnoreCase)
+            && !stem.Equals("NUL", StringComparison.OrdinalIgnoreCase)
+            && !(stem.Length == 4 && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+                || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) && stem[3] is >= '1' and <= '9');
+    }
 
     internal static void DeleteCreatedDirectory(string path)
     {
