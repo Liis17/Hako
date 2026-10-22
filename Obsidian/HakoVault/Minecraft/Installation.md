@@ -48,6 +48,59 @@ Intel fallback на Apple Silicon, запуск игры через Rosetta, д�
 под Rosetta определяется через `sysctl.proc_translated` как Apple Silicon ([документация Apple](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment)).
 URL загрузок должен быть HTTPS; пути, архивы и симлинки не могут выходить за папку сборки.
 
+## Windows: Mojang и установка
+
+Windows-реализация находится в `windows/Hako.Core/Minecraft/`. `MojangClient.CatalogAsync()` читает
+полный каталог версий, а `PrepareAsync(version, host)` проверяет SHA-1 описания, наличие клиента,
+компонент Java и все требуемые группы Windows natives. Отсутствие файлов возвращается как
+`MojangError.Unsupported`; ошибки HTTP, сети и целостности остаются отдельными ошибками подготовки.
+JSON внешнего API описан в `MojangModels.cs` и сериализуется через `MojangJsonContext`.
+Это отдельный source-generated контекст типов ответа Mojang, не контекст моделей сохранённых данных Hako.
+
+`WindowsHostArchitectureProvider` определяет архитектуру ОС через `IsWow64Process2`, поэтому x64-процесс
+Hako под ARM64 тоже распознаёт ARM64-хост. На ARM64 сначала выбирается полный набор `windows-arm64`
+(Java и все natives); если его нет, выбирается целиком x64-набор при `UserEnabled` из
+`GetMachineTypeAttributes(IMAGE_FILE_MACHINE_AMD64)`: API возвращает HRESULT, успех — `hr >= 0`;
+если API отсутствует, например в Windows 10, x64-fallback недоступен. Это соответствует решению пользователя
+разрешить x64 под эмуляцией на ARM64. Если AMD64 недоступен, установка несовместимой версии отклоняется до загрузки.
+На x64 используется только x64, на x86 — только x86. Выбранный `GameArchitecture` входит в
+`PreparedInstallation`, повторная подготовка принимает закреплённую архитектуру; установщик не
+определяет её заново. `InstallationResult.JavaExecutable` и `GameInstance.JavaExecutable` хранят путь
+относительно папки `java/`, с разделителем `/`; для Windows это `bin/javaw.exe`. Такой же относительный
+контракт используется в общем `data.json` резервной копии. Поле `GameInstance.Architecture` из реестра
+этапа хранения сохраняет выбор между подготовкой, установкой и последующими повторами. Каталог Java
+использует Mojang-ключи `windows-arm64`, `windows-x64` и `windows-x86`.
+
+`MojangCompatibility.Libraries` сохраняет порядок библиотек из манифеста, включая legacy natives.
+Суффикс `${arch}` в legacy classifier подменяется на `64`, `32` или `arm64`; `natives-windows` без
+суффикса также поддерживается для x86.
+
+`MinecraftInstaller.InstallAsync` пишет только в корень переданной сборки и использует
+`InstanceStorage.ContainedPath` этапа хранения для путей и запрета reparse points. Java собирается из
+runtime manifest raw-файлов. Link-записи отклоняются на подготовке и установке понятной ошибкой;
+символические ссылки и другие reparse points не создаются. До установки сиротские `.hako-*.tmp` ищутся
+только в `java/` и `minecraft/{versions,libraries,assets,natives,resources}` с обходом вложенных каталогов,
+а также непосредственно в `minecraft/`; `saves`, `mods`, `screenshots` и `resourcepacks` не обходятся.
+Очистка best-effort и не останавливает установку при ошибках доступа, ввода-вывода или гонках. Это безопасно,
+поскольку `InstanceStore` не допускает одновременные установки одного корня.
+Клиент и полный JSON версии размещаются в `minecraft/versions/{id}/`, библиотеки — в
+`minecraft/libraries/`, legacy natives после безопасной проверки ZIP — в `minecraft/natives/`, logging —
+в `minecraft/assets/log_configs/`. Современные native JAR остаются в libraries. Asset objects хранятся
+в `minecraft/assets/objects/`; только virtual и `map_to_resources` проверяют имена и создают проверяемые
+копии, коллизии Windows-путей без учёта регистра отклоняются. Создаются `minecraft/mods` и папка
+ресурспаков (`resourcepacks`, либо `texturepacks` для legacy версии). Все legacy native archives сначала
+распаковываются во временную staging-папку и публикуются заменой каталога `minecraft/natives` после
+завершения; если переименование staging не удалось, прежний каталог восстанавливается. Отмена и ошибки
+распаковки удаляют staging без частично опубликованных файлов.
+
+HTTP-запросы используют `User-Agent: Hako/<version>` и только HTTPS. Бинарные файлы передаются потоково
+во временный файл рядом с целью, проверяются по размеру и SHA-1 и публикуются атомарно; тело ответа
+считается зависшим после 60 секунд без данных, а поток обрывается при превышении известного `Size`.
+Ошибка одной загрузки сразу отменяет остальные; после их завершения возвращается исходная не-отмена ошибка.
+Одновременно выполняется не более четырёх загрузок. Проверенные файлы используются повторно,
+повреждённые загружаются заново, а отмена удаляет временные файлы. MSTest используют Mojang JSON-фикстуры из
+`macos/Hako/HakoTests/Fixtures/` и подменный `HttpMessageHandler`, без сетевых запросов.
+
 ## Каталог Fabric и Fabric API
 
 `Minecraft/FabricClient.swift` читает Fabric Meta и только официальный Fabric API (`P7dR8mSH`) из Modrinth.

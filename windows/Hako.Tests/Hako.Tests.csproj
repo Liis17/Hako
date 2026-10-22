@@ -32,6 +32,10 @@
     <Content Include="..\Hako\Strings\**\Resources.resw" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Hako\Assets\Steve.png" Link="Fixtures\WindowsSteve.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\macos\Hako\Hako\Resources\Steve.png" Link="Fixtures\MacSteve.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\macos\Hako\HakoTests\Fixtures\1.6.4.json" Link="Fixtures\Mojang\1.6.4.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\macos\Hako\HakoTests\Fixtures\1.19.json" Link="Fixtures\Mojang\1.19.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\macos\Hako\HakoTests\Fixtures\22w18a.json" Link="Fixtures\Mojang\22w18a.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\macos\Hako\HakoTests\Fixtures\java-runtimes.json" Link="Fixtures\Mojang\java-runtimes.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
