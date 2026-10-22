@@ -123,6 +123,26 @@ public sealed class InstanceStorage(HakoPaths paths)
         }
     }
 
+    internal static void CreateDirectoryExclusiveAt(string parentDirectory, string name)
+    {
+        if (!IsSinglePathSegment(name))
+        {
+            throw new InstanceStorageException(InstanceStorageError.InvalidPath, "Invalid directory name.");
+        }
+
+        var path = ContainedPath(name, parentDirectory);
+        if (!CreateDirectoryW(path, IntPtr.Zero))
+        {
+            var error = Marshal.GetLastWin32Error();
+            if (error == 183)
+            {
+                throw new IOException("The directory already exists.", new Win32Exception(error));
+            }
+
+            throw new Win32Exception(error);
+        }
+    }
+
     internal static void MoveDirectory(string from, string to) => System.IO.Directory.Move(from, to);
 
     internal static bool IsSinglePathSegment(string value)

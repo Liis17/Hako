@@ -16,6 +16,9 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/Launcher/InstanceWorldsView.swift` | `InstanceWorldsView` | Список миров и переход к датапакам |
 | `macos/Hako/Hako/Instances/InstanceContent.swift` | `importDatapack` | Копирование ZIP в существующий мир без восстановления исчезнувших родителей |
 | `macos/Hako/HakoTests/InstanceWorldsTests.swift` | `InstanceWorldsTests` | Современные/старые/повреждённые сохранения, размер, Unicode, ссылки и ограничения NBT |
+| `windows/Hako.Core/Instances/InstanceWorlds.cs` | `InstanceWorlds`, `WorldFolder`, `DatapacksFolder` | Список, проверка назначения, копия мира и корзина через `InstanceStore` |
+| `windows/Hako.Core/Minecraft/WorldMetadata.cs` | `WorldMetadata.Read`, `WorldMetadata.Renamed` | Ограниченное gzip/NBT чтение и переименование сохранения при копировании |
+| `windows/Hako.Tests/InstanceWorldsTests.cs`, `WorldMetadataTests.cs` | MSTest | Изолированные проверки миров и gzip/NBT для Windows |
 
 ## Контракты
 
@@ -64,9 +67,34 @@ Parent: [[Index]]
   и повторно проверяют существование мира перед публикацией; `level.dat` не меняется.
 - `.hakoworld` и схема манифеста описаны в [[Data/Backups]].
 
+### Windows Core
+
+- `InstanceWorlds.ListAsync(instanceId)` получает папку сборки через `InstanceStore` и выполняет чтение файлов вне UI-потока.
+  Отсутствующая `minecraft/saves` даёт пустой список без создания папок. При обеих повреждённых версиях `level.dat`
+  мир остаётся в списке с типизированным `WorldMetadataError`; имя берётся из папки.
+- `WorldFolder(worldId, instanceRoot)` проверяет отдельный сегмент Windows-пути, существование папки и обычный
+  `level.dat` или `level.dat_old`. `DatapacksFolder` дополнительно проверяет путь `datapacks`, но не создаёт его;
+  исчезнувший мир не восстанавливается. Обе функции предназначены для повторного вызова внутри будущих операций 7b/7c.
+- `DuplicateAsync` и `TrashAsync` работают под общим content lease и разрешены только готовой сборке. Копия собирается
+  во временной папке внутри `saves`, затем публикуется перемещением без перезаписи существующего имени. Суффиксы
+  папки выбираются с 2 по 999 без учёта регистра. `level.dat` и `level.dat_old` переименовываются только в копии,
+  если соответствующий gzip/NBT читается; нечитаемые файлы копируются как есть. Исходная папка не изменяется.
+  Отмена удаляет только staging-папку, созданную этой операцией. Удаление использует общий `RecycleBin`; ошибка и
+  отказ корзины оставляют мир на месте. Результат копии содержит новый `WorldId` либо типизированную причину отказа.
+- Обход размера считает обычные файлы, включая скрытые файлы, измерения и `datapacks`; reparse entries пропускаются,
+  а ошибка обхода даёт неизвестный размер. `icon.png` читается только до 4 МиБ. Папки `saves`, мира и назначение
+  datapacks не проходят через ссылки/junction; копирование отклоняет reparse point внутри сохранения и перепроверяет
+  stage перед публикацией.
+- Windows `WorldMetadata` использует .NET `GZipStream` и небольшой big-endian NBT reader без хранения дерева тегов.
+  Сжатый и распакованный данные ограничены 16 МиБ, глубина — 64 уровня. Reader проверяет CRC/размер gzip, длины,
+  массивы, списки и типы тегов, а строковые поля понимает как UTF-8 или Java modified UTF-8, включая NUL и суррогатные пары.
+- Этап 7a предоставляет только основу миров в Core. Импорт и управление датапаками с UI добавляются в 7b/7c;
+  архив `.hakoworld` реализуется отдельно на этапе 10.
+
 ## Чтение NBT
 
-`WorldMetadata` использует системный `zlib` для gzip и небольшой reader big-endian NBT.
+macOS `WorldMetadata` использует системный `zlib`; Windows использует .NET `GZipStream`. Обе реализации имеют
+небольшой reader big-endian NBT.
 Сохраняются только четыре поля; остальные теги, списки и массивы пропускаются с проверкой границ и длины.
 Читаются UTF-8 и Java modified UTF-8 (суррогатные пары). Вход и распакованный поток ограничены 16 МиБ,
 вложенность — 64 уровня; отмена проверяется при распаковке и обходе.
