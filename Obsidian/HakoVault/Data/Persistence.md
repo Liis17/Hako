@@ -245,7 +245,9 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 ## Windows-клиент
 
 Хранение в `windows/Hako.Core/` (без WinUI). Аккаунт — зашифрованный файл `session.dat`, настройки —
-`settings.json`. Каталог данных задаёт `windows/Hako/AppDataDirectory.cs`. Экраны и вход — [[UI/Screens#Windows-клиент]],
+`settings.json`, профили сборок — `instances.json`. `HakoPaths` задаёт игровой корень, каталог данных и кэш;
+производственный игровой корень — `%USERPROFILE%\.hako`, каталог данных по-прежнему задаёт
+`windows/Hako/AppDataDirectory.cs`. Экраны и вход — [[UI/Screens#Windows-клиент]],
 [[Auth/MicrosoftAuth#Windows-клиент]].
 
 ### Источники
@@ -254,10 +256,26 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 |------|-----------------|------|
 | `windows/Hako.Core/AccountSession.cs` | `AccountSession` | Запись аккаунта |
 | `windows/Hako.Core/AccountSessionStore.cs` | `AccountSessionStore`, `AccountStoreException` | Шифрование, чтение, атомарная запись и удаление `session.dat` |
-| `windows/Hako.Core/JsonUserSettingsStore.cs`, `windows/Hako.Core/UserSettings.cs` | `JsonUserSettingsStore`, `UserSettings` | `settings.json` с языком |
-| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, сериализованное сохранение языка и откат, выход |
+| `windows/Hako.Core/JsonUserSettingsStore.cs`, `UserSettings.cs`, `UserSettingsService.cs` | `JsonUserSettingsStore`, `UserSettings`, `UserSettingsService` | `settings.json`: язык и глобальные параметры игры; единый сериализованный снимок |
+| `windows/Hako.Core/HakoPaths.cs`, `HakoRootLock.cs` | `HakoPaths`, `HakoRootLock` | Пути корней, изолированные запуски и блокировки game-root/data-root |
+| `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
+| `windows/Hako.Core/Instances/InstanceStorage.cs`, `InstanceStore.cs` | `InstanceStorage`, `InstanceStore`, `InstanceRegistryFile` | Безопасные пути, `instances.json`, транзакционное создание и управление профилями |
+| `windows/Hako.Core/Instances/InstanceScreenshots.cs`, `InstanceFileTree.cs` | `InstanceScreenshots`, `InstanceFileTree` | Безопасный список PNG и корзина скриншотов; проверяемое копирование дерева и потоковая запись ZIP |
+| `windows/Hako.Core/Instances/InstanceBackup.cs`, `WorldBackup.cs`, `BackupModels.cs`, `BackupJsonConverters.cs` | `InstanceBackup`, `WorldBackup`, `BackupResult` | Форматы Windows `.hakobackup`/`.hakoworld`, типизированные ошибки, Swift-совместимые даты |
+| `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `InstanceContentTarget`, `ModRegistry`, `ModOrigin`, `InstanceContentItem` | Реестры модов/ресурспаков/датапаков мира, локальные импорт, включение и замена; установка Fabric API |
+| `windows/Hako.Core/Instances/InstanceContentController.cs` | `InstanceContentController`, `InstanceContentState`, `InstanceContentStateKey`, `ContentConfirmationRequest` | Core-оркестрация локального контента, выбранного мира, зависимостей Modrinth и обновлений; подтверждения без WinUI |
+| `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta; поиск и версии Modrinth, распознавание SHA-512, кэш и проверяемая потоковая загрузка |
+| `windows/Hako.Core/JsonContexts.cs` | `HakoJsonContext` | Source-generated JSON-контракты Hako, Fabric, контента Modrinth и его кэша |
+| `windows/Hako.Core/Playtime/PlaytimeModels.cs`, `PlaytimeStorage.cs`, `PlaytimeCoordinator.cs` | `PlaytimeLedger`, `PlaytimeLedgerStore`, `PlaytimeCoordinator` | Общий журнал игрового времени Windows, проверяемые сессии и восстановление гостевого переноса |
+| `windows/Hako.Core/RecycleBin.cs` | `RecycleBin`, `IFileOperationProgressSink` | Перемещение в Корзину и подтверждённое безвозвратное удаление через API |
+| `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, изменение языка через общий сервис настроек, выход |
+| `windows/Hako/Program.cs`, `App.xaml.cs` | `Program.Main`, `App` | Проверка аргументов до `AppInstance`, выбор путей, блокировка корня и сервисы приложения |
 | `windows/Hako/AppDataDirectory.cs` | `AppDataDirectory.GetLocalPath` | Каталог данных |
 | `windows/Hako.Tests/StorageTests.cs` | — | DPAPI без открытого текста токенов, очистка, повреждённый файл, сбой замены |
+| `windows/Hako.Tests/InstanceStoreTests.cs`, `UserSettingsServiceTests.cs`, `RecycleBinTests.cs` | — | Изоляция путей, файловые транзакции, настройки, блокировка и корзина |
+| `windows/Hako.Tests/ModrinthTests.cs` | — | Фасеты, совместимость версий, распознавание, кэш и проверяемые загрузки Modrinth |
+| `windows/Hako.Tests/InstanceContentTests.cs`, `InstanceDatapackContentTests.cs` | — | Реестры и локальные операции модов/паков/датапаков, проверка `pack.mcmeta`, замена, rollback и reparse points |
+| `windows/Hako.Tests/InstanceContentControllerTests.cs` | — | Зависимости Modrinth, world-scoped состояния, подтверждения, выбор связанных паков, отмена, обновления и lease |
 | `windows/Hako.Tests/RedactionTests.cs` | — | `ToString()` записей `MicrosoftToken` и `AccountSession` без токенов |
 
 ### Аккаунт: `session.dat`
@@ -278,16 +296,150 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 
 ### Настройки: `settings.json`
 
-- Файл `settings.json` в том же каталоге. Содержимое — `UserSettings`: `{ "language": "ru" }` или `"en"`
-  (camelCase, с отступами, `null` не пишется).
+- Файл `settings.json` в каталоге данных. `UserSettings` хранит `language` и optional-поля `javaPath`,
+  `javaArguments`, `minecraftArguments`, `fullscreen`, `windowWidth`, `windowHeight`, `maximumMemoryMiB`
+  (camelCase, с отступами, `null` не пишется). Старый файл только с `language` читается без миграции.
 - Отсутствующий `language` или файла нет — язык системы (`AppLanguages.Default`).
 - `LoadAsync`: файла нет → `null`. Ошибки чтения и `JsonException` пробрасываются; `AppCoordinator.InitializeAsync`
   ставит `StartupNotice.PreferencesUnavailable` и берёт язык по умолчанию (`AppLanguages.Default`).
 - `SaveAsync`: запись в `settings.json.<guid>.tmp`, затем `File.Move(..., true)`; временный файл удаляется в `finally`.
-- `SetLanguageAsync` сразу меняет `Language`. Сохранения идут по одному (`_languageSaveGate`) и пишут текущий `Language`,
-  поэтому побеждает последний выбор. При ошибке записи язык откатывается к `_savedLanguage` (последнему успешно сохранённому
-  или загруженному при старте), только если за это время не было нового выбора (`_languageSelection`); исключение пробрасывается,
-  UI показывает `LanguageSaveError`.
+- `UserSettingsService` держит единый снимок языка и игровых параметров. Изменения языка и параметров используют общий
+  `SemaphoreSlim`, и каждая запись сохраняет полный актуальный снимок. Если первоначальная загрузка завершилась ошибкой,
+  перед следующей записью сервис повторяет чтение и объединяет выбранные изменения с данными на диске; при повторной ошибке
+  ввода-вывода запись не выполняется, а при `JsonException` повреждённый файл заменяется полным текущим снимком.
+  `AppCoordinator.SetLanguageAsync` меняет язык сразу; при ошибке он возвращается к языку из
+  последнего успешно сохранённого снимка, если после этого не было нового выбора. Ошибка пробрасывается, UI показывает
+  `LanguageSaveError`.
+
+### Профили сборок Windows
+
+- `instances.json` находится в игровом корне и имеет формат `{ "formatVersion": 1, "instances": [...] }`.
+  `HakoJsonContext` пишет camelCase; значения источника аргументов, состояния установки и загрузчика — `global`/`mojang`/`custom`,
+  `queued`/`installing`/`paused`/`ready`/`failed`, `vanilla`/`fabric`. В записи сохраняются параметры сборки, offline-ник,
+  конфигурация Fabric, состояние паузы, Java, совместимость текстурпаков и архитектура.
+- `FabricConfiguration` хранит `loaderVersion` и optional `api`; в API-дескрипторе JSON-ключи `projectID`, `versionID`,
+  `version`, `channel`, `filename`, `url`, `size`, `sha1`, `sha512` совпадают со Swift. После установки SHA-1 точного
+  профиля из Fabric Meta сохраняется в `fabricProfileSHA1`; профиль расположен в `minecraft/.hako-fabric.json`.
+  Временные и API JSON-типы зарегистрированы в source-generated контекстах, а сохранённые optional-поля `null` опускаются.
+- `InstanceStore.LoadAsync` асинхронно загружает реестр при старте. `Instances` и `List()` возвращают снимок в памяти;
+  успешная фиксация записи обновляет его. Ошибка чтения доступна в `LoadError`; повреждённый или неизвестный формат
+  остаётся нетронутым, но не блокирует открытие главного окна. Операции создания и изменения профилей блокируются
+  `InstanceRegistryException` с кодом ошибки и ключом локализации (`InstanceRegistryDamaged` или
+  `InstanceRegistryUnavailable`). Реестр пишется во временный файл, сбрасывается на диск и публикуется через `File.Move`.
+- Имя сборки — 1–60 ASCII-букв, цифр и пробелов после trim; пробелы в имени папки становятся `_`. `backups`, `worlds`
+  и имена устройств Windows зарезервированы. Коллизии в реестре и файловой системе проверяются без учёта регистра.
+  `InstanceStorage.ContainedPath` отклоняет traversal, абсолютные пути, symlink и reparse points ниже игрового корня;
+  сам корень может быть junction или symlink, например когда `.hako` вынесена на другой диск.
+- Создание эксклюзивно создаёт каталог профиля и только его удаляет при ошибке. Переименование переносит каталог,
+  использует временное имя при смене регистра и откатывает перенос при ошибке записи. Удаление сначала переносит каталог
+  в `.delete-{instanceId:N}-{randomId:N}`, затем сохраняет реестр и очищает staging в фоне. После публикации снимка
+  `LoadAsync` в фоне удаляет только staging-имена этого формата и прежние `.delete-{GUID}` в форматах N/D;
+  `.delete-whatever` остаётся нетронутым. При обнаружении нового staging с записью реестра и отсутствующей исходной папкой
+  запись атомарно удаляется; если папка уже на месте, staging удаляется без изменения записи. Очистка не переходит по
+  вложенным junction и symlink. Сбой очистки записывается в Debug-вывод и повторяется при следующей загрузке.
+  При ошибке фиксации реестра каталог восстанавливается. `TryBeginLaunch` и `TryBeginContent` выдают одноразовые
+  `IDisposable`-leases; занятость снимается только при Dispose. Начало операций и блокировки Delete/Rename/Update
+  сериализованы общим `_gate`; состояния очереди/установки также блокируют эти операции.
+- `InstanceStore.DuplicateAsync` требует готовую и свободную сборку. Он копирует её в эксклюзивный staging рядом
+  с целевой папкой под content-lease, затем атомарно публикует папку и профиль с новым UUID/датой; сбой записи
+  реестра откатывает только папку, созданную этой операцией. Имена вида «Имя 2», «Имя 3» подбираются без учёта
+  регистра. Fabric, параметры, иконка, происхождение и completed-план модпака сохраняются; токены и transient
+  файлы запуска (`.hako-running.json`, `.hako-launch`, `.hako-game`, журнал `hako-launch.log`) исключены.
+- `InstanceScreenshots.ListAsync` читает только обычные видимые PNG в корне `minecraft/screenshots`;
+  отсутствующая папка остаётся отсутствующей. Перемещение в Корзину перепроверяет владение и тип каждого файла
+  и возвращает частичные статусы. Отдельный screenshot-lease блокирует установку и файловые операции, но разрешает
+  удаление скриншотов во время игры, как на macOS.
+- `minecraft/.hako-mods.json` повторяет Swift-контракт: `{ "apiProvisioned": bool, "files": { "<lowercase JAR>": ModOrigin } }`.
+  `source` записывается как `local`, `modrinth` или `curseForge`; ключи Origin — camelCase, включая `projectID`, `pageURL`,
+  `sha512`, `api`, `versionNumber`, `iconURL`, `fileType`. Необязательные null-поля не записываются. Реестр читается и
+  пишется через `HakoJsonContext`, публикуется атомарно; повреждённый файл, каталог или reparse point не заменяется.
+  `InstanceContent.PublishJarAsync` берёт content-lease, а установка использует lease очереди, поэтому пользовательская
+  публикация и установка сериализованы. `apiProvisioned` не сбрасывается при удалении/отключении API пользователем.
+- `InstanceContent.ListAsync`, `ImportAsync`, `SetEnabledAsync`, `ReplaceAsync` и `TrashAsync` — локальные операции этапа 6a.
+  Каждая публичная мутация берёт `InstanceStore` content-lease; внутренний `WithContentLeaseAsync` позволяет будущему
+  контроллеру удерживать один lease для нескольких публикаций без повторного захвата. Моды находятся в
+  `minecraft/mods`; отключённый JAR остаётся там же с суффиксом `.disabled`. Ресурспаки находятся в `resourcepacks`
+  или в старой папке `texturepacks`; ZIP остаются файлами, папки принимаются только с обычным `pack.mcmeta`.
+  Отключённые пакеты переносятся в `.hako-disabled-resourcepacks` или `.hako-disabled-texturepacks` соответственно.
+  Импорт локального файла/папки удаляет его прежнее происхождение, ключи файлов в реестрах всегда lowercase.
+- `minecraft/.hako-resourcepacks.json` использует ту же форму `{ "apiProvisioned": bool, "files": { ... } }` и поля
+  `ModOrigin`, что и реестр модов; флаг `apiProvisioned` сохраняет совместимость, хотя для паков он не используется.
+  Замена требует ожидаемый SHA-512 текущего файла и сохраняет его enabled/disabled-состояние. При ошибке публикации
+  новый файл удаляется и старый восстанавливается независимо; если откат не завершён, исходная и ошибки отката
+  включаются в исключение, а оставшаяся резервная копия не удаляется и указывается в сообщении. Перемещение в Корзину
+  удаляет запись происхождения только при статусе `Recycled`;
+  отказ или частичная ошибка оставляет реестр нетронутым. Папки паков локальные, их origin не записывается.
+- Датапаки мира хранятся в `minecraft/saves/<worldId>/datapacks`, отключённые — в
+  `minecraft/saves/<worldId>/.hako-disabled-datapacks`. Реестр `.hako-datapacks.json` лежит в папке мира и содержит
+  `files` с ключами lowercase ZIP-имён и тем же `ModOrigin` (Swift-ключи `projectID`, `versionID`, `pageURL`, `sha512`,
+  `versionNumber`, `iconURL`, `fileType`). `apiProvisioned` для этого реестра необязателен при чтении и записывается
+  Core при сохранении; это сохраняет совместимость с Swift. Реестр повреждённого формата не перезаписывается. ZIP
+  требует один обычный корневой `pack.mcmeta` размером до 1 МиБ с JSON object `pack`; архив ограничен 100 000 entries,
+  ZIP копируется как файл, папка обходится без перехода по reparse points. Создание datapacks leaf допускается только
+  внутри существующего проверенного мира; missing world/level metadata не восстанавливается.
+- Реестры повреждённого формата не перезаписываются. Имена проверяются как Windows path segments; импорт и чтение
+  папок паков отклоняют reparse points и junction внутри дерева. Поиск записей использует сравнение без учёта регистра,
+  чтобы включение, отключение или замена не создали вторую запись того же логического файла. Для обновления проверяется
+  ожидаемый старый SHA-512; disabled-состояние и origin сохраняются, публикация и реестр откатываются вместе при ошибке.
+- `InstanceContentTarget` предоставляет `.Mods`, `.Packs` и `.WorldDatapacks(worldId)`. Overload-ы `InstanceContent`
+  и `InstanceContentController` по старому `ModrinthContentKind` остаются для модов и ресурспаков; datapack-kind без
+  явной папки мира отклоняется. Локальные и Modrinth-операции мира входят в Core этапа 7b; Windows UI подключает
+  их из профиля по UUID сборки и имени папки мира. Удаление отдельных датапаков не предоставляется.
+- `InstanceContentController` — Core-only контроллер этапов 6b/7b; persisted-схема реестров не меняется. `InstalledProjectsAsync`
+  группирует записи происхождения и распознаёт остальные файлы по SHA-512, включая отключённые. Узнанный вручную файл
+  получает `ModOrigin` под content-lease только после повторной проверки ожидаемого SHA-512. `RecordOriginUnderLeaseAsync`
+  обновляет только JSON-реестр и не меняет файл. Обновления связанных ZIP ресурспаков берут совместимую datapack-версию
+  и сохраняют `fileType` в origin.
+- Снимок `InstanceContentState` адресован `InstanceContentStateKey(instanceId, kind, worldId)`; для модов и ресурспаков
+  `worldId` null, для датапаков это ID папки выбранного мира. Так ошибки, обновления, busy, текущий проект и revision
+  изолированы между мирами. `StateChanged` не маршалит на UI-поток.
+  При обновлении с коллизией подтверждённый файл сохраняется в `.hako-backup-<UUID>` до commit общего registry;
+  до commit ошибки/отмена восстанавливают старый файл и коллизию независимо. После commit коллизия отправляется
+  в корзину без caller cancellation. При отказе Shell новая версия и registry остаются опубликованы, backup
+  сохраняется, `ContentOperationFailed.Arguments["diagnostic"]` сообщает путь для восстановления; JSON-форматы не меняются.
+  Обработчик WinUI этапа 6c должен публиковать снимок на `DispatcherQueue`. Подтверждения передаются callback-ом через
+  `ContentConfirmationRequest` с enum-кодами и string-аргументами для ru/en ресурсов; сам Core не содержит UI-локализации.
+  Для связанных ресурспаков датапака `ContentConfirmationRequest.Files` передаёт имя, `fileType` и required/optional.
+  Additive `ContentConfirmationSelectionCallback` возвращает имя выбранного ZIP; прежний callback с `Primary` сохраняет
+  поведение и выбирает первый вариант. `Alternative` продолжает без связанного ресурспака, `Cancel` останавливает операцию
+  до изменений. `WorldUnavailable` — типизированная ошибка отсутствующего/изменившегося мира для UI 7c.
+  Callback получает `CancellationToken`, операции не блокируют поток UI и удерживают один content-lease без повторного
+  захвата через `InstanceContent.*UnderLeaseAsync`. Windows UI подключён через app-lifetime `LauncherServices`:
+  `InstanceContentView` и `ModrinthCatalogView` применяют актуальный снимок по UUID/kind на `DispatcherQueue`, сверяя
+  `Revision`; уход со страницы отменяет её чтение и поиск, но не уже начатую установку. Общий `HakoDialogs` сериализует
+  `ContentDialog` одного окна и завершает ожидающее подтверждение отменой при закрытии окна. `UpdateAllAsync` подтверждения не показывает: такие элементы получают
+  `ConfirmationRequired`, ошибки собираются по файлам, дальнейшие обновления продолжаются. Публичное подключение контроллера
+  не меняет JSON-реестры; профиль Windows подключает миры, датапаки и их резервное копирование без изменения
+  этих сохранённых контрактов.
+- Кеш хешей Modrinth находится в `%LOCALAPPDATA%\Hako\Cache\Modrinth\files.json` (или в инжектируемом
+  `HakoPaths.CacheRoot`); ключ файла содержит нормализованный путь, размер и время изменения. Удалённые пути и
+  неиспользуемые версии очищаются при сохранении, неизвестные хеши живут только в памяти клиента. Клиенты в одном
+  процессе с одинаковым путём используют общую блокировку и перечитывают последний снимок до сохранения; разные корни
+  не блокируют друг друга. Межпроцессная синхронизация не применяется.
+- `HakoRootLock` удерживает lock-файлы в игровом и data-root с `FileShare.None` до завершения приложения; lock data-root
+  защищает `session.dat` и `settings.json` от другого экземпляра. Сам game-root может быть junction или symlink. Только
+  sharing/lock violation считается уже запущенным экземпляром; прочие ошибки остаются обычными ошибками старта. При конфликте
+  показывается локализованное сообщение из `Resources.resw`.
+- `RecycleBin` применяет `IFileOperation` с `FOF_ALLOWUNDO` и `FOFX_RECYCLEONDELETE`; progress sink возвращает `E_ABORT`,
+  когда Shell не указал `TSF_DELETE_RECYCLE_IF_POSSIBLE`. Результат пакетного удаления содержит статус каждого элемента:
+  `Recycled`, `NotRecyclable`, `Failed` с сообщением об ошибке или `Cancelled`; после частичного успеха операция не теряет
+  уже полученные результаты. Успех Shell подтверждается только при `SUCCEEDED(hr)` и ненулевом `newItem`; иначе элемент
+  помечается `Failed`, поскольку он мог удалиться, и нужно проверить его наличие. `PermanentDelete` требует абсолютный путь
+  и обязательный `allowedRoot`, принимает только вложенный путь без прохождения через reparse points и удаляет конечную
+  ссылку без перехода по ней. Для длинных Win32-путей приложение помечено `longPathAware`; Shell получает обычное абсолютное
+  parsing name, поскольку пространство `\\?\` предназначено для файловых API и не разбирается Shell как parsing name.
+  COM-обёртки source generation освобождаются через `ComObject.FinalRelease`: после `Unadvise` освобождаются элементы,
+  затем операция, и только после этого вызывается `CoUninitialize`.
+
+### Пути и изоляция Windows
+
+- `HakoPaths` объединяет игровой корень, каталог данных и кэш. В production это `%USERPROFILE%\.hako`, текущий каталог
+  `AppDataDirectory.GetLocalPath()` и `%LOCALAPPDATA%\Hako\Cache`.
+- `Program.Main` проверяет `--hako-root <path>` и `--data-root <path>` до `AppInstance`. Для изоляции требуются оба
+  абсолютных пути, которые не могут содержать друг друга; ключ процесса — `Hako.Isolated.<sha256 корней>`. Ошибка разбора
+  показывает локализованное сообщение и завершает запуск, не выбирая production-каталоги. `--profile-preview` создаёт
+  уникальный временный корень и in-memory account/settings stores; при выходе удаляется только каталог, эксклюзивно
+  созданный этим процессом.
 
 ### Каталог данных
 
@@ -302,24 +454,61 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   (см. `AppDataDirectory.GetLocalPath` выше).
 - Гостевой вход (`AppCoordinator.IsGuest`) хранится только в памяти: после перезапуска приложение возвращается
   к `Welcome` (тест `GuestDoesNotPersistAndRestartReturnsToWelcome`).
-- Сохранённый профиль Minecraft (`MinecraftProfileId`, `MinecraftName`) — данные профиля, а не игровая сессия.
-  `MinecraftAccessToken` и `MinecraftTokenExpiresAt` нигде не читаются, обновление токенов не реализовано.
-  Выход удаляет запись целиком.
+- `MinecraftProfileId`, `MinecraftName`, `MinecraftAccessToken` и `MinecraftTokenExpiresAt` — состояние Minecraft-сессии
+  в `AccountSession`. `MinecraftSessionCoordinator.ConnectForLaunchAsync` переиспользует access token, если до истечения
+  осталось больше минуты; иначе `MicrosoftDeviceAuth.ConnectMinecraftAsync` обновляет сессию через Microsoft refresh token.
+  Ротированный refresh token сохраняется до Xbox/XSTS/Minecraft-запросов, а профиль, access token и срок действия
+  записываются через `commitIfCurrent`. Параллельные запросы используют один refresh; смена поколения аккаунта и выход
+  отменяют его. Подробный контракт — [[Auth/MicrosoftAuth#Обновление сессии для онлайн-запуска]]. Выход удаляет запись целиком.
 
 ### Решения и основания
 
 - DPAPI и файлы вместо `ApplicationData.Current`: `ApplicationData.Current` падает в unpackaged-запуске
   (причина из плана пользователя).
 
+### Игровое время Windows
+
+- Общие данные лежат в `HakoPaths.GameRoot/.hako-playtime/` как в MSIX, так и в unpackaged-запуске;
+  зашифрованный `session.dat` и настройки остаются в отдельном `DataRoot`. Поэтому игровые счётчики общие между
+  вариантами запуска, даже когда каталог данных аккаунта различается.
+- `playtime.json` хранит счётчики владельцев `account:<XUID>` и `guest`, независимые суммы по UUID сборок,
+  уже начисленное время сессий, ожидающий перенос и маркеры применённых переносов. `sessions/<UUID>.json`
+  хранит проверяемое состояние сессии; рядом используется эксклюзивный `.lock`. Записи типизированы в
+  `HakoJsonContext`, ограничены по размеру и публикуются атомарной заменой; межпроцессная запись ledger
+  дополнительно сериализована file lock. Перед чтением и созданием файлов проверяется вся цепочка родителей,
+  существующий `GameRoot`, каталог ledger и конечные ledger/lock/temp: reparse points отклоняются;
+  при отсутствии `GameRoot` хранилище его не создаёт.
+- Вход выполняет двухфазный перенос. До атомарной записи `session.dat` ledger фиксирует `pendingTransfer` с целевым
+  XUID и точными значениями гостевых счётчиков/активных session IDs на границе. После успешной записи аккаунта одна
+  атомарная ledger-транзакция добавляет только зафиксированные суммы к аккаунту, вычитает их у гостя и меняет владельца
+  перечисленных активных сессий. Время, начисленное гостю после границы, остаётся гостевым. Повтор защищён ID переноса.
+- Помощник держит session lock на время наблюдения, поэтому создание transfer boundary не ждёт его освобождения:
+  атомарный JSON-снимок читается без записи, а текущий `QueryUnbiasedInterruptTime` задаёт elapsed активных сессий.
+  Помощник продолжает checkpoints; следующая reconcile начисляет разницу уже по новому владельцу ledger-сессии.
+  Финальный журнал удерживаемой переносом сессии сохраняется до успешного начисления и удаления сессии из ledger.
+  Завершение процесса само по себе не завершает сессию: пока журнал не финализирован, фаза A сохраняет session ID,
+  даже если helper ещё не опубликовал свою identity или последний checkpoint. Для уже завершившейся игры граница
+  включает только сохранённый elapsed; поздний остаток получает владелец этой сессии после применения переноса
+  (при отмене — прежний гость). Новые гостевые сессии этим переносом не затрагиваются.
+  Отмена запуска после прикрепления процесса также проходит через reconcile и начисление, а не удаляет журнал напрямую.
+  Повтор cleanup после ошибки удаления файла не начисляет время заново.
+- При запуске незавершённый перенос применяется только если XUID совпадает с загруженным `session.dat`; иначе он
+  удаляется без применения. Ошибка после подготовки или сохранения аккаунта оставляет достаточно данных для этой
+  проверки/повтора. Выход отменяет ожидающий перенос; он не переписывает `session.dat` или DPAPI-формат.
+- При удалении сборки её строка профиля и файлы удаляются обычным `InstanceStore`, но игровые суммы остаются в ledger.
+  Неизвестные/потерянные журналы восстанавливаются по последней сохранённой контрольной точке и не начисляются повторно.
+
 ## План модпака
 
-Схема SwiftData не расширяется для модпаков. `ModpackPlan` хранится как `.hako-modpack.json` в корне
-папки сборки: версия формата 1, проект/версия Modrinth, страница источника, проверяемый файл архива,
-полный манифест и флаг completed. Отсутствие файла означает обычную сборку; повреждённый файл — ошибку,
-а не переход к обычной установке. `InstanceStore.create(..., modpack:)` сверяет Minecraft и Loader
-с черновиком, пишет план до сохранения модели и удаляет новую папку при ошибке.
+На macOS SwiftData-схема не расширяется. На Windows `ModpackPlan` сериализуется через `HakoJsonContext` и
+хранится как `.hako-modpack.json` в корне папки сборки: версия формата 1, `projectID`, `versionID`,
+`versionNumber`, `pageURL`, проверяемый файл архива, полный манифест и необязательный `completed` (по умолчанию
+`false`). Отсутствие файла означает обычную сборку; повреждённый файл — ошибку, а не переход к обычной установке.
+Windows `InstanceStore.Create(..., modpackPlan:)` сверяет Minecraft и Loader с черновиком, пишет план до
+сохранения модели и удаляет только новую папку при ошибке.
 
-У модпака Fabric-конфигурация содержит Loader без api; старые JSON с api остаются читаемыми.
-Очередь читает план при повторе/перезапуске. После completed исходный состав больше не применяется.
-Переименование, дублирование, удаление и `.hakobackup` переносят план вместе с папкой;
-исходный архив находится в проверяемом внешнем кэше и при необходимости скачивается по закреплённой ссылке.
+У модпака Fabric-конфигурация содержит Loader без API; прежние JSON с API остаются читаемыми. Windows-очередь
+читает план при повторе/перезапуске и сверяет закреплённые Minecraft и Loader. После `completed` исходный состав
+больше не применяется. Переименование, дублирование, удаление и `.hakobackup` переносят план вместе с папкой;
+архив и файлы лежат в проверяемом изолированном кэше `HakoPaths.CacheRoot/Modpacks` и при необходимости
+скачиваются заново по закреплённым ссылкам.

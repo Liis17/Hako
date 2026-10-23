@@ -1,4 +1,7 @@
 using System.Text.Json.Serialization;
+using Hako.Core.Instances;
+using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 
 namespace Hako.Core;
 
@@ -7,7 +10,36 @@ namespace Hako.Core;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(UserSettings))]
+[JsonSerializable(typeof(InstanceRegistryFile))]
+[JsonSerializable(typeof(InstanceBackupManifest))]
+[JsonSerializable(typeof(WorldBackupManifest))]
+[JsonSerializable(typeof(ModRegistry))]
+[JsonSerializable(typeof(ModOrigin))]
+[JsonSerializable(typeof(FabricApiDescriptor))]
+[JsonSerializable(typeof(FabricConfiguration))]
+[JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(FabricModMetadata))]
+[JsonSerializable(typeof(FabricProfile))]
+[JsonSerializable(typeof(FabricLoaderEntry[]))]
+[JsonSerializable(typeof(ModrinthVersion[]))]
+[JsonSerializable(typeof(ModrinthSearchPage))]
+[JsonSerializable(typeof(ModrinthProject[]))]
+[JsonSerializable(typeof(string[][]))]
+[JsonSerializable(typeof(ModrinthFileCache))]
+[JsonSerializable(typeof(ModrinthHashesRequest))]
+[JsonSerializable(typeof(ModrinthVersionUpdateRequest))]
+[JsonSerializable(typeof(ModpackManifest))]
+[JsonSerializable(typeof(ModpackPlan))]
+[JsonSerializable(typeof(Dictionary<string, ModrinthVersionHashMatch>), TypeInfoPropertyName = "ModrinthVersionHashMatchDictionary")]
+[JsonSerializable(typeof(Dictionary<string, ModrinthVersion>), TypeInfoPropertyName = "ModrinthVersionDictionary")]
 [JsonSerializable(typeof(AccountSession))]
+[JsonSerializable(typeof(GameProcessRecord))]
+[JsonSerializable(typeof(PlaytimeLedger))]
+[JsonSerializable(typeof(PlaytimeOwnerRecord))]
+[JsonSerializable(typeof(PlaytimeSessionRecord))]
+[JsonSerializable(typeof(PlaytimePendingTransfer))]
+[JsonSerializable(typeof(PlaytimeSessionJournal))]
+[JsonSerializable(typeof(PlaytimeProcessIdentity))]
 [JsonSerializable(typeof(DeviceCodeResponse))]
 [JsonSerializable(typeof(MicrosoftTokenResponse))]
 [JsonSerializable(typeof(OAuthErrorResponse))]

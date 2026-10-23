@@ -1,0 +1,35 @@
+<UserControl
+    x:Class="Hako.InstanceParametersEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Hako">
+    <StackPanel Spacing="14">
+        <StackPanel Orientation="Horizontal" Spacing="24">
+            <CheckBox x:Name="GlobalSourceBox" Click="SourceBox_Click" />
+            <CheckBox x:Name="MojangSourceBox" Click="SourceBox_Click" />
+        </StackPanel>
+        <TextBlock x:Name="SourceCaption" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <TextBlock x:Name="SourceWarning" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+        <TextBlock x:Name="JavaPathWarning" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+
+        <TextBox x:Name="JavaArgumentsBox" FontFamily="Consolas" TextWrapping="Wrap" AcceptsReturn="False" MaxHeight="96" TextChanged="ArgumentsBox_TextChanged" />
+        <TextBox x:Name="MinecraftArgumentsBox" FontFamily="Consolas" TextWrapping="Wrap" AcceptsReturn="False" MaxHeight="96" TextChanged="ArgumentsBox_TextChanged" />
+
+        <local:JavaMemorySlider x:Name="MemorySlider" />
+        <TextBlock x:Name="MemoryCaption" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+        <ToggleSwitch x:Name="FullscreenSwitch" Toggled="FullscreenSwitch_Toggled" />
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+            <TextBox x:Name="WidthBox" TextChanged="DimensionBox_TextChanged" />
+            <TextBox x:Name="HeightBox" Grid.Column="1" TextChanged="DimensionBox_TextChanged" />
+        </Grid>
+        <TextBlock x:Name="DimensionError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+            <ToggleSwitch x:Name="OfflineSwitch" Toggled="OfflineSwitch_Toggled" />
+            <TextBox x:Name="OfflineNameBox" Grid.Column="1" MaxLength="16" VerticalAlignment="Center" TextChanged="OfflineNameBox_TextChanged" />
+        </Grid>
+        <TextBlock x:Name="OfflineWarning" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+        <TextBlock x:Name="OfflineNameError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+    </StackPanel>
+</UserControl>

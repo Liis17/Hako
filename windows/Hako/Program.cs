@@ -1,6 +1,8 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using Hako.Core;
+using Hako.Core.Playtime;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using WinRT;
@@ -12,15 +14,49 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (TryRunPlaytimeHelper(args))
+        {
+            return;
+        }
+
         ComWrappersSupport.InitializeComWrappers();
 
+        HakoPathOverrides overrides;
+        try
+        {
+            overrides = HakoPaths.ParseOverrides(args);
+            App.LaunchOptions = ProfilePreviewOptions.Parse(args);
+            if (overrides.Isolated && App.LaunchOptions is not null)
+            {
+                throw new ArgumentException("--profile-preview cannot be combined with isolated storage arguments.");
+            }
+
+            App.LaunchPaths = App.LaunchOptions is not null
+                ? CreatePreviewPaths()
+                : overrides.Isolated
+                    ? HakoPaths.CreateIsolated(overrides.GameRoot!, overrides.DataRoot!)
+                    : null;
+        }
+        catch (ArgumentException)
+        {
+            ShowStartupError("StartupInvalidArguments");
+            return;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            ShowStartupError("StartupStorageUnavailable");
+            return;
+        }
+
         var activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
-        App.LaunchOptions = ProfilePreviewOptions.Parse(args);
-        var instanceKey = App.LaunchOptions is null ? "Hako.Main" : "Hako.ProfilePreview";
+        var instanceKey = App.LaunchOptions is not null
+            ? "Hako.ProfilePreview"
+            : App.LaunchPaths?.GetInstanceKey() ?? "Hako.Main";
         var mainInstance = AppInstance.FindOrRegisterForKey(instanceKey);
         if (!mainInstance.IsCurrent)
         {
             RedirectActivationTo(mainInstance, activationArgs);
+            App.CleanupPreviewRoot();
             return;
         }
 
@@ -31,6 +67,60 @@ internal static class Program
             mainInstance.Activated += (_, _) => dispatcher.TryEnqueue(App.ActivateMainWindow);
             _ = new App();
         });
+    }
+
+    private static bool TryRunPlaytimeHelper(string[] args)
+    {
+        if (args.Length == 0 || args[0] != "--playtime-helper")
+        {
+            return false;
+        }
+
+        Environment.ExitCode = RunPlaytimeHelper(args[1..]);
+        return true;
+    }
+
+    private static int RunPlaytimeHelper(string[] arguments)
+    {
+        return PlaytimeHelperHost.Run(arguments);
+    }
+
+    private static HakoPaths CreatePreviewPaths()
+    {
+        var parent = Path.Combine(Path.GetTempPath(), "Hako", "ProfilePreview");
+        Directory.CreateDirectory(parent);
+        while (true)
+        {
+            var root = Path.Combine(parent, Guid.NewGuid().ToString("N"));
+            if (CreateDirectoryExclusive(root))
+            {
+                App.PreviewRoot = root;
+                AppDomain.CurrentDomain.ProcessExit += (_, _) => App.CleanupPreviewRoot();
+                return HakoPaths.CreatePreview(root);
+            }
+        }
+    }
+
+    private static bool CreateDirectoryExclusive(string path)
+    {
+        if (CreateDirectoryW(path, IntPtr.Zero))
+        {
+            return true;
+        }
+
+        var error = Marshal.GetLastWin32Error();
+        if (error == 183)
+        {
+            return false;
+        }
+
+        throw new System.ComponentModel.Win32Exception(error);
+    }
+
+    private static void ShowStartupError(string resourceKey)
+    {
+        HakoStrings.SetLanguage(AppLanguages.Default, true);
+        MessageBox(IntPtr.Zero, HakoStrings.Get(resourceKey), "Hako", 0x10);
     }
 
     // Redirect runs on a worker thread. The STA thread waits in CoWaitForMultipleObjects so it keeps pumping
@@ -71,8 +161,15 @@ internal static class Program
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int MessageBox(IntPtr window, string text, string caption, uint type);
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr CreateEvent(IntPtr attributes, bool manualReset, bool initialState, string? name);
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateDirectoryW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateDirectoryW(string path, IntPtr securityAttributes);
 
     [DllImport("kernel32.dll")]
     private static extern bool SetEvent(IntPtr handle);

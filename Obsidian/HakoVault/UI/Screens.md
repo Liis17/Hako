@@ -88,8 +88,19 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `windows/Hako/WelcomePage.xaml`, `windows/Hako/WelcomePage.xaml.cs` | `WelcomePage` | Приветствие, выбор языка, вход и гостевой вход |
 | `windows/Hako/LoginPage.xaml`, `windows/Hako/LoginPage.xaml.cs` | `LoginPage` | Фазы входа в Microsoft |
 | `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
-| `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage` | Раздел «Сборки» (пустое состояние) |
-| `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные» и «Профиль», выход |
+| `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage`, `BuildCardModel` | Раздел «Сборки»: пустое состояние или карточки сборок — [[UI/Launcher#Windows-клиент]] |
+| `windows/Hako/InstanceCreationPage.xaml(.cs)`, `InstanceCreationChoiceDialog.cs` | `InstanceCreationPage`, `InstanceCreationChoiceDialog` | Создание своей сборки: выбор Minecraft, Vanilla/Fabric и параметров запуска |
+| `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: запуск, установка, разделы контента, скриншоты, настройки, дублирование и резервная копия |
+| `windows/Hako/InstanceScreenshotsView.xaml(.cs)`, `ScreenshotThumbnails.cs` | `InstanceScreenshotsView`, `ScreenshotThumbnails` | Сетка скриншотов с ограниченными миниатюрами, выбором, drag-copy и перемещением в Корзину |
+| `windows/Hako/InstanceWorldsView.xaml(.cs)` | `InstanceWorldsView`, `InstanceWorldRow` | Миры, метаданные, открытие saves, дублирование, резервная копия, корзина и датапаки |
+| `windows/Hako/InstanceContentView.xaml(.cs)` | `InstanceContentView`, `InstanceContentRow` | Локальный контент по `InstanceContentTarget`: моды, ресурспаки или датапаки выбранного мира |
+| `windows/Hako/ModrinthCatalogView.xaml(.cs)` | `ModrinthCatalogView`, `ModrinthCatalogRow` | Поиск, сортировка, пагинация и установка контента Modrinth в сборку или выбранный мир |
+| `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Сопоставление UI-кодов подтверждений и ошибок Core с локализованными ресурсами |
+| `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Маппинг ошибок мира, типов игры, неизвестных значений и форматирования размера/даты |
+| `windows/Hako/BackupResourceKeys.cs` | `BackupResourceKeys` | Локализация типизированных ошибок архивов и диагностических путей |
+| `windows/Hako/LauncherServices.cs` | `LauncherServices`, `INavigationGuard`, `CoalescedRefresh`, `HakoDialogs` | App-lifetime сервисы, защита ухода со страницы, маршалинг событий Core, очередь диалогов и отмена подтверждения при закрытии окна |
+| `windows/Hako.Core/Playtime/PlaytimeCoordinator.cs` | `PlaytimeCoordinator` | Живые итоги аккаунта/гостя и сборки; UI получает обновления через `DispatcherQueue` |
+| `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные», «Игра» и «Профиль», выход |
 | `windows/Hako/MinecraftSkinView.xaml`, `windows/Hako/MinecraftSkinView.xaml.cs` | `MinecraftSkinView` | Скин, камера, кадры ходьбы, отмена и владение renderer по видимости профиля |
 | `windows/Hako/MinecraftSkinPreviewService.cs`, `MinecraftSkinImageDecoder.cs` | `MinecraftSkinPreviewService`, `MinecraftSkinImageDecoder` | Mojang skin PNG, проверка контейнера/размера, straight RGBA, нормализованный cache по UUID |
 | `windows/Hako/Graphics/MinecraftSkinRenderer.cs`, `MinecraftSkinGeometry.cs` | `MinecraftSkinRenderer`, `MinecraftSkinGeometry` | D3D11 Composition surface и независимое построение UV/pose geometry |
@@ -101,15 +112,43 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `Loading` | `LoadingPage` | Кольцо прогресса на время чтения настроек и аккаунта |
 | `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
 | `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`). `LoginNotice` (`InfoBar`) показывает `OpenVerificationFailed` или `CopyCodeFailed`, если открыть страницу или скопировать код не удалось; при сбое копирования кнопка снова «Скопировать код»; копирование перехватывает любое исключение. Уведомление сбрасывается при следующем нажатии этих кнопок и при «Попробовать снова»; закрытое крестиком (`LoginNotice_Closed`) не открывается повторно при обновлении состояния |
-| `Builds` | `BuildsPage` | Заголовок и текст пустого состояния; сборок на этом этапе нет |
-| `Settings` | `SettingsPage` | Слева `ListView` из двух разделов, справа панель выбранного |
+| `Builds` | `BuildsPage` | Пустое состояние с кнопкой «Создать сборку» или сетка карточек; ошибка реестра `instances.json` — `InfoBar` |
+| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: время игры для выбранной сборки, моды только для Fabric, ресурспаки, миры, скриншоты и настройки; меню действий дублирует сборку и создаёт резервную копию |
+| `InstanceCreation` | `InstanceCreationPage` | Форма «Своя сборка» |
+| `Settings` | `SettingsPage` | Слева `ListView` из трёх разделов (`SettingsSection.General`, `Game`, `Profile`), справа панель выбранного; профиль показывает время аккаунта или гостя и перенос при входе |
+| `ModpackCatalog` | `ModpackCatalogPage` | Поиск готовых сборок Modrinth, фильтр Minecraft, версии и ссылка на проект |
+| `ModpackCreation` | `ModpackCreationPage` | Форма выбранной закреплённой версии `.mrpack`, асинхронная проверка и постановка в очередь |
 
 ### Навигация
 
-- Для `Builds` и `Settings` `MainWindow` показывает `RootNavigation` (`NavigationView`, `PaneDisplayMode=LeftCompact`)
-  с пунктами «Сборки» (`Tag="Builds"`) и «Настройки» (`Tag="Settings"`); содержимое — `ShellFrame`.
-  Для остальных экранов видим только `FlowFrame`. При скрытии корневой навигации страница Settings может
+- Для `Builds`, `Instance`, `InstanceCreation` и `Settings` `MainWindow` показывает `RootNavigation`
+  (`NavigationView`, `PaneDisplayMode=LeftCompact`) — аналог рейла macOS: «Сборки», разделитель, пункты сборок
+  (иконка, имя, подсказка с версией) и «+» (`SelectsOnInvoked=False`, открывает `InstanceCreationChoiceDialog`);
+  в `FooterMenuItems` — «Настройки» и аккаунт (ник, gamertag или «Гость»), который открывает раздел «Профиль».
+  Пункты сборок обновляются на месте по `InstanceStore.InstancesChanged`; если выбранная сборка исчезла,
+  `AppCoordinator.CloseInstance` возвращает к «Сборкам». Содержимое — `ShellFrame`; для остальных экранов видим только `FlowFrame`.
+  При скрытии корневой навигации страница Settings может
   остаться текущей страницей `ShellFrame`, поэтому `MainWindow` отдельно передаёт ей активность экрана и окна.
+- Кнопка «+» и пустое состояние сборок открывают `InstanceCreationChoiceDialog`: «Своя сборка» ведёт в
+  `InstanceCreationPage`, «Готовая с Modrinth» — в `ModpackCatalogPage`. Выбор версии открывает `ModpackCreationPage`;
+  после подготовки она сохраняет сборку через очередь и возвращает к списку карточек. Обе страницы используют
+  тот же `RootNavigation`, локализацию ru/en и `INavigationGuard` для отмены формы.
+- Переход по рейлу и закрытие окна сначала спрашивают текущую страницу через `INavigationGuard.ConfirmLeaveAsync`:
+  форма создания подтверждает отмену, профиль сборки дописывает настройки и спрашивает о несохранённом имени.
+  Закрытие перехватывается в `AppWindow.Closing`, затем `App.ShutdownServicesAsync` освобождает
+  `InstallationCoordinator` (выход не ставит установку на паузу), `InstanceStore` и `MojangClient`.
+- Все `ContentDialog`, включая выход и ошибки Settings/Welcome, показываются через очередь `HakoDialogs`: WinUI допускает один открытый диалог на `XamlRoot`.
+  Ожидание асинхронное; закрытие окна отменяет показанные и ожидающие диалоги. Settings перечитывает строки при показе из очереди и смене языка, сохраняя исходную кнопку по умолчанию.
+- `InstanceContentController.StateChanged` приходит на потоке операции. `InstanceContentView` ставит обновление
+  в `DispatcherQueue`, заново читает актуальный снимок по UUID/kind/worldId и отбрасывает ревизии старше уже применённой.
+  При уходе со страницы отменяются её чтение и поиск; установка контента продолжается в app-lifetime контроллере.
+- `InstanceWorldsView` при входе и возврате окна читает список через Core; generation + cancellation отбрасывают
+  результаты прежней сборки или загрузки. `GameSessionEnded`, изменения списка сборок и busy-состояния обновляют
+  список/доступность. Раскрытая карточка одна; её `InstanceContentView` адресует датапаки UUID сборки и worldId.
+  `DuplicateAsync` и `TrashAsync` вызываются через Core после подтверждения в общей очереди `HakoDialogs`.
+- Подтверждения замены, удаления, зависимостей и несовместимости локализует `HakoDialogs.ConfirmContentAsync`.
+  Для связанного ресурспака показывает варианты из `request.Files` с required/optional notes и возвращает выбранный
+  filename; закрытие окна отменяет ожидающее подтверждение и завершает callback выбором «Отмена».
 - Закрытие окна вызывает `CancelSignIn()` и завершает preview service; текущая страница сначала отменяет
   загрузку и останавливает frame callback, затем освобождает renderer. Деактивация или сворачивание окна,
   переход на другой корневой экран и выбор «Основные» выключают skin control без сброса камеры.
@@ -117,6 +156,10 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 ### Настройки
 
 - «Основные»: `LanguageBox` меняет язык сразу. Ошибка сохранения — диалог `LanguageSaveError`.
+- «Игра»: путь к Java (`TextBox` и `Microsoft.Windows.Storage.Pickers.FileOpenPicker` для `.exe`), аргументы
+  Java и Minecraft, `JavaMemorySlider`, полноэкранный режим, ширина и высота. Изменения сохраняются через
+  `UserSettingsService.SetGameLaunchDefaultsAsync` с задержкой 500 мс и при уходе со страницы; неверный размер
+  окна остаётся черновиком с ошибкой и не затирает сохранённое значение. Подробности — [[UI/Launcher#Windows-клиент]].
 - «Профиль» для Microsoft-аккаунта показывает слева две оформленные карточки: Xbox (аватар
   `AccountAvatar`, при ошибке загрузки — `FontIcon`, gamertag и email) и Minecraft (пиксельная голова
   с лицом/шапкой, ник и бейдж `Java Edition`). Если Minecraft не подключён, карточка объясняет это

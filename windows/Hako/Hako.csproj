@@ -10,6 +10,7 @@
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsAppSdkAutoInitialize>false</WindowsAppSdkAutoInitialize>
     <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -70,6 +71,10 @@
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(WindowsAppSDKSelfContained)' == 'true'">
+    <DefineConstants>$(DefineConstants);HAKO_WINDOWSAPPSDK_SELF_CONTAINED</DefineConstants>
   </PropertyGroup>
 
   <Target Name="SetAssemblyVersionsFromPackageManifest" BeforeTargets="GetAssemblyVersion">

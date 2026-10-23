@@ -94,7 +94,14 @@ Parent: [[Index]]
 | `windows/Hako/HakoStrings.cs` | `HakoStrings.Get`, `SetLanguage`, `LanguageChanged` | Чтение строк и смена языка |
 | `windows/Hako.Core/AuthContracts.cs` | `AuthErrorKindExtensions.ResourceKey` | Ключи ошибок входа |
 | `windows/Hako.Core/AppCoordinator.cs` | `StartupNoticeExtensions.ResourceKey`, `SetLanguageAsync` | Ключи уведомлений запуска и смена языка |
-| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ключей ошибок и уведомлений |
+| `windows/Hako.Core/Instances/InstallationCoordinator.cs` | `InstallationResourceKeys` | Ключи состояний и стадий установки, кодов ошибок установки, `ModpackException`, `InstanceStorageError.ResourceKey()`, `MojangError.ResourceKey()` и `ErrorResourceKey(Exception)` для ошибок UI |
+| `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Ключи подтверждений, пояснений и ошибок `InstanceContentController` |
+| `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Ключи ошибок миров и метаданных, типов игры, неизвестных значений и аргументированных строк |
+| `windows/Hako/BackupResourceKeys.cs` | `BackupResourceKeys` | Ключи типизированных причин ошибки архивирования и форматирование диагностики/пути |
+| `windows/Hako.Core/Playtime/PlaytimeFormatter.cs` | `PlaytimeFormatter` | Локализованное форматирование дней, часов и минут для русского и английского языков |
+| `windows/Hako/BuildsPage.xaml.cs`, `InstanceProfilePage.xaml.cs`, `SettingsPage.xaml.cs` | `RefreshStrings` | Строки учёта времени и локализованная диагностика helper/storage |
+| `windows/Hako/InstanceScreenshotsView.xaml.cs` | `InstanceScreenshotsView.RefreshStrings` | Подписи галереи скриншотов и обновление открытого раздела при смене языка |
+| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ошибок, уведомлений, контента, миров, скриншотов, архивов и строк учёта времени |
 
 ### Публичные контракты
 
@@ -113,8 +120,12 @@ Parent: [[Index]]
 1. `AppCoordinator.SetLanguageAsync` меняет `Language` и сохраняет `settings.json`; сохранения сериализованы и пишут текущий язык, поэтому побеждает последний выбор.
 2. `MainWindow.Coordinator_PropertyChanged` при изменении `Language` вызывает `HakoStrings.SetLanguage`.
 3. `HakoStrings` поднимает `LanguageChanged`. Страницы, которые сейчас открыты (`WelcomePage`, `LoginPage`,
-   `SettingsPage`, `BuildsPage`), подписываются на событие в `OnNavigatedTo` и перечитывают строки;
-   в `OnNavigatedFrom` подписка снимается.
+   `SettingsPage`, `BuildsPage`, `InstanceCreationPage`, `ModpackCatalogPage`, `ModpackCreationPage`, `InstanceProfilePage`) подписываются на событие в `OnNavigatedTo` и перечитывают строки;
+   в `OnNavigatedFrom` подписка снимается. `InstanceContentView` и `ModrinthCatalogView` подписываются при `Loaded`
+   и снимаются при `Unloaded`, поэтому видимые списки, действия и ожидающие диалоги обновляют текст без перезапуска.
+  `InstanceWorldsView` обновляет подписи карточек и состояния мира; `WorldResourceKeys` локализует каждое значение
+  `InstanceWorldFailureReason`, `WorldMetadataError` и известный тип игры. `InstanceScreenshotsView` также обновляет
+  свои действия, карточки и состояния при смене языка.
 
 Язык при старте: `AppCoordinator.InitializeAsync` берёт `AppLanguages.Parse(settings?.Language)`.
 `MainWindow` вызывает `HakoStrings.SetLanguage(..., force: true)` в конструкторе.
@@ -126,6 +137,18 @@ Parent: [[Index]]
 - Ключи ошибок и уведомлений берутся через `ResourceKey()`. `EveryMappedErrorAndStartupNoticeHasRussianAndEnglishText`
   проверяет, что они есть в обоих файлах. Ключи `CopyCodeFailed` и `OpenVerificationFailed` задаются в `LoginPage` литералами;
   проверки их наличия в `.resw` нет, `RussianAndEnglishResourcesHaveTheSameNonemptyKeys` сверяет только наборы ru/en.
+- Ошибки сборок в UI не показывают `Exception.Message` (тексты Core английские): страницы берут ключ через
+  `InstallationResourceKeys.ErrorResourceKey(exception)` (хранилище, реестр, Mojang, сеть; иное — `InstallationErrorUnexpected`),
+  ошибки запуска — через `GameRunState.ErrorResourceKey`. `UiExceptionsMapToSpecificLocalizedErrors` проверяет покрытие.
 - Тексты страниц задаются в коде через `HakoStrings.Get` в методе `RefreshStrings()`; `x:Uid` не используется.
+- `ContentResourceKeys` исчерпывающе сопоставляет enum-коды подтверждений, пояснений и ошибок контроллера;
+  `EveryContentConfirmationNoteAndFailureCodeMapsToRussianAndEnglishResources` проверяет обе локали.
+  `FormatFailure` подставляет аргументы несовместимости Fabric API и числа ошибок; `FormatFailureDetails` сохраняет diagnostic, включая путь оставшейся резервной копии. Эти функции используются и для ответов отдельных действий; форматирование проверяется на обоих ресурсных файлах.
+- `WorldResourceKeys` исчерпывающе сопоставляет ошибки мира и метаданных; форматирование версии, даты и размера,
+  включая неизвестные значения, проверяется `EveryWorldFailureMetadataAndGameTypeMappingHasRussianAndEnglishText`
+  и `WorldMessagesAndUnknownDisplayValuesFormatArguments` в обеих локалях.
+- `BackupResourceKeys` сопоставляет каждый `BackupFailureReason` с ru/en строкой, а форматирование сохраняет
+  diagnostic и путь оставшейся копии. Ресурсы действий профиля, миров и галереи проверяются тем же тестом локализации.
 - Названия языков («Русский», «English») и заголовок окна `Title="Hako"` заданы литералами в XAML. Подписи пунктов
-  навигации присваиваются из `BuildsTitle` и `SettingsTitle` в `MainWindow.UpdateNavigationLabels`.
+  навигации присваиваются из `BuildsTitle`, `SettingsTitle` и `CreateBuildButton` в `MainWindow.UpdateNavigationLabels`;
+  пункты сборок показывают имя сборки без перевода.

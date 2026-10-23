@@ -64,4 +64,483 @@ Hako</value></data>
   <data name="ErrorTitle" xml:space="preserve"><value>Error</value></data>
   <data name="CloseButton" xml:space="preserve"><value>Close</value></data>
   <data name="LanguageSaveError" xml:space="preserve"><value>The selected language could not be saved.</value></data>
+  <data name="HakoAlreadyOpen" xml:space="preserve"><value>Hako is already open and using these folders. Close the other instance and try again.</value></data>
+  <data name="StartupInvalidArguments" xml:space="preserve"><value>Hako was started with invalid command-line arguments. Check the options and try again.</value></data>
+  <data name="StartupStorageUnavailable" xml:space="preserve"><value>Hako couldn't access its data folders. Check permissions and try again.</value></data>
+  <data name="InstanceRegistryDamaged" xml:space="preserve"><value>The instance registry is damaged or uses an unsupported version. The file was preserved, and instance changes are disabled.</value></data>
+  <data name="InstanceRegistryUnavailable" xml:space="preserve"><value>The instance registry could not be read. Instance changes are disabled.</value></data>
+  <data name="InstallationStateQueued" xml:space="preserve"><value>Queued</value></data>
+  <data name="InstallationStateInstalling" xml:space="preserve"><value>Installing</value></data>
+  <data name="InstallationStatePaused" xml:space="preserve"><value>Paused</value></data>
+  <data name="InstallationStateReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="InstallationStateFailed" xml:space="preserve"><value>Installation failed</value></data>
+  <data name="InstallationStagePreparingMetadata" xml:space="preserve"><value>Checking Minecraft metadata…</value></data>
+  <data name="InstallationStagePreparingFiles" xml:space="preserve"><value>Preparing files…</value></data>
+  <data name="InstallationStageDownloading" xml:space="preserve"><value>Downloading Minecraft files…</value></data>
+  <data name="InstallationStagePreparingLibraries" xml:space="preserve"><value>Preparing libraries…</value></data>
+  <data name="InstallationStagePreparingAssets" xml:space="preserve"><value>Preparing assets…</value></data>
+  <data name="InstallationStageComplete" xml:space="preserve"><value>Installation complete</value></data>
+  <data name="InstallationStagePausing" xml:space="preserve"><value>Stopping downloads…</value></data>
+  <data name="InstallationErrorMojangHttp" xml:space="preserve"><value>Couldn't get data from Minecraft servers. Check your connection and try again.</value></data>
+  <data name="InstallationErrorMojangUnsupported" xml:space="preserve"><value>This Minecraft version isn't supported on this device.</value></data>
+  <data name="InstallationErrorMojangIntegrity" xml:space="preserve"><value>A downloaded Minecraft file failed its integrity check. Try again.</value></data>
+  <data name="InstallationErrorMojangInvalid" xml:space="preserve"><value>A Minecraft server returned invalid data.</value></data>
+  <data name="InstallationErrorStorageOperationFailed" xml:space="preserve"><value>Could not save the installation state.</value></data>
+  <data name="InstallationErrorStorageInvalidPath" xml:space="preserve"><value>The build file path is invalid.</value></data>
+  <data name="InstallationErrorStoragePathTraversal" xml:space="preserve"><value>The installation path escapes the build folder.</value></data>
+  <data name="InstallationErrorStorageReparsePoint" xml:space="preserve"><value>Installation stopped because the path contains a link to another folder.</value></data>
+  <data name="InstallationErrorStorageInvalidBuildName" xml:space="preserve"><value>The build name is invalid.</value></data>
+  <data name="InstallationErrorStorageReservedBuildName" xml:space="preserve"><value>This build name is reserved by the system.</value></data>
+  <data name="InstallationErrorStorageDuplicateBuildName" xml:space="preserve"><value>A build with this name already exists.</value></data>
+  <data name="InstallationErrorStorageBuildFolderExists" xml:space="preserve"><value>The build folder already exists.</value></data>
+  <data name="InstallationErrorStorageBuildInstalling" xml:space="preserve"><value>The build is already installing.</value></data>
+  <data name="InstallationErrorStorageBuildRunning" xml:space="preserve"><value>The build is currently running.</value></data>
+  <data name="InstallationErrorStorageBuildFilesBusy" xml:space="preserve"><value>The build files are busy with another operation.</value></data>
+  <data name="InstallationErrorStorageRegistryNotLoaded" xml:space="preserve"><value>The build list hasn't loaded yet.</value></data>
+  <data name="InstallationErrorStorageRegistryUnavailable" xml:space="preserve"><value>The build list is temporarily unavailable.</value></data>
+  <data name="InstallationErrorStorageInvalidOfflineUsername" xml:space="preserve"><value>The offline player name is invalid.</value></data>
+  <data name="InstallationErrorStorageMissingFabricLoaderVersion" xml:space="preserve"><value>Choose a Fabric Loader version.</value></data>
+  <data name="InstallationErrorCancelled" xml:space="preserve"><value>The installation was cancelled.</value></data>
+  <data name="InstallationErrorUnexpected" xml:space="preserve"><value>An unexpected error occurred during installation.</value></data>
+  <data name="MinecraftRefreshTokenRejected" xml:space="preserve"><value>The Microsoft session expired or was revoked. Sign in to the account again.</value></data>
+  <data name="MinecraftLicenseMissing" xml:space="preserve"><value>This account doesn't have a Minecraft: Java Edition license.</value></data>
+  <data name="MinecraftProfileMissing" xml:space="preserve"><value>No Minecraft: Java Edition profile was found for this account.</value></data>
+  <data name="LaunchInvalidManifest" xml:space="preserve"><value>The Minecraft version metadata is damaged or doesn't match this build.</value></data>
+  <data name="LaunchInvalidOfflineName" xml:space="preserve"><value>Check the offline-mode player name.</value></data>
+  <data name="LaunchReservedGameArgument" xml:space="preserve"><value>This launch argument is controlled by the launcher settings.</value></data>
+  <data name="LaunchBuildNotReady" xml:space="preserve"><value>This build isn't ready to launch yet.</value></data>
+  <data name="LaunchBuildAlreadyRunning" xml:space="preserve"><value>This build is already running or preparing to launch.</value></data>
+  <data name="LaunchJavaMissing" xml:space="preserve"><value>The selected Java executable could not be found.</value></data>
+  <data name="LaunchJavaVersionMismatch" xml:space="preserve"><value>The selected Java version isn't suitable for this build.</value></data>
+  <data name="LaunchJavaArchitectureMismatch" xml:space="preserve"><value>Java's architecture doesn't match the architecture pinned to this build.</value></data>
+  <data name="LaunchJavaProbeTimeout" xml:space="preserve"><value>Checking Java exceeded the time limit.</value></data>
+  <data name="LaunchJavaProbeFailed" xml:space="preserve"><value>The selected Java executable couldn't be checked.</value></data>
+  <data name="LaunchMetadataInvalid" xml:space="preserve"><value>The version metadata failed its integrity check.</value></data>
+  <data name="LaunchAssetIndexInvalid" xml:space="preserve"><value>The Minecraft asset index is damaged or failed its integrity check.</value></data>
+  <data name="LaunchClientMissing" xml:space="preserve"><value>The Minecraft client file is missing or failed its integrity check. Reinstall this build.</value></data>
+  <data name="LaunchSessionChanged" xml:space="preserve"><value>The Minecraft session changed while preparing. Try launching again.</value></data>
+  <data name="LaunchFabricProfileMissing" xml:space="preserve"><value>The Fabric profile is missing, damaged, or does not match this build. Reinstall the build.</value></data>
+  <data name="LaunchProcessStartFailed" xml:space="preserve"><value>Java couldn't be started. See the launch log for details.</value></data>
+  <data name="LaunchCommandLineTooLong" xml:space="preserve"><value>The launch command is too long for this Java version. Remove some arguments.</value></data>
+  <data name="LaunchArgumentFileEncoding" xml:space="preserve"><value>Launch paths or arguments contain characters that Java can't read in the system code page. Move the build to a folder with Latin characters.</value></data>
+  <data name="LaunchProcessRecordInvalid" xml:space="preserve"><value>The running game state couldn't be restored.</value></data>
+  <data name="LaunchGameExitCode" xml:space="preserve"><value>Minecraft exited with code {0}. See the launch log for details.</value></data>
+  <data name="LaunchMemoryWarning" xml:space="preserve"><value>The selected memory limit exceeds 70% of the computer's physical memory.</value></data>
+  <data name="ChooseButton" xml:space="preserve"><value>Choose…</value></data>
+  <data name="CreateBuildButton" xml:space="preserve"><value>Create build</value></data>
+  <data name="CreationTitle" xml:space="preserve"><value>New build</value></data>
+  <data name="CreationChoiceSubtitle" xml:space="preserve"><value>Choose how to create the build.</value></data>
+  <data name="CreationCustomTitle" xml:space="preserve"><value>Custom build</value></data>
+  <data name="CreationCustomDetails" xml:space="preserve"><value>Choose Minecraft and a loader, then add your own mods.</value></data>
+  <data name="CreationModrinthTitle" xml:space="preserve"><value>Ready-made from Modrinth</value></data>
+  <data name="CreationModrinthDetails" xml:space="preserve"><value>Choose a ready-made modpack and install its pinned Minecraft version.</value></data>
+  <data name="ModpackCatalogTitle" xml:space="preserve"><value>Modrinth modpacks</value></data>
+  <data name="ModpackCatalogSubtitle" xml:space="preserve"><value>Browse client modpacks and choose an available version.</value></data>
+  <data name="ModpackSearchPlaceholder" xml:space="preserve"><value>Search modpacks</value></data>
+  <data name="ModpackVersionLabel" xml:space="preserve"><value>Version</value></data>
+  <data name="ModpackLoading" xml:space="preserve"><value>Loading modpacks…</value></data>
+  <data name="ModpackRetry" xml:space="preserve"><value>Retry search</value></data>
+  <data name="ModpackLoadMore" xml:space="preserve"><value>Load more</value></data>
+  <data name="ModpackChoose" xml:space="preserve"><value>Choose this version</value></data>
+  <data name="ModpackOpenProject" xml:space="preserve"><value>Open project on Modrinth</value></data>
+  <data name="ModpackAllMinecraftVersions" xml:space="preserve"><value>All Minecraft versions</value></data>
+  <data name="ModpackSortRelevance" xml:space="preserve"><value>Relevance</value></data>
+  <data name="ModpackSortDownloads" xml:space="preserve"><value>Downloads</value></data>
+  <data name="ModpackSortNewest" xml:space="preserve"><value>Newest</value></data>
+  <data name="ModpackSortUpdated" xml:space="preserve"><value>Recently updated</value></data>
+  <data name="ModpackLoadingVersions" xml:space="preserve"><value>Loading compatible versions…</value></data>
+  <data name="ModpackUnsupportedVersion" xml:space="preserve"><value>This project has no installable client version for the selected Minecraft filter. Only Minecraft and Fabric modpacks are supported.</value></data>
+  <data name="ModpackVersionDisplay" xml:space="preserve"><value>{0} · {1} · {2}</value></data>
+  <data name="ModpackChannelRelease" xml:space="preserve"><value>Release</value></data>
+  <data name="ModpackChannelBeta" xml:space="preserve"><value>Beta</value></data>
+  <data name="ModpackChannelAlpha" xml:space="preserve"><value>Alpha</value></data>
+  <data name="ModpackChannelUnknown" xml:space="preserve"><value>Other</value></data>
+  <data name="ModpackVersionDetails" xml:space="preserve"><value>Minecraft: {0}. Loaders: {1}.</value></data>
+  <data name="ModpackCreateTitle" xml:space="preserve"><value>Create from modpack</value></data>
+  <data name="ModpackPinnedVersion" xml:space="preserve"><value>Selected Modrinth version</value></data>
+  <data name="ModpackPinnedVersionValue" xml:space="preserve"><value>{0} · version {1} · published {2}</value></data>
+  <data name="ModpackPinnedFabric" xml:space="preserve"><value>Fabric {0}</value></data>
+  <data name="ModpackPinnedVanilla" xml:space="preserve"><value>Vanilla</value></data>
+  <data name="ModpackPinnedLoaderValue" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="ModpackPinnedLoaderChecking" xml:space="preserve"><value>Verifying the Minecraft and loader versions from this modpack…</value></data>
+  <data name="ModpackPreparing" xml:space="preserve"><value>Checking the pinned Minecraft and loader versions…</value></data>
+  <data name="ModpackPrepared" xml:space="preserve"><value>Ready · Java {0}. The modpack loader and its files will be installed with the build.</value></data>
+  <data name="ModpackRetryPrepare" xml:space="preserve"><value>Check again</value></data>
+  <data name="ModpackCreateFooter" xml:space="preserve"><value>Minecraft and the loader are pinned by the selected Modrinth version.</value></data>
+  <data name="ModpackCreateSave" xml:space="preserve"><value>Create build</value></data>
+  <data name="ModpackCancelTitle" xml:space="preserve"><value>Cancel modpack setup?</value></data>
+  <data name="ModpackCancelMessage" xml:space="preserve"><value>Your name and launch settings have not been saved.</value></data>
+  <data name="ModpackCancelConfirm" xml:space="preserve"><value>Discard setup</value></data>
+  <data name="ModpackErrorInvalid" xml:space="preserve"><value>This modpack is damaged or uses an unsupported format, Minecraft version, or loader.</value></data>
+  <data name="ModpackErrorUnsafe" xml:space="preserve"><value>This modpack contains unsafe or conflicting file paths.</value></data>
+  <data name="ModpackErrorArchive" xml:space="preserve"><value>The modpack archive could not be read safely.</value></data>
+  <data name="ModpackErrorDamaged" xml:space="preserve"><value>A modpack file failed its size or checksum check. Retry the installation.</value></data>
+  <data name="InstallationStagePreparingModpack" xml:space="preserve"><value>Preparing modpack…</value></data>
+  <data name="InstallationStageDownloadingModpack" xml:space="preserve"><value>Downloading modpack files…</value></data>
+  <data name="InstallationStageInstallingModpackContents" xml:space="preserve"><value>Installing modpack files…</value></data>
+  <data name="CreationNameLabel" xml:space="preserve"><value>Name</value></data>
+  <data name="CreationNamePlaceholder" xml:space="preserve"><value>For example, My Vanilla Pack</value></data>
+  <data name="CreationNameHint" xml:space="preserve"><value>Spaces in the folder name will be replaced with _.</value></data>
+  <data name="CreationVersionLabel" xml:space="preserve"><value>Minecraft version</value></data>
+  <data name="CreationCatalogLoading" xml:space="preserve"><value>Loading versions…</value></data>
+  <data name="CreationCatalogRetry" xml:space="preserve"><value>Reload the catalog</value></data>
+  <data name="CreationFilterReleases" xml:space="preserve"><value>Releases</value></data>
+  <data name="CreationFilterSnapshots" xml:space="preserve"><value>Snapshots</value></data>
+  <data name="CreationFilterHistorical" xml:space="preserve"><value>Historical</value></data>
+  <data name="CreationFilterAll" xml:space="preserve"><value>All</value></data>
+  <data name="CreationSearchPlaceholder" xml:space="preserve"><value>Search versions</value></data>
+  <data name="CreationNoVersions" xml:space="preserve"><value>No versions found.</value></data>
+  <data name="CreationChecking" xml:space="preserve"><value>Checking compatibility with your computer…</value></data>
+  <data name="CreationCheckRetry" xml:space="preserve"><value>Check again</value></data>
+  <data name="CreationSupported" xml:space="preserve"><value>Supported · Java {0}</value></data>
+  <data name="CreationLoaderLabel" xml:space="preserve"><value>Mod loader</value></data>
+  <data name="CreationLoaderVanilla" xml:space="preserve"><value>Vanilla — no loader</value></data>
+  <data name="CreationLoaderFabric" xml:space="preserve"><value>Fabric</value></data>
+  <data name="CreationFabricLoaderLabel" xml:space="preserve"><value>Fabric Loader version</value></data>
+  <data name="CreationFabricLoaderPlaceholder" xml:space="preserve"><value>Choose a Fabric version</value></data>
+  <data name="CreationFabricLoaderStable" xml:space="preserve"><value> · stable</value></data>
+  <data name="CreationFabricSupported" xml:space="preserve"><value>Fabric API {0} is compatible · Java {1}</value></data>
+  <data name="CreationAdvanced" xml:space="preserve"><value>Advanced settings</value></data>
+  <data name="CreationFooter" xml:space="preserve"><value>Java and the game will install in the background.</value></data>
+  <data name="CreationSave" xml:space="preserve"><value>Save build</value></data>
+  <data name="CreationCancelTitle" xml:space="preserve"><value>Cancel creating the build?</value></data>
+  <data name="CreationCancelMessage" xml:space="preserve"><value>The name, icon and chosen settings will not be saved.</value></data>
+  <data name="CreationCancelConfirm" xml:space="preserve"><value>Cancel creation</value></data>
+  <data name="CreationContinue" xml:space="preserve"><value>Keep creating</value></data>
+  <data name="IconBox" xml:space="preserve"><value>Box</value></data>
+  <data name="IconCube" xml:space="preserve"><value>Cube</value></data>
+  <data name="IconLeaf" xml:space="preserve"><value>Leaf</value></data>
+  <data name="IconFlame" xml:space="preserve"><value>Flame</value></data>
+  <data name="IconBolt" xml:space="preserve"><value>Bolt</value></data>
+  <data name="IconMoon" xml:space="preserve"><value>Moon</value></data>
+  <data name="IconAccessibilityFormat" xml:space="preserve"><value>Icon: {0}</value></data>
+  <data name="IconCustomButton" xml:space="preserve"><value>Custom picture…</value></data>
+  <data name="IconCustomError" xml:space="preserve"><value>Could not open the picture. Choose a PNG or JPEG.</value></data>
+  <data name="InstanceDetailsFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="InstanceDetailsJavaFormat" xml:space="preserve"><value>Minecraft {0} · {1} · Java {2}</value></data>
+  <data name="InstanceFolderFormat" xml:space="preserve"><value>Folder: {0}</value></data>
+  <data name="InstanceProfileSection" xml:space="preserve"><value>Build profile</value></data>
+  <data name="InstanceActions" xml:space="preserve"><value>Build actions</value></data>
+  <data name="DeleteBuildMenu" xml:space="preserve"><value>Delete build…</value></data>
+  <data name="DeleteBuildTitle" xml:space="preserve"><value>Delete the build “{0}”?</value></data>
+  <data name="DeleteBuildMessage" xml:space="preserve"><value>The folder {0} with all worlds, mods and Java will be deleted permanently.</value></data>
+  <data name="DeleteBuildConfirm" xml:space="preserve"><value>Delete</value></data>
+  <data name="DeletingBuild" xml:space="preserve"><value>Deleting the build…</value></data>
+  <data name="PermanentDeleteTitle" xml:space="preserve"><value>Could not move to the Recycle Bin</value></data>
+  <data name="PermanentDeleteMessage" xml:space="preserve"><value>These items can’t be moved to the Recycle Bin. Delete them permanently?
+{0}</value></data>
+  <data name="PermanentDeleteConfirm" xml:space="preserve"><value>Delete permanently</value></data>
+  <data name="PlayButton" xml:space="preserve"><value>Play</value></data>
+  <data name="PlayHint" xml:space="preserve"><value>Launch Minecraft</value></data>
+  <data name="PlayAccessibilityFormat" xml:space="preserve"><value>Play {0}</value></data>
+  <data name="PlayPreparing" xml:space="preserve"><value>Preparing the launch…</value></data>
+  <data name="PlayBlockedFilesBusy" xml:space="preserve"><value>Wait until the build’s file operations finish.</value></data>
+  <data name="PlayBlockedNotReady" xml:space="preserve"><value>Wait until the build finishes installing.</value></data>
+  <data name="PlayBlockedRunning" xml:space="preserve"><value>This build is already running.</value></data>
+  <data name="PlayBlockedOfflineName" xml:space="preserve"><value>Check the nickname in the offline-mode settings.</value></data>
+  <data name="PlayBlockedNoSession" xml:space="preserve"><value>A Minecraft sign-in is required. Sign in or turn on offline-mode in the build settings.</value></data>
+  <data name="GameRunning" xml:space="preserve"><value>The game is running</value></data>
+  <data name="OpenLaunchLog" xml:space="preserve"><value>Launch log</value></data>
+  <data name="RetrySessionButton" xml:space="preserve"><value>Reconnect</value></data>
+  <data name="OfflineNameFormat" xml:space="preserve"><value>Offline-mode: {0}</value></data>
+  <data name="InstallationPause" xml:space="preserve"><value>Pause</value></data>
+  <data name="InstallationResume" xml:space="preserve"><value>Resume</value></data>
+  <data name="InstallationRetry" xml:space="preserve"><value>Retry</value></data>
+  <data name="InstallationQueuedHint" xml:space="preserve"><value>The download starts when the previous build finishes.</value></data>
+  <data name="RenameBlocked" xml:space="preserve"><value>Renaming is available after the download stops, the game closes and file operations finish.</value></data>
+  <data name="SaveNameButton" xml:space="preserve"><value>Save name</value></data>
+  <data name="RenameTitle" xml:space="preserve"><value>Rename the build?</value></data>
+  <data name="RenameMessage" xml:space="preserve"><value>The folder with this build’s files in %USERPROFILE%\.hako will be renamed.</value></data>
+  <data name="RenameConfirm" xml:space="preserve"><value>Rename</value></data>
+  <data name="RenameSkip" xml:space="preserve"><value>Continue without renaming</value></data>
+  <data name="InvalidDraftTitle" xml:space="preserve"><value>Unsaved changes</value></data>
+  <data name="InvalidDraftMessage" xml:space="preserve"><value>The changes contain errors and will not be saved. Leave without saving?</value></data>
+  <data name="InvalidDraftStay" xml:space="preserve"><value>Stay</value></data>
+  <data name="InvalidDraftLeave" xml:space="preserve"><value>Leave</value></data>
+  <data name="LaunchParametersTitle" xml:space="preserve"><value>Launch parameters</value></data>
+  <data name="SettingsBlockedInstalling" xml:space="preserve"><value>Settings can be changed after the download stops and file operations finish.</value></data>
+  <data name="ManifestMissing" xml:space="preserve"><value>Mojang parameters appear after the build is installed.</value></data>
+  <data name="SettingsAutosave" xml:space="preserve"><value>The icon and parameters are saved automatically.</value></data>
+  <data name="SettingsNextLaunch" xml:space="preserve"><value>Parameter changes apply the next time the game starts.</value></data>
+  <data name="ParametersUseGlobal" xml:space="preserve"><value>Use global parameters</value></data>
+  <data name="ParametersUseMojang" xml:space="preserve"><value>Use Mojang parameters</value></data>
+  <data name="ParametersGlobalCaption" xml:space="preserve"><value>Arguments and memory come from the current launcher settings.</value></data>
+  <data name="ParametersMojangCaption" xml:space="preserve"><value>The required and recommended arguments from the Mojang version description are used. Paths and account values in ${…} are filled in at launch.</value></data>
+  <data name="ParametersGlobalEmptyWarning" xml:space="preserve"><value>Global arguments are not set. Using the Mojang parameters is recommended.</value></data>
+  <data name="ParametersGlobalJavaWarning" xml:space="preserve"><value>This build uses the custom Java from the global settings. This may cause problems in the game.</value></data>
+  <data name="ParametersJavaArguments" xml:space="preserve"><value>Java arguments</value></data>
+  <data name="ParametersMinecraftArguments" xml:space="preserve"><value>Minecraft arguments</value></data>
+  <data name="ParametersMemoryCaption" xml:space="preserve"><value>-Xmx and MaxHeapSize in the arguments are replaced with the slider limit at launch.</value></data>
+  <data name="ParametersFullscreen" xml:space="preserve"><value>Fullscreen</value></data>
+  <data name="ParametersWidth" xml:space="preserve"><value>Width, px</value></data>
+  <data name="ParametersHeight" xml:space="preserve"><value>Height, px</value></data>
+  <data name="ParametersDimensionError" xml:space="preserve"><value>Enter whole window sizes greater than 0.</value></data>
+  <data name="ParametersOfflineMode" xml:space="preserve"><value>offline-mode</value></data>
+  <data name="ParametersOfflineName" xml:space="preserve"><value>In-game name</value></data>
+  <data name="ParametersOfflineWarning" xml:space="preserve"><value>Offline-mode is not recommended. Some servers may be unavailable. Signing in with a Minecraft account is recommended.</value></data>
+  <data name="ParametersOfflineNameError" xml:space="preserve"><value>Nickname: 3 to 16 Latin letters, digits or _.</value></data>
+  <data name="JavaMemoryTitle" xml:space="preserve"><value>Maximum Java memory</value></data>
+  <data name="JavaMemoryValue" xml:space="preserve"><value>{0:0.00} GiB</value></data>
+  <data name="JavaMemoryCaption" xml:space="preserve"><value>Java heap limit. The whole process may use more. This computer has {0:0} GiB.</value></data>
+  <data name="JavaMemoryCaptionX86" xml:space="preserve"><value>The Java heap limit for 32-bit Java is at most 1.5 GiB. This computer has {0:0} GiB.</value></data>
+  <data name="GameSection" xml:space="preserve"><value>Game</value></data>
+  <data name="GameSettingsDescription" xml:space="preserve"><value>Arguments, memory and the Java path for builds that use global parameters. Window settings are only the defaults for new builds. Changes are saved automatically.</value></data>
+  <data name="JavaPathLabel" xml:space="preserve"><value>Java path</value></data>
+  <data name="JavaPathPlaceholder" xml:space="preserve"><value>Not set</value></data>
+  <data name="JavaPathCaption" xml:space="preserve"><value>When set, builds with global parameters use this Java (javaw.exe) instead of the recommended Java inside the build.</value></data>
+  <data name="WindowCardTitle" xml:space="preserve"><value>Window</value></data>
+  <data name="DimensionError" xml:space="preserve"><value>Enter a whole number greater than 0</value></data>
+  <data name="WindowCaption" xml:space="preserve"><value>The window size is in pixels and applies in windowed mode.</value></data>
+  <data name="GameSettingsSaveError" xml:space="preserve"><value>Could not save the game settings.</value></data>
+  <data name="InstanceSectionMods" xml:space="preserve"><value>Mods</value></data>
+  <data name="InstanceSectionResourcePacks" xml:space="preserve"><value>Resource packs</value></data>
+  <data name="ContentSectionTitleMods" xml:space="preserve"><value>Mods</value></data>
+  <data name="ContentSectionTitleResourcePacks" xml:space="preserve"><value>Resource packs</value></data>
+  <data name="ContentActiveCount" xml:space="preserve"><value>{0} active of {1}</value></data>
+  <data name="ContentImportFiles" xml:space="preserve"><value>Add files…</value></data>
+  <data name="ContentImportFolder" xml:space="preserve"><value>Add folder…</value></data>
+  <data name="ContentCheckUpdates" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="ContentUpdateAll" xml:space="preserve"><value>Update all</value></data>
+  <data name="ContentOpenFolder" xml:space="preserve"><value>Open folder</value></data>
+  <data name="ContentOpenModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="ContentDropHint" xml:space="preserve"><value>Drop mod JAR files here</value></data>
+  <data name="ContentDropHintResourcePacks" xml:space="preserve"><value>Drop ZIP files or folders with pack.mcmeta</value></data>
+  <data name="ContentEmptyMods" xml:space="preserve"><value>This build has no mods yet.</value></data>
+  <data name="ContentEmptyResourcePacks" xml:space="preserve"><value>This build has no resource packs yet.</value></data>
+  <data name="ContentLoading" xml:space="preserve"><value>Loading content…</value></data>
+  <data name="ContentCheckingUpdates" xml:space="preserve"><value>Checking for updates…</value></data>
+  <data name="ContentNoUpdates" xml:space="preserve"><value>No updates found.</value></data>
+  <data name="ContentUpdateItem" xml:space="preserve"><value>Update to {0}</value></data>
+  <data name="ContentUpdateButton" xml:space="preserve"><value>Update</value></data>
+  <data name="ContentSourceLocal" xml:space="preserve"><value>Local</value></data>
+  <data name="ContentSourceModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="ContentSourceCurseForge" xml:space="preserve"><value>CurseForge</value></data>
+  <data name="ContentVersionUnknown" xml:space="preserve"><value>Version unknown</value></data>
+  <data name="ContentEnabledOn" xml:space="preserve"><value>Enabled</value></data>
+  <data name="ContentEnabledOff" xml:space="preserve"><value>Disabled</value></data>
+  <data name="ContentDeleteItem" xml:space="preserve"><value>Delete…</value></data>
+  <data name="ContentRevealItem" xml:space="preserve"><value>Show in File Explorer</value></data>
+  <data name="ContentActionBusy" xml:space="preserve"><value>A content operation is in progress…</value></data>
+  <data name="ContentBlockedBuild" xml:space="preserve"><value>Content is available after the build finishes installing.</value></data>
+  <data name="ContentBlockedInstall" xml:space="preserve"><value>Content operations are unavailable while the build is installing.</value></data>
+  <data name="ContentBlockedFabric" xml:space="preserve"><value>Mods are available only in Fabric builds.</value></data>
+  <data name="ContentBlockedFilesBusy" xml:space="preserve"><value>Build files are busy with another operation.</value></data>
+  <data name="ContentImportSuccess" xml:space="preserve"><value>Imported: {0}</value></data>
+  <data name="ContentImportCancelled" xml:space="preserve"><value>Import cancelled: {0}</value></data>
+  <data name="ContentImportFailureLine" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="ContentInvalidModFile" xml:space="preserve"><value>{0}: choose a .jar file.</value></data>
+  <data name="ContentInvalidPackFile" xml:space="preserve"><value>{0}: choose a resource pack ZIP file.</value></data>
+  <data name="ContentInvalidPackFolder" xml:space="preserve"><value>{0}: the folder must contain pack.mcmeta.</value></data>
+  <data name="ContentInvalidDrop" xml:space="preserve"><value>Some dropped items could not be imported. Choose JAR files for mods or ZIP files/folders with pack.mcmeta for resource packs.</value></data>
+  <data name="ContentUpdateAllSummary" xml:space="preserve"><value>Updated: {0}. Failed or needing confirmation: {1}.</value></data>
+  <data name="ContentBulkFailureLine" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="ContentDiagnosticLabel" xml:space="preserve"><value>Details:</value></data>
+  <data name="ContentOpenFailed" xml:space="preserve"><value>Could not open this location.</value></data>
+  <data name="ContentLinkFailed" xml:space="preserve"><value>Could not open the Modrinth page.</value></data>
+  <data name="ContentCatalogTitleMods" xml:space="preserve"><value>Mods on Modrinth</value></data>
+  <data name="ContentCatalogTitleResourcePacks" xml:space="preserve"><value>Resource packs on Modrinth</value></data>
+  <data name="ContentCatalogBack" xml:space="preserve"><value>Back to build</value></data>
+  <data name="ContentCatalogContext" xml:space="preserve"><value>{0} · Minecraft {1}</value></data>
+  <data name="ContentCatalogSearchPlaceholder" xml:space="preserve"><value>Search Modrinth</value></data>
+  <data name="ContentCatalogSortRelevance" xml:space="preserve"><value>Relevance</value></data>
+  <data name="ContentCatalogSortDownloads" xml:space="preserve"><value>Most downloads</value></data>
+  <data name="ContentCatalogSortNewest" xml:space="preserve"><value>Newest</value></data>
+  <data name="ContentCatalogSortUpdated" xml:space="preserve"><value>Recently updated</value></data>
+  <data name="ContentCatalogLoading" xml:space="preserve"><value>Searching projects…</value></data>
+  <data name="ContentCatalogNoResults" xml:space="preserve"><value>No projects found.</value></data>
+  <data name="ContentCatalogRetry" xml:space="preserve"><value>Retry</value></data>
+  <data name="ContentCatalogLoadMore" xml:space="preserve"><value>Load more</value></data>
+  <data name="ContentCatalogAdd" xml:space="preserve"><value>Add</value></data>
+  <data name="ContentCatalogInstalled" xml:space="preserve"><value>Installed</value></data>
+  <data name="ContentCatalogAdding" xml:space="preserve"><value>Adding…</value></data>
+  <data name="ContentCatalogBusy" xml:space="preserve"><value>Wait for the current content operation to finish.</value></data>
+  <data name="ContentCatalogNoRelease" xml:space="preserve"><value>No compatible stable version. Check beta and alpha versions in the menu.</value></data>
+  <data name="ContentCatalogVersionsLoading" xml:space="preserve"><value>Checking versions…</value></data>
+  <data name="ContentCatalogInstallBeta" xml:space="preserve"><value>Install beta {0}</value></data>
+  <data name="ContentCatalogInstallAlpha" xml:space="preserve"><value>Install alpha {0}</value></data>
+  <data name="ContentCatalogBetaUnavailable" xml:space="preserve"><value>No compatible beta version</value></data>
+  <data name="ContentCatalogAlphaUnavailable" xml:space="preserve"><value>No compatible alpha version</value></data>
+  <data name="ContentCatalogInstalledLoadFailed" xml:space="preserve"><value>Could not check installed content. Installation is still available.</value></data>
+  <data name="ContentConfirmationDependenciesTitle" xml:space="preserve"><value>Modrinth dependencies</value></data>
+  <data name="ContentConfirmationDependenciesMessage" xml:space="preserve"><value>Project “{0}” needs these projects in build “{1}”.</value></data>
+  <data name="ContentConfirmationDependenciesPrimary" xml:space="preserve"><value>Add dependencies</value></data>
+  <data name="ContentConfirmationDependenciesAlternative" xml:space="preserve"><value>Only this project</value></data>
+  <data name="ContentConfirmationIncompatibleTitle" xml:space="preserve"><value>Incompatible content</value></data>
+  <data name="ContentConfirmationIncompatibleMessage" xml:space="preserve"><value>Some projects may be incompatible with “{1}”. Install them anyway?</value></data>
+  <data name="ContentConfirmationIncompatiblePrimary" xml:space="preserve"><value>Install anyway</value></data>
+  <data name="ContentConfirmationIncompatibleAlternative" xml:space="preserve"><value>Not available</value></data>
+  <data name="ContentConfirmationReplaceTitle" xml:space="preserve"><value>Replace file?</value></data>
+  <data name="ContentConfirmationReplaceMessage" xml:space="preserve"><value>“{0}” is already installed in build “{1}”. Replace it?</value></data>
+  <data name="ContentConfirmationReplacePrimary" xml:space="preserve"><value>Replace</value></data>
+  <data name="ContentConfirmationReplaceAlternative" xml:space="preserve"><value>Not available</value></data>
+  <data name="ContentConfirmationDeleteTitle" xml:space="preserve"><value>Delete content?</value></data>
+  <data name="ContentConfirmationDeleteMessage" xml:space="preserve"><value>Move “{0}” from build “{1}” to the Recycle Bin?</value></data>
+  <data name="ContentConfirmationDeletePrimary" xml:space="preserve"><value>Delete</value></data>
+  <data name="ContentConfirmationDeleteAlternative" xml:space="preserve"><value>Not available</value></data>
+  <data name="ContentConfirmationDatapackPacksTitle" xml:space="preserve"><value>Resource pack for datapack</value></data>
+  <data name="ContentConfirmationDatapackPacksMessage" xml:space="preserve"><value>This datapack version includes linked resource packs. Choose one to install with the datapack.</value></data>
+  <data name="ContentConfirmationDatapackPacksPrimary" xml:space="preserve"><value>Add selected resource pack</value></data>
+  <data name="ContentConfirmationDatapackPacksAlternative" xml:space="preserve"><value>Datapack only</value></data>
+  <data name="ContentNoteDisabledWillBeEnabled" xml:space="preserve"><value>The disabled project will be enabled.</value></data>
+  <data name="ContentNoteUnsupported" xml:space="preserve"><value>This dependency type is not supported.</value></data>
+  <data name="ContentNoteRequiresFabric" xml:space="preserve"><value>This project requires a Fabric build.</value></data>
+  <data name="ContentNoteNoCompatibleVersion" xml:space="preserve"><value>No version is compatible with this build.</value></data>
+  <data name="ContentNoteProjectLimitReached" xml:space="preserve"><value>The limit of {0} dependency projects was reached.</value></data>
+  <data name="ContentNoteProjectUnavailable" xml:space="preserve"><value>The project is unavailable or could not be checked.</value></data>
+  <data name="ContentNoteFabricLoaderRequirement" xml:space="preserve"><value>Requires Fabric Loader {0}; the installed version is {1}.</value></data>
+  <data name="ContentNoteJavaRequirement" xml:space="preserve"><value>Requires Java {0}; this build uses Java {1}.</value></data>
+  <data name="ContentNoteIncompatibleWith" xml:space="preserve"><value>Incompatible with “{0}”.</value></data>
+  <data name="ContentFailureBuildUnavailable" xml:space="preserve"><value>This build is no longer available.</value></data>
+  <data name="ContentFailureBuildBusy" xml:space="preserve"><value>The build is busy. Try again after file operations or the game finish.</value></data>
+  <data name="ContentFailureBuildInstalling" xml:space="preserve"><value>Wait for the build to finish installing.</value></data>
+  <data name="ContentFailureModRequiresFabric" xml:space="preserve"><value>Mods are available only in Fabric builds.</value></data>
+  <data name="ContentFailureInvalidChannel" xml:space="preserve"><value>Unknown Modrinth version channel.</value></data>
+  <data name="ContentFailureNoCompatibleVersion" xml:space="preserve"><value>No compatible version was found for this project.</value></data>
+  <data name="ContentFailureRegistryCorrupt" xml:space="preserve"><value>The content registry is damaged. Files were left unchanged.</value></data>
+  <data name="ContentFailureRegistryUnavailable" xml:space="preserve"><value>The build registry could not be read.</value></data>
+  <data name="ContentFailureStaleContent" xml:space="preserve"><value>The file changed. Refresh the list and try again.</value></data>
+  <data name="ContentFailureConfirmationRequired" xml:space="preserve"><value>This update needs individual confirmation. Update this item separately.</value></data>
+  <data name="ContentFailureConfirmationDeclined" xml:space="preserve"><value>The action was cancelled.</value></data>
+  <data name="ContentFailureFabricApiIncompatible" xml:space="preserve"><value>Fabric API {0} is incompatible with Loader {1} and Java {2}.</value></data>
+  <data name="ContentFailureModrinthRequestFailed" xml:space="preserve"><value>Could not get data from Modrinth. Check your connection and try again.</value></data>
+  <data name="ContentFailureOperationFailed" xml:space="preserve"><value>The content operation failed.</value></data>
+  <data name="ContentFailureBulkUpdateFailed" xml:space="preserve"><value>{0} updates could not be completed. See the per-file details.</value></data>
+  <data name="ContentFailureCancelled" xml:space="preserve"><value>The operation was cancelled.</value></data>
+  <data name="ContentFailureWorldUnavailable" xml:space="preserve"><value>The selected world is no longer available.</value></data>
+  <data name="InstanceSectionWorlds" xml:space="preserve"><value>Worlds</value></data>
+  <data name="ContentSectionTitleDatapacks" xml:space="preserve"><value>Datapacks</value></data>
+  <data name="ContentDropHintDatapacks" xml:space="preserve"><value>Drop ZIP files or folders with pack.mcmeta</value></data>
+  <data name="ContentEmptyDatapacks" xml:space="preserve"><value>This world has no datapacks yet.</value></data>
+  <data name="ContentInvalidDatapackFile" xml:space="preserve"><value>{0}: choose a datapack ZIP file.</value></data>
+  <data name="ContentInvalidDatapackFolder" xml:space="preserve"><value>{0}: the folder must contain a valid pack.mcmeta.</value></data>
+  <data name="ContentCatalogTitleDatapacks" xml:space="preserve"><value>Datapacks on Modrinth</value></data>
+  <data name="ContentCatalogDatapackContext" xml:space="preserve"><value>Build “{0}” · World “{1}” · Minecraft {2}</value></data>
+  <data name="ContentConfirmationFileRequired" xml:space="preserve"><value>Required linked resource pack</value></data>
+  <data name="ContentConfirmationFileOptional" xml:space="preserve"><value>Optional linked resource pack</value></data>
+  <data name="WorldsTitle" xml:space="preserve"><value>Worlds</value></data>
+  <data name="WorldsRefresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="WorldsOpenSaves" xml:space="preserve"><value>Open saves folder</value></data>
+  <data name="WorldsLoading" xml:space="preserve"><value>Loading worlds…</value></data>
+  <data name="WorldsEmpty" xml:space="preserve"><value>This build has no worlds yet.</value></data>
+  <data name="WorldsOperationInProgress" xml:space="preserve"><value>World operation in progress…</value></data>
+  <data name="WorldsOperationBusy" xml:space="preserve"><value>Wait for the current world operation to finish.</value></data>
+  <data name="WorldsSavesUnavailable" xml:space="preserve"><value>The saves folder is not available yet.</value></data>
+  <data name="WorldsDatapacksTitle" xml:space="preserve"><value>World datapacks</value></data>
+  <data name="WorldsShowDatapacks" xml:space="preserve"><value>Datapacks</value></data>
+  <data name="WorldsHideDatapacks" xml:space="preserve"><value>Collapse</value></data>
+  <data name="WorldsActions" xml:space="preserve"><value>World actions</value></data>
+  <data name="WorldsDuplicate" xml:space="preserve"><value>Duplicate…</value></data>
+  <data name="WorldsTrash" xml:space="preserve"><value>Move to Recycle Bin…</value></data>
+  <data name="WorldDuplicateTitle" xml:space="preserve"><value>Create a copy of “{0}”?</value></data>
+  <data name="WorldDuplicateMessage" xml:space="preserve"><value>An independent copy of world “{0}” will be created in build “{1}”.</value></data>
+  <data name="WorldDuplicateConfirm" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="WorldDuplicateSucceeded" xml:space="preserve"><value>World “{0}” was copied as “{1}”.</value></data>
+  <data name="WorldTrashTitle" xml:space="preserve"><value>Move “{0}” to the Recycle Bin?</value></data>
+  <data name="WorldTrashMessage" xml:space="preserve"><value>World “{0}” will be removed from build “{1}”.</value></data>
+  <data name="WorldTrashConfirm" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="WorldTrashSucceeded" xml:space="preserve"><value>World “{0}” was moved to the Recycle Bin.</value></data>
+  <data name="WorldActionFailed" xml:space="preserve"><value>The world operation failed.</value></data>
+  <data name="WorldDiagnosticLabel" xml:space="preserve"><value>Details:</value></data>
+  <data name="WorldSizeUnknown" xml:space="preserve"><value>Size unknown</value></data>
+  <data name="WorldSizeBytes" xml:space="preserve"><value>bytes</value></data>
+  <data name="WorldSizeKilobytes" xml:space="preserve"><value>KiB</value></data>
+  <data name="WorldSizeMegabytes" xml:space="preserve"><value>MiB</value></data>
+  <data name="WorldSizeGigabytes" xml:space="preserve"><value>GiB</value></data>
+  <data name="WorldSizeTerabytes" xml:space="preserve"><value>TiB</value></data>
+  <data name="WorldSizeFormat" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="WorldLastPlayedUnknown" xml:space="preserve"><value>Last played date unknown</value></data>
+  <data name="WorldLastPlayedFormat" xml:space="preserve"><value>Last played: {0}</value></data>
+  <data name="WorldVersionUnknown" xml:space="preserve"><value>version unknown</value></data>
+  <data name="WorldVersionFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="WorldActivityFormat" xml:space="preserve"><value>{0} · size {1}</value></data>
+  <data name="WorldMetadataUnavailable" xml:space="preserve"><value>World details could not be read: {0}</value></data>
+  <data name="WorldGameTypeSurvival" xml:space="preserve"><value>Survival</value></data>
+  <data name="WorldGameTypeCreative" xml:space="preserve"><value>Creative</value></data>
+  <data name="WorldGameTypeAdventure" xml:space="preserve"><value>Adventure</value></data>
+  <data name="WorldGameTypeSpectator" xml:space="preserve"><value>Spectator</value></data>
+  <data name="WorldGameTypeUnknown" xml:space="preserve"><value>Game mode unknown</value></data>
+  <data name="WorldMetadataInvalidGzip" xml:space="preserve"><value>invalid gzip data</value></data>
+  <data name="WorldMetadataInvalidNbt" xml:space="preserve"><value>invalid NBT data</value></data>
+  <data name="WorldMetadataInvalidText" xml:space="preserve"><value>invalid text in metadata</value></data>
+  <data name="WorldMetadataCompressedTooLarge" xml:space="preserve"><value>compressed metadata is too large</value></data>
+  <data name="WorldMetadataDecompressedTooLarge" xml:space="preserve"><value>decompressed metadata is too large</value></data>
+  <data name="WorldMetadataTooDeep" xml:space="preserve"><value>NBT structure is too deeply nested</value></data>
+  <data name="WorldMetadataReadFailed" xml:space="preserve"><value>metadata file could not be read</value></data>
+  <data name="WorldFailureBuildUnavailable" xml:space="preserve"><value>The build is no longer available.</value></data>
+  <data name="WorldFailureBuildNotReady" xml:space="preserve"><value>The build is not ready yet.</value></data>
+  <data name="WorldFailureBuildInstalling" xml:space="preserve"><value>The build is installing.</value></data>
+  <data name="WorldFailureBuildRunning" xml:space="preserve"><value>Worlds cannot be changed while Minecraft is running.</value></data>
+  <data name="WorldFailureBuildFilesBusy" xml:space="preserve"><value>Build files are busy with another operation.</value></data>
+  <data name="WorldFailureInvalidId" xml:space="preserve"><value>The world folder name is invalid.</value></data>
+  <data name="WorldFailureMissing" xml:space="preserve"><value>The world no longer exists or has no valid level.dat.</value></data>
+  <data name="WorldFailureReparsePoint" xml:space="preserve"><value>The world path contains a link or unsafe folder.</value></data>
+  <data name="WorldFailureNoAvailableName" xml:space="preserve"><value>No name is available for a world copy.</value></data>
+  <data name="WorldFailureMetadataRename" xml:space="preserve"><value>Could not update the copied world's metadata name.</value></data>
+  <data name="WorldFailureCopy" xml:space="preserve"><value>Could not copy the world.</value></data>
+  <data name="WorldFailureRecycleBin" xml:space="preserve"><value>Could not move the world to the Recycle Bin.</value></data>
+  <data name="WorldFailureNotRecyclable" xml:space="preserve"><value>The Recycle Bin rejected the world; the original save was left in place.</value></data>
+  <data name="InstanceDuplicate" xml:space="preserve"><value>Duplicate build</value></data>
+  <data name="InstanceDuplicating" xml:space="preserve"><value>Duplicating build…</value></data>
+  <data name="InstanceBackup" xml:space="preserve"><value>Create backup</value></data>
+  <data name="InstanceBackupInProgress" xml:space="preserve"><value>Creating build backup…</value></data>
+  <data name="InstanceBackupSucceededMessage" xml:space="preserve"><value>Backup “{0}” was created.</value></data>
+  <data name="WorldsBackup" xml:space="preserve"><value>Back up world</value></data>
+  <data name="WorldBackupInProgress" xml:space="preserve"><value>Creating world backup…</value></data>
+  <data name="WorldBackupSucceededMessage" xml:space="preserve"><value>World backup “{0}” was created.</value></data>
+  <data name="BackupSucceededTitle" xml:space="preserve"><value>Backup created</value></data>
+  <data name="BackupShowInExplorer" xml:space="preserve"><value>Show in File Explorer</value></data>
+  <data name="BackupFailed" xml:space="preserve"><value>Could not create the backup.</value></data>
+  <data name="BackupBuildUnavailable" xml:space="preserve"><value>The build is no longer available.</value></data>
+  <data name="BackupBuildNotReady" xml:space="preserve"><value>The build is not ready yet.</value></data>
+  <data name="BackupBuildInstalling" xml:space="preserve"><value>The build is being installed.</value></data>
+  <data name="BackupBuildRunning" xml:space="preserve"><value>A backup cannot be created while Minecraft is running.</value></data>
+  <data name="BackupBuildFilesBusy" xml:space="preserve"><value>Build files are busy with another operation.</value></data>
+  <data name="BackupWorldUnavailable" xml:space="preserve"><value>The world is no longer available.</value></data>
+  <data name="BackupReservedFolderOccupied" xml:space="preserve"><value>The reserved backup folder is occupied by a build.</value></data>
+  <data name="BackupReparsePointNotAllowed" xml:space="preserve"><value>The source contains a link or an unsafe path.</value></data>
+  <data name="BackupDestinationConflict" xml:space="preserve"><value>A backup with this name already exists.</value></data>
+  <data name="BackupSourceChanged" xml:space="preserve"><value>The source changed while the backup was being created.</value></data>
+  <data name="BackupCancelled" xml:space="preserve"><value>Backup creation was cancelled.</value></data>
+  <data name="BackupDiagnosticFormat" xml:space="preserve"><value>Details: {0}</value></data>
+  <data name="BackupDiagnosticPathFormat" xml:space="preserve"><value>Path: {0}</value></data>
+  <data name="ScreenshotsTitle" xml:space="preserve"><value>Screenshots</value></data>
+  <data name="ScreenshotsRefresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="ScreenshotsOpenFolder" xml:space="preserve"><value>Open screenshots folder</value></data>
+  <data name="ScreenshotsDeleteSelected" xml:space="preserve"><value>Move selected to Recycle Bin</value></data>
+  <data name="ScreenshotsLoading" xml:space="preserve"><value>Loading screenshots…</value></data>
+  <data name="ScreenshotsOperationInProgress" xml:space="preserve"><value>Moving screenshots to the Recycle Bin…</value></data>
+  <data name="ScreenshotsEmpty" xml:space="preserve"><value>No screenshots yet.</value></data>
+  <data name="ScreenshotsCountFormat" xml:space="preserve"><value>{0} screenshots</value></data>
+  <data name="ScreenshotsSelectionFormat" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="ScreenshotsOperationBusy" xml:space="preserve"><value>Another screenshot operation is in progress.</value></data>
+  <data name="ScreenshotsActions" xml:space="preserve"><value>Screenshot actions</value></data>
+  <data name="ScreenshotsOpen" xml:space="preserve"><value>Open</value></data>
+  <data name="ScreenshotsOpenFailed" xml:space="preserve"><value>Could not open this screenshot.</value></data>
+  <data name="ScreenshotsDelete" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="ScreenshotsDeleteTitle" xml:space="preserve"><value>Delete screenshots?</value></data>
+  <data name="ScreenshotsDeleteMessage" xml:space="preserve"><value>{0} selected screenshot(s) will be moved to the Recycle Bin.</value></data>
+  <data name="ScreenshotsDeleteConfirm" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="ScreenshotsDeletedFormat" xml:space="preserve"><value>Moved {0} screenshot(s) to the Recycle Bin.</value></data>
+  <data name="ScreenshotsDeletePartialFormat" xml:space="preserve"><value>Moved {0} screenshot(s) to the Recycle Bin; {1} could not be moved.</value></data>
+  <data name="ScreenshotsActionFailed" xml:space="preserve"><value>Screenshot action failed.</value></data>
+  <data name="PlaytimeSummaryTitle" xml:space="preserve"><value>Time in Minecraft</value></data>
+  <data name="PlaytimeInstanceFormat" xml:space="preserve"><value>Played: {0}</value></data>
+  <data name="PlaytimeGuestTransfer" xml:space="preserve"><value>When you sign in to Microsoft, guest playtime will be added to your account.</value></data>
+  <data name="PlaytimeZero" xml:space="preserve"><value>0 min</value></data>
+  <data name="PlaytimeLessThanMinute" xml:space="preserve"><value>Less than a minute</value></data>
+  <data name="PlaytimeMinuteOne" xml:space="preserve"><value>{0} minute</value></data>
+  <data name="PlaytimeMinuteFew" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="PlaytimeMinuteMany" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="PlaytimeMinuteOther" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="PlaytimeHourOne" xml:space="preserve"><value>{0} hour</value></data>
+  <data name="PlaytimeHourFew" xml:space="preserve"><value>{0} hours</value></data>
+  <data name="PlaytimeHourMany" xml:space="preserve"><value>{0} hours</value></data>
+  <data name="PlaytimeHourOther" xml:space="preserve"><value>{0} hours</value></data>
+  <data name="PlaytimeDayOne" xml:space="preserve"><value>{0} day</value></data>
+  <data name="PlaytimeDayFew" xml:space="preserve"><value>{0} days</value></data>
+  <data name="PlaytimeDayMany" xml:space="preserve"><value>{0} days</value></data>
+  <data name="PlaytimeDayOther" xml:space="preserve"><value>{0} days</value></data>
+  <data name="PlaytimeStorageError" xml:space="preserve"><value>Minecraft playtime could not be updated because of a storage error.</value></data>
+  <data name="PlaytimeHelperStartFailed" xml:space="preserve"><value>Could not start the background playtime helper. Time will be updated while Hako is open.</value></data>
+  <data name="PlaytimeErrorDetails" xml:space="preserve"><value>Details: {0}</value></data>
 </root>

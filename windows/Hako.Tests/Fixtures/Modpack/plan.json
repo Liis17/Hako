@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "projectID": "fixtureproject",
+  "versionID": "fixtureversion",
+  "versionNumber": "1.0.0",
+  "pageURL": "https://modrinth.com/modpack/fixture",
+  "archive": {
+    "filename": "fixture.mrpack",
+    "url": "https://cdn.modrinth.com/fixture.mrpack",
+    "size": 4,
+    "hashes": {
+      "sha1": "0000000000000000000000000000000000000000",
+      "sha512": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "primary": true
+  },
+  "manifest": {
+    "formatVersion": 1,
+    "game": "minecraft",
+    "versionId": "fixture-pack",
+    "name": "Fixture Pack",
+    "files": [
+      {
+        "path": "mods/fixture.jar",
+        "hashes": {
+          "sha1": "1111111111111111111111111111111111111111",
+          "sha512": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "env": {
+          "client": "optional",
+          "server": "optional"
+        },
+        "downloads": ["https://cdn.modrinth.com/files/fixture.jar"],
+        "fileSize": 4
+      }
+    ],
+    "dependencies": {
+      "minecraft": "1.21.4",
+      "fabric-loader": "0.16.10"
+    }
+  }
+}

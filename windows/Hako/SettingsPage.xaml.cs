@@ -1,4 +1,7 @@
 using Hako.Core;
+using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -10,9 +13,11 @@ namespace Hako;
 internal sealed record SettingsPageContext(
     AppCoordinator Coordinator,
     MinecraftSkinPreviewService SkinPreviewService,
-    ProfilePreviewOptions? PreviewOptions);
+    ProfilePreviewOptions? PreviewOptions,
+    UserSettingsService Settings,
+    PlaytimeCoordinator Playtime);
 
-public sealed partial class SettingsPage : Page
+public sealed partial class SettingsPage : Page, INavigationGuard
 {
     private AppCoordinator? _coordinator;
     private MinecraftSkinPreviewService? _skinPreviewService;
@@ -28,6 +33,11 @@ public sealed partial class SettingsPage : Page
     private string? _modelProfileId;
     private Guid _profileRequestScope;
     private bool? _isWideProfileLayout;
+    private UserSettingsService? _settings;
+    private PlaytimeCoordinator? _playtime;
+    private DispatcherQueueTimer? _gameSaveTimer;
+    private bool _loadingGame;
+    private bool _pickingJava;
 
     public SettingsPage()
     {
@@ -42,6 +52,10 @@ public sealed partial class SettingsPage : Page
         _coordinator = context.Coordinator;
         _skinPreviewService = context.SkinPreviewService;
         _previewOptions = context.PreviewOptions;
+        _settings = context.Settings;
+        _playtime = context.Playtime;
+        _playtime.PropertyChanged += Playtime_PropertyChanged;
+        LoadGameSettings();
         _profileRequestScope = Guid.NewGuid();
         _screenVisible = true;
         SubscribeLanguageChanges();
@@ -57,8 +71,13 @@ public sealed partial class SettingsPage : Page
         SkinView.SetEligible(false);
         SkinView.HeadImageReady -= SkinView_HeadImageReady;
         SkinView.DisposeView();
+        _gameSaveTimer?.Stop();
+        if (_playtime is not null) _playtime.PropertyChanged -= Playtime_PropertyChanged;
+        // Covers navigation without ConfirmLeaveAsync; after the guard saved, the draft equals the settings snapshot and nothing is written.
+        _ = SaveGameSettingsAsync();
         _coordinator = null;
         _skinPreviewService = null;
+        _playtime = null;
         base.OnNavigatedFrom(e);
     }
 
@@ -107,10 +126,11 @@ public sealed partial class SettingsPage : Page
         }
 
         _updatingSelection = true;
-        SettingsSections.SelectedIndex = section == SettingsSection.General ? 0 : 1;
+        SettingsSections.SelectedIndex = section switch { SettingsSection.Game => 1, SettingsSection.Profile => 2, _ => 0 };
         _updatingSelection = false;
         GeneralPanel.Visibility = section == SettingsSection.General ? Visibility.Visible : Visibility.Collapsed;
         ProfilePanel.Visibility = section == SettingsSection.Profile ? Visibility.Visible : Visibility.Collapsed;
+        GamePanel.Visibility = section == SettingsSection.Game ? Visibility.Visible : Visibility.Collapsed;
         UpdateSkinVisibility();
     }
 
@@ -148,6 +168,17 @@ public sealed partial class SettingsPage : Page
 
         GuestProfileStatus.Text = HakoStrings.Get("GuestProfileTitle");
         GuestProfileDetails.Text = HakoStrings.Get("GuestProfileDetails");
+        AccountPlaytimeTitle.Text = HakoStrings.Get("PlaytimeSummaryTitle");
+        AccountPlaytimeValue.Text = PlaytimeFormatter.Format(_playtime?.TotalSeconds(account?.Xuid) ?? 0,
+            _coordinator?.Language ?? AppLanguages.Default, HakoStrings.Get);
+        GuestPlaytimeTitle.Text = HakoStrings.Get("PlaytimeSummaryTitle");
+        GuestPlaytimeValue.Text = PlaytimeFormatter.Format(_playtime?.TotalSeconds(null) ?? 0,
+            _coordinator?.Language ?? AppLanguages.Default, HakoStrings.Get);
+        GuestPlaytimeTransfer.Text = HakoStrings.Get("PlaytimeGuestTransfer");
+        AccountPlaytimeError.Text = PlaytimeErrorText(_playtime?.ErrorResourceKey, _playtime?.ErrorDetail);
+        AccountPlaytimeError.Visibility = account is not null && _playtime?.ErrorResourceKey is not null ? Visibility.Visible : Visibility.Collapsed;
+        GuestPlaytimeError.Text = PlaytimeErrorText(_playtime?.ErrorResourceKey, _playtime?.ErrorDetail);
+        GuestPlaytimeError.Visibility = isGuest && _playtime?.ErrorResourceKey is not null ? Visibility.Visible : Visibility.Collapsed;
         SignInButton.Content = HakoStrings.Get("SignInButton");
         SignedOutProfileStatus.Text = HakoStrings.Get("ProfileSignedOutTitle");
         SignedOutProfileDetails.Text = HakoStrings.Get("ProfileSignedOutDetails");
@@ -170,6 +201,18 @@ public sealed partial class SettingsPage : Page
         }
 
         UpdateSkinVisibility();
+    }
+
+    private static string PlaytimeErrorText(string? key, string? detail) => key is null
+        ? string.Empty
+        : string.IsNullOrWhiteSpace(detail)
+            ? HakoStrings.Get(key)
+            : HakoStrings.Get(key) + " " + string.Format(HakoStrings.Get("PlaytimeErrorDetails"), detail);
+
+    private void Playtime_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(PlaytimeCoordinator.Revision) or nameof(PlaytimeCoordinator.ErrorResourceKey))) return;
+        DispatcherQueue.TryEnqueue(RefreshProfile);
     }
 
     private void UpdateSkinVisibility()
@@ -274,6 +317,7 @@ public sealed partial class SettingsPage : Page
         GeneralTitle.Text = HakoStrings.Get("GeneralSection");
         ProfileTitle.Text = HakoStrings.Get("ProfileTitle");
         LanguageLabel.Text = HakoStrings.Get("LanguageLabel");
+        RefreshGameStrings();
         _updatingLanguage = true;
         LanguageBox.SelectedIndex = _coordinator?.Language == AppLanguage.Russian ? 0 : 1;
         _updatingLanguage = false;
@@ -300,7 +344,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        var section = Equals(item.Tag, "Profile") ? SettingsSection.Profile : SettingsSection.General;
+        var section = item.Tag switch { "Profile" => SettingsSection.Profile, "Game" => SettingsSection.Game, _ => SettingsSection.General };
         _coordinator.OpenSettings(section);
         SelectSection(section);
     }
@@ -334,7 +378,7 @@ public sealed partial class SettingsPage : Page
 
     private async void SignOutButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_coordinator is null)
+        if (_coordinator is not { } coordinator)
         {
             return;
         }
@@ -348,14 +392,20 @@ public sealed partial class SettingsPage : Page
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (await HakoDialogs.ShowAsync(dialog, current =>
+        {
+            current.Title = HakoStrings.Get("LogoutTitle");
+            current.Content = HakoStrings.Get("LogoutMessage");
+            current.PrimaryButtonText = HakoStrings.Get("LogoutConfirm");
+            current.CloseButtonText = HakoStrings.Get("CancelButton");
+        }) != ContentDialogResult.Primary || _coordinator != coordinator || !_screenVisible)
         {
             return;
         }
 
         try
         {
-            await _coordinator.LogoutAsync();
+            await coordinator.LogoutAsync();
         }
         catch (Exception exception) when (exception is AccountStoreException or IOException or UnauthorizedAccessException)
         {
@@ -372,12 +422,175 @@ public sealed partial class SettingsPage : Page
             CloseButtonText = HakoStrings.Get("CloseButton"),
             XamlRoot = XamlRoot
         };
-        await dialog.ShowAsync();
+        await HakoDialogs.ShowAsync(dialog, current =>
+        {
+            current.Title = HakoStrings.Get("ErrorTitle");
+            current.Content = HakoStrings.Get(resourceKey);
+            current.CloseButtonText = HakoStrings.Get("CloseButton");
+        });
     }
 
     private void AccountAvatar_ImageFailed(object sender, ExceptionRoutedEventArgs e)
     {
         AccountAvatar.Visibility = Visibility.Collapsed;
         AvatarPlaceholder.Visibility = Visibility.Visible;
+    }
+
+    public async Task<bool> ConfirmLeaveAsync()
+    {
+        await SaveGameSettingsAsync();
+        return _settings is null
+            || (GameLaunchDefaults.WindowDimension(GlobalWidthBox.Text) is not null && GameLaunchDefaults.WindowDimension(GlobalHeightBox.Text) is not null)
+            || await HakoDialogs.ConfirmLeaveInvalidDraftAsync();
+    }
+
+    private void LoadGameSettings()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        _gameSaveTimer ??= CreateGameSaveTimer();
+        var defaults = _settings.GetGameLaunchDefaults();
+        _loadingGame = true;
+        JavaPathBox.Text = defaults.JavaPath;
+        GlobalJavaArgumentsBox.Text = defaults.JavaArguments;
+        GlobalMinecraftArgumentsBox.Text = defaults.MinecraftArguments;
+        GlobalFullscreenSwitch.IsOn = defaults.Fullscreen;
+        GlobalWidthBox.Text = defaults.WindowWidth.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        GlobalHeightBox.Text = defaults.WindowHeight.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        GlobalMemorySlider.Configure(GlobalArchitecture, defaults.MaximumMemoryMiB);
+        _loadingGame = false;
+        UpdateGameValidation();
+    }
+
+    private DispatcherQueueTimer CreateGameSaveTimer()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(500);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) => _ = SaveGameSettingsAsync();
+        GlobalMemorySlider.ValueChanged += (_, _) => ScheduleGameSave();
+        return timer;
+    }
+
+    // Global settings apply to builds of any architecture; the slider is limited only by this computer.
+    private static GameArchitecture GlobalArchitecture => Environment.Is64BitOperatingSystem ? GameArchitecture.X64 : GameArchitecture.X86;
+
+    private void RefreshGameStrings()
+    {
+        GameSectionLabel.Text = HakoStrings.Get("GameSection");
+        GameTitle.Text = HakoStrings.Get("GameSection");
+        GameDescription.Text = HakoStrings.Get("GameSettingsDescription");
+        JavaPathBox.Header = FieldHeader.Create(HakoStrings.Get("JavaPathLabel"));
+        JavaPathBox.PlaceholderText = HakoStrings.Get("JavaPathPlaceholder");
+        ChooseJavaButton.Content = HakoStrings.Get("ChooseButton");
+        JavaPathCaption.Text = HakoStrings.Get("JavaPathCaption");
+        GlobalJavaArgumentsBox.Header = FieldHeader.Create(HakoStrings.Get("ParametersJavaArguments"));
+        GlobalMinecraftArgumentsBox.Header = FieldHeader.Create(HakoStrings.Get("ParametersMinecraftArguments"));
+        GlobalMemoryCaption.Text = HakoStrings.Get("ParametersMemoryCaption");
+        WindowCardTitle.Text = HakoStrings.Get("WindowCardTitle");
+        GlobalFullscreenSwitch.Header = HakoStrings.Get("ParametersFullscreen");
+        GlobalWidthBox.Header = HakoStrings.Get("ParametersWidth");
+        GlobalHeightBox.Header = HakoStrings.Get("ParametersHeight");
+        GlobalWidthError.Text = GlobalHeightError.Text = HakoStrings.Get("DimensionError");
+        WindowCaption.Text = HakoStrings.Get("WindowCaption");
+        GameSaveError.Text = HakoStrings.Get("GameSettingsSaveError");
+        GlobalMemorySlider.RefreshStrings();
+    }
+
+    private void UpdateGameValidation()
+    {
+        GlobalWidthBox.IsEnabled = GlobalHeightBox.IsEnabled = !GlobalFullscreenSwitch.IsOn;
+        GlobalWidthError.Visibility = GameLaunchDefaults.WindowDimension(GlobalWidthBox.Text) is null ? Visibility.Visible : Visibility.Collapsed;
+        GlobalHeightError.Visibility = GameLaunchDefaults.WindowDimension(GlobalHeightBox.Text) is null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ScheduleGameSave()
+    {
+        if (_loadingGame || _gameSaveTimer is null)
+        {
+            return;
+        }
+
+        _gameSaveTimer.Stop();
+        _gameSaveTimer.Start();
+    }
+
+    /// <summary>An invalid window size keeps the saved one; the draft and its error stay on screen.</summary>
+    private async Task SaveGameSettingsAsync()
+    {
+        _gameSaveTimer?.Stop();
+        if (_settings is not { } settings)
+        {
+            return;
+        }
+
+        var saved = settings.GetGameLaunchDefaults();
+        var defaults = new GameLaunchDefaults(
+            JavaPathBox.Text.Trim(),
+            GlobalJavaArgumentsBox.Text,
+            GlobalMinecraftArgumentsBox.Text,
+            GlobalFullscreenSwitch.IsOn,
+            GameLaunchDefaults.WindowDimension(GlobalWidthBox.Text) ?? saved.WindowWidth,
+            GameLaunchDefaults.WindowDimension(GlobalHeightBox.Text) ?? saved.WindowHeight,
+            GlobalMemorySlider.Value);
+        if (defaults == saved)
+        {
+            return;
+        }
+
+        try
+        {
+            await settings.SetGameLaunchDefaultsAsync(defaults);
+            GameSaveError.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception)
+        {
+            GameSaveError.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void GameText_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateGameValidation();
+        ScheduleGameSave();
+    }
+
+    private void GlobalFullscreenSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        UpdateGameValidation();
+        ScheduleGameSave();
+    }
+
+    private async void ChooseJavaButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pickingJava || App.MainWindowId is not { } windowId)
+        {
+            return;
+        }
+
+        _pickingJava = true;
+        try
+        {
+            var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(windowId)
+            {
+                CommitButtonText = HakoStrings.Get("ChooseButton"),
+                FileTypeFilter = { ".exe" }
+            };
+            if (await picker.PickSingleFileAsync() is { } file)
+            {
+                JavaPathBox.Text = file.Path;
+            }
+        }
+        catch (Exception)
+        {
+            GameSaveError.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _pickingJava = false;
+        }
     }
 }

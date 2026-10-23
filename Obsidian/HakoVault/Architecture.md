@@ -45,7 +45,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 | `macos/Hako/Hako/AppIcon.icon` | Иконка приложения в формате Icon Composer (`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`): слой `Assets/box.png` (коробка с сакурой, 1024×1024, прозрачный фон, Liquid Glass включён) на градиенте от белого к светлой сакуре. Тёмный, прозрачный и тонированный варианты система строит сама. Открывается в Icon Composer из Xcode |
 | `macos/Hako/Hako/Assets.xcassets` | `AccentColor` (цвет не задан) |
 | `windows/Hako/` | Windows-клиент: WinUI 3-приложение, конфигурация пакета MSIX, страницы, `MainWindow`, точка входа, ресурсы `.resw`, решение `Hako.slnx` |
-| `windows/Hako.Core/` | Логика Windows-клиента без WinUI: вход Microsoft, хранение аккаунта и настроек, язык |
+| `windows/Hako.Core/` | Логика Windows-клиента без WinUI: вход Microsoft, хранение аккаунта и настроек, язык, сборки (`Instances/`), установка и запуск Minecraft (`Minecraft/`) |
 | `windows/Hako.Tests/` | MSTest-тесты `Hako.Core` и ресурсов Windows-клиента |
 | `Obsidian/HakoVault/` | Эта база знаний |
 
@@ -247,9 +247,14 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 
 ## Windows-клиент
 
-Клиент для Windows в каталоге `windows/` на первом этапе паритета с macOS: приветствие, вход в Microsoft
-по коду, главная с разделами «Сборки» и «Настройки», язык, профиль с 3D-превью скина и выход. Сборки,
-запуск игры, моды, ресурспаки и самообновление пока не реализованы.
+Клиент для Windows в каталоге `windows/` реализует приветствие, вход в Microsoft по коду, главную с рейлом
+сборок и «Настройками», русский/английский язык, профиль с 3D-превью скина и выход. Vanilla- и Fabric-сборки
+создаются и устанавливаются фоновой очередью (пауза, продолжение, повтор), настраиваются, удаляются и запускаются
+онлайн или в offline-mode. Есть локальные моды и ресурспаки, миры и датапаки, каталог Modrinth и импорт готовых
+модпаков Modrinth `.mrpack`, скриншоты, дублирование сборок и резервные копии `.hakobackup`/`.hakoworld`
+— [[UI/Launcher#Windows-клиент]] и [[Data/Backups]]. Также Windows учитывает игровое время по аккаунту/гостю и сборке.
+Фоновый помощник продолжает измерение после закрытия лаунчера, а двухфазный перенос сохраняет границу гостевой сессии.
+Сервисы сборок живут всё время работы приложения и создаются в `App.OnLaunched` (`LauncherServices`).
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
 Экраны — [[UI/Screens#Windows-клиент]], вход — [[Auth/MicrosoftAuth#Windows-клиент]],
@@ -272,37 +277,60 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
 ### Структура
 
 - `windows/Hako/` — WinUI-приложение: `Program.cs` (точка входа и ключи единственного экземпляра), `App.xaml.cs`
-  (создаёт `AppCoordinator` и app-lifetime `MinecraftSkinPreviewService`), `MainWindow` (окно с `NavigationView`,
+  (создаёт `AppCoordinator`, app-lifetime `LauncherServices`, скриншоты и сервисы архивов), `MainWindow` (окно с `NavigationView`,
   `Frame` и forwarding состояния окна), страницы `LoadingPage`, `WelcomePage`, `LoginPage`, `BuildsPage`, `SettingsPage`,
-  `MinecraftSkinView`, `MinecraftSkinImageDecoder`, `MinecraftSkinPreviewService`, `MinecraftSkinHeadComposer`,
+  профиль и его `InstanceScreenshotsView`, `ScreenshotThumbnails`, `MinecraftSkinView`, `MinecraftSkinImageDecoder`, `MinecraftSkinPreviewService`, `MinecraftSkinHeadComposer`,
   `Graphics/MinecraftSkinRenderer` и `Graphics/MinecraftSkinGeometry`, `HakoStrings`, `AppDataDirectory`,
   `Strings/ru-RU` и `Strings/en-US` (`Resources.resw`), `Package.appxmanifest`, `app.manifest`,
   `Properties/launchSettings.json`, решение `Hako.slnx`.
-- `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
-  `AuthContracts`, `AccountSessionStore`, `JsonUserSettingsStore`, `AppLanguage`, `JsonContexts`.
-- `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
+- `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `Playtime/` (ledger, сессии,
+  helper и coordinator), `MicrosoftDeviceAuth`,
+  `AuthContracts`, `AccountSessionStore`, `UserSettingsService`, `HakoPaths`, `HakoRootLock`, `Instances/`
+  (`GameInstance`, `InstanceStorage`, `InstanceStore`, `InstanceScreenshots`, `InstanceFileTree`, `InstanceBackup`,
+  `WorldBackup`, `InstallationCoordinator`, `ModpackCatalog`), `Minecraft/`
+  (`ModrinthClient`, `ModpackManifest`, `ModpackArchive`, `ModpackInstaller`, Mojang/Fabric install and launch logic),
+  source-generated COM-корзина `RecycleBin`, `JsonContexts`.
+- `windows/Hako.Tests/` — `AppCoordinatorTests`, `PlaytimeTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
   `LocalizationResourcesTests`, `RedactionTests`, `MinecraftSkinTests`, `MinecraftSkinImageDecoderTests`,
   `MinecraftSkinGeometryTests`; `TestSupport.cs` содержит фейки времени, таймеров, хранилищ,
   сервиса входа и `TestData`. Decoder/head/geometry исходники Windows UI linked-compiled для тестов.
+  `windows/Hako/app.manifest` включает `longPathAware` для файловых операций Windows.
 
 ### Запуск и единственный экземпляр
 
-1. `Program.Main` — синхронный `[STAThread] static void Main`. Он вызывает `ComWrappersSupport.InitializeComWrappers()`,
-   затем `AppInstance.FindOrRegisterForKey("Hako.Main")`. Изолированный CLI preview использует отдельный ключ
-   `Hako.ProfilePreview`, поэтому не активирует работающий обычный Hako. Если экземпляр не текущий, `RedirectActivationTo` запускает
+1. `Program.Main` — синхронный `[STAThread] static void Main`. Режим `--playtime-helper <journal>` обрабатывается до
+   WinUI, `AppInstance` и root lock; обычный путь затем разбирает `--hako-root` и `--data-root`
+   и валидирует абсолютные пути. Для переопределений нужны оба корня; неверные аргументы показывают системное сообщение
+   и завершают процесс без выбора production-путей. Изолированный запуск использует ключ
+   `Hako.Isolated.<sha256 корней>`, а `--profile-preview` — отдельный `Hako.ProfilePreview`.
+   Для изолированного запуска game-root и data-root не могут содержать друг друга. Обычный ключ остаётся `Hako.Main`.
+   Если экземпляр не текущий, `RedirectActivationTo` запускает
    `RedirectActivationToAsync` в `Task.Run`, а STA-поток ждёт его в `CoWaitForMultipleObjects`, продолжая обрабатывать
    сообщения: блокирующий `Wait()` может зависнуть, пока целевой экземпляр обрабатывает активацию. Затем перенаправляющий
    процесс вызывает `SetForegroundWindow` для главного окна целевого процесса и выходит. Сбой этого шага (например, целевой
    процесс уже завершился) игнорируется: второй экземпляр просто выходит. Текущий экземпляр при повторной
    активации вызывает `App.ActivateMainWindow` через `DispatcherQueue`: разворачивает свёрнутое окно
    (`OverlappedPresenter.Restore`), затем вызывает `AppWindow.Show()` и `Activate()`. Один экземпляр — решение пользователя.
-2. Обычный `App()` создаёт `AppCoordinator` с `JsonUserSettingsStore`, `AccountSessionStore` и
-   `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`; каталог данных — `AppDataDirectory.GetLocalPath()`.
+2. Обычный `App()` удерживает `HakoRootLock` на `.hako-lock` в игровом корне и каталоге данных. При sharing/lock violation
+   показывается локализованное сообщение и приложение не читает аккаунт, настройки или `instances.json`; прочие ошибки
+   блокировки показываются как ошибка доступа к хранилищу. Игровой корень может быть junction или symlink, а вложенные
+   пути сборок остаются защищены от reparse points. `HakoPaths` задаёт
+   `%USERPROFILE%\.hako`, каталог данных из `AppDataDirectory.GetLocalPath()` и `%LOCALAPPDATA%\Hako\Cache`.
+   App-lifetime сервисы используют эти пути: `InstanceStore`, `PlaytimeCoordinator` (только `GameRoot`),
+   `UserSettingsService` с `JsonUserSettingsStore`, `AccountSessionStore` и
+   `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`. `instances.json` атомарно
+   сохраняет полный профиль сборки; изменения сериализуются внутри `InstanceStore`. `settings.json` хранит язык и
+   optional-поля глобальных параметров игры, а `UserSettingsService` пишет единый снимок для обоих видов настроек.
    Skin preview service использует отдельный `HttpClient` с 15-секундным timeout для публичных Mojang texture API,
    без токенов; он не меняет `AccountSession` или формат persistence.
-3. `OnLaunched` сначала показывает `MainWindow` (экран `Loading`), затем `await InitializeAsync()` выбирает
-   `Welcome` или `Builds`. В preview-режиме вместо файловых store создаются fake in-memory store и auth-сервис,
-   который запрещает sign-in; production-путь `AppDataDirectory.GetLocalPath()` не вызывается. Режим
+3. `OnLaunched` показывает `MainWindow`, затем `AppCoordinator.InitializeAsync()` загружает настройки и аккаунт.
+   `PlaytimeCoordinator` сверяет ожидающий перенос с текущим XUID; `GameLaunchCoordinator.RestoreRunningGamesAsync`
+   восстанавливает существующие session IDs до reconcile, чтобы живая игра не считалась потерянной. После запуска
+   сервисов приложение сверяет журналы при старте и каждые 10 секунд; закрытие окна отменяет app polling, но не detached helper.
+   `InitializeAsync()` выбирает `Welcome` или `Builds`; ошибка реестра остаётся в `InstanceStore.LoadError`
+   для UI. В preview-режиме `HakoPaths` указывает на уникальный временный корень, создаются fake in-memory store
+   и auth-сервис, который запрещает sign-in; production-каталог данных не читается, временный корень удаляется при выходе.
+   Режим
    `--profile-preview guest` после гостевого перехода открывает «Настройки → Профиль»; обычный гостевой вход
    по-прежнему начинает на странице сборок.
 
@@ -312,11 +340,12 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
   `Hako (Package)` (`MsixPackage`) и `Hako (Unpackaged)` (`Project`). Тип упаковки (`WindowsPackageType`)
   в `Hako.csproj` не задан; CI выбирает `MSIX` для Windows-релизной сборки.
 - `PublishTrimmed` и `PublishReadyToRun` включаются для конфигураций, отличных от `Debug`.
-  Release-публикация показывает `IL2059` в сгенерированном `XamlTypeInfo.g.cs` для `RunClassConstructor`
-  у `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion`, а также `IL2104` для
-  `SharpGen.Runtime`. `Nullable<T>` не имеет статического конструктора; предупреждение зависимости
-  относится к upstream assembly. Не подавлять их глобально через `NoWarn`, чтобы не скрыть такие же
-  предупреждения в коде Hako.
+  Известные Release-предупреждения trimming: `IL2059` в сгенерированном `XamlTypeInfo.g.cs` для
+  `RunClassConstructor` у `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion` и `IL2104`
+  в upstream-сборках `SharpGen.Runtime` или `System.Text.Json` (набор зависит от SDK и восстановленных
+  версий зависимостей). `Nullable<T>` не имеет статического конструктора; предупреждения библиотек относятся
+  к их исходным сборкам. Не подавлять их глобально через `NoWarn`, чтобы не скрыть такие же предупреждения
+  в коде Hako.
 - Для isolated UI smoke запустить `Hako.exe --profile-preview [account|no-minecraft|guest|fixture]`
   (без режима используется `account`). `--preview-width` принимает 640–2560, `--preview-height` — 480–2560;
   эти аргументы действуют только в preview. Режимы используют fake аккаунт/гостя без реального UUID, сеть
@@ -333,10 +362,11 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: сборки (вкладка «Сборки» показывает пустое состояние), запуск Minecraft, моды и ресурспаки,
-  каталоги Modrinth и CurseForge, самообновление.
-- Обновление токенов не реализовано: `MicrosoftRefreshToken` сохраняется, refresh-grant в коде нет.
-- `MinecraftAccessToken` сохраняется и нигде не читается. Игровой сессии на Windows пока нет.
+- Не реализованы: CurseForge, самообновление Windows и восстановление из `.hakobackup`/`.hakoworld`.
+  Modrinth-паки устанавливаются из каталога; локальный импорт `.mrpack` и обновление всего модпака
+  не поддерживаются.
+- Онлайн-запуск обновляет Minecraft-сессию через `MinecraftSessionCoordinator.ConnectForLaunchAsync` (refresh-grant
+  с сохранением нового refresh token); без Minecraft-профиля доступен только offline-mode сборки.
 
 ### Решения и основания
 

@@ -135,6 +135,103 @@ public sealed class MicrosoftDeviceAuth(HttpClient httpClient, TimeProvider time
             minecraft?.ExpiresAt);
     }
 
+    public async Task<MinecraftConnection> ConnectMinecraftAsync(
+        string refreshToken,
+        Func<string, CancellationToken, Task> persistRefreshToken,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(refreshToken);
+        ArgumentNullException.ThrowIfNull(persistRefreshToken);
+
+        using var refreshResponse = await httpClient.PostAsync(
+            new Uri(OAuthBase, "token"),
+            new FormUrlEncodedContent(
+            [
+                new("grant_type", "refresh_token"),
+                new("client_id", ClientId),
+                new("refresh_token", refreshToken)
+            ]),
+            cancellationToken);
+        var refreshBytes = await refreshResponse.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (!refreshResponse.IsSuccessStatusCode)
+        {
+            var error = TryDeserialize(refreshBytes, HakoJsonContext.Default.OAuthErrorResponse)?.Error;
+            throw error == "invalid_grant"
+                ? new AuthServiceException(AuthErrorKind.RefreshTokenRejected, (int)refreshResponse.StatusCode)
+                : OAuthFailure(refreshBytes, refreshResponse.StatusCode);
+        }
+
+        var token = JsonSerializer.Deserialize(refreshBytes, HakoJsonContext.Default.MicrosoftTokenResponse);
+        if (token?.AccessToken is not { Length: > 0 } accessToken
+            || token.RefreshToken is not { Length: > 0 } rotatedRefreshToken)
+        {
+            throw new AuthServiceException(AuthErrorKind.InvalidResponse);
+        }
+
+        // Persist the rotation before making any Xbox or Minecraft request. If those later fail,
+        // the next attempt must use the newest Microsoft refresh token.
+        await persistRefreshToken(rotatedRefreshToken, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var userToken = await XboxRequestAsync(XboxUserAuth, new XboxAuthRequest(
+            new XboxAuthProperties("RPS", "user.auth.xboxlive.com", "d=" + accessToken, null, null)),
+            "http://auth.xboxlive.com", cancellationToken);
+        var xboxUserToken = userToken.Token ?? throw new AuthServiceException(AuthErrorKind.InvalidResponse);
+        var xsts = await AuthorizeXboxAsync(xboxUserToken, "rp://api.minecraftservices.com/", cancellationToken);
+        var claims = xsts.DisplayClaims?.Xui?.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(claims?.UserHash) || string.IsNullOrWhiteSpace(xsts.Token))
+        {
+            throw new AuthServiceException(AuthErrorKind.InvalidResponse);
+        }
+
+        var loginRequest = new MinecraftLoginRequest($"XBL3.0 x={claims.UserHash};{xsts.Token}");
+        using var loginMessage = CreateJsonRequest(MinecraftLogin, loginRequest, HakoJsonContext.Default.MinecraftLoginRequest);
+        using var loginResponse = await httpClient.SendAsync(loginMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (loginResponse.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+        {
+            throw new AuthServiceException(AuthErrorKind.MinecraftLicenseMissing, (int)loginResponse.StatusCode);
+        }
+
+        if (!loginResponse.IsSuccessStatusCode)
+        {
+            throw new AuthServiceException(AuthErrorKind.InvalidResponse, (int)loginResponse.StatusCode);
+        }
+
+        var loginBytes = await loginResponse.Content.ReadAsByteArrayAsync(cancellationToken);
+        var login = JsonSerializer.Deserialize(loginBytes, HakoJsonContext.Default.MinecraftLoginResponse);
+        if (login?.AccessToken is not { Length: > 0 } minecraftAccessToken || login.ExpiresIn <= 0)
+        {
+            throw new AuthServiceException(AuthErrorKind.InvalidResponse);
+        }
+
+        using var profileRequest = new HttpRequestMessage(HttpMethod.Get, MinecraftProfile);
+        profileRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", minecraftAccessToken);
+        using var profileResponse = await httpClient.SendAsync(profileRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (profileResponse.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new AuthServiceException(AuthErrorKind.MinecraftProfileMissing, (int)profileResponse.StatusCode);
+        }
+
+        if (profileResponse.StatusCode == HttpStatusCode.Forbidden)
+        {
+            throw new AuthServiceException(AuthErrorKind.MinecraftLicenseMissing, (int)profileResponse.StatusCode);
+        }
+
+        if (!profileResponse.IsSuccessStatusCode)
+        {
+            throw new AuthServiceException(AuthErrorKind.InvalidResponse, (int)profileResponse.StatusCode);
+        }
+
+        var profileBytes = await profileResponse.Content.ReadAsByteArrayAsync(cancellationToken);
+        var profile = JsonSerializer.Deserialize(profileBytes, HakoJsonContext.Default.MinecraftProfileResponse);
+        if (string.IsNullOrWhiteSpace(profile?.Id) || string.IsNullOrWhiteSpace(profile.Name))
+        {
+            throw new AuthServiceException(AuthErrorKind.MinecraftProfileMissing);
+        }
+
+        return new MinecraftConnection(profile.Id!, profile.Name!, minecraftAccessToken, timeProvider.GetUtcNow().AddSeconds(login.ExpiresIn));
+    }
+
     private async Task<XboxAuthResponse> AuthorizeXboxAsync(string userToken, string relyingParty, CancellationToken cancellationToken)
     {
         return await XboxRequestAsync(XboxXstsAuth, new XboxAuthRequest(

@@ -176,8 +176,11 @@ SwiftUI ModelContext. Замена записи того же XUID отменя�
    HTTP-статус из этих трёх запросов, пустой `uhs`, пустой или некорректный JSON, сеть, таймаут) даёт пустые поля Minecraft,
    вход продолжается с профилем Xbox. Причина не сохраняется и не показывается. Исключение выходит наружу только при отмене
    нашим `CancellationToken`. `MinecraftTokenExpiresAt` = момент получения + `expires_in`.
-5. Запись `AccountSession` через `AccountSessionStore.SaveAsync` — аккаунт становится текущим, только если
-   попытка ещё актуальна ([[Data/Persistence#Windows-клиент]]).
+5. Перед `AccountSessionStore.SaveAsync` `AppCoordinator` фиксирует на ledger границу ожидающего переноса гостевого
+   времени. `session.dat` сохраняется только если попытка ещё актуальна; после успешной записи перенос применяется
+   одной атомарной операцией, только для сохранённого целевого XUID и зафиксированных на границе сумм/сессий.
+   При ошибке или отмене запись переноса удаляется; при сбое между фазами решение восстанавливается при запуске
+   по текущему `session.dat` ([[Data/Persistence#Игровое время Windows]]).
 
 Коды `XErr` шагов 1–2 классифицируются: `2148916233` → `XboxProfileMissing`, `2148916235` → `XboxUnavailable`,
 `2148916236` и `2148916237` → `XboxAgeVerification`, `2148916238` → `XboxChildAccount`, остальные → `XboxRejected`.
@@ -202,8 +205,29 @@ SwiftUI ModelContext. Замена записи того же XUID отменя�
 - Одна активная попытка: `StartAttempt` через `InvalidateAttemptLocked` увеличивает поколение и отменяет
   предыдущую попытку.
 - Отмена: `CancelSignIn` (закрытие `MainWindow`), `BackFromSignIn`, `LogoutAsync`. Ошибки отменённой попытки не показываются.
-- Все переходы состояния попытки и финальная запись аккаунта выполняются под `_commitLock`. Запись проходит
-  только при `IsCurrentAttempt` (то же поколение, попытка активна и не отменена); `File.Move` выполняется
-  внутри этого условия. Устаревший вход не заменит аккаунт, а завершившийся вход не восстановит аккаунт после выхода.
+- Все переходы состояния попытки и финальная запись аккаунта выполняются под `_commitLock`. Подготовка счётчиков
+  выполняется до финальной фиксации; сама запись проходит только при `IsCurrentAttempt` (то же поколение, попытка
+  активна и не отменена), а `File.Move` остаётся внутри этого условия. Фаза применения сериализована с выходом,
+  но файловые операции подготовки не блокируют UI и не удерживают commit lock. Устаревший вход не заменит аккаунт,
+  а завершившийся вход не восстановит аккаунт после выхода.
 - Выход: `LogoutAsync` сначала инвалидирует попытку, затем удаляет `session.dat` под тем же условием. Выбранный язык
   при выходе сохраняется (тест `LogoutKeepsSelectedLanguage`).
+
+### Обновление сессии для онлайн-запуска
+
+Строгий путь, отдельный от мягкого шага 4 первого входа (тот не изменён).
+`IMicrosoftAuthService.ConnectMinecraftAsync(refreshToken, persistRefreshToken, ct)`: refresh-grant Microsoft →
+**сразу** `persistRefreshToken` с ротированным токеном → Xbox → XSTS Minecraft → `login_with_xbox` → профиль.
+Сбой после refresh не теряет новый токен. Ошибки различимы: `invalid_grant` → `RefreshTokenRejected`,
+403/404 входа или 403 профиля → `MinecraftLicenseMissing`, 404 профиля или пустой профиль → `MinecraftProfileMissing`;
+сеть/таймаут → `Network`. Ключи resw: `MinecraftRefreshTokenRejected`, `MinecraftLicenseMissing`, `MinecraftProfileMissing`.
+`MinecraftConnection.ToString()` не выводит access token.
+
+`MinecraftSessionCoordinator` (`AppCoordinator.MinecraftSessions`, `windows/Hako.Core/MinecraftSessionCoordinator.cs`):
+- `ConnectForLaunchAsync` возвращает текущий `AccountSession`, если Minecraft-токен действует ещё больше минуты
+  (время — через `TimeProvider`), иначе запускает refresh. Параллельные вызовы ждут одну операцию.
+- Каждая запись (`session.dat` и `AppCoordinator.Account`) идёт через `AppCoordinator.TryCommitAccountUpdate` внутри
+  `commitIfCurrent` с поколением аккаунта; вход, загрузка и выход увеличивают поколение (`AccountGenerationChanged`)
+  и отменяют refresh. Поздний результат не восстановит удалённый `session.dat` и не заменит новый аккаунт.
+- `Status` (`Idle`/`Connecting`/`Connected`/`Failed`) и `Error` для UI; события приходят с потока refresh —
+  UI маршалит их в `DispatcherQueue`.

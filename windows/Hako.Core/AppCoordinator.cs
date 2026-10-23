@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Hako.Core.Playtime;
 
 namespace Hako.Core;
 
@@ -11,13 +12,18 @@ public enum LauncherScreen
     Welcome,
     Login,
     Builds,
+    Instance,
+    InstanceCreation,
+    ModpackCatalog,
+    ModpackCreation,
     Settings
 }
 
 public enum SettingsSection
 {
     General,
-    Profile
+    Profile,
+    Game
 }
 
 public enum StartupNotice
@@ -38,16 +44,18 @@ public static class StartupNoticeExtensions
 
 public sealed class AppCoordinator : INotifyPropertyChanged
 {
-    private readonly IUserSettingsStore _settingsStore;
+    private readonly UserSettingsService _settingsService;
     private readonly IAccountStore _accountStore;
     private readonly IMicrosoftAuthService _authService;
     private readonly object _commitLock = new();
-    private readonly SemaphoreSlim _languageSaveGate = new(1, 1);
+    private readonly SemaphoreSlim _accountTransitionGate = new(1, 1);
+    private readonly IAccountPlaytimeTransfer? _playtimeTransfer;
     private LauncherScreen _screen = LauncherScreen.Loading;
     private AppLanguage _language = AppLanguages.Default;
     private AppLanguage _savedLanguage = AppLanguages.Default;
     private bool _isGuest;
     private SettingsSection _settingsSection = SettingsSection.General;
+    private Guid? _selectedInstanceId;
     private LauncherScreen _loginReturnScreen = LauncherScreen.Welcome;
     private SettingsSection _loginReturnSection = SettingsSection.General;
     private DeviceCode? _currentDeviceCode;
@@ -57,16 +65,39 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private AccountSession? _account;
     private CancellationTokenSource? _activeAttempt;
     private long _attemptGeneration;
+    private long _accountGeneration;
     private long _languageSelection;
 
-    public AppCoordinator(IUserSettingsStore settingsStore, IAccountStore accountStore, IMicrosoftAuthService authService)
+    public AppCoordinator(
+        IUserSettingsStore settingsStore,
+        IAccountStore accountStore,
+        IMicrosoftAuthService authService,
+        TimeProvider? timeProvider = null,
+        IAccountPlaytimeTransfer? playtimeTransfer = null)
+        : this(new UserSettingsService(settingsStore), accountStore, authService, timeProvider, playtimeTransfer)
     {
-        _settingsStore = settingsStore;
+    }
+
+    public AppCoordinator(
+        UserSettingsService settingsService,
+        IAccountStore accountStore,
+        IMicrosoftAuthService authService,
+        TimeProvider? timeProvider = null,
+        IAccountPlaytimeTransfer? playtimeTransfer = null)
+    {
+        _settingsService = settingsService;
         _accountStore = accountStore;
         _authService = authService;
+        _playtimeTransfer = playtimeTransfer;
+        MinecraftSessions = new MinecraftSessionCoordinator(this, _accountStore, _authService, timeProvider);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Raised on the calling thread when the signed-in account is replaced or invalidated.</summary>
+    public event EventHandler? AccountGenerationChanged;
+
+    public MinecraftSessionCoordinator MinecraftSessions { get; }
 
     public LauncherScreen Screen
     {
@@ -119,7 +150,6 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     public AccountSession? Account
     {
         get => _account;
-        private set => SetProperty(ref _account, value);
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -127,7 +157,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         UserSettings? settings = null;
         try
         {
-            settings = await _settingsStore.LoadAsync(cancellationToken);
+            settings = await _settingsService.LoadAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -143,7 +173,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
 
         try
         {
-            Account = await _accountStore.LoadAsync(cancellationToken);
+            SetAccount(await _accountStore.LoadAsync(cancellationToken), invalidateSessions: true);
             IsGuest = false;
             Screen = Account is null ? LauncherScreen.Welcome : LauncherScreen.Builds;
         }
@@ -153,7 +183,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         }
         catch
         {
-            Account = null;
+            SetAccount(null, invalidateSessions: true);
             IsGuest = false;
             CurrentStartupNotice = StartupNotice.AccountUnavailable;
             Screen = LauncherScreen.Welcome;
@@ -166,32 +196,18 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         Language = language;
         try
         {
-            await SaveLanguageAsync(cancellationToken);
+            await _settingsService.SetLanguageAsync(language, cancellationToken);
+            _savedLanguage = AppLanguages.Parse(_settingsService.SavedLanguage);
         }
         catch
         {
+            _savedLanguage = AppLanguages.Parse(_settingsService.SavedLanguage);
             if (selection == _languageSelection)
             {
                 Language = _savedLanguage;
             }
 
             throw;
-        }
-    }
-
-    private async Task SaveLanguageAsync(CancellationToken cancellationToken)
-    {
-        await _languageSaveGate.WaitAsync(cancellationToken);
-        try
-        {
-            // Saves the current language rather than the caller's: the last save to run always carries the latest choice.
-            var language = Language;
-            await _settingsStore.SaveAsync(new UserSettings(language.ToTag()), cancellationToken);
-            _savedLanguage = language;
-        }
-        finally
-        {
-            _languageSaveGate.Release();
         }
     }
 
@@ -244,6 +260,49 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         Screen = LauncherScreen.Builds;
     }
 
+    /// <summary>The build shown by <see cref="LauncherScreen.Instance"/>.</summary>
+    public Guid? SelectedInstanceId
+    {
+        get => _selectedInstanceId;
+        private set => SetProperty(ref _selectedInstanceId, value);
+    }
+
+    public void OpenInstance(Guid id)
+    {
+        SelectedInstanceId = id;
+        Screen = LauncherScreen.Instance;
+    }
+
+    public void OpenInstanceCreation()
+    {
+        Screen = LauncherScreen.InstanceCreation;
+    }
+
+    public void OpenModpackCatalog()
+    {
+        Screen = LauncherScreen.ModpackCatalog;
+    }
+
+    public void OpenModpackCreation()
+    {
+        Screen = LauncherScreen.ModpackCreation;
+    }
+
+    /// <summary>Leaves the profile of a build that no longer exists.</summary>
+    public void CloseInstance(Guid id)
+    {
+        if (SelectedInstanceId != id)
+        {
+            return;
+        }
+
+        SelectedInstanceId = null;
+        if (Screen == LauncherScreen.Instance)
+        {
+            Screen = LauncherScreen.Builds;
+        }
+    }
+
     public void OpenSettings(SettingsSection section = SettingsSection.General)
     {
         SelectedSettingsSection = section;
@@ -261,32 +320,41 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         lock (_commitLock)
         {
             InvalidateAttemptLocked();
+            InvalidateAccountOperationsLocked();
             generation = _attemptGeneration;
         }
 
-        var cleared = await _accountStore.ClearAsync(action =>
+        await _accountTransitionGate.WaitAsync(cancellationToken);
+        try
         {
-            lock (_commitLock)
+            var cleared = await _accountStore.ClearAsync(action =>
             {
-                if (generation != _attemptGeneration)
+                lock (_commitLock)
                 {
-                    return false;
+                    if (generation != _attemptGeneration)
+                    {
+                        return false;
+                    }
+
+                    action();
+                    SetAccount(null, invalidateSessions: false);
+                    IsGuest = false;
+                    CurrentDeviceCode = null;
+                    LoginError = null;
+                    CurrentStartupNotice = null;
+                    Screen = LauncherScreen.Welcome;
+                    return true;
                 }
+            }, cancellationToken);
 
-                action();
-                Account = null;
-                IsGuest = false;
-                CurrentDeviceCode = null;
-                LoginError = null;
-                CurrentStartupNotice = null;
-                Screen = LauncherScreen.Welcome;
-                return true;
+            if (!cleared)
+            {
+                throw new OperationCanceledException(cancellationToken);
             }
-        }, cancellationToken);
-
-        if (!cleared)
+        }
+        finally
         {
-            throw new OperationCanceledException(cancellationToken);
+            _accountTransitionGate.Release();
         }
     }
 
@@ -296,6 +364,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         long generation;
         lock (_commitLock)
         {
+            InvalidateAccountOperationsLocked();
             InvalidateAttemptLocked();
             generation = _attemptGeneration;
             attempt = new CancellationTokenSource();
@@ -330,24 +399,62 @@ public sealed class AppCoordinator : INotifyPropertyChanged
             }
 
             var account = await _authService.SignInAsync(token, cancellationToken);
-            await _accountStore.SaveAsync(account, replaceFile =>
+            Guid? transferID = null;
+            var accountSaved = false;
+            try
             {
-                lock (_commitLock)
+                if (_playtimeTransfer is not null && CaptureAccountState().Account is null)
                 {
-                    if (!IsCurrentAttempt(generation, attempt))
-                    {
-                        return false;
-                    }
-
-                    replaceFile();
-                    Account = account;
-                    IsGuest = false;
-                    CurrentDeviceCode = null;
-                    LoginError = null;
-                    Screen = LauncherScreen.Builds;
-                    return true;
+                    try { transferID = await _playtimeTransfer.PrepareGuestTransferAsync(account.Xuid, cancellationToken); }
+                    catch (Exception) { }
                 }
-            }, cancellationToken);
+
+                accountSaved = await _accountStore.SaveAsync(account, replaceFile =>
+                {
+                    lock (_commitLock)
+                    {
+                        if (!IsCurrentAttempt(generation, attempt))
+                        {
+                            return false;
+                        }
+
+                        replaceFile();
+                        SetAccount(account, invalidateSessions: true);
+                        IsGuest = false;
+                        CurrentDeviceCode = null;
+                        LoginError = null;
+                        Screen = LauncherScreen.Builds;
+                        return true;
+                    }
+                }, cancellationToken);
+
+                if (transferID is { } committedTransfer && accountSaved)
+                {
+                    await _accountTransitionGate.WaitAsync(CancellationToken.None);
+                    try
+                    {
+                        if (CaptureAccountState().Account?.Xuid == account.Xuid)
+                        {
+                            try { await _playtimeTransfer!.CompleteGuestTransferAsync(committedTransfer, CancellationToken.None); }
+                            catch (Exception) { }
+                        }
+                        else
+                        {
+                            try { await _playtimeTransfer!.CancelGuestTransferAsync(committedTransfer, CancellationToken.None); }
+                            catch (Exception) { }
+                        }
+                    }
+                    finally { _accountTransitionGate.Release(); }
+                }
+            }
+            finally
+            {
+                if (transferID is { } pending && !accountSaved)
+                {
+                    try { await _playtimeTransfer!.CancelGuestTransferAsync(pending, CancellationToken.None); }
+                    catch (Exception) { }
+                }
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -418,6 +525,69 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         generation == _attemptGeneration
         && ReferenceEquals(_activeAttempt, attempt)
         && !attempt.IsCancellationRequested;
+
+    internal (AccountSession? Account, long Generation) CaptureAccountState()
+    {
+        lock (_commitLock)
+        {
+            return (_account, _accountGeneration);
+        }
+    }
+
+    internal bool TryCommitAccountUpdate(
+        AccountSession expectedAccount,
+        long generation,
+        AccountSession updatedAccount,
+        Action persist)
+    {
+        lock (_commitLock)
+        {
+            if (generation != _accountGeneration || !ReferenceEquals(_account, expectedAccount))
+            {
+                return false;
+            }
+
+            persist();
+            SetAccount(updatedAccount, invalidateSessions: false);
+            return true;
+        }
+    }
+
+    private void SetAccount(AccountSession? account, bool invalidateSessions)
+    {
+        if (ReferenceEquals(_account, account))
+        {
+            return;
+        }
+
+        _account = account;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Account)));
+        if (invalidateSessions)
+        {
+            InvalidateAccountOperationsLocked();
+        }
+    }
+
+    private void InvalidateAccountOperationsLocked()
+    {
+        _accountGeneration++;
+        var handlers = AccountGenerationChanged;
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
 
     private void InvalidateAttemptLocked()
     {

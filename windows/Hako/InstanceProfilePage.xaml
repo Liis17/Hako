@@ -1,0 +1,131 @@
+<Page
+    x:Class="Hako.InstanceProfilePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Hako">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="900" HorizontalAlignment="Left" Padding="32" Spacing="24">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
+                <local:InstanceIconView x:Name="HeaderIcon" Width="76" Height="76" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
+                    <TextBlock x:Name="NameText" FontSize="36" FontWeight="Bold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="DetailsText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="PlaytimeText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    <TextBlock x:Name="PlaytimeErrorText" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                </StackPanel>
+                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="10" VerticalAlignment="Top">
+                    <StackPanel x:Name="PlayPanel" MaxWidth="280" Spacing="8" HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
+                            <TextBlock x:Name="OfflineNameText" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Button x:Name="PlayButton" Style="{ThemeResource AccentButtonStyle}" Padding="20,8" Click="PlayButton_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE768;" FontSize="14" />
+                                    <TextBlock x:Name="PlayButtonText" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <StackPanel x:Name="PreparingPanel" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Visibility="Collapsed">
+                            <ProgressRing IsActive="True" Width="14" Height="14" />
+                            <TextBlock x:Name="PreparingText" FontSize="12" />
+                        </StackPanel>
+                        <TextBlock x:Name="PlayStatusText" FontSize="12" TextWrapping="Wrap" TextAlignment="Right" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <HyperlinkButton x:Name="OpenLogButton" FontSize="12" Visibility="Collapsed" Click="OpenLogButton_Click" />
+                            <HyperlinkButton x:Name="RetrySessionButton" FontSize="12" Visibility="Collapsed" Click="RetrySessionButton_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Button x:Name="ActionsButton" Grid.Column="1" Height="36" VerticalAlignment="Top">
+                        <FontIcon Glyph="&#xE712;" FontSize="16" />
+                        <Button.Flyout>
+                            <MenuFlyout x:Name="ActionsMenu" Placement="BottomEdgeAlignedRight" Opening="ActionsMenu_Opening">
+                                <MenuFlyoutItem x:Name="DuplicateMenuItem" Click="DuplicateMenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8C8;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="BackupMenuItem" Click="BackupMenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE7B8;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem x:Name="DeleteMenuItem" Click="DeleteMenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE74D;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </Grid>
+            </Grid>
+
+            <StackPanel x:Name="OperationPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                <ProgressRing IsActive="True" Width="16" Height="16" />
+                <TextBlock x:Name="OperationText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <Border x:Name="InstallationPanel" Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="Collapsed">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock x:Name="InstallationStateText" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button x:Name="InstallationActionButton" Grid.Column="1" Click="InstallationActionButton_Click" />
+                    </Grid>
+                    <ProgressBar x:Name="InstallationProgress" Maximum="1" Visibility="Collapsed" />
+                    <TextBlock x:Name="InstallationProgressText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    <TextBlock x:Name="InstallationErrorText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+
+            <RadioButtons x:Name="SectionTabs" MaxColumns="5" SelectionChanged="SectionTabs_SelectionChanged">
+                <RadioButton x:Name="ModsSectionButton" Tag="Mods" />
+                <RadioButton x:Name="ResourcePacksSectionButton" Tag="ResourcePacks" />
+                <RadioButton x:Name="WorldsSectionButton" Tag="Worlds" />
+                <RadioButton x:Name="ScreenshotsSectionButton" Tag="Screenshots" />
+                <RadioButton x:Name="SettingsSectionButton" Tag="Settings" />
+            </RadioButtons>
+
+            <local:InstanceContentView x:Name="ContentSection" Visibility="Collapsed" />
+            <local:InstanceWorldsView x:Name="WorldsSection" Visibility="Collapsed" />
+            <local:InstanceScreenshotsView x:Name="ScreenshotsSection" Visibility="Collapsed" />
+
+            <StackPanel x:Name="SettingsSection" Spacing="24">
+            <TextBlock x:Name="SettingsTitle" FontSize="24" FontWeight="SemiBold" />
+
+            <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="16">
+                    <TextBlock x:Name="ProfileSectionTitle" FontSize="18" FontWeight="SemiBold" />
+                    <local:InstanceIconPicker x:Name="IconPicker" />
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock x:Name="NameLabel" FontWeight="SemiBold" />
+                            <TextBlock x:Name="NameCounter" Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </Grid>
+                        <TextBox x:Name="NameBox" MaxLength="60" TextChanged="NameBox_TextChanged" />
+                        <TextBlock x:Name="RenameBlockedText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                        <TextBlock x:Name="NameErrorText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                        <Button x:Name="SaveNameButton" Click="SaveNameButton_Click" />
+                    </StackPanel>
+                    <TextBlock x:Name="VersionInfoText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="FolderText" FontSize="12" IsTextSelectionEnabled="True" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Border>
+
+            <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="16">
+                    <TextBlock x:Name="ParametersTitle" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock x:Name="SettingsBlockedText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    <local:InstanceParametersEditor x:Name="ParametersEditor" />
+                    <TextBlock x:Name="ManifestMissingText" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Spacing="6">
+                <TextBlock x:Name="AutosaveText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock x:Name="NextLaunchText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                <TextBlock x:Name="SettingsErrorText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+            </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

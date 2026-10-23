@@ -1,0 +1,85 @@
+<Page
+    x:Class="Hako.InstanceCreationPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Hako">
+    <Page.KeyboardAccelerators>
+        <KeyboardAccelerator Key="Escape" Invoked="Escape_Invoked" />
+    </Page.KeyboardAccelerators>
+    <Grid Padding="32,32,32,20" RowDefinitions="Auto,*,Auto" RowSpacing="16">
+        <TextBlock x:Name="TitleText" FontSize="32" FontWeight="SemiBold" />
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel MaxWidth="760" HorizontalAlignment="Left" Spacing="24" Padding="0,0,16,16">
+                <local:InstanceIconPicker x:Name="IconPicker" />
+
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock x:Name="NameLabel" FontWeight="SemiBold" />
+                        <TextBlock x:Name="NameCounter" Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+                    <TextBox x:Name="NameBox" MaxLength="60" TextChanged="NameBox_TextChanged" />
+                    <TextBlock x:Name="NameHint" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel Spacing="10">
+                    <TextBlock x:Name="VersionLabel" FontWeight="SemiBold" />
+                    <StackPanel x:Name="CatalogLoading" Orientation="Horizontal" Spacing="8">
+                        <ProgressRing IsActive="True" Width="16" Height="16" />
+                        <TextBlock x:Name="CatalogLoadingText" />
+                    </StackPanel>
+                    <StackPanel x:Name="CatalogErrorPanel" Spacing="8" Visibility="Collapsed">
+                        <TextBlock x:Name="CatalogErrorText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                        <Button x:Name="CatalogRetryButton" Click="CatalogRetryButton_Click" />
+                    </StackPanel>
+                    <StackPanel x:Name="CatalogPanel" Spacing="10" Visibility="Collapsed">
+                        <SelectorBar x:Name="FilterBar" SelectionChanged="FilterBar_SelectionChanged">
+                            <SelectorBarItem x:Name="ReleasesFilter" Tag="releases" IsSelected="True" />
+                            <SelectorBarItem x:Name="SnapshotsFilter" Tag="snapshots" />
+                            <SelectorBarItem x:Name="HistoricalFilter" Tag="historical" />
+                            <SelectorBarItem x:Name="AllFilter" Tag="all" />
+                        </SelectorBar>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                            <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged" />
+                            <ComboBox x:Name="VersionBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="VersionBox_SelectionChanged" />
+                        </Grid>
+                        <TextBlock x:Name="NoVersionsText" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <StackPanel x:Name="CheckingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                            <ProgressRing IsActive="True" Width="16" Height="16" />
+                            <TextBlock x:Name="CheckingText" />
+                        </StackPanel>
+                        <TextBlock x:Name="SupportedText" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <StackPanel x:Name="CompatibilityErrorPanel" Spacing="8" Visibility="Collapsed">
+                            <TextBlock x:Name="CompatibilityErrorText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                            <Button x:Name="CompatibilityRetryButton" Click="CompatibilityRetryButton_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                    <TextBlock x:Name="LoaderLabel" FontWeight="SemiBold" />
+                    <!-- Fabric is added to this list in the next stage. -->
+                    <ComboBox x:Name="LoaderBox" MinWidth="260" SelectedIndex="0" SelectionChanged="LoaderBox_SelectionChanged">
+                        <ComboBoxItem x:Name="VanillaLoaderItem" Tag="vanilla" />
+                        <ComboBoxItem x:Name="FabricLoaderItem" Tag="fabric" />
+                    </ComboBox>
+                    <StackPanel x:Name="FabricLoaderPanel" Spacing="6" Visibility="Collapsed">
+                        <TextBlock x:Name="FabricLoaderLabel" FontWeight="SemiBold" />
+                        <ComboBox x:Name="FabricVersionBox" MinWidth="260" PlaceholderText="Choose a version"
+                                  DisplayMemberPath="Display" SelectionChanged="FabricVersionBox_SelectionChanged" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Expander x:Name="AdvancedExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <local:InstanceParametersEditor x:Name="ParametersEditor" />
+                </Expander>
+
+                <TextBlock x:Name="SaveErrorText" TextWrapping="Wrap" Visibility="Collapsed" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+            </StackPanel>
+        </ScrollViewer>
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+            <TextBlock x:Name="FooterText" VerticalAlignment="Center" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Button x:Name="CancelButton" Grid.Column="1" Click="CancelButton_Click" />
+            <Button x:Name="SaveButton" Grid.Column="2" Style="{ThemeResource AccentButtonStyle}" Click="SaveButton_Click" />
+        </Grid>
+    </Grid>
+</Page>
