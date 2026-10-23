@@ -32,6 +32,7 @@
     <Compile Include="..\Hako\DisplayPath.cs" Link="DisplayPath.cs" />
     <Compile Include="..\Hako\ContentResourceKeys.cs" Link="ContentResourceKeys.cs" />
     <Compile Include="..\Hako\WorldResourceKeys.cs" Link="WorldResourceKeys.cs" />
+    <Compile Include="..\Hako\BackupResourceKeys.cs" Link="BackupResourceKeys.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -49,6 +49,8 @@
                                                 <MenuFlyout>
                                                     <MenuFlyoutItem Text="{x:Bind DuplicateText, Mode=OneWay}" Tag="{x:Bind}" Click="DuplicateWorld_Click"
                                                                     IsEnabled="{x:Bind CanManage, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind BlockReason, Mode=OneWay}" />
+                                                    <MenuFlyoutItem Text="{x:Bind BackupText, Mode=OneWay}" Tag="{x:Bind}" Click="BackupWorld_Click"
+                                                                    IsEnabled="{x:Bind CanManage, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind BlockReason, Mode=OneWay}" />
                                                     <MenuFlyoutItem Text="{x:Bind TrashText, Mode=OneWay}" Tag="{x:Bind}" Click="TrashWorld_Click"
                                                                     IsEnabled="{x:Bind CanManage, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind BlockReason, Mode=OneWay}" />
                                                 </MenuFlyout>

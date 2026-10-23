@@ -15,7 +15,7 @@ namespace Hako;
 /// <summary>Build profile (InstanceProfileView on macOS): header, «Играть», installation controls, «⋯» and the «Настройки» section.</summary>
 public sealed partial class InstanceProfilePage : Page, INavigationGuard
 {
-    private enum ProfileSection { Mods, ResourcePacks, Worlds, Settings }
+    private enum ProfileSection { Mods, ResourcePacks, Worlds, Screenshots, Settings }
 
     private LauncherServices? _services;
     private Guid _id;
@@ -85,6 +85,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
                     PreviewPage.Content or PreviewPage.Catalog => ProfileSection.Mods,
                     PreviewPage.ResourcePacks => ProfileSection.ResourcePacks,
                     PreviewPage.Worlds or PreviewPage.Datapacks or PreviewPage.DatapackCatalog => ProfileSection.Worlds,
+                    PreviewPage.Screenshots => ProfileSection.Screenshots,
                     _ => _selectedSection
                 };
             }
@@ -104,6 +105,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         _saveTimer?.Stop();
         ContentSection.SetActive(false);
         WorldsSection.SetActive(false);
+        ScreenshotsSection.SetActive(false);
         InvalidateNameValidation();
         _ = FlushSettingsAsync();
         if (_services is { } services)
@@ -141,11 +143,14 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         RetrySessionButton.Content = HakoStrings.Get("RetrySessionButton");
         ToolTipService.SetToolTip(ActionsButton, HakoStrings.Get("InstanceActions"));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ActionsButton, HakoStrings.Get("InstanceActions"));
+        DuplicateMenuItem.Text = HakoStrings.Get("InstanceDuplicate");
+        BackupMenuItem.Text = HakoStrings.Get("InstanceBackup");
         DeleteMenuItem.Text = HakoStrings.Get("DeleteBuildMenu");
         SettingsTitle.Text = HakoStrings.Get("SettingsTitle");
         ModsSectionButton.Content = HakoStrings.Get("InstanceSectionMods");
         ResourcePacksSectionButton.Content = HakoStrings.Get("InstanceSectionResourcePacks");
         WorldsSectionButton.Content = HakoStrings.Get("InstanceSectionWorlds");
+        ScreenshotsSectionButton.Content = HakoStrings.Get("InstanceSectionScreenshots");
         SettingsSectionButton.Content = HakoStrings.Get("SettingsTitle");
         ProfileSectionTitle.Text = HakoStrings.Get("InstanceProfileSection");
         NameLabel.Text = HakoStrings.Get("CreationNameLabel");
@@ -160,6 +165,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         IconPicker.RefreshStrings();
         ParametersEditor.RefreshStrings();
         WorldsSection.RefreshStrings();
+        ScreenshotsSection.RefreshStrings();
         Refresh();
     }
 
@@ -257,9 +263,11 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
 
         var showContent = _selectedSection is ProfileSection.Mods or ProfileSection.ResourcePacks;
         var showWorlds = _selectedSection == ProfileSection.Worlds;
+        var showScreenshots = _selectedSection == ProfileSection.Screenshots;
         SettingsSection.Visibility = _selectedSection == ProfileSection.Settings ? Visibility.Visible : Visibility.Collapsed;
         ContentSection.Visibility = showContent ? Visibility.Visible : Visibility.Collapsed;
         WorldsSection.Visibility = showWorlds ? Visibility.Visible : Visibility.Collapsed;
+        ScreenshotsSection.Visibility = showScreenshots ? Visibility.Visible : Visibility.Collapsed;
         SectionTabs.Visibility = Visibility.Visible;
 
         _updatingSectionTabs = true;
@@ -275,6 +283,8 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         ContentSection.SetActive(showContent);
         WorldsSection.Configure(services, instance, services.PreviewOptions);
         WorldsSection.SetActive(showWorlds);
+        ScreenshotsSection.Configure(services, instance, services.PreviewOptions);
+        ScreenshotsSection.SetActive(showScreenshots);
     }
 
     private void SelectSection(ProfileSection section)
@@ -291,7 +301,11 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         if (Enum.TryParse<ProfileSection>(tag, out var section)) SelectSection(section);
     }
 
-    internal void WindowReturned() => WorldsSection.RefreshWorldsIfActive();
+    internal void WindowReturned()
+    {
+        WorldsSection.RefreshWorldsIfActive();
+        ScreenshotsSection.RefreshScreenshotsIfActive();
+    }
 
     private static string FolderDisplayPath(LauncherServices services, GameInstance instance) =>
         DisplayPath.Format(Path.Combine(services.Store.GameRoot, instance.FolderName));
@@ -724,8 +738,90 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         var blocked = _instance is { } instance && _services is { } services
             ? services.Store.ManagementBlockedError(instance)
             : null;
+        var ready = _instance?.State == InstanceInstallationState.Ready;
+        DuplicateMenuItem.IsEnabled = ready && blocked is null && !_busyOperation;
+        BackupMenuItem.IsEnabled = ready && blocked is null && !_busyOperation;
+        ToolTipService.SetToolTip(DuplicateMenuItem, blocked is { } duplicateError ? HakoStrings.Get(duplicateError.ResourceKey()) : null);
+        ToolTipService.SetToolTip(BackupMenuItem, blocked is { } backupError ? HakoStrings.Get(backupError.ResourceKey()) : null);
         DeleteMenuItem.IsEnabled = blocked is null && !_busyOperation;
         ToolTipService.SetToolTip(DeleteMenuItem, blocked is { } error ? HakoStrings.Get(error.ResourceKey()) : null);
+    }
+
+    private async void DuplicateMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_services is not { } services || Current() is not { } instance || _busyOperation) return;
+        _busyOperation = true;
+        OperationText.Text = HakoStrings.Get("InstanceDuplicating");
+        OperationPanel.Visibility = Visibility.Visible;
+        RefreshSections(services, instance);
+        try
+        {
+            await FlushSettingsAsync();
+            await _saving;
+            if (services.Store.ManagementBlockedError(instance) is { } blocked)
+            {
+                await HakoDialogs.ShowErrorAsync(HakoStrings.Get(blocked.ResourceKey()));
+                return;
+            }
+
+            var duplicate = await services.Store.DuplicateAsync(_id);
+            services.App.OpenInstance(duplicate.Id);
+        }
+        catch (Exception exception)
+        {
+            await HakoDialogs.ShowErrorAsync(InstanceText.Error(exception));
+        }
+        finally
+        {
+            _busyOperation = false;
+            OperationPanel.Visibility = Visibility.Collapsed;
+            Refresh();
+        }
+    }
+
+    private async void BackupMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_services is not { } services || Current() is not { } instance || _busyOperation) return;
+        _busyOperation = true;
+        OperationText.Text = HakoStrings.Get("InstanceBackupInProgress");
+        OperationPanel.Visibility = Visibility.Visible;
+        RefreshSections(services, instance);
+        try
+        {
+            await FlushSettingsAsync();
+            await _saving;
+            if (services.Store.ManagementBlockedError(instance) is { } blocked)
+            {
+                await HakoDialogs.ShowErrorAsync(HakoStrings.Get(blocked.ResourceKey()));
+                return;
+            }
+
+            var result = await services.Backups.CreateAsync(_id);
+            if (!result.Succeeded || result.Path is null)
+            {
+                await HakoDialogs.ShowErrorAsync(BackupResourceKeys.FormatFailure(result.Failure, HakoStrings.Get));
+                return;
+            }
+
+            var answer = await HakoDialogs.ConfirmAsync(
+                HakoStrings.Get("BackupSucceededTitle"),
+                string.Format(HakoStrings.Get("InstanceBackupSucceededMessage"), Path.GetFileName(result.Path)),
+                HakoStrings.Get("BackupShowInExplorer"),
+                HakoStrings.Get("CloseButton"));
+            if (answer == ContentDialogResult.Primary)
+                await InstanceContentView.OpenLocationAsync(Path.GetDirectoryName(result.Path));
+        }
+        catch (Exception exception)
+        {
+            await HakoDialogs.ShowErrorAsync(HakoStrings.Get("BackupFailed") + "\n"
+                + string.Format(HakoStrings.Get("BackupDiagnosticFormat"), exception.Message));
+        }
+        finally
+        {
+            _busyOperation = false;
+            OperationPanel.Visibility = Visibility.Collapsed;
+            Refresh();
+        }
     }
 
     private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)

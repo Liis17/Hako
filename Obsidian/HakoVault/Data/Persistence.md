@@ -260,6 +260,8 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Core/HakoPaths.cs`, `HakoRootLock.cs` | `HakoPaths`, `HakoRootLock` | Пути корней, изолированные запуски и блокировки game-root/data-root |
 | `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
 | `windows/Hako.Core/Instances/InstanceStorage.cs`, `InstanceStore.cs` | `InstanceStorage`, `InstanceStore`, `InstanceRegistryFile` | Безопасные пути, `instances.json`, транзакционное создание и управление профилями |
+| `windows/Hako.Core/Instances/InstanceScreenshots.cs`, `InstanceFileTree.cs` | `InstanceScreenshots`, `InstanceFileTree` | Безопасный список PNG и корзина скриншотов; проверяемое копирование дерева и потоковая запись ZIP |
+| `windows/Hako.Core/Instances/InstanceBackup.cs`, `WorldBackup.cs`, `BackupModels.cs`, `BackupJsonConverters.cs` | `InstanceBackup`, `WorldBackup`, `BackupResult` | Форматы Windows `.hakobackup`/`.hakoworld`, типизированные ошибки, Swift-совместимые даты |
 | `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `InstanceContentTarget`, `ModRegistry`, `ModOrigin`, `InstanceContentItem` | Реестры модов/ресурспаков/датапаков мира, локальные импорт, включение и замена; установка Fabric API |
 | `windows/Hako.Core/Instances/InstanceContentController.cs` | `InstanceContentController`, `InstanceContentState`, `InstanceContentStateKey`, `ContentConfirmationRequest` | Core-оркестрация локального контента, выбранного мира, зависимостей Modrinth и обновлений; подтверждения без WinUI |
 | `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta; поиск и версии Modrinth, распознавание SHA-512, кэш и проверяемая потоковая загрузка |
@@ -337,6 +339,15 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   При ошибке фиксации реестра каталог восстанавливается. `TryBeginLaunch` и `TryBeginContent` выдают одноразовые
   `IDisposable`-leases; занятость снимается только при Dispose. Начало операций и блокировки Delete/Rename/Update
   сериализованы общим `_gate`; состояния очереди/установки также блокируют эти операции.
+- `InstanceStore.DuplicateAsync` требует готовую и свободную сборку. Он копирует её в эксклюзивный staging рядом
+  с целевой папкой под content-lease, затем атомарно публикует папку и профиль с новым UUID/датой; сбой записи
+  реестра откатывает только папку, созданную этой операцией. Имена вида «Имя 2», «Имя 3» подбираются без учёта
+  регистра. Fabric, параметры, иконка, происхождение и completed-план модпака сохраняются; токены и transient
+  файлы запуска (`.hako-running.json`, `.hako-launch`, `.hako-game`, журнал `hako-launch.log`) исключены.
+- `InstanceScreenshots.ListAsync` читает только обычные видимые PNG в корне `minecraft/screenshots`;
+  отсутствующая папка остаётся отсутствующей. Перемещение в Корзину перепроверяет владение и тип каждого файла
+  и возвращает частичные статусы. Отдельный screenshot-lease блокирует установку и файловые операции, но разрешает
+  удаление скриншотов во время игры, как на macOS.
 - `minecraft/.hako-mods.json` повторяет Swift-контракт: `{ "apiProvisioned": bool, "files": { "<lowercase JAR>": ModOrigin } }`.
   `source` записывается как `local`, `modrinth` или `curseForge`; ключи Origin — camelCase, включая `projectID`, `pageURL`,
   `sha512`, `api`, `versionNumber`, `iconURL`, `fileType`. Необязательные null-поля не записываются. Реестр читается и
@@ -371,8 +382,8 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   ожидаемый старый SHA-512; disabled-состояние и origin сохраняются, публикация и реестр откатываются вместе при ошибке.
 - `InstanceContentTarget` предоставляет `.Mods`, `.Packs` и `.WorldDatapacks(worldId)`. Overload-ы `InstanceContent`
   и `InstanceContentController` по старому `ModrinthContentKind` остаются для модов и ресурспаков; datapack-kind без
-  явной папки мира отклоняется. Локальные и Modrinth-операции мира входят в Core этапа 7b; Windows UI этапа 7c ещё
-  не подключён, удаление отдельных датапаков не предоставляется.
+  явной папки мира отклоняется. Локальные и Modrinth-операции мира входят в Core этапа 7b; Windows UI подключает
+  их из профиля по UUID сборки и имени папки мира. Удаление отдельных датапаков не предоставляется.
 - `InstanceContentController` — Core-only контроллер этапов 6b/7b; persisted-схема реестров не меняется. `InstalledProjectsAsync`
   группирует записи происхождения и распознаёт остальные файлы по SHA-512, включая отключённые. Узнанный вручную файл
   получает `ModOrigin` под content-lease только после повторной проверки ожидаемого SHA-512. `RecordOriginUnderLeaseAsync`
@@ -397,7 +408,8 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   `Revision`; уход со страницы отменяет её чтение и поиск, но не уже начатую установку. Общий `HakoDialogs` сериализует
   `ContentDialog` одного окна и завершает ожидающее подтверждение отменой при закрытии окна. `UpdateAllAsync` подтверждения не показывает: такие элементы получают
   `ConfirmationRequired`, ошибки собираются по файлам, дальнейшие обновления продолжаются. Публичное подключение контроллера
-  не меняет JSON-реестры; UI-маршрут к мирам и датапакам остаётся на этапе 7c.
+  не меняет JSON-реестры; профиль Windows подключает миры, датапаки и их резервное копирование без изменения
+  этих сохранённых контрактов.
 - Кеш хешей Modrinth находится в `%LOCALAPPDATA%\Hako\Cache\Modrinth\files.json` (или в инжектируемом
   `HakoPaths.CacheRoot`); ключ файла содержит нормализованный путь, размер и время изменения. Удалённые пути и
   неиспользуемые версии очищаются при сохранении, неизвестные хеши живут только в памяти клиента. Клиенты в одном

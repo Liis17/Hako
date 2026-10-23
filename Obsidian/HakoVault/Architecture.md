@@ -242,7 +242,8 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 сборок и «Настройками», русский/английский язык, профиль с 3D-превью скина и выход. Vanilla- и Fabric-сборки
 создаются и устанавливаются фоновой очередью (пауза, продолжение, повтор), настраиваются, удаляются и запускаются
 онлайн или в offline-mode. Есть локальные моды и ресурспаки, миры и датапаки, каталог Modrinth и импорт готовых
-модпаков Modrinth `.mrpack` — [[UI/Launcher#Windows-клиент]].
+модпаков Modrinth `.mrpack`, скриншоты, дублирование сборок и резервные копии `.hakobackup`/`.hakoworld`
+— [[UI/Launcher#Windows-клиент]] и [[Data/Backups]].
 Сервисы сборок живут всё время работы приложения и создаются в `App.OnLaunched` (`LauncherServices`).
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
@@ -266,15 +267,16 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
 ### Структура
 
 - `windows/Hako/` — WinUI-приложение: `Program.cs` (точка входа и ключи единственного экземпляра), `App.xaml.cs`
-  (создаёт `AppCoordinator` и app-lifetime `MinecraftSkinPreviewService`), `MainWindow` (окно с `NavigationView`,
+  (создаёт `AppCoordinator`, app-lifetime `LauncherServices`, скриншоты и сервисы архивов), `MainWindow` (окно с `NavigationView`,
   `Frame` и forwarding состояния окна), страницы `LoadingPage`, `WelcomePage`, `LoginPage`, `BuildsPage`, `SettingsPage`,
-  `MinecraftSkinView`, `MinecraftSkinImageDecoder`, `MinecraftSkinPreviewService`, `MinecraftSkinHeadComposer`,
+  профиль и его `InstanceScreenshotsView`, `ScreenshotThumbnails`, `MinecraftSkinView`, `MinecraftSkinImageDecoder`, `MinecraftSkinPreviewService`, `MinecraftSkinHeadComposer`,
   `Graphics/MinecraftSkinRenderer` и `Graphics/MinecraftSkinGeometry`, `HakoStrings`, `AppDataDirectory`,
   `Strings/ru-RU` и `Strings/en-US` (`Resources.resw`), `Package.appxmanifest`, `app.manifest`,
   `Properties/launchSettings.json`, решение `Hako.slnx`.
 - `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
   `AuthContracts`, `AccountSessionStore`, `UserSettingsService`, `HakoPaths`, `HakoRootLock`, `Instances/`
-  (`GameInstance`, `InstanceStorage`, `InstanceStore`, `InstallationCoordinator`, `ModpackCatalog`), `Minecraft/`
+  (`GameInstance`, `InstanceStorage`, `InstanceStore`, `InstanceScreenshots`, `InstanceFileTree`, `InstanceBackup`,
+  `WorldBackup`, `InstallationCoordinator`, `ModpackCatalog`), `Minecraft/`
   (`ModrinthClient`, `ModpackManifest`, `ModpackArchive`, `ModpackInstaller`, Mojang/Fabric install and launch logic),
   source-generated COM-корзина `RecycleBin`, `JsonContexts`.
 - `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
@@ -343,8 +345,8 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: скриншоты, дублирование и резервные копии сборок/миров, учёт времени игры, CurseForge
-  и самообновление. Готовые Modrinth-паки устанавливаются из каталога; локальный импорт `.mrpack` и обновление
+- Не реализованы: учёт времени игры, CurseForge и самообновление. Готовые Modrinth-паки устанавливаются из каталога;
+  локальный импорт `.mrpack` и обновление
   всего модпака не поддерживаются.
 - Онлайн-запуск обновляет Minecraft-сессию через `MinecraftSessionCoordinator.ConnectForLaunchAsync` (refresh-grant
   с сохранением нового refresh token); без Minecraft-профиля доступен только offline-mode сборки.

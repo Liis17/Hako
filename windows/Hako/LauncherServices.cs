@@ -28,6 +28,9 @@ internal sealed record LauncherServices(
     InstanceContent Content,
     InstanceContentController ContentController,
     InstanceWorlds Worlds,
+    InstanceScreenshots Screenshots,
+    InstanceBackup Backups,
+    WorldBackup WorldBackups,
     HttpClient? PreviewModrinthHttpClient,
     MinecraftSkinPreviewService SkinPreview,
     ProfilePreviewOptions? PreviewOptions);

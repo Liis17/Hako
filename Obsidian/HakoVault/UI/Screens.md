@@ -90,12 +90,14 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
 | `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage`, `BuildCardModel` | Раздел «Сборки»: пустое состояние или карточки сборок — [[UI/Launcher#Windows-клиент]] |
 | `windows/Hako/InstanceCreationPage.xaml(.cs)`, `InstanceCreationChoiceDialog.cs` | `InstanceCreationPage`, `InstanceCreationChoiceDialog` | Создание Vanilla-сборки |
-| `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: заголовок, запуск, установка, разделы модов/ресурспаков/миров и настройки |
-| `windows/Hako/InstanceWorldsView.xaml(.cs)` | `InstanceWorldsView`, `InstanceWorldRow` | Миры, метаданные, открытие saves, дублирование, корзина и раскрытие датапаков |
+| `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: запуск, установка, разделы контента, скриншоты, настройки, дублирование и резервная копия |
+| `windows/Hako/InstanceScreenshotsView.xaml(.cs)`, `ScreenshotThumbnails.cs` | `InstanceScreenshotsView`, `ScreenshotThumbnails` | Сетка скриншотов с ограниченными миниатюрами, выбором, drag-copy и перемещением в Корзину |
+| `windows/Hako/InstanceWorldsView.xaml(.cs)` | `InstanceWorldsView`, `InstanceWorldRow` | Миры, метаданные, открытие saves, дублирование, резервная копия, корзина и датапаки |
 | `windows/Hako/InstanceContentView.xaml(.cs)` | `InstanceContentView`, `InstanceContentRow` | Локальный контент по `InstanceContentTarget`: моды, ресурспаки или датапаки выбранного мира |
 | `windows/Hako/ModrinthCatalogView.xaml(.cs)` | `ModrinthCatalogView`, `ModrinthCatalogRow` | Поиск, сортировка, пагинация и установка контента Modrinth в сборку или выбранный мир |
 | `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Сопоставление UI-кодов подтверждений и ошибок Core с локализованными ресурсами |
 | `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Маппинг ошибок мира, типов игры, неизвестных значений и форматирования размера/даты |
+| `windows/Hako/BackupResourceKeys.cs` | `BackupResourceKeys` | Локализация типизированных ошибок архивов и диагностических путей |
 | `windows/Hako/LauncherServices.cs` | `LauncherServices`, `INavigationGuard`, `CoalescedRefresh`, `HakoDialogs` | App-lifetime сервисы, защита ухода со страницы, маршалинг событий Core, очередь диалогов и отмена подтверждения при закрытии окна |
 | `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные», «Игра» и «Профиль», выход |
 | `windows/Hako/MinecraftSkinView.xaml`, `windows/Hako/MinecraftSkinView.xaml.cs` | `MinecraftSkinView` | Скин, камера, кадры ходьбы, отмена и владение renderer по видимости профиля |
@@ -110,7 +112,7 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
 | `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`). `LoginNotice` (`InfoBar`) показывает `OpenVerificationFailed` или `CopyCodeFailed`, если открыть страницу или скопировать код не удалось; при сбое копирования кнопка снова «Скопировать код»; копирование перехватывает любое исключение. Уведомление сбрасывается при следующем нажатии этих кнопок и при «Попробовать снова»; закрытое крестиком (`LoginNotice_Closed`) не открывается повторно при обновлении состояния |
 | `Builds` | `BuildsPage` | Пустое состояние с кнопкой «Создать сборку» или сетка карточек; ошибка реестра `instances.json` — `InfoBar` |
-| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: моды только для Fabric, ресурспаки, миры и настройки |
+| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: моды только для Fabric, ресурспаки, миры, скриншоты и настройки; меню действий дублирует сборку и создаёт резервную копию |
 | `InstanceCreation` | `InstanceCreationPage` | Форма «Своя сборка» |
 | `Settings` | `SettingsPage` | Слева `ListView` из трёх разделов (`SettingsSection.General`, `Game`, `Profile`), справа панель выбранного |
 | `ModpackCatalog` | `ModpackCatalogPage` | Поиск готовых сборок Modrinth, фильтр Minecraft, версии и ссылка на проект |

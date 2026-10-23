@@ -97,7 +97,9 @@ Parent: [[Index]]
 | `windows/Hako.Core/Instances/InstallationCoordinator.cs` | `InstallationResourceKeys` | Ключи состояний и стадий установки, кодов ошибок установки, `ModpackException`, `InstanceStorageError.ResourceKey()`, `MojangError.ResourceKey()` и `ErrorResourceKey(Exception)` для ошибок UI |
 | `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Ключи подтверждений, пояснений и ошибок `InstanceContentController` |
 | `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Ключи ошибок миров и метаданных, типов игры, неизвестных значений и аргументированных строк |
-| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ошибок, уведомлений, контента и миров |
+| `windows/Hako/BackupResourceKeys.cs` | `BackupResourceKeys` | Ключи типизированных причин ошибки архивирования и форматирование диагностики/пути |
+| `windows/Hako/InstanceScreenshotsView.xaml.cs` | `InstanceScreenshotsView.RefreshStrings` | Подписи галереи скриншотов и обновление открытого раздела при смене языка |
+| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ошибок, уведомлений, контента, миров, скриншотов и архивов |
 
 ### Публичные контракты
 
@@ -120,7 +122,8 @@ Parent: [[Index]]
    в `OnNavigatedFrom` подписка снимается. `InstanceContentView` и `ModrinthCatalogView` подписываются при `Loaded`
    и снимаются при `Unloaded`, поэтому видимые списки, действия и ожидающие диалоги обновляют текст без перезапуска.
   `InstanceWorldsView` обновляет подписи карточек и состояния мира; `WorldResourceKeys` локализует каждое значение
-  `InstanceWorldFailureReason`, `WorldMetadataError` и известный тип игры.
+  `InstanceWorldFailureReason`, `WorldMetadataError` и известный тип игры. `InstanceScreenshotsView` также обновляет
+  свои действия, карточки и состояния при смене языка.
 
 Язык при старте: `AppCoordinator.InitializeAsync` берёт `AppLanguages.Parse(settings?.Language)`.
 `MainWindow` вызывает `HakoStrings.SetLanguage(..., force: true)` в конструкторе.
@@ -142,6 +145,8 @@ Parent: [[Index]]
 - `WorldResourceKeys` исчерпывающе сопоставляет ошибки мира и метаданных; форматирование версии, даты и размера,
   включая неизвестные значения, проверяется `EveryWorldFailureMetadataAndGameTypeMappingHasRussianAndEnglishText`
   и `WorldMessagesAndUnknownDisplayValuesFormatArguments` в обеих локалях.
+- `BackupResourceKeys` сопоставляет каждый `BackupFailureReason` с ru/en строкой, а форматирование сохраняет
+  diagnostic и путь оставшейся копии. Ресурсы действий профиля, миров и галереи проверяются тем же тестом локализации.
 - Названия языков («Русский», «English») и заголовок окна `Title="Hako"` заданы литералами в XAML. Подписи пунктов
   навигации присваиваются из `BuildsTitle`, `SettingsTitle` и `CreateBuildButton` в `MainWindow.UpdateNavigationLabels`;
   пункты сборок показывают имя сборки без перевода.

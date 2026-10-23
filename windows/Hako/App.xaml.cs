@@ -123,8 +123,12 @@ public partial class App : Application
         var contentController = new InstanceContentController(InstanceStore, content, modrinth, fabric,
             confirmSelection: HakoDialogs.ConfirmContentAsync);
         var worlds = new InstanceWorlds(InstanceStore);
+        var screenshots = new InstanceScreenshots(InstanceStore);
+        var backups = new InstanceBackup(InstanceStore, content);
+        var worldBackups = new WorldBackup(InstanceStore, content, worlds);
         _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang, fabric,
-            modrinth, modpacks, modpackCatalog, content, contentController, worlds, previewModrinthHttpClient, _skinPreviewService!, _previewOptions);
+            modrinth, modpacks, modpackCatalog, content, contentController, worlds, screenshots, backups,
+            worldBackups, previewModrinthHttpClient, _skinPreviewService!, _previewOptions);
 
         _window = new MainWindow(_services);
         _window.Activate();
@@ -158,7 +162,7 @@ public partial class App : Application
                     _coordinator.OpenInstance(id);
                     break;
                 case PreviewPage.Content or PreviewPage.ResourcePacks or PreviewPage.Catalog
-                    or PreviewPage.Worlds or PreviewPage.Datapacks or PreviewPage.DatapackCatalog
+                    or PreviewPage.Worlds or PreviewPage.Screenshots or PreviewPage.Datapacks or PreviewPage.DatapackCatalog
                     when previewInstance is { } id:
                     _coordinator.OpenInstance(id);
                     break;

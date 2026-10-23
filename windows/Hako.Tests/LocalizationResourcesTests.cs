@@ -173,6 +173,51 @@ public sealed class LocalizationResourcesTests
     }
 
     [TestMethod]
+    public void EveryBackupFailureAndDiagnosticFormatHasRussianAndEnglishResources()
+    {
+        var russian = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "ru-RU", "Resources.resw"));
+        var english = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "en-US", "Resources.resw"));
+        var keys = Enum.GetValues<BackupFailureReason>().Select(BackupResourceKeys.FailureKey)
+            .Concat([
+                "BackupDiagnosticFormat", "BackupDiagnosticPathFormat",
+                "InstanceDuplicate", "InstanceDuplicating", "InstanceBackup", "InstanceBackupInProgress",
+                "InstanceBackupSucceededMessage", "WorldsBackup", "WorldBackupInProgress",
+                "WorldBackupSucceededMessage", "BackupSucceededTitle", "BackupShowInExplorer",
+                "ScreenshotsTitle", "ScreenshotsRefresh", "ScreenshotsOpenFolder", "ScreenshotsDeleteSelected",
+                "ScreenshotsLoading", "ScreenshotsOperationInProgress", "ScreenshotsEmpty", "ScreenshotsCountFormat",
+                "ScreenshotsSelectionFormat", "ScreenshotsOperationBusy", "ScreenshotsActions", "ScreenshotsOpen",
+                "ScreenshotsOpenFailed", "ScreenshotsDelete", "ScreenshotsDeleteTitle", "ScreenshotsDeleteMessage",
+                "ScreenshotsDeleteConfirm", "ScreenshotsDeletedFormat", "ScreenshotsDeletePartialFormat",
+                "ScreenshotsActionFailed"
+            ]);
+
+        foreach (var key in keys)
+        {
+            CollectionAssert.Contains(russian, key);
+            CollectionAssert.Contains(english, key);
+        }
+    }
+
+    [TestMethod]
+    [DataRow("ru-RU")]
+    [DataRow("en-US")]
+    public void BackupFailuresPreserveDiagnosticAndDestinationPath(string language)
+    {
+        var strings = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Resources", language, "Resources.resw"))
+            .Root!.Elements("data").ToDictionary(element => (string)element.Attribute("name")!,
+                element => element.Element("value")!.Value);
+
+        var message = BackupResourceKeys.FormatFailure(
+            new BackupFailure(BackupFailureReason.DestinationConflict, "the timestamp is occupied", @"C:\isolated\backups\Build.hakobackup"),
+            key => strings[key]);
+
+        StringAssert.Contains(message, strings["BackupDestinationConflict"]);
+        StringAssert.Contains(message, "the timestamp is occupied");
+        StringAssert.Contains(message, @"C:\isolated\backups\Build.hakobackup");
+        Assert.IsFalse(message.Contains('{'));
+    }
+
+    [TestMethod]
     [DataRow("ru-RU")]
     [DataRow("en-US")]
     public void WorldMessagesAndUnknownDisplayValuesFormatArguments(string language)

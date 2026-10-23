@@ -10,6 +10,8 @@ namespace Hako.Core;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(UserSettings))]
 [JsonSerializable(typeof(InstanceRegistryFile))]
+[JsonSerializable(typeof(InstanceBackupManifest))]
+[JsonSerializable(typeof(WorldBackupManifest))]
 [JsonSerializable(typeof(ModRegistry))]
 [JsonSerializable(typeof(ModOrigin))]
 [JsonSerializable(typeof(FabricApiDescriptor))]

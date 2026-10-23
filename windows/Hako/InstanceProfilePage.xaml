@@ -36,6 +36,17 @@
                         <FontIcon Glyph="&#xE712;" FontSize="16" />
                         <Button.Flyout>
                             <MenuFlyout x:Name="ActionsMenu" Placement="BottomEdgeAlignedRight" Opening="ActionsMenu_Opening">
+                                <MenuFlyoutItem x:Name="DuplicateMenuItem" Click="DuplicateMenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8C8;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="BackupMenuItem" Click="BackupMenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE7B8;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutSeparator />
                                 <MenuFlyoutItem x:Name="DeleteMenuItem" Click="DeleteMenuItem_Click">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE74D;" />
@@ -64,15 +75,17 @@
                 </StackPanel>
             </Border>
 
-            <RadioButtons x:Name="SectionTabs" MaxColumns="4" SelectionChanged="SectionTabs_SelectionChanged">
+            <RadioButtons x:Name="SectionTabs" MaxColumns="5" SelectionChanged="SectionTabs_SelectionChanged">
                 <RadioButton x:Name="ModsSectionButton" Tag="Mods" />
                 <RadioButton x:Name="ResourcePacksSectionButton" Tag="ResourcePacks" />
                 <RadioButton x:Name="WorldsSectionButton" Tag="Worlds" />
+                <RadioButton x:Name="ScreenshotsSectionButton" Tag="Screenshots" />
                 <RadioButton x:Name="SettingsSectionButton" Tag="Settings" />
             </RadioButtons>
 
             <local:InstanceContentView x:Name="ContentSection" Visibility="Collapsed" />
             <local:InstanceWorldsView x:Name="WorldsSection" Visibility="Collapsed" />
+            <local:InstanceScreenshotsView x:Name="ScreenshotsSection" Visibility="Collapsed" />
 
             <StackPanel x:Name="SettingsSection" Spacing="24">
             <TextBlock x:Name="SettingsTitle" FontSize="24" FontWeight="SemiBold" />

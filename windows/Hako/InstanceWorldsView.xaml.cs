@@ -424,6 +424,42 @@ public sealed partial class InstanceWorldsView : UserControl
         }
     }
 
+    private async void BackupWorld_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not InstanceWorldRow row
+            || _services is not { } services || _instance is not { } instance || BlockReason() is not null) return;
+        _operationBusy = true;
+        _feedback = null;
+        WorldOperationText.Text = HakoStrings.Get("WorldBackupInProgress");
+        RefreshAvailability();
+        try
+        {
+            var result = await services.WorldBackups.CreateAsync(instance.Id, row.WorldId);
+            if (!result.Succeeded || result.Path is null)
+            {
+                _feedback = BackupResourceKeys.FormatFailure(result.Failure, HakoStrings.Get);
+                return;
+            }
+
+            var answer = await HakoDialogs.ConfirmAsync(
+                HakoStrings.Get("BackupSucceededTitle"),
+                string.Format(HakoStrings.Get("WorldBackupSucceededMessage"), Path.GetFileName(result.Path)),
+                HakoStrings.Get("BackupShowInExplorer"), HakoStrings.Get("CloseButton"));
+            if (answer == ContentDialogResult.Primary)
+                await InstanceContentView.OpenLocationAsync(Path.GetDirectoryName(result.Path));
+        }
+        catch (Exception exception)
+        {
+            _feedback = HakoStrings.Get("BackupFailed") + "\n"
+                + string.Format(HakoStrings.Get("BackupDiagnosticFormat"), exception.Message);
+        }
+        finally
+        {
+            _operationBusy = false;
+            RefreshAvailability();
+        }
+    }
+
     private string? CoreBlockReason()
     {
         if (_instance is not { } instance || _services is not { } services) return null;
@@ -474,6 +510,7 @@ public sealed class InstanceWorldRow : INotifyPropertyChanged
     public string DatapacksTitle { get; private set; } = "";
     public string ActionsText { get; private set; } = "";
     public string DuplicateText { get; private set; } = "";
+    public string BackupText { get; private set; } = "";
     public string TrashText { get; private set; } = "";
     public bool CanManage { get; private set; }
     public string? BlockReason => _blockReason;
@@ -534,11 +571,13 @@ public sealed class InstanceWorldRow : INotifyPropertyChanged
         DatapacksTitle = HakoStrings.Get("WorldsDatapacksTitle");
         ActionsText = HakoStrings.Get("WorldsActions");
         DuplicateText = HakoStrings.Get("WorldsDuplicate");
+        BackupText = HakoStrings.Get("WorldsBackup");
         TrashText = HakoStrings.Get("WorldsTrash");
         OnPropertyChanged(nameof(ExpandText));
         OnPropertyChanged(nameof(DatapacksTitle));
         OnPropertyChanged(nameof(ActionsText));
         OnPropertyChanged(nameof(DuplicateText));
+        OnPropertyChanged(nameof(BackupText));
         OnPropertyChanged(nameof(TrashText));
     }
 

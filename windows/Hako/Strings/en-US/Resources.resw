@@ -479,4 +479,48 @@ Hako</value></data>
   <data name="WorldFailureCopy" xml:space="preserve"><value>Could not copy the world.</value></data>
   <data name="WorldFailureRecycleBin" xml:space="preserve"><value>Could not move the world to the Recycle Bin.</value></data>
   <data name="WorldFailureNotRecyclable" xml:space="preserve"><value>The Recycle Bin rejected the world; the original save was left in place.</value></data>
+  <data name="InstanceDuplicate" xml:space="preserve"><value>Duplicate build</value></data>
+  <data name="InstanceDuplicating" xml:space="preserve"><value>Duplicating build…</value></data>
+  <data name="InstanceBackup" xml:space="preserve"><value>Create backup</value></data>
+  <data name="InstanceBackupInProgress" xml:space="preserve"><value>Creating build backup…</value></data>
+  <data name="InstanceBackupSucceededMessage" xml:space="preserve"><value>Backup “{0}” was created.</value></data>
+  <data name="WorldsBackup" xml:space="preserve"><value>Back up world</value></data>
+  <data name="WorldBackupInProgress" xml:space="preserve"><value>Creating world backup…</value></data>
+  <data name="WorldBackupSucceededMessage" xml:space="preserve"><value>World backup “{0}” was created.</value></data>
+  <data name="BackupSucceededTitle" xml:space="preserve"><value>Backup created</value></data>
+  <data name="BackupShowInExplorer" xml:space="preserve"><value>Show in File Explorer</value></data>
+  <data name="BackupFailed" xml:space="preserve"><value>Could not create the backup.</value></data>
+  <data name="BackupBuildUnavailable" xml:space="preserve"><value>The build is no longer available.</value></data>
+  <data name="BackupBuildNotReady" xml:space="preserve"><value>The build is not ready yet.</value></data>
+  <data name="BackupBuildInstalling" xml:space="preserve"><value>The build is being installed.</value></data>
+  <data name="BackupBuildRunning" xml:space="preserve"><value>A backup cannot be created while Minecraft is running.</value></data>
+  <data name="BackupBuildFilesBusy" xml:space="preserve"><value>Build files are busy with another operation.</value></data>
+  <data name="BackupWorldUnavailable" xml:space="preserve"><value>The world is no longer available.</value></data>
+  <data name="BackupReservedFolderOccupied" xml:space="preserve"><value>The reserved backup folder is occupied by a build.</value></data>
+  <data name="BackupReparsePointNotAllowed" xml:space="preserve"><value>The source contains a link or an unsafe path.</value></data>
+  <data name="BackupDestinationConflict" xml:space="preserve"><value>A backup with this name already exists.</value></data>
+  <data name="BackupSourceChanged" xml:space="preserve"><value>The source changed while the backup was being created.</value></data>
+  <data name="BackupCancelled" xml:space="preserve"><value>Backup creation was cancelled.</value></data>
+  <data name="BackupDiagnosticFormat" xml:space="preserve"><value>Details: {0}</value></data>
+  <data name="BackupDiagnosticPathFormat" xml:space="preserve"><value>Path: {0}</value></data>
+  <data name="ScreenshotsTitle" xml:space="preserve"><value>Screenshots</value></data>
+  <data name="ScreenshotsRefresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="ScreenshotsOpenFolder" xml:space="preserve"><value>Open screenshots folder</value></data>
+  <data name="ScreenshotsDeleteSelected" xml:space="preserve"><value>Move selected to Recycle Bin</value></data>
+  <data name="ScreenshotsLoading" xml:space="preserve"><value>Loading screenshots…</value></data>
+  <data name="ScreenshotsOperationInProgress" xml:space="preserve"><value>Moving screenshots to the Recycle Bin…</value></data>
+  <data name="ScreenshotsEmpty" xml:space="preserve"><value>No screenshots yet.</value></data>
+  <data name="ScreenshotsCountFormat" xml:space="preserve"><value>{0} screenshots</value></data>
+  <data name="ScreenshotsSelectionFormat" xml:space="preserve"><value>{0} selected</value></data>
+  <data name="ScreenshotsOperationBusy" xml:space="preserve"><value>Another screenshot operation is in progress.</value></data>
+  <data name="ScreenshotsActions" xml:space="preserve"><value>Screenshot actions</value></data>
+  <data name="ScreenshotsOpen" xml:space="preserve"><value>Open</value></data>
+  <data name="ScreenshotsOpenFailed" xml:space="preserve"><value>Could not open this screenshot.</value></data>
+  <data name="ScreenshotsDelete" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="ScreenshotsDeleteTitle" xml:space="preserve"><value>Delete screenshots?</value></data>
+  <data name="ScreenshotsDeleteMessage" xml:space="preserve"><value>{0} selected screenshot(s) will be moved to the Recycle Bin.</value></data>
+  <data name="ScreenshotsDeleteConfirm" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="ScreenshotsDeletedFormat" xml:space="preserve"><value>Moved {0} screenshot(s) to the Recycle Bin.</value></data>
+  <data name="ScreenshotsDeletePartialFormat" xml:space="preserve"><value>Moved {0} screenshot(s) to the Recycle Bin; {1} could not be moved.</value></data>
+  <data name="ScreenshotsActionFailed" xml:space="preserve"><value>Screenshot action failed.</value></data>
 </root>

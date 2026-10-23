@@ -479,4 +479,48 @@
   <data name="WorldFailureCopy" xml:space="preserve"><value>Не удалось скопировать мир.</value></data>
   <data name="WorldFailureRecycleBin" xml:space="preserve"><value>Не удалось переместить мир в Корзину.</value></data>
   <data name="WorldFailureNotRecyclable" xml:space="preserve"><value>Корзина не приняла мир; исходное сохранение оставлено на месте.</value></data>
+  <data name="InstanceDuplicate" xml:space="preserve"><value>Дублировать сборку</value></data>
+  <data name="InstanceDuplicating" xml:space="preserve"><value>Создаём копию сборки…</value></data>
+  <data name="InstanceBackup" xml:space="preserve"><value>Создать резервную копию</value></data>
+  <data name="InstanceBackupInProgress" xml:space="preserve"><value>Создаём резервную копию сборки…</value></data>
+  <data name="InstanceBackupSucceededMessage" xml:space="preserve"><value>Создана резервная копия «{0}».</value></data>
+  <data name="WorldsBackup" xml:space="preserve"><value>Создать копию мира</value></data>
+  <data name="WorldBackupInProgress" xml:space="preserve"><value>Создаём резервную копию мира…</value></data>
+  <data name="WorldBackupSucceededMessage" xml:space="preserve"><value>Создана резервная копия мира «{0}».</value></data>
+  <data name="BackupSucceededTitle" xml:space="preserve"><value>Резервная копия создана</value></data>
+  <data name="BackupShowInExplorer" xml:space="preserve"><value>Показать в Проводнике</value></data>
+  <data name="BackupFailed" xml:space="preserve"><value>Не удалось создать резервную копию.</value></data>
+  <data name="BackupBuildUnavailable" xml:space="preserve"><value>Сборка больше недоступна.</value></data>
+  <data name="BackupBuildNotReady" xml:space="preserve"><value>Сборка ещё не готова.</value></data>
+  <data name="BackupBuildInstalling" xml:space="preserve"><value>Выполняется установка сборки.</value></data>
+  <data name="BackupBuildRunning" xml:space="preserve"><value>Нельзя создать копию, пока работает Minecraft.</value></data>
+  <data name="BackupBuildFilesBusy" xml:space="preserve"><value>Файлы сборки заняты другой операцией.</value></data>
+  <data name="BackupWorldUnavailable" xml:space="preserve"><value>Мир больше недоступен.</value></data>
+  <data name="BackupReservedFolderOccupied" xml:space="preserve"><value>Зарезервированная папка занята сборкой.</value></data>
+  <data name="BackupReparsePointNotAllowed" xml:space="preserve"><value>В источнике обнаружена ссылка или небезопасный путь.</value></data>
+  <data name="BackupDestinationConflict" xml:space="preserve"><value>Резервная копия с таким именем уже существует.</value></data>
+  <data name="BackupSourceChanged" xml:space="preserve"><value>Источник изменился во время создания копии.</value></data>
+  <data name="BackupCancelled" xml:space="preserve"><value>Создание копии отменено.</value></data>
+  <data name="BackupDiagnosticFormat" xml:space="preserve"><value>Подробности: {0}</value></data>
+  <data name="BackupDiagnosticPathFormat" xml:space="preserve"><value>Путь: {0}</value></data>
+  <data name="ScreenshotsTitle" xml:space="preserve"><value>Скриншоты</value></data>
+  <data name="ScreenshotsRefresh" xml:space="preserve"><value>Обновить</value></data>
+  <data name="ScreenshotsOpenFolder" xml:space="preserve"><value>Открыть папку скриншотов</value></data>
+  <data name="ScreenshotsDeleteSelected" xml:space="preserve"><value>Переместить выбранные в Корзину</value></data>
+  <data name="ScreenshotsLoading" xml:space="preserve"><value>Загружаем скриншоты…</value></data>
+  <data name="ScreenshotsOperationInProgress" xml:space="preserve"><value>Перемещаем скриншоты в Корзину…</value></data>
+  <data name="ScreenshotsEmpty" xml:space="preserve"><value>Скриншотов пока нет.</value></data>
+  <data name="ScreenshotsCountFormat" xml:space="preserve"><value>Скриншотов: {0}</value></data>
+  <data name="ScreenshotsSelectionFormat" xml:space="preserve"><value>Выбрано: {0}</value></data>
+  <data name="ScreenshotsOperationBusy" xml:space="preserve"><value>Уже выполняется другая операция со скриншотами.</value></data>
+  <data name="ScreenshotsActions" xml:space="preserve"><value>Действия со скриншотом</value></data>
+  <data name="ScreenshotsOpen" xml:space="preserve"><value>Открыть</value></data>
+  <data name="ScreenshotsOpenFailed" xml:space="preserve"><value>Не удалось открыть этот скриншот.</value></data>
+  <data name="ScreenshotsDelete" xml:space="preserve"><value>Переместить в Корзину</value></data>
+  <data name="ScreenshotsDeleteTitle" xml:space="preserve"><value>Удалить скриншоты?</value></data>
+  <data name="ScreenshotsDeleteMessage" xml:space="preserve"><value>Выбранные скриншоты ({0}) будут перемещены в Корзину.</value></data>
+  <data name="ScreenshotsDeleteConfirm" xml:space="preserve"><value>Переместить в Корзину</value></data>
+  <data name="ScreenshotsDeletedFormat" xml:space="preserve"><value>В Корзину перемещено скриншотов: {0}.</value></data>
+  <data name="ScreenshotsDeletePartialFormat" xml:space="preserve"><value>В Корзину перемещено скриншотов: {0}; не удалось переместить: {1}.</value></data>
+  <data name="ScreenshotsActionFailed" xml:space="preserve"><value>Не удалось выполнить действие со скриншотом.</value></data>
 </root>

@@ -102,6 +102,7 @@ internal static class PreviewBuildsFixture
 
         var vanilla = Complete(Create("Survival", "leaf.fill", offline: true));
         SeedWorlds(store, vanilla);
+        if (page == PreviewPage.Screenshots) SeedScreenshots(store, vanilla);
         Create("Creative", "cube.fill");
         Create("Skyblock", "moon.stars.fill");
 
@@ -167,6 +168,95 @@ internal static class PreviewBuildsFixture
 
         WriteOriginRegistryAt(Path.Combine(survival, ".hako-datapacks.json"), "preview-datapack.zip",
             DatapackId, DatapackOldVersion, "https://modrinth.com/datapack/preview-datapack", "1.0", datapack);
+    }
+
+    private static void SeedScreenshots(InstanceStore store, GameInstance instance)
+    {
+        var folder = Path.Combine(store.GetInstanceDirectory(instance.Id), "minecraft", "screenshots");
+        Directory.CreateDirectory(folder);
+        for (var index = 0; index < 4; index++)
+        {
+            var name = $"Preview_{index + 1:00}.png";
+            var path = Path.Combine(folder, name);
+            File.WriteAllBytes(path, PreviewScreenshotPng(index));
+            File.SetCreationTimeUtc(path, DateTime.UtcNow.AddMinutes(-index * 7));
+        }
+    }
+
+    private static byte[] PreviewScreenshotPng(int variant)
+    {
+        const int width = 480;
+        const int height = 270;
+        var pixels = new byte[(width * 4 + 1) * height];
+        var palette = new[]
+        {
+            (Sky: (byte)88, Ground: (byte)65, Sun: (byte)255),
+            (Sky: (byte)50, Ground: (byte)78, Sun: (byte)235),
+            (Sky: (byte)105, Ground: (byte)54, Sun: (byte)250),
+            (Sky: (byte)70, Ground: (byte)88, Sun: (byte)255)
+        }[variant % 4];
+        for (var y = 0; y < height; y++)
+        {
+            var row = y * (width * 4 + 1);
+            pixels[row] = 0;
+            for (var x = 0; x < width; x++)
+            {
+                var groundLine = height * 2 / 3 + (int)(18 * Math.Sin((x + variant * 37) / 54d));
+                var ground = y >= groundLine;
+                var isSun = Math.Pow(x - (width * 3 / 4), 2) + Math.Pow(y - (height / 4), 2) < 34 * 34;
+                var offset = row + 1 + x * 4;
+                pixels[offset] = isSun ? palette.Sun : ground ? palette.Ground : (byte)(palette.Sky + y / 9);
+                pixels[offset + 1] = isSun ? (byte)220 : ground ? (byte)(105 + variant * 8) : (byte)(145 + y / 8);
+                pixels[offset + 2] = isSun ? (byte)85 : ground ? (byte)(48 + variant * 6) : (byte)(205 + y / 12);
+                pixels[offset + 3] = 255;
+                if (ground && x > 85 && x < 188 && y < groundLine + 34 && ((x / 18 + y / 14) % 3 == 0))
+                {
+                    pixels[offset] = (byte)(78 + variant * 8);
+                    pixels[offset + 1] = (byte)(132 + variant * 5);
+                    pixels[offset + 2] = (byte)(62 + variant * 4);
+                }
+            }
+        }
+
+        using var png = new MemoryStream();
+        png.Write([137, 80, 78, 71, 13, 10, 26, 10]);
+        Span<byte> header = stackalloc byte[13];
+        BinaryPrimitives.WriteInt32BigEndian(header, width);
+        BinaryPrimitives.WriteInt32BigEndian(header[4..], height);
+        header[8] = 8;
+        header[9] = 6;
+        WritePngChunk(png, "IHDR", header);
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(compressed, CompressionLevel.Optimal, leaveOpen: true))
+            zlib.Write(pixels);
+        WritePngChunk(png, "IDAT", compressed.ToArray());
+        WritePngChunk(png, "IEND", []);
+        return png.ToArray();
+    }
+
+    private static void WritePngChunk(Stream output, string type, ReadOnlySpan<byte> data)
+    {
+        Span<byte> length = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(length, data.Length);
+        output.Write(length);
+        Span<byte> typeBytes = stackalloc byte[4];
+        Encoding.ASCII.GetBytes(type, typeBytes);
+        output.Write(typeBytes);
+        output.Write(data);
+        var crc = uint.MaxValue;
+        foreach (var value in typeBytes) crc = Crc32(crc, value);
+        foreach (var value in data) crc = Crc32(crc, value);
+        Span<byte> checksum = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(checksum, ~crc);
+        output.Write(checksum);
+    }
+
+    private static uint Crc32(uint crc, byte value)
+    {
+        crc ^= value;
+        for (var bit = 0; bit < 8; bit++)
+            crc = (crc & 1) != 0 ? 0xedb88320U ^ (crc >> 1) : crc >> 1;
+        return crc;
     }
 
     private static byte[] PreviewLevelData(string name, int gameType, long lastPlayed)

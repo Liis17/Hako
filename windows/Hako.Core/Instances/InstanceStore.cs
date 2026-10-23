@@ -212,6 +212,51 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         return true;
     }
 
+    /// <summary>Locks screenshots against other file operations while preserving macOS behavior during gameplay.</summary>
+    internal bool TryBeginScreenshotMutation(Guid id, out IDisposable? lease, out InstanceStorageError? reason)
+    {
+        bool changed;
+        _gate.Wait();
+        try
+        {
+            if (!TryGetRegistrySnapshot(out var registry, out reason))
+            {
+                lease = null;
+                return false;
+            }
+
+            var instance = Find(registry, id);
+            if (instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing)
+            {
+                lease = null;
+                reason = InstanceStorageError.BuildInstalling;
+                return false;
+            }
+
+            if (_contentBusy.Contains(id))
+            {
+                lease = null;
+                reason = InstanceStorageError.BuildFilesBusy;
+                return false;
+            }
+
+            changed = AddBusy(ref _contentBusy, id);
+            lease = new BusyLease(() => EndBusy(id, launch: false));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        if (changed)
+        {
+            NotifyBusyStateChanged();
+        }
+
+        reason = null;
+        return true;
+    }
+
     internal bool TryBeginInstallation(Guid id, out IDisposable? lease, out InstanceStorageError? reason)
     {
         bool changed;
@@ -687,6 +732,154 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
 
     /// <summary>The reason rename and delete are blocked, for localized UI text; does not wait for running store operations.</summary>
     public InstanceStorageError? ManagementBlockedError(GameInstance instance) => GetManagementBlock(instance);
+
+    /// <summary>Copies a ready build into an independently registered folder while holding its content lease.</summary>
+    public async Task<GameInstance> DuplicateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var leaseResult = await Task.Run(() => TryBeginContent(id, out var lease, out var reason)
+                ? (lease, reason)
+                : (null, reason), cancellationToken)
+            .ConfigureAwait(false);
+        using var lease = leaseResult.lease
+            ?? throw new InstanceStorageException(leaseResult.reason ?? InstanceStorageError.BuildFilesBusy,
+                "The build cannot be duplicated while it is installing, running, or busy.");
+
+        var sourceInstance = Instances.FirstOrDefault(instance => instance.Id == id)
+            ?? throw new InstanceStorageException(InstanceStorageError.InstanceRegistryUnavailable,
+                "The build no longer exists.");
+        if (sourceInstance.State != InstanceInstallationState.Ready)
+            throw new InstanceStorageException(InstanceStorageError.BuildInstalling,
+                "Wait for the build installation to finish before duplicating it.");
+
+        var source = await Task.Run(() => GetInstanceDirectory(id), cancellationToken).ConfigureAwait(false);
+        var stageName = ".hako-duplicate-" + Guid.NewGuid().ToString("N");
+        var stage = InstanceStorage.ContainedPath(stageName, _storage.Root, allowBaseReparsePoint: true);
+        var ownsStage = false;
+        var published = false;
+        try
+        {
+            InstanceStorage.CreateDirectoryExclusiveAt(_storage.Root, stageName);
+            ownsStage = true;
+            File.SetAttributes(stage, FileAttributes.Directory | FileAttributes.Hidden);
+            var sourceEntries = await Task.Run(async () => await InstanceFileTree.CopyAsync(source, stage,
+                IsTransientCopyPath, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var registry = GetRegistrySnapshot();
+                var current = Find(registry, id);
+                if (current != sourceInstance || current.State != InstanceInstallationState.Ready)
+                    throw new InstanceStorageException(InstanceStorageError.BuildFilesBusy,
+                        "The build profile changed while it was being duplicated.");
+
+                InstanceFileTree.EnsureUnchanged(_storage.Directory(current.FolderName), sourceEntries,
+                    IsTransientCopyPath, cancellationToken);
+                for (var number = 2; number <= 999; number++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var suffix = " " + number;
+                    var name = current.Name[..Math.Min(current.Name.Length, 60 - suffix.Length)].TrimEnd() + suffix;
+                    var (validatedName, folderName) = ParseName(name);
+                    try
+                    {
+                        ValidateReservedName(folderName);
+                        _storage.EnsureAvailable(folderName, registry.Instances);
+                    }
+                    catch (InstanceStorageException exception) when (exception.Error is
+                        InstanceStorageError.DuplicateBuildName or InstanceStorageError.BuildFolderExists)
+                    {
+                        continue;
+                    }
+
+                    var destination = _storage.Directory(folderName);
+                    try
+                    {
+                        Directory.Move(stage, destination);
+                    }
+                    catch (IOException) when (EntryExists(destination))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        File.SetAttributes(destination, FileAttributes.Directory);
+                    }
+                    catch (Exception operationFailure)
+                    {
+                        RollbackAndThrow(operationFailure, () => InstanceFileTree.DeleteOwnedDirectory(destination));
+                        throw;
+                    }
+
+                    published = true;
+                    var duplicate = current with
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = validatedName,
+                        FolderName = folderName,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        IconRevision = Guid.NewGuid(),
+                        State = InstanceInstallationState.Ready,
+                        PauseRequested = false,
+                        ErrorCode = null,
+                        ErrorMessage = null
+                    };
+                    try
+                    {
+                        WriteRegistry(new InstanceRegistryFile(1, registry.Instances.Append(duplicate).ToList()));
+                    }
+                    catch (Exception operationFailure)
+                    {
+                        RollbackAndThrow(operationFailure, () => InstanceFileTree.DeleteOwnedDirectory(destination));
+                        throw;
+                    }
+
+                    NotifyInstancesChanged();
+                    return duplicate;
+                }
+
+                throw new InstanceStorageException(InstanceStorageError.DuplicateBuildName,
+                    "No available name could be chosen for the duplicate build.");
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        catch (InstanceFileTreeReparseException exception)
+        {
+            throw new InstanceStorageException(InstanceStorageError.ReparsePointNotAllowed,
+                exception.Message, exception);
+        }
+        finally
+        {
+            if (ownsStage && !published && Directory.Exists(stage))
+            {
+                try { InstanceFileTree.DeleteOwnedDirectory(stage); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    Debug.WriteLine($"Could not remove duplicate staging folder '{stage}': {exception.Message}");
+                }
+            }
+        }
+    }
+
+    private static bool IsTransientCopyPath(string path) =>
+        path.Equals(".hako-game", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith(".hako-game/", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("minecraft/.hako-running.json", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("minecraft/.hako-launch", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("minecraft/.hako-launch/", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("minecraft/logs/hako-launch.log", StringComparison.OrdinalIgnoreCase);
+
+    private static bool EntryExists(string path)
+    {
+        try { _ = File.GetAttributes(path); return true; }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
+    }
 
     public void Delete(Guid id)
     {
