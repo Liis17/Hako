@@ -268,24 +268,17 @@ public sealed class InstanceWorldsTests
         await using var temporary = new TemporaryDirectory();
         var (store, instance, root) = await CreateReadyInstanceAsync(temporary);
         var source = CreateWorld(root, "Large", WorldTestFixture.Create().Compressed);
-        using (var stream = new FileStream(Path.Combine(source, "large.bin"), FileMode.CreateNew, FileAccess.Write))
-        {
-            stream.SetLength(64 * 1024 * 1024);
-        }
         var saves = Path.Combine(root, "minecraft", "saves");
         using var cancellation = new CancellationTokenSource();
-        var duplicate = new InstanceWorlds(store).DuplicateAsync(instance.Id, "Large", cancellation.Token);
-        var wait = Stopwatch.StartNew();
-        while (!Directory.EnumerateDirectories(saves).Any(path =>
-                   Path.GetFileName(path).StartsWith(".hako-world-copy-", StringComparison.OrdinalIgnoreCase)))
+        var stageCreated = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var duplicate = new InstanceWorlds(store, null, stage =>
         {
-            if (duplicate.IsCompleted || wait.Elapsed > TimeSpan.FromSeconds(10))
-            {
-                var completed = duplicate.IsCompletedSuccessfully ? duplicate.Result.FailureReason?.ToString() : duplicate.Status.ToString();
-                Assert.Fail("World duplication did not expose its task-owned staging folder in time: " + completed);
-            }
-            await Task.Delay(2);
-        }
+            stageCreated.TrySetResult(stage);
+            cancellation.Token.WaitHandle.WaitOne();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }).DuplicateAsync(instance.Id, "Large", cancellation.Token);
+        var stage = await stageCreated.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(Directory.Exists(stage));
 
         cancellation.Cancel();
         await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => duplicate);

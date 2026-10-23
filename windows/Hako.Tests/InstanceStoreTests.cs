@@ -794,7 +794,11 @@ public sealed class InstanceStoreTests
             process.Kill(entireProcessTree: true);
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
 
-            using var acquired = HakoRootLock.Acquire(temporary.Paths);
+            using (HakoRootLock.Acquire(temporary.Paths))
+            {
+            }
+            await DeleteLockFileWhenReleasedAsync(Path.Combine(temporary.Paths.GameRoot, ".hako-lock"));
+            await DeleteLockFileWhenReleasedAsync(Path.Combine(temporary.Paths.DataRoot, ".hako-lock"));
         }
         finally
         {
@@ -982,6 +986,24 @@ public sealed class InstanceStoreTests
             if (Directory.Exists(Path))
             {
                 Directory.Delete(Path, recursive: true);
+            }
+        }
+    }
+
+    private static async Task DeleteLockFileWhenReleasedAsync(string path)
+    {
+        var deadline = Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                File.Delete(path);
+                return;
+            }
+            catch (IOException exception) when (HakoRootLock.IsLockViolation(exception)
+                && deadline.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                await Task.Delay(25);
             }
         }
     }

@@ -1051,7 +1051,11 @@ public sealed class InstanceContentControllerTests
         };
         if (checkUpdates) await controller.CheckUpdatesAsync(instance.Id, ModrinthContentKind.Mod);
         else await controller.ReloadAsync(instance.Id, ModrinthContentKind.Mod);
-        Assert.IsTrue((await mutation!.WaitAsync(TimeSpan.FromSeconds(5))).Succeeded);
+        var mutationResult = await mutation!.WaitAsync(TimeSpan.FromSeconds(5));
+        var failure = mutationResult.Failure is { } contentFailure
+            ? $"{contentFailure.Code}: {string.Join(", ", contentFailure.Arguments.Select(argument => $"{argument.Key}={argument.Value}"))}"
+            : "Mutation did not succeed.";
+        Assert.IsTrue(mutationResult.Succeeded, failure);
         Assert.AreEqual(checkUpdates, initial!.IsCheckingUpdates);
         Assert.AreEqual(!checkUpdates, initial.IsLoading);
         var after = controller.GetState(instance.Id, ModrinthContentKind.Mod);

@@ -201,6 +201,7 @@ public sealed class InstanceContentController
         if (initial is null) return;
         var revision = initial.Revision;
         RaiseStateChanged(key, initial);
+        if (!IsRevisionCurrent(key, revision)) return;
         try
         {
             var instance = FindInstance(instanceId);
@@ -934,6 +935,7 @@ public sealed class InstanceContentController
         if (initial is null) return;
         var revision = initial.Revision;
         RaiseStateChanged(key, initial);
+        if (!IsRevisionCurrent(key, revision)) return;
         GameInstance instance;
         string root;
         try
@@ -1473,6 +1475,11 @@ public sealed class InstanceContentController
             return false;
         }
         catch { return false; }
+    }
+
+    private bool IsRevisionCurrent(InstanceContentStateKey key, long revision)
+    {
+        lock (_sync) return _revisions.GetValueOrDefault(key) == revision;
     }
 
     private GameInstance FindInstance(Guid instanceId) => _store.List().FirstOrDefault(instance => instance.Id == instanceId)

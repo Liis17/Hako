@@ -57,11 +57,18 @@ public sealed class InstanceWorlds
     private readonly InstanceStore _store;
     private readonly InstanceContent _content;
     private readonly RecycleBin _recycleBin;
+    private readonly Action<string>? _afterStageCreated;
 
     public InstanceWorlds(InstanceStore store, RecycleBin? recycleBin = null)
+        : this(store, recycleBin, null)
+    {
+    }
+
+    internal InstanceWorlds(InstanceStore store, RecycleBin? recycleBin, Action<string>? afterStageCreated)
     {
         _store = store;
         _recycleBin = recycleBin ?? new RecycleBin();
+        _afterStageCreated = afterStageCreated;
         _content = new InstanceContent(store, _recycleBin);
     }
 
@@ -129,15 +136,15 @@ public sealed class InstanceWorlds
     {
         try
         {
-            return await _content.WithContentLeaseAsync(instanceId, (root, instance, token) =>
+            return await _content.WithContentLeaseAsync(instanceId, async (root, instance, token) =>
             {
                 if (instance.State != InstanceInstallationState.Ready)
                 {
-                    return Task.FromResult(new WorldDuplicateResult(null,
-                        InstanceWorldFailureReason.BuildNotReady));
+                    return new WorldDuplicateResult(null, InstanceWorldFailureReason.BuildNotReady);
                 }
 
-                return Task.FromResult(DuplicateUnderLease(root, worldId, token));
+                return await Task.Run(() => DuplicateUnderLease(root, worldId, token, _afterStageCreated), token)
+                    .ConfigureAwait(false);
             }, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -266,7 +273,7 @@ public sealed class InstanceWorlds
     }
 
     private static WorldDuplicateResult DuplicateUnderLease(string instanceRoot, string worldId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Action<string>? afterStageCreated)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var source = WorldFolder(worldId, instanceRoot);
@@ -281,6 +288,7 @@ public sealed class InstanceWorlds
         var published = false;
         try
         {
+            afterStageCreated?.Invoke(stage);
             var attributes = new List<(string Path, FileAttributes Value, DateTime LastWriteUtc)>();
             attributes.Add((stage, File.GetAttributes(source), Directory.GetLastWriteTimeUtc(source)));
             CopyDirectory(source, source, stage, attributes, cancellationToken);
