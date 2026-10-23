@@ -430,7 +430,16 @@ public sealed class GameProcessRunner
 
     private static void RemoveRecordIfCurrent(string instanceRoot, GameProcessRecord record)
     {
-        var current = ReadRecord(instanceRoot);
+        GameProcessRecord? current;
+        try
+        {
+            current = ReadRecord(instanceRoot);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
         if (current is not null && current.InstanceID == record.InstanceID
             && MatchesIdentity(current, record.Pid, record.StartSeconds, record.StartMicroseconds)
             && current.SessionID == record.SessionID)

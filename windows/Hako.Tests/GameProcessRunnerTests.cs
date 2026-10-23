@@ -55,6 +55,26 @@ public sealed class GameProcessRunnerTests
     }
 
     [TestMethod]
+    public async Task ExitCompletesWhenRunningRecordIsTemporarilyLocked()
+    {
+        using var temporary = new TemporaryDirectory();
+        var instanceRoot = CreateInstanceRoot(temporary);
+        var instanceId = Guid.NewGuid();
+        var launch = await new GameProcessRunner().StartAsync(
+            CreatePowerShellPlan(instanceRoot, "Start-Sleep -Seconds 3; exit 0"), instanceId, instanceRoot);
+        var recordPath = Path.Combine(instanceRoot, "minecraft", ".hako-running.json");
+
+        using (new FileStream(recordPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.AreEqual(0, await launch.Completion.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.IsTrue(File.Exists(recordPath));
+        }
+
+        Assert.IsNull(await new GameProcessRunner().RestoreAsync(instanceId, instanceRoot));
+        Assert.IsFalse(File.Exists(recordPath));
+    }
+
+    [TestMethod]
     public async Task RestoreRejectsReusedPidWhenInjectedCreationTimeDoesNotMatch()
     {
         using var temporary = new TemporaryDirectory();

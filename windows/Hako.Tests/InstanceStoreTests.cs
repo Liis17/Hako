@@ -794,7 +794,7 @@ public sealed class InstanceStoreTests
             process.Kill(entireProcessTree: true);
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
 
-            using (HakoRootLock.Acquire(temporary.Paths))
+            using (await AcquireRootLockWhenReleasedAsync(temporary.Paths))
             {
             }
             await DeleteLockFileWhenReleasedAsync(Path.Combine(temporary.Paths.GameRoot, ".hako-lock"));
@@ -985,7 +985,20 @@ public sealed class InstanceStoreTests
 
             if (Directory.Exists(Path))
             {
-                Directory.Delete(Path, recursive: true);
+                var deadline = Stopwatch.StartNew();
+                while (true)
+                {
+                    try
+                    {
+                        Directory.Delete(Path, recursive: true);
+                        break;
+                    }
+                    catch (IOException exception) when (HakoRootLock.IsLockViolation(exception)
+                        && deadline.Elapsed < TimeSpan.FromSeconds(10))
+                    {
+                        await Task.Delay(25).ConfigureAwait(false);
+                    }
+                }
             }
         }
     }
@@ -1004,6 +1017,24 @@ public sealed class InstanceStoreTests
                 && deadline.Elapsed < TimeSpan.FromSeconds(10))
             {
                 await Task.Delay(25);
+            }
+        }
+    }
+
+    private static async Task<HakoRootLock> AcquireRootLockWhenReleasedAsync(HakoPaths paths)
+    {
+        var deadline = Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                return HakoRootLock.Acquire(paths);
+            }
+            catch (HakoRootInUseException exception) when (exception.InnerException is IOException inner
+                && HakoRootLock.IsLockViolation(inner)
+                && deadline.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                await Task.Delay(25).ConfigureAwait(false);
             }
         }
     }
