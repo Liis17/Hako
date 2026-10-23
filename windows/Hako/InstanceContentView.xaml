@@ -68,7 +68,7 @@
                                             <MenuFlyout Opened="ItemMenu_Opened">
                                                 <MenuFlyoutItem Text="{x:Bind RevealText}" Tag="{x:Bind Item}" Click="RevealItem_Click" />
                                                 <MenuFlyoutItem Text="{x:Bind DeleteText}" Tag="{x:Bind Item}" Click="DeleteItem_Click" ToolTipService.ToolTip="{x:Bind BlockReason}"
-                                                                IsEnabled="{x:Bind CanToggle}" />
+                                                                IsEnabled="{x:Bind CanToggle}" Visibility="{x:Bind DeleteVisibility}" />
                                             </MenuFlyout>
                                         </Button.Flyout>
                                     </Button>

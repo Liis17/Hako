@@ -119,9 +119,10 @@ public partial class App : Application
         var games = new GameLaunchCoordinator(InstanceStore, UserSettingsService!, _coordinator!.MinecraftSessions, new GameProcessRunner());
         var content = new InstanceContent(InstanceStore);
         var contentController = new InstanceContentController(InstanceStore, content, modrinth, fabric,
-            HakoDialogs.ConfirmContentAsync);
+            confirmSelection: HakoDialogs.ConfirmContentAsync);
+        var worlds = new InstanceWorlds(InstanceStore);
         _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang, fabric,
-            modrinth, content, contentController, previewModrinthHttpClient, _skinPreviewService!, _previewOptions);
+            modrinth, content, contentController, worlds, previewModrinthHttpClient, _skinPreviewService!, _previewOptions);
 
         _window = new MainWindow(_services);
         _window.Activate();
@@ -148,6 +149,11 @@ public partial class App : Application
                     _coordinator.OpenInstanceCreation();
                     break;
                 case PreviewPage.Profile when previewInstance is { } id:
+                    _coordinator.OpenInstance(id);
+                    break;
+                case PreviewPage.Content or PreviewPage.ResourcePacks or PreviewPage.Catalog
+                    or PreviewPage.Worlds or PreviewPage.Datapacks or PreviewPage.DatapackCatalog
+                    when previewInstance is { } id:
                     _coordinator.OpenInstance(id);
                     break;
                 case PreviewPage.SettingsGame:

@@ -400,7 +400,10 @@ public sealed partial class MainWindow : Window
 
     private void Window_Activated(object sender, WindowActivatedEventArgs e)
     {
+        var wasActive = _windowActive;
         _windowActive = e.WindowActivationState != WindowActivationState.Deactivated;
+        if (!wasActive && _windowActive && ShellFrame.Content is InstanceProfilePage profilePage)
+            profilePage.WindowReturned();
         UpdateSkinAvailability();
     }
 

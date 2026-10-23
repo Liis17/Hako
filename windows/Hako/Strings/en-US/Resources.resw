@@ -363,4 +363,76 @@ Hako</value></data>
   <data name="ContentFailureBulkUpdateFailed" xml:space="preserve"><value>{0} updates could not be completed. See the per-file details.</value></data>
   <data name="ContentFailureCancelled" xml:space="preserve"><value>The operation was cancelled.</value></data>
   <data name="ContentFailureWorldUnavailable" xml:space="preserve"><value>The selected world is no longer available.</value></data>
+  <data name="InstanceSectionWorlds" xml:space="preserve"><value>Worlds</value></data>
+  <data name="ContentSectionTitleDatapacks" xml:space="preserve"><value>Datapacks</value></data>
+  <data name="ContentDropHintDatapacks" xml:space="preserve"><value>Drop ZIP files or folders with pack.mcmeta</value></data>
+  <data name="ContentEmptyDatapacks" xml:space="preserve"><value>This world has no datapacks yet.</value></data>
+  <data name="ContentInvalidDatapackFile" xml:space="preserve"><value>{0}: choose a datapack ZIP file.</value></data>
+  <data name="ContentInvalidDatapackFolder" xml:space="preserve"><value>{0}: the folder must contain a valid pack.mcmeta.</value></data>
+  <data name="ContentCatalogTitleDatapacks" xml:space="preserve"><value>Datapacks on Modrinth</value></data>
+  <data name="ContentCatalogDatapackContext" xml:space="preserve"><value>Build “{0}” · World “{1}” · Minecraft {2}</value></data>
+  <data name="ContentConfirmationFileRequired" xml:space="preserve"><value>Required linked resource pack</value></data>
+  <data name="ContentConfirmationFileOptional" xml:space="preserve"><value>Optional linked resource pack</value></data>
+  <data name="WorldsTitle" xml:space="preserve"><value>Worlds</value></data>
+  <data name="WorldsRefresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="WorldsOpenSaves" xml:space="preserve"><value>Open saves folder</value></data>
+  <data name="WorldsLoading" xml:space="preserve"><value>Loading worlds…</value></data>
+  <data name="WorldsEmpty" xml:space="preserve"><value>This build has no worlds yet.</value></data>
+  <data name="WorldsOperationInProgress" xml:space="preserve"><value>World operation in progress…</value></data>
+  <data name="WorldsOperationBusy" xml:space="preserve"><value>Wait for the current world operation to finish.</value></data>
+  <data name="WorldsSavesUnavailable" xml:space="preserve"><value>The saves folder is not available yet.</value></data>
+  <data name="WorldsDatapacksTitle" xml:space="preserve"><value>World datapacks</value></data>
+  <data name="WorldsShowDatapacks" xml:space="preserve"><value>Datapacks</value></data>
+  <data name="WorldsHideDatapacks" xml:space="preserve"><value>Collapse</value></data>
+  <data name="WorldsActions" xml:space="preserve"><value>World actions</value></data>
+  <data name="WorldsDuplicate" xml:space="preserve"><value>Duplicate…</value></data>
+  <data name="WorldsTrash" xml:space="preserve"><value>Move to Recycle Bin…</value></data>
+  <data name="WorldDuplicateTitle" xml:space="preserve"><value>Create a copy of “{0}”?</value></data>
+  <data name="WorldDuplicateMessage" xml:space="preserve"><value>An independent copy of world “{0}” will be created in build “{1}”.</value></data>
+  <data name="WorldDuplicateConfirm" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="WorldDuplicateSucceeded" xml:space="preserve"><value>World “{0}” was copied as “{1}”.</value></data>
+  <data name="WorldTrashTitle" xml:space="preserve"><value>Move “{0}” to the Recycle Bin?</value></data>
+  <data name="WorldTrashMessage" xml:space="preserve"><value>World “{0}” will be removed from build “{1}”.</value></data>
+  <data name="WorldTrashConfirm" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="WorldTrashSucceeded" xml:space="preserve"><value>World “{0}” was moved to the Recycle Bin.</value></data>
+  <data name="WorldActionFailed" xml:space="preserve"><value>The world operation failed.</value></data>
+  <data name="WorldDiagnosticLabel" xml:space="preserve"><value>Details:</value></data>
+  <data name="WorldSizeUnknown" xml:space="preserve"><value>Size unknown</value></data>
+  <data name="WorldSizeBytes" xml:space="preserve"><value>bytes</value></data>
+  <data name="WorldSizeKilobytes" xml:space="preserve"><value>KiB</value></data>
+  <data name="WorldSizeMegabytes" xml:space="preserve"><value>MiB</value></data>
+  <data name="WorldSizeGigabytes" xml:space="preserve"><value>GiB</value></data>
+  <data name="WorldSizeTerabytes" xml:space="preserve"><value>TiB</value></data>
+  <data name="WorldSizeFormat" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="WorldLastPlayedUnknown" xml:space="preserve"><value>Last played date unknown</value></data>
+  <data name="WorldLastPlayedFormat" xml:space="preserve"><value>Last played: {0}</value></data>
+  <data name="WorldVersionUnknown" xml:space="preserve"><value>version unknown</value></data>
+  <data name="WorldVersionFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="WorldActivityFormat" xml:space="preserve"><value>{0} · size {1}</value></data>
+  <data name="WorldMetadataUnavailable" xml:space="preserve"><value>World details could not be read: {0}</value></data>
+  <data name="WorldGameTypeSurvival" xml:space="preserve"><value>Survival</value></data>
+  <data name="WorldGameTypeCreative" xml:space="preserve"><value>Creative</value></data>
+  <data name="WorldGameTypeAdventure" xml:space="preserve"><value>Adventure</value></data>
+  <data name="WorldGameTypeSpectator" xml:space="preserve"><value>Spectator</value></data>
+  <data name="WorldGameTypeUnknown" xml:space="preserve"><value>Game mode unknown</value></data>
+  <data name="WorldMetadataInvalidGzip" xml:space="preserve"><value>invalid gzip data</value></data>
+  <data name="WorldMetadataInvalidNbt" xml:space="preserve"><value>invalid NBT data</value></data>
+  <data name="WorldMetadataInvalidText" xml:space="preserve"><value>invalid text in metadata</value></data>
+  <data name="WorldMetadataCompressedTooLarge" xml:space="preserve"><value>compressed metadata is too large</value></data>
+  <data name="WorldMetadataDecompressedTooLarge" xml:space="preserve"><value>decompressed metadata is too large</value></data>
+  <data name="WorldMetadataTooDeep" xml:space="preserve"><value>NBT structure is too deeply nested</value></data>
+  <data name="WorldMetadataReadFailed" xml:space="preserve"><value>metadata file could not be read</value></data>
+  <data name="WorldFailureBuildUnavailable" xml:space="preserve"><value>The build is no longer available.</value></data>
+  <data name="WorldFailureBuildNotReady" xml:space="preserve"><value>The build is not ready yet.</value></data>
+  <data name="WorldFailureBuildInstalling" xml:space="preserve"><value>The build is installing.</value></data>
+  <data name="WorldFailureBuildRunning" xml:space="preserve"><value>Worlds cannot be changed while Minecraft is running.</value></data>
+  <data name="WorldFailureBuildFilesBusy" xml:space="preserve"><value>Build files are busy with another operation.</value></data>
+  <data name="WorldFailureInvalidId" xml:space="preserve"><value>The world folder name is invalid.</value></data>
+  <data name="WorldFailureMissing" xml:space="preserve"><value>The world no longer exists or has no valid level.dat.</value></data>
+  <data name="WorldFailureReparsePoint" xml:space="preserve"><value>The world path contains a link or unsafe folder.</value></data>
+  <data name="WorldFailureNoAvailableName" xml:space="preserve"><value>No name is available for a world copy.</value></data>
+  <data name="WorldFailureMetadataRename" xml:space="preserve"><value>Could not update the copied world's metadata name.</value></data>
+  <data name="WorldFailureCopy" xml:space="preserve"><value>Could not copy the world.</value></data>
+  <data name="WorldFailureRecycleBin" xml:space="preserve"><value>Could not move the world to the Recycle Bin.</value></data>
+  <data name="WorldFailureNotRecyclable" xml:space="preserve"><value>The Recycle Bin rejected the world; the original save was left in place.</value></data>
 </root>

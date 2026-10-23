@@ -15,7 +15,7 @@ namespace Hako;
 /// <summary>Build profile (InstanceProfileView on macOS): header, «Играть», installation controls, «⋯» and the «Настройки» section.</summary>
 public sealed partial class InstanceProfilePage : Page, INavigationGuard
 {
-    private enum ProfileSection { Mods, ResourcePacks, Settings }
+    private enum ProfileSection { Mods, ResourcePacks, Worlds, Settings }
 
     private LauncherServices? _services;
     private Guid _id;
@@ -84,6 +84,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
                 {
                     PreviewPage.Content or PreviewPage.Catalog => ProfileSection.Mods,
                     PreviewPage.ResourcePacks => ProfileSection.ResourcePacks,
+                    PreviewPage.Worlds or PreviewPage.Datapacks or PreviewPage.DatapackCatalog => ProfileSection.Worlds,
                     _ => _selectedSection
                 };
             }
@@ -102,6 +103,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         _refresh?.Stop();
         _saveTimer?.Stop();
         ContentSection.SetActive(false);
+        WorldsSection.SetActive(false);
         InvalidateNameValidation();
         _ = FlushSettingsAsync();
         if (_services is { } services)
@@ -143,6 +145,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         SettingsTitle.Text = HakoStrings.Get("SettingsTitle");
         ModsSectionButton.Content = HakoStrings.Get("InstanceSectionMods");
         ResourcePacksSectionButton.Content = HakoStrings.Get("InstanceSectionResourcePacks");
+        WorldsSectionButton.Content = HakoStrings.Get("InstanceSectionWorlds");
         SettingsSectionButton.Content = HakoStrings.Get("SettingsTitle");
         ProfileSectionTitle.Text = HakoStrings.Get("InstanceProfileSection");
         NameLabel.Text = HakoStrings.Get("CreationNameLabel");
@@ -156,6 +159,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         NextLaunchText.Text = HakoStrings.Get("SettingsNextLaunch");
         IconPicker.RefreshStrings();
         ParametersEditor.RefreshStrings();
+        WorldsSection.RefreshStrings();
         Refresh();
     }
 
@@ -251,9 +255,11 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         if (!hasMods && _selectedSection == ProfileSection.Mods)
             _selectedSection = ProfileSection.ResourcePacks;
 
-        var showContent = _selectedSection != ProfileSection.Settings;
-        SettingsSection.Visibility = showContent ? Visibility.Collapsed : Visibility.Visible;
+        var showContent = _selectedSection is ProfileSection.Mods or ProfileSection.ResourcePacks;
+        var showWorlds = _selectedSection == ProfileSection.Worlds;
+        SettingsSection.Visibility = _selectedSection == ProfileSection.Settings ? Visibility.Visible : Visibility.Collapsed;
         ContentSection.Visibility = showContent ? Visibility.Visible : Visibility.Collapsed;
+        WorldsSection.Visibility = showWorlds ? Visibility.Visible : Visibility.Collapsed;
         SectionTabs.Visibility = Visibility.Visible;
 
         _updatingSectionTabs = true;
@@ -267,6 +273,8 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         }
 
         ContentSection.SetActive(showContent);
+        WorldsSection.Configure(services, instance, services.PreviewOptions);
+        WorldsSection.SetActive(showWorlds);
     }
 
     private void SelectSection(ProfileSection section)
@@ -282,6 +290,8 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         if (_updatingSectionTabs || SectionTabs.SelectedItem is not RadioButton { Tag: string tag }) return;
         if (Enum.TryParse<ProfileSection>(tag, out var section)) SelectSection(section);
     }
+
+    internal void WindowReturned() => WorldsSection.RefreshWorldsIfActive();
 
     private static string FolderDisplayPath(LauncherServices services, GameInstance instance) =>
         DisplayPath.Format(Path.Combine(services.Store.GameRoot, instance.FolderName));

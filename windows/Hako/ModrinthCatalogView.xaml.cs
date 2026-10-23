@@ -16,7 +16,9 @@ public sealed partial class ModrinthCatalogView : UserControl
     private readonly ObservableCollection<ModrinthCatalogRow> _rows = [];
     private LauncherServices? _services;
     private GameInstance? _instance;
-    private ModrinthContentKind _kind;
+    private InstanceContentTarget _target = InstanceContentTarget.Mods;
+    private ModrinthContentKind _kind => _target.Kind;
+    private string? _targetName;
     private CancellationTokenSource? _activeCancellation;
     private CancellationTokenSource? _searchCancellation;
     private DispatcherQueueTimer? _searchTimer;
@@ -53,11 +55,20 @@ public sealed partial class ModrinthCatalogView : UserControl
 
     public event EventHandler? BackRequested;
 
-    internal void Configure(LauncherServices services, GameInstance instance, ModrinthContentKind kind)
+    internal void Configure(LauncherServices services, GameInstance instance, ModrinthContentKind kind) =>
+        Configure(services, instance, kind switch
+        {
+            ModrinthContentKind.Mod => InstanceContentTarget.Mods,
+            ModrinthContentKind.ResourcePack => InstanceContentTarget.Packs,
+            _ => throw new ArgumentException("Datapacks require a world target.", nameof(kind))
+        });
+
+    internal void Configure(LauncherServices services, GameInstance instance, InstanceContentTarget target,
+        string? targetName = null)
     {
         var previous = _instance;
-        var changed = previous?.Id != instance.Id || _kind != kind;
-        var contextChanged = previous is null || _kind != kind || previous.VersionID != instance.VersionID
+        var changed = previous?.Id != instance.Id || _target != target;
+        var contextChanged = previous is null || _target != target || _targetName != targetName || previous.VersionID != instance.VersionID
             || previous.ModLoader != instance.ModLoader
             || previous.FabricConfiguration?.LoaderVersion != instance.FabricConfiguration?.LoaderVersion;
         var queryChanged = changed || contextChanged;
@@ -69,7 +80,8 @@ public sealed partial class ModrinthCatalogView : UserControl
         if (queryChanged && _active) SetActive(false);
         _services = services;
         _instance = instance;
-        _kind = kind;
+        _target = target;
+        _targetName = targetName;
         var blockReason = BlockReason();
         var availabilityChanged = previous is null || _availabilityBlockReason != blockReason || contentLocationChanged;
         _availabilityBlockReason = blockReason;
@@ -105,7 +117,7 @@ public sealed partial class ModrinthCatalogView : UserControl
         if (active)
         {
             _activeCancellation = new CancellationTokenSource();
-            _contentState = _services?.ContentController.GetState(_instance?.Id ?? Guid.Empty, _kind) ?? new InstanceContentState();
+            _contentState = _services?.ContentController.GetState(_instance?.Id ?? Guid.Empty, _target) ?? new InstanceContentState();
             RefreshRows();
             _ = RefreshInstalledProjectsAsync();
             _ = SearchAsync(reset: true);
@@ -128,8 +140,12 @@ public sealed partial class ModrinthCatalogView : UserControl
 
     public void RefreshStrings()
     {
-        var mod = _kind == ModrinthContentKind.Mod;
-        CatalogTitle.Text = HakoStrings.Get(mod ? "ContentCatalogTitleMods" : "ContentCatalogTitleResourcePacks");
+        CatalogTitle.Text = HakoStrings.Get(_kind switch
+        {
+            ModrinthContentKind.Mod => "ContentCatalogTitleMods",
+            ModrinthContentKind.Datapack => "ContentCatalogTitleDatapacks",
+            _ => "ContentCatalogTitleResourcePacks"
+        });
         BackButton.Content = HakoStrings.Get("ContentCatalogBack");
         SearchBox.PlaceholderText = HakoStrings.Get("ContentCatalogSearchPlaceholder");
         SetSortLabel(0, "ContentCatalogSortRelevance");
@@ -140,9 +156,12 @@ public sealed partial class ModrinthCatalogView : UserControl
         CatalogEmptyText.Text = HakoStrings.Get("ContentCatalogNoResults");
         LoadMoreButton.Content = HakoStrings.Get("ContentCatalogLoadMore");
         CatalogContextText.Text = _instance is { } instance
-            ? string.Format(HakoStrings.Get("ContentCatalogContext"),
-                instance.ModLoader == InstanceModLoader.Fabric ? $"Fabric {instance.FabricConfiguration?.LoaderVersion}" : HakoStrings.Get("CreationLoaderVanilla"),
-                instance.VersionID)
+            ? _target.WorldId is { } worldId
+                ? string.Format(HakoStrings.Get("ContentCatalogDatapackContext"), instance.Name,
+                    _targetName ?? worldId, instance.VersionID)
+                : string.Format(HakoStrings.Get("ContentCatalogContext"),
+                    instance.ModLoader == InstanceModLoader.Fabric ? $"Fabric {instance.FabricConfiguration?.LoaderVersion}" : HakoStrings.Get("CreationLoaderVanilla"),
+                    instance.VersionID)
             : "";
         RefreshRows();
         RefreshState();
@@ -151,12 +170,10 @@ public sealed partial class ModrinthCatalogView : UserControl
     public void ContentStateChanged(InstanceContentState state)
     {
         if (state.Revision < _contentState.Revision) return;
-        var wasBusy = _contentState.IsBusy;
         _contentState = state;
         if (state.IsBusy || state.IsCheckingUpdates) CloseChannelMenu();
         RefreshRows();
         RefreshState();
-        if (_active && wasBusy && !state.IsBusy) _ = RefreshInstalledProjectsAsync();
     }
 
     private void HakoStrings_LanguageChanged(object? sender, EventArgs e) => RefreshStrings();
@@ -277,7 +294,7 @@ public sealed partial class ModrinthCatalogView : UserControl
         RefreshState();
         try
         {
-            var installed = await services.ContentController.InstalledProjectsAsync(instance.Id, _kind, activeCancellation.Token);
+            var installed = await services.ContentController.InstalledProjectsAsync(instance.Id, _target, activeCancellation.Token);
             if (!_active || generation != _installedGeneration || activeCancellation.IsCancellationRequested) return;
             _installed = installed.Keys.ToHashSet(StringComparer.Ordinal);
             CatalogInstalledErrorText.Visibility = Visibility.Collapsed;
@@ -437,7 +454,7 @@ public sealed partial class ModrinthCatalogView : UserControl
             return;
         try
         {
-            var result = await services.ContentController.InstallAsync(instance.Id, _kind, project, channel);
+            var result = await services.ContentController.InstallAsync(instance.Id, _target, project, channel);
             if (!_active || generation != _searchGeneration) return;
             if (result.Succeeded)
             {
@@ -472,7 +489,7 @@ public sealed partial class ModrinthCatalogView : UserControl
         {
             if (_active && generation == _searchGeneration)
             {
-                _contentState = services.ContentController.GetState(instance.Id, _kind);
+                _contentState = services.ContentController.GetState(instance.Id, _target);
                 RefreshRows();
                 RefreshState();
             }

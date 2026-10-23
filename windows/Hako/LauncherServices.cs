@@ -25,6 +25,7 @@ internal sealed record LauncherServices(
     ModrinthClient Modrinth,
     InstanceContent Content,
     InstanceContentController ContentController,
+    InstanceWorlds Worlds,
     HttpClient? PreviewModrinthHttpClient,
     MinecraftSkinPreviewService SkinPreview,
     ProfilePreviewOptions? PreviewOptions);
@@ -241,7 +242,7 @@ internal static class HakoDialogs
         }
     }
 
-    public static async Task<ContentConfirmationChoice> ConfirmContentAsync(
+    public static async Task<ContentConfirmationResult> ConfirmContentAsync(
         ContentConfirmationRequest request,
         CancellationToken cancellationToken)
     {
@@ -249,7 +250,7 @@ internal static class HakoDialogs
         CancellationToken contentToken;
         lock (WindowSync)
         {
-            if (_windowClosed || _windowClosing) return ContentConfirmationChoice.Cancel;
+            if (_windowClosed || _windowClosing) return new ContentConfirmationResult(ContentConfirmationChoice.Cancel);
             windowToken = _windowLifetime.Token;
             contentToken = _contentConfirmationLifetime.Token;
         }
@@ -276,14 +277,15 @@ internal static class HakoDialogs
 
             return result switch
             {
-                ContentDialogResult.Primary => ContentConfirmationChoice.Primary,
-                ContentDialogResult.Secondary => ContentConfirmationChoice.Alternative,
-                _ => ContentConfirmationChoice.Cancel
+                ContentDialogResult.Primary => new ContentConfirmationResult(
+                    ContentConfirmationChoice.Primary, presentation?.ChosenFilename),
+                ContentDialogResult.Secondary => new ContentConfirmationResult(ContentConfirmationChoice.Alternative),
+                _ => new ContentConfirmationResult(ContentConfirmationChoice.Cancel)
             };
         }
         catch (OperationCanceledException)
         {
-            return ContentConfirmationChoice.Cancel;
+            return new ContentConfirmationResult(ContentConfirmationChoice.Cancel);
         }
         finally
         {
@@ -343,6 +345,7 @@ internal static class HakoDialogs
         private readonly ContentConfirmationRequest _request;
         private readonly TextBlock _message;
         private readonly List<(TextBlock Title, TextBlock? Note, ContentConfirmationProject Project)> _projects;
+        private readonly List<(RadioButton Button, ContentConfirmationFile File, TextBlock Note)> _files;
 
         public ContentConfirmationPresentation(ContentConfirmationRequest request)
         {
@@ -350,6 +353,7 @@ internal static class HakoDialogs
             _message = new TextBlock { TextWrapping = TextWrapping.Wrap };
             var rows = new StackPanel { Spacing = 10 };
             _projects = [];
+            _files = [];
             foreach (var project in request.Projects)
             {
                 var title = new TextBlock { FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
@@ -385,6 +389,39 @@ internal static class HakoDialogs
 
             var body = new StackPanel { Spacing = 12 };
             body.Children.Add(_message);
+            if (request.Files is { Count: > 0 } files)
+            {
+                var fileRows = new StackPanel { Spacing = 8 };
+                var groupName = "ContentFileChoice" + Guid.NewGuid().ToString("N");
+                foreach (var file in files)
+                {
+                    var title = new TextBlock { Text = file.Filename, TextWrapping = TextWrapping.Wrap };
+                    var note = new TextBlock
+                    {
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                    };
+                    var text = new StackPanel { Spacing = 2, Children = { title, note } };
+                    var option = new RadioButton
+                    {
+                        Content = text,
+                        GroupName = groupName,
+                        IsChecked = _files.Count == 0,
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+                    fileRows.Children.Add(option);
+                    _files.Add((option, file, note));
+                }
+
+                body.Children.Add(new ScrollViewer
+                {
+                    MaxHeight = 220,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Content = fileRows
+                });
+            }
+
             if (rows.Children.Count > 0)
             {
                 body.Children.Add(new ScrollViewer { MaxHeight = 300, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = rows });
@@ -398,9 +435,13 @@ internal static class HakoDialogs
                 CloseButtonText = HakoStrings.Get("CancelButton"),
                 DefaultButton = request.Destructive ? ContentDialogButton.Close : ContentDialogButton.Primary
             };
+            Dialog.PrimaryButtonClick += (_, _) => ChosenFilename = SelectedFilename;
         }
 
         public ContentDialog Dialog { get; }
+        public string? ChosenFilename { get; private set; }
+
+        private string? SelectedFilename => _files.FirstOrDefault(item => item.Button.IsChecked == true).File?.Filename;
 
         public void Refresh()
         {
@@ -432,6 +473,9 @@ internal static class HakoDialogs
                         });
                 }
             }
+
+            foreach (var (_, file, note) in _files)
+                note.Text = HakoStrings.Get(file.Required ? "ContentConfirmationFileRequired" : "ContentConfirmationFileOptional");
         }
 
         private static readonly IReadOnlyDictionary<string, string> EmptyArguments = new Dictionary<string, string>();

@@ -19,7 +19,8 @@ public sealed partial class InstanceContentView : UserControl
     private readonly ObservableCollection<InstanceContentRow> _rows = [];
     private LauncherServices? _services;
     private GameInstance? _instance;
-    private ModrinthContentKind _kind;
+    private InstanceContentTarget _target = InstanceContentTarget.Mods;
+    private ModrinthContentKind _kind => _target.Kind;
     private InstanceContentState _state = new();
     private CoalescedRefresh? _stateRefresh;
     private CancellationTokenSource? _readCancellation;
@@ -27,6 +28,7 @@ public sealed partial class InstanceContentView : UserControl
     private bool _active;
     private bool _catalogVisible;
     private bool _importing;
+    private bool _pendingOpenCheck;
     private string? _availabilityBlockReason;
     private MenuFlyout? _itemMenu;
 
@@ -40,10 +42,19 @@ public sealed partial class InstanceContentView : UserControl
     }
 
     internal void Configure(LauncherServices services, GameInstance instance, ModrinthContentKind kind)
+        => Configure(services, instance, kind switch
+        {
+            ModrinthContentKind.Mod => InstanceContentTarget.Mods,
+            ModrinthContentKind.ResourcePack => InstanceContentTarget.Packs,
+            _ => throw new ArgumentException("Datapacks require a world target.", nameof(kind))
+        });
+
+    internal void Configure(LauncherServices services, GameInstance instance, InstanceContentTarget target,
+        string? targetName = null)
     {
         var previous = _instance;
-        var changed = previous?.Id != instance.Id || _kind != kind;
-        var stringsChanged = previous is null || _kind != kind;
+        var changed = previous?.Id != instance.Id || _target != target;
+        var stringsChanged = previous is null || _target != target;
         var instanceStateChanged = previous is null || previous.State != instance.State
             || previous.FolderName != instance.FolderName || previous.LegacyTexturepacks != instance.LegacyTexturepacks;
         var contentLocationChanged = previous is not null
@@ -58,15 +69,15 @@ public sealed partial class InstanceContentView : UserControl
 
         _services = services;
         _instance = instance;
-        _kind = kind;
+        _target = target;
         // Store leases change independently of the immutable GameInstance snapshot.
-        var blockReason = BlockReason(services, instance, kind, _state);
+        var blockReason = BlockReason(services, instance, target, _state);
         var availabilityChanged = _availabilityBlockReason != blockReason;
         _availabilityBlockReason = blockReason;
-        CatalogPane.Configure(services, instance, kind);
+        CatalogPane.Configure(services, instance, target, targetName);
         if (changed)
         {
-            _state = services.ContentController.GetState(instance.Id, kind);
+            _state = services.ContentController.GetState(instance.Id, target);
             _appliedRevision = _state.Revision;
             RefreshState();
             if (_active)
@@ -93,9 +104,10 @@ public sealed partial class InstanceContentView : UserControl
             {
                 _stateRefresh = new CoalescedRefresh(DispatcherQueue, RefreshFromController);
                 services.ContentController.StateChanged += ContentController_StateChanged;
+                services.Store.BusyStateChanged += Store_BusyStateChanged;
                 if (_instance is { } instance)
                 {
-                    _state = services.ContentController.GetState(instance.Id, _kind);
+                    _state = services.ContentController.GetState(instance.Id, _target);
                     _appliedRevision = _state.Revision;
                 }
             }
@@ -107,6 +119,7 @@ public sealed partial class InstanceContentView : UserControl
         {
             _itemMenu?.Hide();
             if (_services is { } services) services.ContentController.StateChanged -= ContentController_StateChanged;
+            if (_services is { } inactiveServices) inactiveServices.Store.BusyStateChanged -= Store_BusyStateChanged;
             _stateRefresh?.Stop();
             _stateRefresh = null;
             CancelRead();
@@ -118,19 +131,32 @@ public sealed partial class InstanceContentView : UserControl
 
     public void RefreshStrings()
     {
-        ContentTitle.Text = HakoStrings.Get(_kind == ModrinthContentKind.Mod
-            ? "ContentSectionTitleMods" : "ContentSectionTitleResourcePacks");
+        ContentTitle.Text = HakoStrings.Get(_kind switch
+        {
+            ModrinthContentKind.Mod => "ContentSectionTitleMods",
+            ModrinthContentKind.Datapack => "ContentSectionTitleDatapacks",
+            _ => "ContentSectionTitleResourcePacks"
+        });
         ImportFilesButton.Content = HakoStrings.Get("ContentImportFiles");
         ImportFolderButton.Content = HakoStrings.Get("ContentImportFolder");
-        ImportFolderButton.Visibility = _kind == ModrinthContentKind.ResourcePack ? Visibility.Visible : Visibility.Collapsed;
+        ImportFolderButton.Visibility = _kind is ModrinthContentKind.ResourcePack or ModrinthContentKind.Datapack
+            ? Visibility.Visible : Visibility.Collapsed;
         CatalogButton.Content = HakoStrings.Get("ContentOpenModrinth");
         CheckUpdatesButton.Content = HakoStrings.Get("ContentCheckUpdates");
         UpdateAllButton.Content = HakoStrings.Get("ContentUpdateAll");
         OpenFolderButton.Content = HakoStrings.Get("ContentOpenFolder");
-        DropHintText.Text = HakoStrings.Get(_kind == ModrinthContentKind.Mod
-            ? "ContentDropHint" : "ContentDropHintResourcePacks");
-        ContentEmptyText.Text = HakoStrings.Get(_kind == ModrinthContentKind.Mod
-            ? "ContentEmptyMods" : "ContentEmptyResourcePacks");
+        DropHintText.Text = HakoStrings.Get(_kind switch
+        {
+            ModrinthContentKind.Mod => "ContentDropHint",
+            ModrinthContentKind.Datapack => "ContentDropHintDatapacks",
+            _ => "ContentDropHintResourcePacks"
+        });
+        ContentEmptyText.Text = HakoStrings.Get(_kind switch
+        {
+            ModrinthContentKind.Mod => "ContentEmptyMods",
+            ModrinthContentKind.Datapack => "ContentEmptyDatapacks",
+            _ => "ContentEmptyResourcePacks"
+        });
         CatalogPane.RefreshStrings();
         RefreshRows();
         RefreshState();
@@ -152,7 +178,6 @@ public sealed partial class InstanceContentView : UserControl
         CatalogPane.SetActive(false);
         CatalogPane.Visibility = Visibility.Collapsed;
         LocalContentPane.Visibility = Visibility.Visible;
-        if (_active) StartLocalReadAndCheck();
         RefreshState();
     }
 
@@ -160,41 +185,57 @@ public sealed partial class InstanceContentView : UserControl
 
     private void ContentController_StateChanged(object? sender, InstanceContentStateChangedEventArgs e)
     {
-        if (_instance?.Id == e.Key.InstanceId) _stateRefresh?.Request();
+        if (_instance?.Id == e.Key.InstanceId && e.Key.Kind == _target.Kind && e.Key.WorldId == _target.WorldId)
+            _stateRefresh?.Request();
     }
+
+    private void Store_BusyStateChanged(object? sender, EventArgs e) => _stateRefresh?.Request();
 
     private void RefreshFromController()
     {
         if (!_active || _services is not { } services || _instance is not { } instance) return;
-        var state = services.ContentController.GetState(instance.Id, _kind);
+        var state = services.ContentController.GetState(instance.Id, _target);
         if (state.Revision < _appliedRevision) return;
-        var wasBusy = _state.IsBusy;
         _appliedRevision = state.Revision;
         _state = state;
         RefreshState();
         CatalogPane.ContentStateChanged(state);
-        if (wasBusy && !state.IsBusy && !_catalogVisible && !_importing)
+        if (_pendingOpenCheck && !_catalogVisible && !state.IsBusy && !services.Store.IsContentBusy(instance.Id))
             StartLocalReadAndCheck();
     }
 
     private void StartLocalReadAndCheck()
     {
         if (!_active || _catalogVisible || _services is not { } services || _instance is not { } instance) return;
+        _pendingOpenCheck = true;
+        if (services.Store.IsContentBusy(instance.Id)
+            || services.ContentController.GetState(instance.Id, _target).IsBusy) return;
+        _pendingOpenCheck = false;
         CancelRead();
         _readCancellation = new CancellationTokenSource();
-        _ = ReadAndCheckAsync(services, instance.Id, _kind, _readCancellation.Token);
+        _ = ReadAndCheckAsync(services, instance.Id, _target, _readCancellation.Token);
     }
 
     private async Task ReadAndCheckAsync(LauncherServices services, Guid instanceId,
-        ModrinthContentKind kind, CancellationToken cancellationToken)
+        InstanceContentTarget target, CancellationToken cancellationToken)
     {
         try
         {
-            if (!services.ContentController.GetState(instanceId, kind).IsBusy)
-                await services.ContentController.ReloadAsync(instanceId, kind, cancellationToken);
+            if (services.Store.IsContentBusy(instanceId) || services.ContentController.GetState(instanceId, target).IsBusy)
+            {
+                _pendingOpenCheck = true;
+                return;
+            }
+
+            await services.ContentController.ReloadAsync(instanceId, target, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!services.ContentController.GetState(instanceId, kind).IsBusy)
-                await services.ContentController.CheckUpdatesAsync(instanceId, kind, cancellationToken);
+            if (services.Store.IsContentBusy(instanceId) || services.ContentController.GetState(instanceId, target).IsBusy)
+            {
+                _pendingOpenCheck = true;
+                return;
+            }
+
+            await services.ContentController.CheckUpdatesAsync(instanceId, target, cancellationToken);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
@@ -218,7 +259,7 @@ public sealed partial class InstanceContentView : UserControl
     private void RefreshState()
     {
         if (_services is not { } services || _instance is not { } instance) return;
-        var blocked = BlockReason(services, instance, _kind, _state);
+        var blocked = BlockReason(services, instance, _target, _state);
         BlockReasonText.Text = blocked ?? "";
         BlockReasonText.Visibility = blocked is null ? Visibility.Collapsed : Visibility.Visible;
         var canMutate = blocked is null && !_state.IsBusy && !_state.IsCheckingUpdates && !_importing;
@@ -227,7 +268,7 @@ public sealed partial class InstanceContentView : UserControl
         ImportFolderButton.IsEnabled = canMutate;
         CatalogButton.IsEnabled = canMutate;
         OpenFolderButton.IsEnabled = instance.State == InstanceInstallationState.Ready;
-        CheckUpdatesButton.IsEnabled = BlockReason(services, instance, _kind, _state) is null
+        CheckUpdatesButton.IsEnabled = BlockReason(services, instance, _target, _state) is null
             && !_state.IsBusy && !_state.IsCheckingUpdates && !_importing;
         ToolTipService.SetToolTip(CheckUpdatesButton, blocked);
         ToolTipService.SetToolTip(ImportFilesButton, blocked);
@@ -260,8 +301,9 @@ public sealed partial class InstanceContentView : UserControl
     }
 
     private string? BlockReason(LauncherServices services, GameInstance instance,
-        ModrinthContentKind kind, InstanceContentState state)
+        InstanceContentTarget target, InstanceContentState state)
     {
+        var kind = target.Kind;
         if (kind == ModrinthContentKind.Mod && instance.ModLoader != InstanceModLoader.Fabric)
             return HakoStrings.Get("ContentBlockedFabric");
         if (instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing)
@@ -278,29 +320,30 @@ public sealed partial class InstanceContentView : UserControl
     private void RefreshRows(bool? canMutateOverride = null)
     {
         if (_services is not { } services || _instance is not { } instance) return;
-        var canMutate = canMutateOverride ?? (BlockReason(services, instance, _kind, _state) is null
+        var canMutate = canMutateOverride ?? (BlockReason(services, instance, _target, _state) is null
             && !_state.IsBusy && !_state.IsCheckingUpdates && !_importing);
         _rows.Clear();
         foreach (var item in _state.Items)
         {
             _state.Updates.TryGetValue(item.LogicalName, out var update);
-            _rows.Add(new InstanceContentRow(item, update, canMutate, BlockReason(services, instance, _kind, _state)));
+            _rows.Add(new InstanceContentRow(item, update, canMutate,
+                BlockReason(services, instance, _target, _state), allowDelete: _kind != ModrinthContentKind.Datapack));
         }
     }
 
     private async void ImportFilesButton_Click(object sender, RoutedEventArgs e)
     {
         if (App.MainWindowId is not { } windowId || _instance is not { } instance || !CanMutate()) return;
-        var kind = _kind;
+        var target = _target;
         try
         {
             var picker = new FileOpenPicker(windowId)
             {
                 SuggestedStartLocation = PickerLocationId.Downloads,
-                FileTypeFilter = { kind == ModrinthContentKind.Mod ? ".jar" : ".zip" }
+                FileTypeFilter = { target.Kind == ModrinthContentKind.Mod ? ".jar" : ".zip" }
             };
             var files = await picker.PickMultipleFilesAsync();
-            if (files is not null) await ImportPathsAsync(files.Select(file => file.Path), instance, kind);
+            if (files is not null) await ImportPathsAsync(files.Select(file => file.Path), instance, target);
         }
         catch (Exception exception)
         {
@@ -311,13 +354,13 @@ public sealed partial class InstanceContentView : UserControl
     private async void ImportFolderButton_Click(object sender, RoutedEventArgs e)
     {
         if (App.MainWindowId is not { } windowId || _instance is not { } instance
-            || _kind != ModrinthContentKind.ResourcePack || !CanMutate()) return;
-        var kind = _kind;
+            || _kind == ModrinthContentKind.Mod || !CanMutate()) return;
+        var target = _target;
         try
         {
             var picker = new FolderPicker(windowId) { SuggestedStartLocation = PickerLocationId.Downloads };
             var folder = await picker.PickSingleFolderAsync();
-            if (folder is not null) await ImportPathsAsync([folder.Path], instance, kind);
+            if (folder is not null) await ImportPathsAsync([folder.Path], instance, target);
         }
         catch (Exception exception)
         {
@@ -325,9 +368,10 @@ public sealed partial class InstanceContentView : UserControl
         }
     }
 
-    private async Task ImportPathsAsync(IEnumerable<string> paths, GameInstance instance, ModrinthContentKind kind)
+    private async Task ImportPathsAsync(IEnumerable<string> paths, GameInstance instance, InstanceContentTarget target)
     {
         if (_services is not { } services || !CanMutate()) return;
+        var kind = target.Kind;
         _importing = true;
         RefreshState();
         var imported = 0;
@@ -346,7 +390,7 @@ public sealed partial class InstanceContentView : UserControl
                         continue;
                     }
 
-                    var result = await services.ContentController.ImportLocalAsync(instance.Id, kind, path);
+                    var result = await services.ContentController.ImportLocalAsync(instance.Id, target, path);
                     if (result.Succeeded) imported++;
                     else if (result.Failure is { } failure)
                         feedback.Add(string.Format(HakoStrings.Get("ContentImportFailureLine"), name, FormatFailureDetails(failure)));
@@ -375,13 +419,15 @@ public sealed partial class InstanceContentView : UserControl
 
     private static (bool IsSupported, string FailureKey) ValidateImportPath(string path, ModrinthContentKind kind)
     {
-        var failureKey = kind == ModrinthContentKind.Mod ? "ContentInvalidModFile" : "ContentInvalidPackFile";
+        var datapack = kind == ModrinthContentKind.Datapack;
+        var failureKey = kind == ModrinthContentKind.Mod ? "ContentInvalidModFile"
+            : datapack ? "ContentInvalidDatapackFile" : "ContentInvalidPackFile";
         if (Directory.Exists(path))
         {
-            if (kind != ModrinthContentKind.ResourcePack) return (false, failureKey);
+            if (kind is not (ModrinthContentKind.ResourcePack or ModrinthContentKind.Datapack)) return (false, failureKey);
             if (!File.Exists(Path.Combine(path, "pack.mcmeta")))
             {
-                failureKey = "ContentInvalidPackFolder";
+                failureKey = datapack ? "ContentInvalidDatapackFolder" : "ContentInvalidPackFolder";
                 return (false, failureKey);
             }
 
@@ -400,14 +446,18 @@ public sealed partial class InstanceContentView : UserControl
     {
         e.AcceptedOperation = e.DataView.Contains(StandardDataFormats.StorageItems) && CanMutate()
             ? DataPackageOperation.Copy : DataPackageOperation.None;
-        e.DragUIOverride.Caption = HakoStrings.Get(_kind == ModrinthContentKind.Mod
-            ? "ContentDropHint" : "ContentDropHintResourcePacks");
+        e.DragUIOverride.Caption = HakoStrings.Get(_kind switch
+        {
+            ModrinthContentKind.Mod => "ContentDropHint",
+            ModrinthContentKind.Datapack => "ContentDropHintDatapacks",
+            _ => "ContentDropHintResourcePacks"
+        });
     }
 
     private async void DropTarget_Drop(object sender, DragEventArgs e)
     {
         if (!CanMutate() || _instance is not { } instance) return;
-        var kind = _kind;
+        var target = _target;
         try
         {
             var items = await e.DataView.GetStorageItemsAsync();
@@ -418,7 +468,7 @@ public sealed partial class InstanceContentView : UserControl
                 return;
             }
 
-            await ImportPathsAsync(paths, instance, kind);
+            await ImportPathsAsync(paths, instance, target);
         }
         catch (Exception exception)
         {
@@ -436,7 +486,7 @@ public sealed partial class InstanceContentView : UserControl
         if (_services is not { } services || _instance is not { } instance || !CanMutate()) return;
         CancelRead();
         _readCancellation = new CancellationTokenSource();
-        try { await services.ContentController.CheckUpdatesAsync(instance.Id, _kind, _readCancellation.Token); }
+        try { await services.ContentController.CheckUpdatesAsync(instance.Id, _target, _readCancellation.Token); }
         catch (OperationCanceledException) { }
         catch (Exception exception) { ShowActionFailure(ContentFailureCode.ModrinthRequestFailed, exception.Message); }
         finally { _stateRefresh?.Request(); }
@@ -447,7 +497,7 @@ public sealed partial class InstanceContentView : UserControl
         if (_services is not { } services || _instance is not { } instance || !CanMutate()) return;
         try
         {
-            var result = await services.ContentController.UpdateAllAsync(instance.Id, _kind);
+            var result = await services.ContentController.UpdateAllAsync(instance.Id, _target);
             var succeeded = result.Items.Count(item => item.Succeeded);
             var failed = result.Items.Where(item => !item.Succeeded).ToArray();
             var lines = new List<string>
@@ -472,7 +522,7 @@ public sealed partial class InstanceContentView : UserControl
             || (sender as FrameworkElement)?.Tag is not InstanceContentItem item || !CanMutate()) return;
         try
         {
-            var result = await services.ContentController.UpdateAsync(instance.Id, _kind, item);
+            var result = await services.ContentController.UpdateAsync(instance.Id, _target, item);
             if (!result.Succeeded && result.Failure is { } failure) ShowActionFailure(failure);
         }
         catch (Exception exception) { ShowActionFailure(ContentFailureCode.ContentOperationFailed, exception.Message); }
@@ -491,7 +541,7 @@ public sealed partial class InstanceContentView : UserControl
 
         try
         {
-            var result = await services.ContentController.SetEnabledAsync(instance.Id, _kind, item, toggle.IsOn);
+            var result = await services.ContentController.SetEnabledAsync(instance.Id, _target, item, toggle.IsOn);
             if (!result.Succeeded && result.Failure is { } failure) ShowActionFailure(failure);
         }
         catch (Exception exception) { ShowActionFailure(ContentFailureCode.ContentOperationFailed, exception.Message); }
@@ -553,6 +603,8 @@ public sealed partial class InstanceContentView : UserControl
             var folder = await Task.Run(() =>
             {
                 var root = services.Store.GetInstanceDirectory(instance.Id);
+                if (_target.Kind == ModrinthContentKind.Datapack)
+                    return InstanceWorlds.DatapacksFolder(_target.WorldId!, root);
                 var relative = _kind == ModrinthContentKind.Mod ? "minecraft/mods"
                     : instance.LegacyTexturepacks ? "minecraft/texturepacks" : "minecraft/resourcepacks";
                 var path = InstanceStorage.ContainedPath(relative, root, allowBaseReparsePoint: true);
@@ -564,7 +616,7 @@ public sealed partial class InstanceContentView : UserControl
         catch (Exception) { await HakoDialogs.ShowErrorAsync(HakoStrings.Get("ContentOpenFailed")); }
     }
 
-    private async Task OpenLocationAsync(string? folderPath)
+    internal static async Task OpenLocationAsync(string? folderPath)
     {
         if (string.IsNullOrWhiteSpace(folderPath)) return;
         try
@@ -577,7 +629,7 @@ public sealed partial class InstanceContentView : UserControl
     }
 
     private bool CanMutate() => _services is { } services && _instance is { } instance
-        && BlockReason(services, instance, _kind, _state) is null
+        && BlockReason(services, instance, _target, _state) is null
         && !_state.IsBusy && !_state.IsCheckingUpdates && !_importing;
 
     private void ShowActionFailure(ContentFailureCode code, string? diagnostic = null)
@@ -602,7 +654,8 @@ public sealed partial class InstanceContentView : UserControl
 
 public sealed class InstanceContentRow
 {
-    public InstanceContentRow(InstanceContentItem item, InstanceContentUpdate? update, bool canMutate, string? blockReason)
+    public InstanceContentRow(InstanceContentItem item, InstanceContentUpdate? update, bool canMutate,
+        string? blockReason, bool allowDelete = true)
     {
         BlockReason = blockReason;
         Item = item;
@@ -613,7 +666,9 @@ public sealed class InstanceContentRow
             ModSource.CurseForge => "ContentSourceCurseForge",
             _ => "ContentSourceLocal"
         });
-        VersionText = item.Origin?.VersionNumber ?? "";
+        VersionText = item.Origin is { } origin
+            ? origin.VersionNumber ?? HakoStrings.Get("ContentVersionUnknown")
+            : "";
         PageUrl = item.Origin?.PageURL;
         HasPageUrl = PageUrl is { IsAbsoluteUri: true, Scheme: "https" };
         Enabled = item.Enabled;
@@ -621,6 +676,7 @@ public sealed class InstanceContentRow
         EnabledOffText = HakoStrings.Get("ContentEnabledOff");
         RevealText = HakoStrings.Get("ContentRevealItem");
         DeleteText = HakoStrings.Get("ContentDeleteItem");
+        DeleteVisibility = allowDelete ? Visibility.Visible : Visibility.Collapsed;
         CanToggle = canMutate;
         UpdateVisibility = update is null ? Visibility.Collapsed : Visibility.Visible;
         UpdateText = update is null ? HakoStrings.Get("ContentUpdateButton")
@@ -646,6 +702,7 @@ public sealed class InstanceContentRow
     public string EnabledOffText { get; }
     public string RevealText { get; }
     public string DeleteText { get; }
+    public Visibility DeleteVisibility { get; }
     public string UpdateText { get; }
     public bool CanUpdate { get; }
     public Visibility UpdateVisibility { get; }

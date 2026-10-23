@@ -363,4 +363,76 @@
   <data name="ContentFailureBulkUpdateFailed" xml:space="preserve"><value>Не удалось выполнить {0} обновлений. Подробности указаны по файлам.</value></data>
   <data name="ContentFailureCancelled" xml:space="preserve"><value>Операция отменена.</value></data>
   <data name="ContentFailureWorldUnavailable" xml:space="preserve"><value>Выбранный мир больше недоступен.</value></data>
+  <data name="InstanceSectionWorlds" xml:space="preserve"><value>Миры</value></data>
+  <data name="ContentSectionTitleDatapacks" xml:space="preserve"><value>Датапаки</value></data>
+  <data name="ContentDropHintDatapacks" xml:space="preserve"><value>Перетащите ZIP-файлы или папки с pack.mcmeta</value></data>
+  <data name="ContentEmptyDatapacks" xml:space="preserve"><value>В этом мире пока нет датапаков.</value></data>
+  <data name="ContentInvalidDatapackFile" xml:space="preserve"><value>{0}: выберите ZIP-файл датапака.</value></data>
+  <data name="ContentInvalidDatapackFolder" xml:space="preserve"><value>{0}: в папке должен быть корректный pack.mcmeta.</value></data>
+  <data name="ContentCatalogTitleDatapacks" xml:space="preserve"><value>Датапаки на Modrinth</value></data>
+  <data name="ContentCatalogDatapackContext" xml:space="preserve"><value>Сборка «{0}» · Мир «{1}» · Minecraft {2}</value></data>
+  <data name="ContentConfirmationFileRequired" xml:space="preserve"><value>Обязательный связанный ресурспак</value></data>
+  <data name="ContentConfirmationFileOptional" xml:space="preserve"><value>Необязательный связанный ресурспак</value></data>
+  <data name="WorldsTitle" xml:space="preserve"><value>Миры</value></data>
+  <data name="WorldsRefresh" xml:space="preserve"><value>Обновить</value></data>
+  <data name="WorldsOpenSaves" xml:space="preserve"><value>Открыть папку сохранений</value></data>
+  <data name="WorldsLoading" xml:space="preserve"><value>Загрузка миров…</value></data>
+  <data name="WorldsEmpty" xml:space="preserve"><value>В этой сборке пока нет миров.</value></data>
+  <data name="WorldsOperationInProgress" xml:space="preserve"><value>Выполняется операция с миром…</value></data>
+  <data name="WorldsOperationBusy" xml:space="preserve"><value>Дождитесь завершения текущей операции с миром.</value></data>
+  <data name="WorldsSavesUnavailable" xml:space="preserve"><value>Папка сохранений пока отсутствует.</value></data>
+  <data name="WorldsDatapacksTitle" xml:space="preserve"><value>Датапаки мира</value></data>
+  <data name="WorldsShowDatapacks" xml:space="preserve"><value>Датапаки</value></data>
+  <data name="WorldsHideDatapacks" xml:space="preserve"><value>Свернуть</value></data>
+  <data name="WorldsActions" xml:space="preserve"><value>Действия с миром</value></data>
+  <data name="WorldsDuplicate" xml:space="preserve"><value>Дублировать…</value></data>
+  <data name="WorldsTrash" xml:space="preserve"><value>Удалить в Корзину…</value></data>
+  <data name="WorldDuplicateTitle" xml:space="preserve"><value>Создать копию «{0}»?</value></data>
+  <data name="WorldDuplicateMessage" xml:space="preserve"><value>Будет создана независимая копия мира «{0}» в сборке «{1}».</value></data>
+  <data name="WorldDuplicateConfirm" xml:space="preserve"><value>Дублировать</value></data>
+  <data name="WorldDuplicateSucceeded" xml:space="preserve"><value>Мир «{0}» скопирован как «{1}».</value></data>
+  <data name="WorldTrashTitle" xml:space="preserve"><value>Переместить «{0}» в Корзину?</value></data>
+  <data name="WorldTrashMessage" xml:space="preserve"><value>Мир «{0}» будет удалён из сборки «{1}».</value></data>
+  <data name="WorldTrashConfirm" xml:space="preserve"><value>Удалить в Корзину</value></data>
+  <data name="WorldTrashSucceeded" xml:space="preserve"><value>Мир «{0}» перемещён в Корзину.</value></data>
+  <data name="WorldActionFailed" xml:space="preserve"><value>Не удалось выполнить действие с миром.</value></data>
+  <data name="WorldDiagnosticLabel" xml:space="preserve"><value>Подробности:</value></data>
+  <data name="WorldSizeUnknown" xml:space="preserve"><value>Размер неизвестен</value></data>
+  <data name="WorldSizeBytes" xml:space="preserve"><value>байт</value></data>
+  <data name="WorldSizeKilobytes" xml:space="preserve"><value>КиБ</value></data>
+  <data name="WorldSizeMegabytes" xml:space="preserve"><value>МиБ</value></data>
+  <data name="WorldSizeGigabytes" xml:space="preserve"><value>ГиБ</value></data>
+  <data name="WorldSizeTerabytes" xml:space="preserve"><value>ТиБ</value></data>
+  <data name="WorldSizeFormat" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="WorldLastPlayedUnknown" xml:space="preserve"><value>Дата последней игры неизвестна</value></data>
+  <data name="WorldLastPlayedFormat" xml:space="preserve"><value>Последняя игра: {0}</value></data>
+  <data name="WorldVersionUnknown" xml:space="preserve"><value>версия неизвестна</value></data>
+  <data name="WorldVersionFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="WorldActivityFormat" xml:space="preserve"><value>{0} · размер {1}</value></data>
+  <data name="WorldMetadataUnavailable" xml:space="preserve"><value>Не удалось прочитать сведения о мире: {0}</value></data>
+  <data name="WorldGameTypeSurvival" xml:space="preserve"><value>Выживание</value></data>
+  <data name="WorldGameTypeCreative" xml:space="preserve"><value>Творческий</value></data>
+  <data name="WorldGameTypeAdventure" xml:space="preserve"><value>Приключение</value></data>
+  <data name="WorldGameTypeSpectator" xml:space="preserve"><value>Наблюдатель</value></data>
+  <data name="WorldGameTypeUnknown" xml:space="preserve"><value>Режим неизвестен</value></data>
+  <data name="WorldMetadataInvalidGzip" xml:space="preserve"><value>повреждённый gzip</value></data>
+  <data name="WorldMetadataInvalidNbt" xml:space="preserve"><value>повреждённые данные NBT</value></data>
+  <data name="WorldMetadataInvalidText" xml:space="preserve"><value>неверный текст в метаданных</value></data>
+  <data name="WorldMetadataCompressedTooLarge" xml:space="preserve"><value>сжатые метаданные слишком велики</value></data>
+  <data name="WorldMetadataDecompressedTooLarge" xml:space="preserve"><value>распакованные метаданные слишком велики</value></data>
+  <data name="WorldMetadataTooDeep" xml:space="preserve"><value>структура NBT слишком глубока</value></data>
+  <data name="WorldMetadataReadFailed" xml:space="preserve"><value>файл метаданных не удалось прочитать</value></data>
+  <data name="WorldFailureBuildUnavailable" xml:space="preserve"><value>Сборка больше недоступна.</value></data>
+  <data name="WorldFailureBuildNotReady" xml:space="preserve"><value>Сборка ещё не готова.</value></data>
+  <data name="WorldFailureBuildInstalling" xml:space="preserve"><value>Сборка устанавливается.</value></data>
+  <data name="WorldFailureBuildRunning" xml:space="preserve"><value>Нельзя менять мир, пока работает Minecraft.</value></data>
+  <data name="WorldFailureBuildFilesBusy" xml:space="preserve"><value>Файлы сборки заняты другой операцией.</value></data>
+  <data name="WorldFailureInvalidId" xml:space="preserve"><value>Некорректное имя папки мира.</value></data>
+  <data name="WorldFailureMissing" xml:space="preserve"><value>Мир больше не существует или не содержит корректный level.dat.</value></data>
+  <data name="WorldFailureReparsePoint" xml:space="preserve"><value>В пути мира обнаружена ссылка или небезопасная папка.</value></data>
+  <data name="WorldFailureNoAvailableName" xml:space="preserve"><value>Не удалось подобрать имя для копии мира.</value></data>
+  <data name="WorldFailureMetadataRename" xml:space="preserve"><value>Не удалось обновить имя в метаданных копии.</value></data>
+  <data name="WorldFailureCopy" xml:space="preserve"><value>Не удалось скопировать мир.</value></data>
+  <data name="WorldFailureRecycleBin" xml:space="preserve"><value>Не удалось переместить мир в Корзину.</value></data>
+  <data name="WorldFailureNotRecyclable" xml:space="preserve"><value>Корзина не приняла мир; исходное сохранение оставлено на месте.</value></data>
 </root>

@@ -90,10 +90,12 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
 | `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage`, `BuildCardModel` | Раздел «Сборки»: пустое состояние или карточки сборок — [[UI/Launcher#Windows-клиент]] |
 | `windows/Hako/InstanceCreationPage.xaml(.cs)`, `InstanceCreationChoiceDialog.cs` | `InstanceCreationPage`, `InstanceCreationChoiceDialog` | Создание Vanilla-сборки |
-| `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: заголовок, запуск, установка, разделы модов/ресурспаков и настройки |
-| `windows/Hako/InstanceContentView.xaml(.cs)` | `InstanceContentView`, `InstanceContentRow` | Локальные моды/ресурспаки, импорт, включение, обновление, удаление и открытие папок |
-| `windows/Hako/ModrinthCatalogView.xaml(.cs)` | `ModrinthCatalogView`, `ModrinthCatalogRow` | Поиск, сортировка, пагинация и установка контента Modrinth в текущую сборку |
+| `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: заголовок, запуск, установка, разделы модов/ресурспаков/миров и настройки |
+| `windows/Hako/InstanceWorldsView.xaml(.cs)` | `InstanceWorldsView`, `InstanceWorldRow` | Миры, метаданные, открытие saves, дублирование, корзина и раскрытие датапаков |
+| `windows/Hako/InstanceContentView.xaml(.cs)` | `InstanceContentView`, `InstanceContentRow` | Локальный контент по `InstanceContentTarget`: моды, ресурспаки или датапаки выбранного мира |
+| `windows/Hako/ModrinthCatalogView.xaml(.cs)` | `ModrinthCatalogView`, `ModrinthCatalogRow` | Поиск, сортировка, пагинация и установка контента Modrinth в сборку или выбранный мир |
 | `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Сопоставление UI-кодов подтверждений и ошибок Core с локализованными ресурсами |
+| `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Маппинг ошибок мира, типов игры, неизвестных значений и форматирования размера/даты |
 | `windows/Hako/LauncherServices.cs` | `LauncherServices`, `INavigationGuard`, `CoalescedRefresh`, `HakoDialogs` | App-lifetime сервисы, защита ухода со страницы, маршалинг событий Core, очередь диалогов и отмена подтверждения при закрытии окна |
 | `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные», «Игра» и «Профиль», выход |
 | `windows/Hako/MinecraftSkinView.xaml`, `windows/Hako/MinecraftSkinView.xaml.cs` | `MinecraftSkinView` | Скин, камера, кадры ходьбы, отмена и владение renderer по видимости профиля |
@@ -108,7 +110,7 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
 | `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`). `LoginNotice` (`InfoBar`) показывает `OpenVerificationFailed` или `CopyCodeFailed`, если открыть страницу или скопировать код не удалось; при сбое копирования кнопка снова «Скопировать код»; копирование перехватывает любое исключение. Уведомление сбрасывается при следующем нажатии этих кнопок и при «Попробовать снова»; закрытое крестиком (`LoginNotice_Closed`) не открывается повторно при обновлении состояния |
 | `Builds` | `BuildsPage` | Пустое состояние с кнопкой «Создать сборку» или сетка карточек; ошибка реестра `instances.json` — `InfoBar` |
-| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: моды только для Fabric, ресурспаки и настройки |
+| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: моды только для Fabric, ресурспаки, миры и настройки |
 | `InstanceCreation` | `InstanceCreationPage` | Форма «Своя сборка» |
 | `Settings` | `SettingsPage` | Слева `ListView` из трёх разделов (`SettingsSection.General`, `Game`, `Profile`), справа панель выбранного |
 
@@ -129,10 +131,15 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 - Все `ContentDialog`, включая выход и ошибки Settings/Welcome, показываются через очередь `HakoDialogs`: WinUI допускает один открытый диалог на `XamlRoot`.
   Ожидание асинхронное; закрытие окна отменяет показанные и ожидающие диалоги. Settings перечитывает строки при показе из очереди и смене языка, сохраняя исходную кнопку по умолчанию.
 - `InstanceContentController.StateChanged` приходит на потоке операции. `InstanceContentView` ставит обновление
-  в `DispatcherQueue`, заново читает актуальный снимок по UUID/kind и отбрасывает ревизии старше уже применённой.
+  в `DispatcherQueue`, заново читает актуальный снимок по UUID/kind/worldId и отбрасывает ревизии старше уже применённой.
   При уходе со страницы отменяются её чтение и поиск; установка контента продолжается в app-lifetime контроллере.
+- `InstanceWorldsView` при входе и возврате окна читает список через Core; generation + cancellation отбрасывают
+  результаты прежней сборки или загрузки. `GameSessionEnded`, изменения списка сборок и busy-состояния обновляют
+  список/доступность. Раскрытая карточка одна; её `InstanceContentView` адресует датапаки UUID сборки и worldId.
+  `DuplicateAsync` и `TrashAsync` вызываются через Core после подтверждения в общей очереди `HakoDialogs`.
 - Подтверждения замены, удаления, зависимостей и несовместимости локализует `HakoDialogs.ConfirmContentAsync`.
-  Закрытие окна отменяет ожидающее подтверждение и завершает callback выбором «Отмена».
+  Для связанного ресурспака показывает варианты из `request.Files` с required/optional notes и возвращает выбранный
+  filename; закрытие окна отменяет ожидающее подтверждение и завершает callback выбором «Отмена».
 - Закрытие окна вызывает `CancelSignIn()` и завершает preview service; текущая страница сначала отменяет
   загрузку и останавливает frame callback, затем освобождает renderer. Деактивация или сворачивание окна,
   переход на другой корневой экран и выбор «Основные» выключают skin control без сброса камеры.

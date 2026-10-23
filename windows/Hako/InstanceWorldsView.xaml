@@ -1,0 +1,72 @@
+<UserControl
+    x:Class="Hako.InstanceWorldsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Hako">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="1000" HorizontalAlignment="Left" Padding="0,8,0,24" Spacing="14">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <TextBlock x:Name="WorldsTitle" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button x:Name="RefreshButton" Grid.Column="1" Click="RefreshButton_Click" />
+                <Button x:Name="OpenSavesButton" Grid.Column="2" Click="OpenSavesButton_Click" />
+            </Grid>
+            <TextBlock x:Name="WorldBlockReasonText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+            <StackPanel x:Name="WorldLoadingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                <ProgressRing Width="18" Height="18" IsActive="False" />
+                <TextBlock x:Name="WorldLoadingText" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock x:Name="WorldErrorText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+            <TextBlock x:Name="WorldEmptyText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+            <StackPanel x:Name="WorldOperationPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                <ProgressRing Width="18" Height="18" IsActive="True" />
+                <TextBlock x:Name="WorldOperationText" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock x:Name="WorldActionFeedbackText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
+            <ItemsRepeater x:Name="WorldItems" Margin="0,0,0,12">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="10" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="local:InstanceWorldRow">
+                        <Border Padding="14" CornerRadius="10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="60,*,Auto" ColumnSpacing="12">
+                                    <Grid Width="56" Height="56">
+                                        <FontIcon Glyph="{x:Bind PlaceholderGlyph}" FontSize="26" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                  Visibility="{x:Bind PlaceholderVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image Source="{x:Bind Icon}" Stretch="UniformToFill" Visibility="{x:Bind IconVisibility}" />
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                        <TextBlock Text="{x:Bind Name}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind ActivityText}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Button Content="{x:Bind ExpandText}" Tag="{x:Bind}" Click="ExpandButton_Click" />
+                                        <Button Content="⋯" ToolTipService.ToolTip="{x:Bind ActionsText}">
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Text="{x:Bind DuplicateText}" Tag="{x:Bind}" Click="DuplicateWorld_Click"
+                                                                    IsEnabled="{x:Bind CanManage}" ToolTipService.ToolTip="{x:Bind BlockReason}" />
+                                                    <MenuFlyoutItem Text="{x:Bind TrashText}" Tag="{x:Bind}" Click="TrashWorld_Click"
+                                                                    IsEnabled="{x:Bind CanManage}" ToolTipService.ToolTip="{x:Bind BlockReason}" />
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{x:Bind MetadataErrorText}" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                           Visibility="{x:Bind MetadataErrorVisibility}" />
+                                <StackPanel Visibility="{x:Bind ExpandedVisibility}" Spacing="8">
+                                    <TextBlock Text="{x:Bind DatapacksTitle}" FontWeight="SemiBold" />
+                                    <local:InstanceContentView x:Name="DatapacksView" Tag="{x:Bind}" Loaded="DatapacksView_Loaded" Unloaded="DatapacksView_Unloaded" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

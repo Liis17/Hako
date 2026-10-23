@@ -2,6 +2,7 @@ using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
 using Hako;
+using System.Globalization;
 using System.Xml.Linq;
 
 namespace Hako.Tests;
@@ -153,6 +154,46 @@ public sealed class LocalizationResourcesTests
         var bulk = new ContentFailure(ContentFailureCode.BulkUpdateFailed,
             new Dictionary<string, string> { ["failureCount"] = "7" });
         StringAssert.Contains(ContentResourceKeys.FormatFailure(bulk, key => strings[key]), "7");
+    }
+
+    [TestMethod]
+    public void EveryWorldFailureMetadataAndGameTypeMappingHasRussianAndEnglishText()
+    {
+        var russian = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "ru-RU", "Resources.resw"));
+        var english = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "en-US", "Resources.resw"));
+        var keys = Enum.GetValues<InstanceWorldFailureReason>().Select(WorldResourceKeys.Failure)
+            .Concat(Enum.GetValues<WorldMetadataError>().Select(WorldResourceKeys.MetadataError))
+            .Concat(new int?[] { null, 0, 1, 2, 3, 99 }.Select(WorldResourceKeys.GameType));
+
+        foreach (var key in keys)
+        {
+            CollectionAssert.Contains(russian, key);
+            CollectionAssert.Contains(english, key);
+        }
+    }
+
+    [TestMethod]
+    [DataRow("ru-RU")]
+    [DataRow("en-US")]
+    public void WorldMessagesAndUnknownDisplayValuesFormatArguments(string language)
+    {
+        var strings = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Resources", language, "Resources.resw"))
+            .Root!.Elements("data").ToDictionary(element => (string)element.Attribute("name")!, element => element.Element("value")!.Value);
+        var title = WorldResourceKeys.FormatMessage("WorldDuplicateTitle", key => strings[key], "Survival");
+        var message = WorldResourceKeys.FormatMessage("WorldDuplicateMessage", key => strings[key], "Survival", "Preview build");
+        var completed = WorldResourceKeys.FormatMessage("WorldDuplicateSucceeded", key => strings[key], "Survival", "Survival 2");
+        var culture = CultureInfo.GetCultureInfo(language);
+        var size = WorldResourceKeys.FormatSize(1_572_864, culture, key => strings[key]);
+
+        StringAssert.Contains(title, "Survival");
+        StringAssert.Contains(message, "Preview build");
+        StringAssert.Contains(completed, "Survival 2");
+        Assert.IsFalse(title.Contains('{'));
+        Assert.IsFalse(message.Contains('{'));
+        Assert.IsFalse(completed.Contains('{'));
+        Assert.AreEqual(strings["WorldSizeUnknown"], WorldResourceKeys.FormatSize(null, culture, key => strings[key]));
+        StringAssert.Contains(size, language == "ru-RU" ? "1,5" : "1.5");
+        Assert.AreEqual(strings["WorldLastPlayedUnknown"], WorldResourceKeys.FormatLastPlayed(null, culture, key => strings[key]));
     }
 
     private static List<string> ReadResourceNames(string path) => XDocument.Load(path)

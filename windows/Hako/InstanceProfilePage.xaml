@@ -64,13 +64,15 @@
                 </StackPanel>
             </Border>
 
-            <RadioButtons x:Name="SectionTabs" MaxColumns="3" SelectionChanged="SectionTabs_SelectionChanged">
+            <RadioButtons x:Name="SectionTabs" MaxColumns="4" SelectionChanged="SectionTabs_SelectionChanged">
                 <RadioButton x:Name="ModsSectionButton" Tag="Mods" />
                 <RadioButton x:Name="ResourcePacksSectionButton" Tag="ResourcePacks" />
+                <RadioButton x:Name="WorldsSectionButton" Tag="Worlds" />
                 <RadioButton x:Name="SettingsSectionButton" Tag="Settings" />
             </RadioButtons>
 
             <local:InstanceContentView x:Name="ContentSection" Visibility="Collapsed" />
+            <local:InstanceWorldsView x:Name="WorldsSection" Visibility="Collapsed" />
 
             <StackPanel x:Name="SettingsSection" Spacing="24">
             <TextBlock x:Name="SettingsTitle" FontSize="24" FontWeight="SemiBold" />
