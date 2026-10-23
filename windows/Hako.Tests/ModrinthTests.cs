@@ -502,6 +502,11 @@ public sealed class ModrinthTests
             new Uri("https://cdn.test/mod.jar"), destination, bytes.Length + 1, Hash1(bytes), Hash(bytes)));
         Assert.AreEqual(MojangError.Integrity, wrongSize.Error);
         Assert.AreEqual(0, Directory.GetFiles(temporary.Root, "*.tmp").Length);
+
+        var emptyFile = await Assert.ThrowsExactlyAsync<MojangException>(() => client.DownloadFileAsync(
+            new Uri("https://cdn.test/mod.jar"), destination, 0, Hash1([]), Hash([])));
+        Assert.AreEqual(MojangError.Invalid, emptyFile.Error, "Ordinary Modrinth downloads must still require a positive size.");
+        Assert.IsFalse(File.Exists(destination));
     }
 
     [TestMethod]

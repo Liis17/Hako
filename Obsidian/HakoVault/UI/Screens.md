@@ -113,6 +113,8 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: моды только для Fabric, ресурспаки, миры и настройки |
 | `InstanceCreation` | `InstanceCreationPage` | Форма «Своя сборка» |
 | `Settings` | `SettingsPage` | Слева `ListView` из трёх разделов (`SettingsSection.General`, `Game`, `Profile`), справа панель выбранного |
+| `ModpackCatalog` | `ModpackCatalogPage` | Поиск готовых сборок Modrinth, фильтр Minecraft, версии и ссылка на проект |
+| `ModpackCreation` | `ModpackCreationPage` | Форма выбранной закреплённой версии `.mrpack`, асинхронная проверка и постановка в очередь |
 
 ### Навигация
 
@@ -124,6 +126,10 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
   `AppCoordinator.CloseInstance` возвращает к «Сборкам». Содержимое — `ShellFrame`; для остальных экранов видим только `FlowFrame`.
   При скрытии корневой навигации страница Settings может
   остаться текущей страницей `ShellFrame`, поэтому `MainWindow` отдельно передаёт ей активность экрана и окна.
+- Кнопка «+» и пустое состояние сборок открывают `InstanceCreationChoiceDialog`: «Своя сборка» ведёт в
+  `InstanceCreationPage`, «Готовая с Modrinth» — в `ModpackCatalogPage`. Выбор версии открывает `ModpackCreationPage`;
+  после подготовки она сохраняет сборку через очередь и возвращает к списку карточек. Обе страницы используют
+  тот же `RootNavigation`, локализацию ru/en и `INavigationGuard` для отмены формы.
 - Переход по рейлу и закрытие окна сначала спрашивают текущую страницу через `INavigationGuard.ConfirmLeaveAsync`:
   форма создания подтверждает отмену, профиль сборки дописывает настройки и спрашивает о несохранённом имени.
   Закрытие перехватывается в `AppWindow.Closing`, затем `App.ShutdownServicesAsync` освобождает

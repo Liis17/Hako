@@ -133,7 +133,51 @@ Hako</value></data>
   <data name="CreationCustomTitle" xml:space="preserve"><value>Custom build</value></data>
   <data name="CreationCustomDetails" xml:space="preserve"><value>Choose Minecraft and a loader, then add your own mods.</value></data>
   <data name="CreationModrinthTitle" xml:space="preserve"><value>Ready-made from Modrinth</value></data>
-  <data name="CreationModrinthUnavailable" xml:space="preserve"><value>Ready-made Modrinth modpacks will arrive in a future update.</value></data>
+  <data name="CreationModrinthDetails" xml:space="preserve"><value>Choose a ready-made modpack and install its pinned Minecraft version.</value></data>
+  <data name="ModpackCatalogTitle" xml:space="preserve"><value>Modrinth modpacks</value></data>
+  <data name="ModpackCatalogSubtitle" xml:space="preserve"><value>Browse client modpacks and choose an available version.</value></data>
+  <data name="ModpackSearchPlaceholder" xml:space="preserve"><value>Search modpacks</value></data>
+  <data name="ModpackVersionLabel" xml:space="preserve"><value>Version</value></data>
+  <data name="ModpackLoading" xml:space="preserve"><value>Loading modpacks…</value></data>
+  <data name="ModpackRetry" xml:space="preserve"><value>Retry search</value></data>
+  <data name="ModpackLoadMore" xml:space="preserve"><value>Load more</value></data>
+  <data name="ModpackChoose" xml:space="preserve"><value>Choose this version</value></data>
+  <data name="ModpackOpenProject" xml:space="preserve"><value>Open project on Modrinth</value></data>
+  <data name="ModpackAllMinecraftVersions" xml:space="preserve"><value>All Minecraft versions</value></data>
+  <data name="ModpackSortRelevance" xml:space="preserve"><value>Relevance</value></data>
+  <data name="ModpackSortDownloads" xml:space="preserve"><value>Downloads</value></data>
+  <data name="ModpackSortNewest" xml:space="preserve"><value>Newest</value></data>
+  <data name="ModpackSortUpdated" xml:space="preserve"><value>Recently updated</value></data>
+  <data name="ModpackLoadingVersions" xml:space="preserve"><value>Loading compatible versions…</value></data>
+  <data name="ModpackUnsupportedVersion" xml:space="preserve"><value>This project has no installable client version for the selected Minecraft filter. Only Minecraft and Fabric modpacks are supported.</value></data>
+  <data name="ModpackVersionDisplay" xml:space="preserve"><value>{0} · {1} · {2}</value></data>
+  <data name="ModpackChannelRelease" xml:space="preserve"><value>Release</value></data>
+  <data name="ModpackChannelBeta" xml:space="preserve"><value>Beta</value></data>
+  <data name="ModpackChannelAlpha" xml:space="preserve"><value>Alpha</value></data>
+  <data name="ModpackChannelUnknown" xml:space="preserve"><value>Other</value></data>
+  <data name="ModpackVersionDetails" xml:space="preserve"><value>Minecraft: {0}. Loaders: {1}.</value></data>
+  <data name="ModpackCreateTitle" xml:space="preserve"><value>Create from modpack</value></data>
+  <data name="ModpackPinnedVersion" xml:space="preserve"><value>Selected Modrinth version</value></data>
+  <data name="ModpackPinnedVersionValue" xml:space="preserve"><value>{0} · version {1} · published {2}</value></data>
+  <data name="ModpackPinnedFabric" xml:space="preserve"><value>Fabric {0}</value></data>
+  <data name="ModpackPinnedVanilla" xml:space="preserve"><value>Vanilla</value></data>
+  <data name="ModpackPinnedLoaderValue" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="ModpackPinnedLoaderChecking" xml:space="preserve"><value>Verifying the Minecraft and loader versions from this modpack…</value></data>
+  <data name="ModpackPreparing" xml:space="preserve"><value>Checking the pinned Minecraft and loader versions…</value></data>
+  <data name="ModpackPrepared" xml:space="preserve"><value>Ready · Java {0}. The modpack loader and its files will be installed with the build.</value></data>
+  <data name="ModpackRetryPrepare" xml:space="preserve"><value>Check again</value></data>
+  <data name="ModpackCreateFooter" xml:space="preserve"><value>Minecraft and the loader are pinned by the selected Modrinth version.</value></data>
+  <data name="ModpackCreateSave" xml:space="preserve"><value>Create build</value></data>
+  <data name="ModpackCancelTitle" xml:space="preserve"><value>Cancel modpack setup?</value></data>
+  <data name="ModpackCancelMessage" xml:space="preserve"><value>Your name and launch settings have not been saved.</value></data>
+  <data name="ModpackCancelConfirm" xml:space="preserve"><value>Discard setup</value></data>
+  <data name="ModpackErrorInvalid" xml:space="preserve"><value>This modpack is damaged or uses an unsupported format, Minecraft version, or loader.</value></data>
+  <data name="ModpackErrorUnsafe" xml:space="preserve"><value>This modpack contains unsafe or conflicting file paths.</value></data>
+  <data name="ModpackErrorArchive" xml:space="preserve"><value>The modpack archive could not be read safely.</value></data>
+  <data name="ModpackErrorDamaged" xml:space="preserve"><value>A modpack file failed its size or checksum check. Retry the installation.</value></data>
+  <data name="InstallationStagePreparingModpack" xml:space="preserve"><value>Preparing modpack…</value></data>
+  <data name="InstallationStageDownloadingModpack" xml:space="preserve"><value>Downloading modpack files…</value></data>
+  <data name="InstallationStageInstallingModpackContents" xml:space="preserve"><value>Installing modpack files…</value></data>
   <data name="CreationNameLabel" xml:space="preserve"><value>Name</value></data>
   <data name="CreationNamePlaceholder" xml:space="preserve"><value>For example, My Vanilla Pack</value></data>
   <data name="CreationNameHint" xml:space="preserve"><value>Spaces in the folder name will be replaced with _.</value></data>

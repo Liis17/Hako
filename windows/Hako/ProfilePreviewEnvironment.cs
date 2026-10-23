@@ -23,6 +23,8 @@ internal enum PreviewPage
     Worlds,
     Datapacks,
     DatapackCatalog,
+    Modpacks,
+    ModpackCreate,
     SettingsGame
 }
 
@@ -69,8 +71,10 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
                     "worlds" => PreviewPage.Worlds,
                     "datapacks" => PreviewPage.Datapacks,
                     "datapack-catalog" => PreviewPage.DatapackCatalog,
+                    "modpacks" => PreviewPage.Modpacks,
+                    "modpack-create" => PreviewPage.ModpackCreate,
                     "settings-game" => PreviewPage.SettingsGame,
-                    _ => throw new ArgumentException("Preview page must be builds, create, profile, content, resourcepacks, catalog, worlds, datapacks, datapack-catalog, or settings-game.", nameof(args))
+                    _ => throw new ArgumentException("Preview page must be builds, create, profile, content, resourcepacks, catalog, worlds, datapacks, datapack-catalog, modpacks, modpack-create, or settings-game.", nameof(args))
                 } : throw new ArgumentException("Preview page is missing.", nameof(args));
             }
             else if (argument is "--preview-width" or "--preview-height")

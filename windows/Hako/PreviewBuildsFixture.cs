@@ -6,6 +6,8 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
 
@@ -17,13 +19,7 @@ internal static class PreviewBuildsFixture
     public static readonly Uri ModrinthBase = new("https://modrinth.fixture/v2/");
     public static readonly Uri FabricMetaBase = new("https://fabric.fixture/v2/");
 
-    private const string CatalogJson = """
-        {"latest":{"release":"1.21.4","snapshot":"25w02a"},"versions":[
-        {"id":"25w02a","type":"snapshot","url":"https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000001/25w02a.json","sha1":"0000000000000000000000000000000000000001"},
-        {"id":"1.21.4","type":"release","url":"https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000002/1.21.4.json","sha1":"0000000000000000000000000000000000000002"},
-        {"id":"1.20.1","type":"release","url":"https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000003/1.20.1.json","sha1":"0000000000000000000000000000000000000003"},
-        {"id":"b1.7.3","type":"old_beta","url":"https://piston-meta.mojang.com/v1/packages/0000000000000000000000000000000000000004/b1.7.3.json","sha1":"0000000000000000000000000000000000000004"}]}
-        """;
+    private static string CatalogJson => BuildCatalogJson();
 
     private static readonly byte[] OldModBytes = Encoding.UTF8.GetBytes("Hako preview mod version 1");
     private static readonly byte[] NewModBytes = Encoding.UTF8.GetBytes("Hako preview mod version 2");
@@ -37,6 +33,10 @@ internal static class PreviewBuildsFixture
     private static readonly byte[] NewDatapackBytes = PreviewDatapackZip("Preview datapack 2.0");
     private static readonly byte[] RequiredLinkedPackBytes = PreviewDatapackZip("Required linked resource pack");
     private static readonly byte[] OptionalLinkedPackBytes = PreviewDatapackZip("Optional linked resource pack");
+    private static readonly byte[] ModpackArchiveBytes = PreviewModpackArchive();
+    private static readonly byte[] ModpackIconBytes = ReadPreviewModpackIcon();
+    private const string ModpackId = "PreviewModpack";
+    private const string ModpackVersionId = "PreviewPack001";
 
     private const string ModId = "HakoMod1";
     private const string PackId = "HakoPack";
@@ -54,8 +54,6 @@ internal static class PreviewBuildsFixture
     private const string DatapackReleaseVersion = "HakoD002";
     private static readonly DateTimeOffset OldDate = new(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset ReleaseDate = new(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
-
-    public static MojangClient CreateMojangClient() => new(new HttpClient(new CatalogOnlyHandler()));
 
     public static HttpClient CreateContentHttpClient() => new(new ContentHandler());
 
@@ -219,6 +217,175 @@ internal static class PreviewBuildsFixture
             functionWriter.Write("say Hako preview datapack");
         }
         return output.ToArray();
+    }
+
+    private static byte[] PreviewModpackArchive()
+    {
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var manifest = archive.CreateEntry("modrinth.index.json", CompressionLevel.Fastest);
+            using (var writer = new StreamWriter(manifest.Open(), new UTF8Encoding(false)))
+            {
+                writer.Write("""{"formatVersion":1,"game":"minecraft","versionId":"preview-pack","name":"Preview Modpack","files":[],"dependencies":{"minecraft":"1.21.4"}}""");
+            }
+
+            var config = archive.CreateEntry("overrides/config/hako-preview.txt", CompressionLevel.Fastest);
+            using var configWriter = new StreamWriter(config.Open(), new UTF8Encoding(false));
+            configWriter.Write("Hako preview modpack configuration");
+        }
+
+        return output.ToArray();
+    }
+
+    private static byte[] ReadPreviewModpackIcon()
+    {
+        try { return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "StoreLogo.png")); }
+        catch (IOException) { return []; }
+        catch (UnauthorizedAccessException) { return []; }
+    }
+
+    private static string BuildCatalogJson()
+    {
+        var versions = new[] { ("25w02a", "snapshot"), ("1.21.4", "release"), ("1.20.1", "release"), ("b1.7.3", "old_beta") };
+        var entries = versions.Select((version, index) =>
+        {
+            var metadata = MojangMetadataBytes(version.Item1);
+            var sha1 = Convert.ToHexString(SHA1.HashData(metadata)).ToLowerInvariant();
+            return new MojangVersionEntry
+            {
+                Id = version.Item1,
+                Type = version.Item2,
+                Url = $"https://piston-meta.mojang.com/v1/packages/{index + 1}/{Uri.EscapeDataString(version.Item1)}.json",
+                Sha1 = sha1
+            };
+        }).ToArray();
+        return JsonSerializer.Serialize(new MojangCatalog
+        {
+            Latest = new MojangLatestVersions { Release = "1.21.4", Snapshot = "25w02a" },
+            Versions = entries.ToList()
+        }, MojangJsonContext.Default.MojangCatalog);
+    }
+
+    private static byte[] MojangMetadataBytes(string id) => JsonSerializer.SerializeToUtf8Bytes(new MojangVersionMetadata
+    {
+        Id = id,
+        Downloads = new Dictionary<string, MojangDownload>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["client"] = new MojangDownload
+            {
+                Url = "https://piston-meta.mojang.com/client.bin",
+                Sha1 = new string('0', 40),
+                Size = 0
+            }
+        },
+        Libraries = [],
+        JavaVersion = new MojangJavaRequirement { Component = "java-runtime", MajorVersion = 21 },
+        MainClass = "net.minecraft.client.main.Main",
+        Arguments = new Dictionary<string, List<MojangArgument>>(StringComparer.Ordinal)
+        {
+            ["game"] = [],
+            ["jvm"] = []
+        }
+    }, MojangJsonContext.Default.MojangVersionMetadata);
+
+    private static byte[] MojangRuntimeManifestBytes() => JsonSerializer.SerializeToUtf8Bytes(new MojangJavaRuntimeManifest
+    {
+        Files = new Dictionary<string, MojangJavaRuntimeEntry>(StringComparer.Ordinal)
+        {
+            ["bin/javaw.exe"] = new MojangJavaRuntimeEntry
+            {
+                Type = "file",
+                Executable = true,
+                Downloads = new Dictionary<string, MojangDownload>(StringComparer.Ordinal)
+                {
+                    ["raw"] = new MojangDownload
+                    {
+                        Url = "https://piston-meta.mojang.com/javaw.exe",
+                        Sha1 = new string('0', 40),
+                        Size = 0
+                    }
+                }
+            }
+        }
+    }, MojangJsonContext.Default.MojangJavaRuntimeManifest);
+
+    private static string MojangRuntimeIndexJson()
+    {
+        var runtime = MojangRuntimeManifestBytes();
+        var sha1 = Convert.ToHexString(SHA1.HashData(runtime)).ToLowerInvariant();
+        var index = new Dictionary<string, Dictionary<string, List<MojangJavaRuntimePackage>>>(StringComparer.Ordinal)
+        {
+            ["windows-x64"] = new Dictionary<string, List<MojangJavaRuntimePackage>>(StringComparer.Ordinal)
+            {
+                ["java-runtime"] =
+                {
+                    new MojangJavaRuntimePackage
+                    {
+                        Manifest = new MojangDownload
+                        {
+                            Url = "https://piston-meta.mojang.com/runtime.json",
+                            Sha1 = sha1,
+                            Size = runtime.Length
+                        },
+                        Version = new MojangRuntimeVersion { Name = "21.0.1", Released = "2026-01-01T00:00:00Z" }
+                    }
+                }
+            }
+        };
+        var typeInfo = MojangJsonContext.Default.GetTypeInfo(index.GetType())
+            ?? throw new InvalidOperationException("The runtime index fixture must be registered for source generation.");
+        return JsonSerializer.Serialize(index, typeInfo);
+    }
+
+    private static string ModpackSearchJson() => JsonSerializer.Serialize(new ModrinthSearchPage
+    {
+        Hits = [new ModrinthProject
+        {
+            Id = ModpackId,
+            Slug = "preview-modpack",
+            Title = "Hako Preview Modpack",
+            Description = "A local fixture for the ready-made Modrinth modpack flow.",
+            ProjectType = "modpack",
+            IconUrl = new Uri("https://cdn.modrinth.fixture/icons/preview.png")
+        }],
+        TotalHits = 1
+    }, HakoJsonContext.Default.ModrinthSearchPage);
+
+    private static string ModpackVersionJson()
+    {
+        var bytes = ModpackArchiveBytes;
+        var sha1 = Convert.ToHexString(SHA1.HashData(bytes)).ToLowerInvariant();
+        var sha512 = Hash(bytes);
+        return JsonSerializer.Serialize(new[]
+        {
+            new ModrinthVersion
+            {
+                Id = ModpackVersionId,
+                ProjectId = ModpackId,
+                VersionNumber = "1.0.0",
+                VersionType = "release",
+                DatePublished = ReleaseDate,
+                GameVersions = ["1.21.4"],
+                Loaders = ["minecraft"],
+                Files =
+                [
+                    new ModrinthFile
+                    {
+                        Filename = "preview-modpack.mrpack",
+                        Url = new Uri("https://cdn.modrinth.com/files/preview-modpack.mrpack"),
+                        Size = bytes.Length,
+                        Hashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["sha1"] = sha1,
+                            ["sha512"] = sha512
+                        },
+                        Primary = true
+                    }
+                ],
+                Dependencies = []
+            }
+        }, HakoJsonContext.Default.ModrinthVersionArray);
     }
 
     private static void WriteNbtString(Stream stream, string value)
@@ -402,28 +569,41 @@ internal static class PreviewBuildsFixture
         _ => NewModBytes
     };
 
-    private sealed class CatalogOnlyHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(request.RequestUri?.AbsoluteUri == MojangClient.CatalogUrl
-                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(CatalogJson, Encoding.UTF8, "application/json") }
-                : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-    }
-
     private sealed class ContentHandler : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var uri = request.RequestUri;
             if (uri is null) return new HttpResponseMessage(HttpStatusCode.BadRequest);
+            if (uri.AbsoluteUri == MojangClient.CatalogUrl) return Json(CatalogJson);
+            if (uri.AbsoluteUri == MojangClient.RuntimeIndexUrl) return Json(MojangRuntimeIndexJson());
+            if (uri.AbsolutePath == "/runtime.json")
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(MojangRuntimeManifestBytes()) };
+            if (uri.AbsolutePath.StartsWith("/v1/packages/", StringComparison.Ordinal))
+            {
+                var id = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(MojangMetadataBytes(id)) };
+            }
             if (uri.Host == "cdn.modrinth.fixture")
+            {
+                if (uri.AbsolutePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && ModpackIconBytes.Length > 0)
+                {
+                    var image = new ByteArrayContent(ModpackIconBytes);
+                    image.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = image };
+                }
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(DownloadBytes(uri.AbsolutePath)) };
+            }
+            if (uri.Host == "cdn.modrinth.com")
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ModpackArchiveBytes) };
             if (uri.Host == "fabric.fixture") return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
 
             var path = uri.AbsolutePath;
             if (path == "/v2/search")
             {
                 var offset = QueryInt(uri.Query, "offset");
+                if (Uri.UnescapeDataString(uri.Query).Contains("project_type:modpack", StringComparison.Ordinal))
+                    return Json(ModpackSearchJson());
                 if (uri.Query.Contains("datapack", StringComparison.OrdinalIgnoreCase))
                     return Json(DatapackSearchJson(offset));
                 var resourcePack = uri.Query.Contains("resourcepack", StringComparison.OrdinalIgnoreCase);
@@ -439,6 +619,7 @@ internal static class PreviewBuildsFixture
             if (path.StartsWith("/v2/project/", StringComparison.Ordinal) && path.EndsWith("/version", StringComparison.Ordinal))
             {
                 var projectId = path.Split('/', StringSplitOptions.RemoveEmptyEntries)[^2];
+                if (projectId == ModpackId) return Json(ModpackVersionJson());
                 return Json(VersionsJson(projectId));
             }
 

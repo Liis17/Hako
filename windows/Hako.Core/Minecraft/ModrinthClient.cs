@@ -173,6 +173,37 @@ public sealed class ModrinthClient : IDisposable
             ?? throw InvalidResponse("Modrinth returned an empty search page.");
     }
 
+    public async Task<ModrinthSearchPage> SearchModpacksAsync(string query, string? minecraft,
+        ModrinthSort sort = ModrinthSort.Relevance, int offset = 0, int limit = SearchPageSize,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0 || limit is < 1 or > 100)
+            throw new ArgumentOutOfRangeException(offset < 0 ? nameof(offset) : nameof(limit));
+        if (minecraft is { Length: 0 })
+            throw new ArgumentException("Minecraft filter must be null or an exact version.", nameof(minecraft));
+
+        string[][] facets =
+        [
+            ["project_type:modpack"],
+            ["categories:fabric", "categories:minecraft"],
+            ["environment!=dedicated_server_only"]
+        ];
+        if (minecraft is not null) facets = [.. facets, [$"versions:{minecraft}"]];
+        var parameters = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["facets"] = JsonSerializer.Serialize(facets, HakoJsonContext.Default.StringArrayArray),
+            ["index"] = SortName(sort),
+            ["offset"] = offset.ToString(CultureInfo.InvariantCulture),
+            ["limit"] = limit.ToString(CultureInfo.InvariantCulture)
+        };
+        var trimmed = query.Trim();
+        if (trimmed.Length > 0) parameters["query"] = trimmed;
+        var page = JsonSerializer.Deserialize(await GetBytesAsync(BuildUri("search", parameters), cancellationToken)
+                .ConfigureAwait(false), HakoJsonContext.Default.ModrinthSearchPage)
+            ?? throw InvalidResponse("Modrinth returned an empty modpack search page.");
+        return page;
+    }
+
     public Task<ModrinthSearchPage> SearchAsync(string query, bool mods, string minecraft,
         ModrinthSort sort = ModrinthSort.Relevance, int offset = 0, CancellationToken cancellationToken = default) =>
         SearchAsync(query, mods ? ModrinthContentKind.Mod : ModrinthContentKind.ResourcePack, minecraft, sort, offset,
@@ -208,6 +239,38 @@ public sealed class ModrinthClient : IDisposable
                 && version.Loaders.Contains(loader, StringComparer.Ordinal)
                 && ChannelPriority(version.VersionType) >= 0
                 && version.InstallableFile(kind) is not null)
+            .OrderBy(version => ChannelPriority(version.VersionType))
+            .ThenByDescending(version => version.DatePublished)
+            .ThenBy(version => version.Id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<ModrinthVersion>> GetModpackVersionsAsync(string projectId, string? minecraft,
+        CancellationToken cancellationToken = default)
+    {
+        var id = CheckIds([projectId])[0];
+        if (minecraft is { Length: 0 })
+            throw new ArgumentException("Minecraft filter must be null or an exact version.", nameof(minecraft));
+        var parameters = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["loaders"] = JsonSerializer.Serialize(new[] { "fabric", "minecraft" }, HakoJsonContext.Default.StringArray),
+            ["include_changelog"] = "false"
+        };
+        if (minecraft is not null)
+        {
+            parameters["game_versions"] = JsonSerializer.Serialize(new[] { minecraft }, HakoJsonContext.Default.StringArray);
+        }
+
+        var versions = JsonSerializer.Deserialize(await GetBytesAsync(BuildUri($"project/{id}/version", parameters), cancellationToken)
+                .ConfigureAwait(false), FabricJsonContext.Default.ModrinthVersionArray)
+            ?? throw InvalidResponse("Modrinth returned an empty modpack version list.");
+        return versions
+            .Where(version => version.ProjectId == projectId
+                && version.Files.Any(file => file.IsInstallable(".mrpack"))
+                && version.Loaders.Count > 0
+                && version.Loaders.All(loader => loader is "fabric" or "minecraft")
+                && (minecraft is null || version.GameVersions.Contains(minecraft, StringComparer.Ordinal))
+                && ChannelPriority(version.VersionType) >= 0)
             .OrderBy(version => ChannelPriority(version.VersionType))
             .ThenByDescending(version => version.DatePublished)
             .ThenBy(version => version.Id, StringComparer.Ordinal)
@@ -399,11 +462,81 @@ public sealed class ModrinthClient : IDisposable
         await DownloadFileAsync(file.Url, destination, file.Size, file.Sha1, file.Sha512, cancellationToken).ConfigureAwait(false);
     }
 
+    internal async Task<byte[]?> DownloadImageAsync(Uri? url, CancellationToken cancellationToken)
+    {
+        if (url is null || url.Scheme != Uri.UriSchemeHttps)
+            return null;
+        using var response = await SendAsync(new HttpRequestMessage(HttpMethod.Get, url), cancellationToken)
+            .ConfigureAwait(false);
+        if (response.RequestMessage?.RequestUri is not { } responseUri
+            || responseUri.Scheme != Uri.UriSchemeHttps
+            || response.Content.Headers.ContentType?.MediaType is not { } mediaType
+            || !mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (response.Content.Headers.ContentLength is { } length && length > 8 * 1024 * 1024)
+            return null;
+        await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var output = new MemoryStream();
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (read == 0) break;
+            if (output.Length + read > 8 * 1024 * 1024) return null;
+            output.Write(buffer, 0, read);
+        }
+
+        return output.ToArray();
+    }
+
     public async Task DownloadFileAsync(Uri url, string destination, long size, string sha1, string sha512,
         CancellationToken cancellationToken = default)
     {
+        await DownloadFileAsync(url, destination, size, sha1, sha512, allowedHosts: null,
+            cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal async Task DownloadVerifiedFileAsync(IReadOnlyList<Uri> urls, string destination, long size,
+        string sha1, string sha512, IReadOnlySet<string>? allowedHosts, CancellationToken cancellationToken,
+        bool allowEmpty = false)
+    {
+        if (urls.Count == 0)
+            throw InvalidResponse("Modrinth file metadata did not include a download URL.");
+        Exception? lastFailure = null;
+        foreach (var url in urls)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await DownloadFileAsync(url, destination, size, sha1, sha512, allowedHosts, cancellationToken, allowEmpty)
+                    .ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                lastFailure = exception;
+            }
+        }
+
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(lastFailure!).Throw();
+    }
+
+    private async Task DownloadFileAsync(Uri url, string destination, long size, string sha1, string sha512,
+        IReadOnlySet<string>? allowedHosts, CancellationToken cancellationToken, bool allowEmpty = false)
+    {
         RequireHttps(url);
-        if (size <= 0 || !IsHash(sha1, 40) || !IsHash(sha512, 128))
+        if (allowedHosts is not null
+            && (!allowedHosts.Contains(url.IdnHost) || url.Port != 443 || !string.IsNullOrEmpty(url.UserInfo)))
+            throw InvalidResponse("Modrinth file URL host is not allowed.");
+        if (size < 0 || (size == 0 && !allowEmpty) || !IsHash(sha1, 40) || !IsHash(sha512, 128))
             throw InvalidResponse("Modrinth returned invalid file metadata.");
 
         var fullDestination = Path.GetFullPath(destination);
@@ -412,6 +545,13 @@ public sealed class ModrinthClient : IDisposable
         try
         {
             using var response = await SendAsync(new HttpRequestMessage(HttpMethod.Get, url), cancellationToken).ConfigureAwait(false);
+            if (allowedHosts is not null)
+            {
+                var responseUri = response.RequestMessage?.RequestUri ?? url;
+                if (responseUri.Scheme != Uri.UriSchemeHttps || responseUri.Port != 443
+                    || !string.IsNullOrEmpty(responseUri.UserInfo) || !allowedHosts.Contains(responseUri.IdnHost))
+                    throw InvalidResponse("Modrinth file redirect host is not allowed.");
+            }
             if (response.Content.Headers.ContentLength is { } length && length != size)
                 throw IntegrityFailure("Modrinth file size did not match its version metadata.");
             await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
@@ -448,6 +588,36 @@ public sealed class ModrinthClient : IDisposable
             try { File.Delete(temporary); }
             catch (FileNotFoundException) { }
         }
+    }
+
+    internal static async Task<bool> IsVerifiedFileAsync(string path, long size, string sha1, string sha512,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path) || new FileInfo(path).Length != size
+            || !IsHash(sha1, 40) || !IsHash(sha512, 128))
+        {
+            return false;
+        }
+
+        await using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var sha1Hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+        using var sha512Hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA512);
+        var buffer = new byte[81920];
+        long total = 0;
+        while (true)
+        {
+            var read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (read == 0) break;
+            total += read;
+            if (total > size) return false;
+            sha1Hash.AppendData(buffer, 0, read);
+            sha512Hash.AppendData(buffer, 0, read);
+        }
+
+        return total == size
+            && HashEquals(sha1Hash.GetHashAndReset(), sha1)
+            && HashEquals(sha512Hash.GetHashAndReset(), sha512);
     }
 
     public void Dispose()

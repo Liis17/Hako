@@ -238,11 +238,11 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 
 ## Windows-клиент
 
-Клиент для Windows в каталоге `windows/` на первом этапе паритета с macOS: приветствие, вход в Microsoft
-по коду, главная с рейлом сборок и «Настройками» (разделы «Основные», «Игра», «Профиль»), язык, профиль
-с 3D-превью скина и выход. Vanilla-сборки создаются, ставятся в фоновую очередь (пауза, продолжение, повтор),
-настраиваются, удаляются и запускаются онлайн или в offline-mode — [[UI/Launcher#Windows-клиент]].
-Fabric, моды, ресурспаки, миры и самообновление пока не реализованы.
+Клиент для Windows в каталоге `windows/` реализует приветствие, вход в Microsoft по коду, главную с рейлом
+сборок и «Настройками», русский/английский язык, профиль с 3D-превью скина и выход. Vanilla- и Fabric-сборки
+создаются и устанавливаются фоновой очередью (пауза, продолжение, повтор), настраиваются, удаляются и запускаются
+онлайн или в offline-mode. Есть локальные моды и ресурспаки, миры и датапаки, каталог Modrinth и импорт готовых
+модпаков Modrinth `.mrpack` — [[UI/Launcher#Windows-клиент]].
 Сервисы сборок живут всё время работы приложения и создаются в `App.OnLaunched` (`LauncherServices`).
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
@@ -274,7 +274,9 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
   `Properties/launchSettings.json`, решение `Hako.slnx`.
 - `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
   `AuthContracts`, `AccountSessionStore`, `UserSettingsService`, `HakoPaths`, `HakoRootLock`, `Instances/`
-  (`GameInstance`, `InstanceStorage`, `InstanceStore`), source-generated COM-корзина `RecycleBin`, `JsonContexts`.
+  (`GameInstance`, `InstanceStorage`, `InstanceStore`, `InstallationCoordinator`, `ModpackCatalog`), `Minecraft/`
+  (`ModrinthClient`, `ModpackManifest`, `ModpackArchive`, `ModpackInstaller`, Mojang/Fabric install and launch logic),
+  source-generated COM-корзина `RecycleBin`, `JsonContexts`.
 - `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
   `LocalizationResourcesTests`, `RedactionTests`, `MinecraftSkinTests`, `MinecraftSkinImageDecoderTests`,
   `MinecraftSkinGeometryTests`; `TestSupport.cs` содержит фейки времени, таймеров, хранилищ,
@@ -341,8 +343,9 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: Fabric, моды и ресурспаки, миры, скриншоты, модпаки, дублирование и резервные копии сборок,
-  учёт времени игры, каталоги Modrinth и CurseForge, самообновление.
+- Не реализованы: скриншоты, дублирование и резервные копии сборок/миров, учёт времени игры, CurseForge
+  и самообновление. Готовые Modrinth-паки устанавливаются из каталога; локальный импорт `.mrpack` и обновление
+  всего модпака не поддерживаются.
 - Онлайн-запуск обновляет Minecraft-сессию через `MinecraftSessionCoordinator.ConnectForLaunchAsync` (refresh-grant
   с сохранением нового refresh token); без Minecraft-профиля доступен только offline-mode сборки.
 

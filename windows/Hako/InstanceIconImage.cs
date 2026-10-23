@@ -23,6 +23,16 @@ internal static class InstanceIconImage
             return File.ReadAllBytes(path);
         });
 
+        return await NormalizeAsync(source);
+    }
+
+    public static async Task<byte[]> NormalizeAsync(byte[] source)
+    {
+        if (source.Length == 0 || source.LongLength > MaximumSourceBytes)
+        {
+            throw new InvalidDataException("The picture is empty or too large.");
+        }
+
         using var input = new InMemoryRandomAccessStream();
         await input.WriteAsync(source.AsBuffer());
         input.Seek(0);

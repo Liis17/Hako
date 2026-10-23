@@ -289,3 +289,21 @@ UI ставит coalesced refresh в `DispatcherQueue`, затем читает 
 при его отсутствии архив и файлы загружаются заново по закреплённым адресам.
 Распознавание отдельных файлов по хешам использует прежний `versions(of:)`.
 Импорт локального `.mrpack` и обновление модпака целиком не реализованы.
+
+### Windows-клиент
+
+`windows/Hako.Core/Minecraft/ModrinthClient.cs` использует общий HTTP-клиент Fabric и каталога. `SearchModpacksAsync`
+строит facets `project_type:modpack`, OR для Fabric/Minecraft, исключение dedicated-server-only, сортировку,
+точный Minecraft-фильтр и offset. `GetModpackVersionsAsync` повторно сверяет `project_id`, `game_versions`,
+loaders, канал и наличие installable `.mrpack`; каталог/pagination — `Instances/ModpackCatalog.cs`.
+
+Windows `Minecraft/ModpackArchive.cs` читает central directory напрямую, а файлы распаковывает потоково через
+`ZipArchive`. По умолчанию ограничены архив (2 GiB), число записей (50 000), индекс (16 MiB), один файл (2 GiB),
+общая распаковка (20 GiB) и central directory (8 MiB). ZIP64, шифрование, ссылки, reparse/device атрибуты,
+опасные Windows-пути, коллизии регистра и файлов/каталогов отклоняются до публикации. Разрешённые корни игры,
+служебные `.hako*` и пути компонентов запрещены. Common overrides применяются первыми, client overrides заменяют
+общие, server overrides игнорируются после проверки путей. Required/optional client-файлы включаются, unsupported
+пропускаются; файлы и архив проверяются по размеру, SHA-1 и SHA-512, до четырёх файлов загружаются параллельно.
+Кэш SHA-512 находится в `HakoPaths.CacheRoot/Modpacks`. План сохраняется до queue; ready выставляется только после
+успешного импорта. `completed` не позволяет повторно применить удалённые пользователем файлы при переустановке.
+Локальный импорт `.mrpack` и обновление модпака целиком пока не реализованы.

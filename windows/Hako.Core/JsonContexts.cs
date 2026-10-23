@@ -25,6 +25,8 @@ namespace Hako.Core;
 [JsonSerializable(typeof(ModrinthFileCache))]
 [JsonSerializable(typeof(ModrinthHashesRequest))]
 [JsonSerializable(typeof(ModrinthVersionUpdateRequest))]
+[JsonSerializable(typeof(ModpackManifest))]
+[JsonSerializable(typeof(ModpackPlan))]
 [JsonSerializable(typeof(Dictionary<string, ModrinthVersionHashMatch>), TypeInfoPropertyName = "ModrinthVersionHashMatchDictionary")]
 [JsonSerializable(typeof(Dictionary<string, ModrinthVersion>), TypeInfoPropertyName = "ModrinthVersionDictionary")]
 [JsonSerializable(typeof(AccountSession))]

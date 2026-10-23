@@ -133,7 +133,51 @@
   <data name="CreationCustomTitle" xml:space="preserve"><value>Своя сборка</value></data>
   <data name="CreationCustomDetails" xml:space="preserve"><value>Выберите Minecraft и загрузчик, затем добавьте свои моды.</value></data>
   <data name="CreationModrinthTitle" xml:space="preserve"><value>Готовая с Modrinth</value></data>
-  <data name="CreationModrinthUnavailable" xml:space="preserve"><value>Готовые модпаки с Modrinth появятся в одном из следующих обновлений.</value></data>
+  <data name="CreationModrinthDetails" xml:space="preserve"><value>Выберите готовый модпак и установите закреплённые в нём версии Minecraft.</value></data>
+  <data name="ModpackCatalogTitle" xml:space="preserve"><value>Модпаки Modrinth</value></data>
+  <data name="ModpackCatalogSubtitle" xml:space="preserve"><value>Найдите клиентский модпак и выберите доступную версию.</value></data>
+  <data name="ModpackSearchPlaceholder" xml:space="preserve"><value>Поиск модпаков</value></data>
+  <data name="ModpackVersionLabel" xml:space="preserve"><value>Версия</value></data>
+  <data name="ModpackLoading" xml:space="preserve"><value>Загружаем модпаки…</value></data>
+  <data name="ModpackRetry" xml:space="preserve"><value>Повторить поиск</value></data>
+  <data name="ModpackLoadMore" xml:space="preserve"><value>Загрузить ещё</value></data>
+  <data name="ModpackChoose" xml:space="preserve"><value>Выбрать эту версию</value></data>
+  <data name="ModpackOpenProject" xml:space="preserve"><value>Открыть проект на Modrinth</value></data>
+  <data name="ModpackAllMinecraftVersions" xml:space="preserve"><value>Все версии Minecraft</value></data>
+  <data name="ModpackSortRelevance" xml:space="preserve"><value>По релевантности</value></data>
+  <data name="ModpackSortDownloads" xml:space="preserve"><value>По загрузкам</value></data>
+  <data name="ModpackSortNewest" xml:space="preserve"><value>Сначала новые</value></data>
+  <data name="ModpackSortUpdated" xml:space="preserve"><value>Недавно обновлённые</value></data>
+  <data name="ModpackLoadingVersions" xml:space="preserve"><value>Загружаем совместимые версии…</value></data>
+  <data name="ModpackUnsupportedVersion" xml:space="preserve"><value>У проекта нет устанавливаемой клиентской версии для выбранного фильтра Minecraft. Поддерживаются только модпаки для Minecraft и Fabric.</value></data>
+  <data name="ModpackVersionDisplay" xml:space="preserve"><value>{0} · {1} · {2}</value></data>
+  <data name="ModpackChannelRelease" xml:space="preserve"><value>Релиз</value></data>
+  <data name="ModpackChannelBeta" xml:space="preserve"><value>Бета</value></data>
+  <data name="ModpackChannelAlpha" xml:space="preserve"><value>Альфа</value></data>
+  <data name="ModpackChannelUnknown" xml:space="preserve"><value>Другое</value></data>
+  <data name="ModpackVersionDetails" xml:space="preserve"><value>Minecraft: {0}. Загрузчики: {1}.</value></data>
+  <data name="ModpackCreateTitle" xml:space="preserve"><value>Создание по модпаку</value></data>
+  <data name="ModpackPinnedVersion" xml:space="preserve"><value>Выбранная версия Modrinth</value></data>
+  <data name="ModpackPinnedVersionValue" xml:space="preserve"><value>{0} · версия {1} · опубликована {2}</value></data>
+  <data name="ModpackPinnedFabric" xml:space="preserve"><value>Fabric {0}</value></data>
+  <data name="ModpackPinnedVanilla" xml:space="preserve"><value>Vanilla</value></data>
+  <data name="ModpackPinnedLoaderValue" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="ModpackPinnedLoaderChecking" xml:space="preserve"><value>Проверяем версии Minecraft и загрузчика из модпака…</value></data>
+  <data name="ModpackPreparing" xml:space="preserve"><value>Проверяем закреплённые версии Minecraft и загрузчика…</value></data>
+  <data name="ModpackPrepared" xml:space="preserve"><value>Готово · Java {0}. Загрузчик и файлы модпака установятся вместе со сборкой.</value></data>
+  <data name="ModpackRetryPrepare" xml:space="preserve"><value>Проверить ещё раз</value></data>
+  <data name="ModpackCreateFooter" xml:space="preserve"><value>Версии Minecraft и загрузчика закреплены выбранной версией Modrinth.</value></data>
+  <data name="ModpackCreateSave" xml:space="preserve"><value>Создать сборку</value></data>
+  <data name="ModpackCancelTitle" xml:space="preserve"><value>Отменить настройку модпака?</value></data>
+  <data name="ModpackCancelMessage" xml:space="preserve"><value>Название и параметры запуска ещё не сохранены.</value></data>
+  <data name="ModpackCancelConfirm" xml:space="preserve"><value>Отменить настройку</value></data>
+  <data name="ModpackErrorInvalid" xml:space="preserve"><value>Модпак повреждён или использует неподдерживаемый формат, версию Minecraft или загрузчик.</value></data>
+  <data name="ModpackErrorUnsafe" xml:space="preserve"><value>Модпак содержит небезопасные пути или конфликтующие файлы.</value></data>
+  <data name="ModpackErrorArchive" xml:space="preserve"><value>Не удалось безопасно прочитать архив модпака.</value></data>
+  <data name="ModpackErrorDamaged" xml:space="preserve"><value>Размер или контрольная сумма файла модпака не совпадает. Повторите установку.</value></data>
+  <data name="InstallationStagePreparingModpack" xml:space="preserve"><value>Подготавливаем модпак…</value></data>
+  <data name="InstallationStageDownloadingModpack" xml:space="preserve"><value>Скачиваем файлы модпака…</value></data>
+  <data name="InstallationStageInstallingModpackContents" xml:space="preserve"><value>Устанавливаем файлы модпака…</value></data>
   <data name="CreationNameLabel" xml:space="preserve"><value>Название</value></data>
   <data name="CreationNamePlaceholder" xml:space="preserve"><value>Например, My Vanilla Pack</value></data>
   <data name="CreationNameHint" xml:space="preserve"><value>Пробелы в имени папки будут заменены на _.</value></data>

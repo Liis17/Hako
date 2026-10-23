@@ -63,6 +63,16 @@ public sealed partial class InstanceIconPicker : UserControl
         Update();
     }
 
+    public void LoadCustom(byte[] data, ImageSource? image)
+    {
+        Symbol = string.Empty;
+        IconData = data;
+        _customImage = image;
+        _existingImage = null;
+        _error.Visibility = Visibility.Collapsed;
+        Update();
+    }
+
     public void RefreshStrings()
     {
         _customButton.Content = HakoStrings.Get("IconCustomButton");
@@ -118,9 +128,10 @@ public sealed partial class InstanceIconPicker : UserControl
             }
 
             var data = await InstanceIconImage.NormalizeAsync(file.Path);
+            var image = await InstanceIconSource.CreateAsync(data);
             IconData = data;
             Symbol = string.Empty;
-            _customImage = await InstanceIconSource.CreateAsync(data);
+            _customImage = image;
             _error.Visibility = Visibility.Collapsed;
             Update();
             Changed?.Invoke(this, EventArgs.Empty);

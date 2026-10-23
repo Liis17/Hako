@@ -180,7 +180,7 @@ Fabric profile/json проверяется по `inheritsFrom`, сохраняе
 
 ## Windows: Fabric
 
-`windows/Hako.Core/Minecraft/FabricClient.cs` запрашивает Fabric Meta и использует минимальный
+`windows/Hako.Core/Minecraft/FabricClient.cs` запрашивает Fabric Meta и использует общий
 `windows/Hako.Core/Minecraft/ModrinthClient.cs` для версий официального проекта Modrinth `P7dR8mSH` и проверяемых
 загрузок; этап каталога расширяет `ModrinthClient`. Запросы используют User-Agent Hako и только HTTPS.
 Кэш API — `HakoPaths.CacheRoot/FabricAPI` (в production `%LOCALAPPDATA%\Hako\Cache\FabricAPI`). Загрузка
@@ -197,10 +197,11 @@ Fabric API проверяется по требованиям JAR и публи�
 
 ## Установка готового модпака
 
-`InstallationCoordinator.modpacks` — общий `ModpackInstaller`. Перед установкой он сверяет сохранённый
-план с Minecraft и Fabric-конфигурацией профиля; после `MinecraftInstaller.install` импортирует содержимое
-модпака. Состояние ready выставляется только после обоих этапов. Пауза, ошибки и восстановление очереди
-используют прежние состояния и блокировки. Сборки без плана проходят прежний путь.
+`InstallationCoordinator` вызывает `ModpackInstaller` после Java, Minecraft и Fabric Loader. Перед
+повтором/восстановлением он сверяет сохранённый план с Minecraft и Fabric-конфигурацией профиля; состояние
+ready выставляется только после импорта содержимого. Пауза, ошибки, повтор и восстановление используют прежнюю
+очередь и блокировки. Сборки без плана проходят прежний путь; повреждённый или несовпадающий план не переключает
+сборку на Vanilla.
 
 `FabricConfiguration.api` необязателен: у модпака он отсутствует, Loader берётся точно из манифеста,
 а Fabric API ставится только как файл самого пакета. Прежние конфигурации с API продолжают читаться;

@@ -13,6 +13,8 @@ public enum LauncherScreen
     Builds,
     Instance,
     InstanceCreation,
+    ModpackCatalog,
+    ModpackCreation,
     Settings
 }
 
@@ -268,6 +270,16 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     public void OpenInstanceCreation()
     {
         Screen = LauncherScreen.InstanceCreation;
+    }
+
+    public void OpenModpackCatalog()
+    {
+        Screen = LauncherScreen.ModpackCatalog;
+    }
+
+    public void OpenModpackCreation()
+    {
+        Screen = LauncherScreen.ModpackCreation;
     }
 
     /// <summary>Leaves the profile of a build that no longer exists.</summary>

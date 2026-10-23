@@ -99,6 +99,7 @@ public sealed record GameInstance
     public InstanceModLoader ModLoader { get; init; } = InstanceModLoader.Vanilla;
     public FabricConfiguration? FabricConfiguration { get; init; }
     public string? FabricProfileSHA1 { get; init; }
+    public string? ModpackVersionID { get; init; }
     public string? Architecture { get; init; }
 }
 

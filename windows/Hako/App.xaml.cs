@@ -103,16 +103,18 @@ public partial class App : Application
         await InstanceStore.LoadAsync();
 
         var previewBuilds = _previewOptions?.Mode == ProfilePreviewMode.Builds;
-        var mojang = previewBuilds ? PreviewBuildsFixture.CreateMojangClient() : new MojangClient();
         var previewModrinthHttpClient = previewBuilds ? PreviewBuildsFixture.CreateContentHttpClient() : null;
+        var mojang = previewBuilds ? new MojangClient(previewModrinthHttpClient) : new MojangClient();
         var fabric = previewBuilds
             ? new FabricClient(previewModrinthHttpClient, paths: LaunchPaths,
                 metaBase: PreviewBuildsFixture.FabricMetaBase, modrinthBase: PreviewBuildsFixture.ModrinthBase)
             : new FabricClient(paths: LaunchPaths);
         var modrinth = fabric.Modrinth;
+        var modpacks = new ModpackInstaller(modrinth, mojang, fabric, LaunchPaths!);
+        var modpackCatalog = new ModpackCatalog(modrinth);
         var installations = previewBuilds
             ? PreviewBuildsFixture.CreateInstallations(InstanceStore)
-            : new InstallationCoordinator(InstanceStore, mojang, new MinecraftInstaller(mojang, fabric));
+            : new InstallationCoordinator(InstanceStore, mojang, new MinecraftInstaller(mojang, fabric), modpacks);
         var previewInstance = previewBuilds && InstanceStore.LoadError is null
             ? PreviewBuildsFixture.Seed(InstanceStore, _previewOptions!.Page)
             : (Guid?)null;
@@ -122,7 +124,7 @@ public partial class App : Application
             confirmSelection: HakoDialogs.ConfirmContentAsync);
         var worlds = new InstanceWorlds(InstanceStore);
         _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang, fabric,
-            modrinth, content, contentController, worlds, previewModrinthHttpClient, _skinPreviewService!, _previewOptions);
+            modrinth, modpacks, modpackCatalog, content, contentController, worlds, previewModrinthHttpClient, _skinPreviewService!, _previewOptions);
 
         _window = new MainWindow(_services);
         _window.Activate();
@@ -147,6 +149,10 @@ public partial class App : Application
                     break;
                 case PreviewPage.Create:
                     _coordinator.OpenInstanceCreation();
+                    break;
+                case PreviewPage.Modpacks:
+                case PreviewPage.ModpackCreate:
+                    _coordinator.OpenModpackCatalog();
                     break;
                 case PreviewPage.Profile when previewInstance is { } id:
                     _coordinator.OpenInstance(id);
@@ -204,6 +210,7 @@ public partial class App : Application
         }
 
         _services = null;
+        services.ModpackCatalog.Dispose();
         try { await services.Installations.DisposeAsync(); } catch (Exception) { }
         try { await services.Store.DisposeAsync(); } catch (Exception) { }
         services.Mojang.Dispose();

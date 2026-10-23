@@ -12,6 +12,9 @@ public enum InstallationProgressStage
     Downloading,
     PreparingLibraries,
     PreparingAssets,
+    PreparingModpack,
+    DownloadingModpack,
+    InstallingModpackContents,
     Complete,
     Pausing
 }

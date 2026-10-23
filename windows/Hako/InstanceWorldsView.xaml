@@ -34,32 +34,32 @@
                                 <Grid ColumnDefinitions="60,*,Auto" ColumnSpacing="12">
                                     <Grid Width="56" Height="56">
                                         <FontIcon Glyph="{x:Bind PlaceholderGlyph}" FontSize="26" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                  Visibility="{x:Bind PlaceholderVisibility}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <Image Source="{x:Bind Icon}" Stretch="UniformToFill" Visibility="{x:Bind IconVisibility}" />
+                                                  Visibility="{x:Bind PlaceholderVisibility, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image Source="{x:Bind Icon, Mode=OneWay}" Stretch="UniformToFill" Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
                                     </Grid>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-                                        <TextBlock Text="{x:Bind Name}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="{x:Bind VersionText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                        <TextBlock Text="{x:Bind ActivityText}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind VersionText, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind ActivityText, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                        <Button Content="{x:Bind ExpandText}" Tag="{x:Bind}" Click="ExpandButton_Click" />
-                                        <Button Content="⋯" ToolTipService.ToolTip="{x:Bind ActionsText}">
+                                        <Button Content="{x:Bind ExpandText, Mode=OneWay}" Tag="{x:Bind}" Click="ExpandButton_Click" />
+                                        <Button Content="⋯" ToolTipService.ToolTip="{x:Bind ActionsText, Mode=OneWay}">
                                             <Button.Flyout>
                                                 <MenuFlyout>
-                                                    <MenuFlyoutItem Text="{x:Bind DuplicateText}" Tag="{x:Bind}" Click="DuplicateWorld_Click"
-                                                                    IsEnabled="{x:Bind CanManage}" ToolTipService.ToolTip="{x:Bind BlockReason}" />
-                                                    <MenuFlyoutItem Text="{x:Bind TrashText}" Tag="{x:Bind}" Click="TrashWorld_Click"
-                                                                    IsEnabled="{x:Bind CanManage}" ToolTipService.ToolTip="{x:Bind BlockReason}" />
+                                                    <MenuFlyoutItem Text="{x:Bind DuplicateText, Mode=OneWay}" Tag="{x:Bind}" Click="DuplicateWorld_Click"
+                                                                    IsEnabled="{x:Bind CanManage, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind BlockReason, Mode=OneWay}" />
+                                                    <MenuFlyoutItem Text="{x:Bind TrashText, Mode=OneWay}" Tag="{x:Bind}" Click="TrashWorld_Click"
+                                                                    IsEnabled="{x:Bind CanManage, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind BlockReason, Mode=OneWay}" />
                                                 </MenuFlyout>
                                             </Button.Flyout>
                                         </Button>
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{x:Bind MetadataErrorText}" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                                           Visibility="{x:Bind MetadataErrorVisibility}" />
-                                <StackPanel Visibility="{x:Bind ExpandedVisibility}" Spacing="8">
-                                    <TextBlock Text="{x:Bind DatapacksTitle}" FontWeight="SemiBold" />
+                                <TextBlock Text="{x:Bind MetadataErrorText, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                           Visibility="{x:Bind MetadataErrorVisibility, Mode=OneWay}" />
+                                <StackPanel Visibility="{x:Bind ExpandedVisibility, Mode=OneWay}" Spacing="8">
+                                    <TextBlock Text="{x:Bind DatapacksTitle, Mode=OneWay}" FontWeight="SemiBold" />
                                     <local:InstanceContentView x:Name="DatapacksView" Tag="{x:Bind}" Loaded="DatapacksView_Loaded" Unloaded="DatapacksView_Unloaded" />
                                 </StackPanel>
                             </StackPanel>

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Hako.Core;
 using Hako.Core.Instances;
+using Hako.Core.Minecraft;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -135,7 +136,8 @@ public sealed partial class MainWindow : Window
     private void ShowScreen()
     {
         var screen = _coordinator.Screen;
-        if (screen is LauncherScreen.Builds or LauncherScreen.Instance or LauncherScreen.InstanceCreation or LauncherScreen.Settings)
+        if (screen is LauncherScreen.Builds or LauncherScreen.Instance or LauncherScreen.InstanceCreation
+            or LauncherScreen.ModpackCatalog or LauncherScreen.ModpackCreation or LauncherScreen.Settings)
         {
             FlowFrame.Visibility = Visibility.Collapsed;
             RootNavigation.Visibility = Visibility.Visible;
@@ -153,6 +155,12 @@ public sealed partial class MainWindow : Window
                     break;
                 case LauncherScreen.InstanceCreation when ShellFrame.Content is not InstanceCreationPage:
                     ShellFrame.Navigate(typeof(InstanceCreationPage), _services);
+                    break;
+                case LauncherScreen.ModpackCatalog when ShellFrame.Content is not ModpackCatalogPage:
+                    ShellFrame.Navigate(typeof(ModpackCatalogPage), _services);
+                    break;
+                case LauncherScreen.ModpackCreation when ShellFrame.Content is not ModpackCreationPage:
+                    ShellFrame.Navigate(typeof(ModpackCreationPage), new ModpackCreationContext(_services, _pendingModpack));
                     break;
                 case LauncherScreen.Settings when ShellFrame.Content is not SettingsPage:
                     ShellFrame.Navigate(
@@ -190,6 +198,7 @@ public sealed partial class MainWindow : Window
         {
             LauncherScreen.Builds => BuildsNavigationItem,
             LauncherScreen.Instance when _coordinator.SelectedInstanceId is { } id => _instanceItems.GetValueOrDefault(id),
+            LauncherScreen.InstanceCreation or LauncherScreen.ModpackCatalog or LauncherScreen.ModpackCreation => CreateNavigationItem,
             LauncherScreen.Settings => _coordinator.SelectedSettingsSection == SettingsSection.Profile
                 ? AccountNavigationItem
                 : SettingsNavigationItem,
@@ -306,6 +315,7 @@ public sealed partial class MainWindow : Window
 
     private void RootNavigation_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
+        if (_changingSelection) return;
         if (args.InvokedItemContainer == CreateNavigationItem)
         {
             _ = NavigateAsync(null, chooseCreation: true);
@@ -337,9 +347,14 @@ public sealed partial class MainWindow : Window
 
             if (chooseCreation)
             {
-                if (await InstanceCreationChoiceDialog.ShowAsync() == InstanceCreationChoice.Custom)
+                var choice = await InstanceCreationChoiceDialog.ShowAsync();
+                if (choice == InstanceCreationChoice.Custom)
                 {
                     _coordinator.OpenInstanceCreation();
+                }
+                else if (choice == InstanceCreationChoice.Modpack)
+                {
+                    _coordinator.OpenModpackCatalog();
                 }
 
                 return;
@@ -360,6 +375,17 @@ public sealed partial class MainWindow : Window
         if (window is MainWindow main)
         {
             _ = main.NavigateAsync(null, chooseCreation: true);
+        }
+    }
+
+    private ModpackSelection? _pendingModpack;
+
+    internal static void OpenModpackCreation(Window? window, ModrinthProject project, ModrinthVersion version, string? minecraftFilter)
+    {
+        if (window is MainWindow main)
+        {
+            main._pendingModpack = new ModpackSelection(project, version, minecraftFilter);
+            main._coordinator.OpenModpackCreation();
         }
     }
 

@@ -14,6 +14,8 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
     private readonly InstanceStore _store;
     private readonly Func<MojangVersionEntry, GameArchitecture?, CancellationToken, Task<PreparedInstallation>> _prepare;
     private readonly Func<PreparedInstallation, string, FabricConfiguration?, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>> _installFabric;
+    private readonly Func<string, GameInstance, ModpackPlan?>? _validateModpack;
+    private readonly Func<string, IProgress<InstallationProgress>?, CancellationToken, Task>? _installModpack;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _startGate = new(1, 1);
     private readonly object _sync = new();
@@ -33,7 +35,8 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
     private bool _disposed;
     private Task? _disposeTask;
 
-    public InstallationCoordinator(InstanceStore store, MojangClient client, MinecraftInstaller installer)
+    public InstallationCoordinator(InstanceStore store, MojangClient client, MinecraftInstaller installer,
+        ModpackInstaller? modpackInstaller = null)
         : this(
             store,
             (version, pinned, cancellationToken) => pinned is { } architecture
@@ -41,7 +44,10 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
                 : client.PrepareAsync(version, cancellationToken),
             (prepared, root, progress, cancellationToken) => installer.InstallAsync(prepared, root, progress, cancellationToken),
             installFabric: (prepared, root, fabric, progress, cancellationToken) =>
-                installer.InstallFabricAsync(prepared, root, fabric, progress, cancellationToken))
+                installer.InstallFabricAsync(prepared, root, fabric, progress, cancellationToken),
+            timeProvider: null,
+            validateModpack: modpackInstaller is null ? null : modpackInstaller.Validate,
+            installModpack: modpackInstaller is null ? null : modpackInstaller.InstallAsync)
     {
     }
 
@@ -51,12 +57,29 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
         Func<MojangVersionEntry, GameArchitecture?, CancellationToken, Task<PreparedInstallation>> prepare,
         Func<PreparedInstallation, string, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>> install,
         TimeProvider? timeProvider = null,
-        Func<PreparedInstallation, string, FabricConfiguration?, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>>? installFabric = null)
+        Func<PreparedInstallation, string, FabricConfiguration?, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>>? installFabric = null,
+        ModpackInstaller? modpackInstaller = null)
+        : this(store, prepare, install, timeProvider, installFabric,
+            modpackInstaller is null ? null : modpackInstaller.Validate,
+            modpackInstaller is null ? null : modpackInstaller.InstallAsync)
+    {
+    }
+
+    internal InstallationCoordinator(
+        InstanceStore store,
+        Func<MojangVersionEntry, GameArchitecture?, CancellationToken, Task<PreparedInstallation>> prepare,
+        Func<PreparedInstallation, string, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>> install,
+        TimeProvider? timeProvider,
+        Func<PreparedInstallation, string, FabricConfiguration?, IProgress<InstallationProgress>?, CancellationToken, Task<InstallationResult>>? installFabric,
+        Func<string, GameInstance, ModpackPlan?>? validateModpack,
+        Func<string, IProgress<InstallationProgress>?, CancellationToken, Task>? installModpack)
     {
         _store = store;
         _prepare = prepare;
         _installFabric = installFabric ?? ((prepared, root, _, progress, cancellationToken) =>
             install(prepared, root, progress, cancellationToken));
+        _validateModpack = validateModpack;
+        _installModpack = installModpack;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _store.BusyStateChanged += OnBusyStateChanged;
     }
@@ -204,7 +227,14 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
     });
 
     /// <summary>Creates and queues a build without allowing the pump to start it before its verified preparation is registered.</summary>
-    public Task<GameInstance> CreateAndEnqueueAsync(InstanceDraft draft, PreparedInstallation prepared, bool legacyTexturepacks = false) => Task.Run(() =>
+    public Task<GameInstance> CreateAndEnqueueAsync(InstanceDraft draft, PreparedInstallation prepared,
+        bool legacyTexturepacks = false) => CreateAndEnqueueCoreAsync(draft, prepared, legacyTexturepacks, null);
+
+    public Task<GameInstance> CreateAndEnqueueModpackAsync(InstanceDraft draft, PreparedModpack prepared) =>
+        CreateAndEnqueueCoreAsync(draft, prepared.Minecraft, prepared.Minecraft.Manifest.LegacyTexturepacks, prepared.Plan);
+
+    private Task<GameInstance> CreateAndEnqueueCoreAsync(InstanceDraft draft, PreparedInstallation prepared,
+        bool legacyTexturepacks, ModpackPlan? modpackPlan) => Task.Run(() =>
     {
         lock (_sync)
         {
@@ -215,7 +245,7 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
         var pending = true;
         try
         {
-            var instance = _store.Create(draft, prepared, legacyTexturepacks);
+            var instance = _store.Create(draft, prepared, legacyTexturepacks, modpackPlan);
             lock (_sync)
             {
                 _pendingCreates--;
@@ -424,6 +454,23 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
         try
         {
             var instance = FindInstance(id);
+            var instanceRoot = _store.GetInstanceDirectory(id);
+            ModpackPlan? modpackPlan;
+            if (_validateModpack is not null)
+            {
+                modpackPlan = _validateModpack(instanceRoot, instance);
+            }
+            else
+            {
+                var planPath = Path.Combine(instanceRoot, ModpackPlan.Filename);
+                if (instance.ModpackVersionID is not null || File.Exists(planPath) || Directory.Exists(planPath))
+                {
+                    throw new ModpackException(ModpackError.InvalidManifest);
+                }
+
+                modpackPlan = null;
+            }
+
             var version = new MojangVersionEntry
             {
                 Id = instance.VersionID,
@@ -444,8 +491,13 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
             _store.PinArchitecture(id, prepared.Architecture);
 
             var progress = new InlineProgress<InstallationProgress>(value => SetProgress(id, value));
-            result = await _installFabric(prepared, _store.GetInstanceDirectory(id), instance.FabricConfiguration, progress,
+            result = await _installFabric(prepared, instanceRoot, instance.FabricConfiguration, progress,
                 cancellation.Token).ConfigureAwait(false);
+            if (modpackPlan is not null)
+            {
+                if (_installModpack is null) throw new ModpackException(ModpackError.InvalidManifest);
+                await _installModpack(instanceRoot, progress, cancellation.Token).ConfigureAwait(false);
+            }
             cancellation.Token.ThrowIfCancellationRequested();
         }
         catch (Exception exception)
@@ -589,6 +641,7 @@ public sealed class InstallationCoordinator : INotifyPropertyChanged, IAsyncDisp
     private static (string Code, string Message) DescribeFailure(Exception exception) => exception switch
     {
         MojangException mojang => ($"mojang.{mojang.Error.ToString().ToLowerInvariant()}", mojang.Message),
+        ModpackException modpack => ($"modpack.{modpack.Error.ToString().ToLowerInvariant()}", modpack.Message),
         InstanceStorageException storage => ($"storage.{storage.Error.ToString().ToLowerInvariant()}", storage.Message),
         OperationCanceledException => ("installation.cancelled", exception.Message),
         _ => ("installation.unexpected", exception.Message)
@@ -695,6 +748,10 @@ public static class InstallationResourceKeys
         "mojang.unsupported" => "InstallationErrorMojangUnsupported",
         "mojang.integrity" => "InstallationErrorMojangIntegrity",
         "mojang.invalid" => "InstallationErrorMojangInvalid",
+        "modpack.invalidmanifest" => "ModpackErrorInvalid",
+        "modpack.unsafepath" => "ModpackErrorUnsafe",
+        "modpack.archive" => "ModpackErrorArchive",
+        "modpack.damagedfile" => "ModpackErrorDamaged",
         "storage.operationfailed" => "InstallationErrorStorageOperationFailed",
         "storage.invalidpath" => "InstallationErrorStorageInvalidPath",
         "storage.pathtraversal" => "InstallationErrorStoragePathTraversal",
@@ -726,6 +783,7 @@ public static class InstallationResourceKeys
     {
         InstanceStorageException storage => storage.Error.ResourceKey(),
         InstanceRegistryException registry => registry.ResourceKey,
+        ModpackException modpack => ErrorResourceKey($"modpack.{modpack.Error.ToString().ToLowerInvariant()}"),
         MojangException mojang => mojang.Error.ResourceKey(),
         HttpRequestException or TimeoutException or TaskCanceledException => "InstallationErrorMojangHttp",
         IOException or UnauthorizedAccessException => "InstallationErrorStorageOperationFailed",
@@ -749,6 +807,9 @@ public static class InstallationResourceKeys
         InstallationProgressStage.Downloading => "InstallationStageDownloading",
         InstallationProgressStage.PreparingLibraries => "InstallationStagePreparingLibraries",
         InstallationProgressStage.PreparingAssets => "InstallationStagePreparingAssets",
+        InstallationProgressStage.PreparingModpack => "InstallationStagePreparingModpack",
+        InstallationProgressStage.DownloadingModpack => "InstallationStageDownloadingModpack",
+        InstallationProgressStage.InstallingModpackContents => "InstallationStageInstallingModpackContents",
         InstallationProgressStage.Complete => "InstallationStageComplete",
         InstallationProgressStage.Pausing => "InstallationStagePausing",
         _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, null)

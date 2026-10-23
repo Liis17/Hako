@@ -23,6 +23,8 @@ internal sealed record LauncherServices(
     MojangClient Mojang,
     FabricClient Fabric,
     ModrinthClient Modrinth,
+    ModpackInstaller Modpacks,
+    ModpackCatalog ModpackCatalog,
     InstanceContent Content,
     InstanceContentController ContentController,
     InstanceWorlds Worlds,

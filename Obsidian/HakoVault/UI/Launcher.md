@@ -366,14 +366,14 @@ Java проверяется только при подготовке запус�
 
 Windows-клиент создаёт, устанавливает и запускает Vanilla- и Fabric-сборки; локальные моды доступны только для Fabric,
 ресурспаки и их каталог Modrinth — для обеих платформ. Профиль также показывает миры и поддерживает локальные и
-Modrinth-датапаки выбранного мира. Готовые модпаки, скриншоты, копии сборок, резервные копии миров и время игры
-остаются следующими этапами.
+Modrinth-датапаки выбранного мира. Готовые сборки устанавливаются из каталога Modrinth по закреплённой версии `.mrpack`.
+Скриншоты, копии сборок, резервные копии миров и время игры остаются следующими этапами.
 Навигация и диалоги — [[UI/Screens#Windows-клиент]].
 
 ### Сервисы и потоки
 
 `App.OnLaunched` (`windows/Hako/App.xaml.cs`) создаёт app-lifetime `InstanceStore`, `InstanceWorlds`, `MojangClient`,
-`FabricClient` (с общим `ModrinthClient`), `InstanceContent`, `InstanceContentController`,
+`FabricClient` (с общим `ModrinthClient`), `ModpackInstaller`, `ModpackCatalog`, `InstanceContent`, `InstanceContentController`,
 `InstallationCoordinator` и `GameLaunchCoordinator` (с `AppCoordinator.MinecraftSessions` и `GameProcessRunner`),
 затем передаёт их страницам через `LauncherServices`. Подтверждения контроллера локализуются в WinUI через
 общий `HakoDialogs.ConfirmContentAsync`; диалоги сериализованы на одном `XamlRoot`, а закрытие окна отменяет
@@ -406,7 +406,7 @@ Modrinth-датапаки выбранного мира. Готовые модп
 ### Создание
 
 `InstanceCreationChoiceDialog`: «Своя сборка» открывает `InstanceCreationPage`; «Готовая с Modrinth»
-отключена с подсказкой. Форма повторяет macOS: иконка, имя с проверкой `InstanceStore.ValidateName`
+открывает каталог модпаков. Форма повторяет macOS: иконка, имя с проверкой `InstanceStore.ValidateName`
 (ошибки — локализованные ключи по `InstanceStorageError`), каталог Mojang с поиском и фильтрами
 «Релизы / Снапшоты / История / Все» (сначала последний релиз), `MojangClient.PrepareAsync` для выбранной
 версии (несовместимость без повтора, сетевая ошибка с кнопкой повтора), «Загрузчик модов» (Vanilla или Fabric)
@@ -419,6 +419,17 @@ Modrinth-датапаки выбранного мира. Готовые модп
 `MinecraftLaunchPlan.ArgumentTemplates`, когда известно описание версии), `JavaMemorySlider`
 (шаг 256 МиБ, предупреждение выше 70% памяти, предел 1,5 ГиБ для x86), окно (черновики ширины и высоты,
 ошибка не меняет сохранённый размер), offline-mode с проверкой ника `OfflineUsername.IsValid`.
+
+### Готовые модпаки Modrinth
+
+«Готовая с Modrinth» открывает `ModpackCatalogPage`: поиск с debounce 300 мс, сортировка, фильтр точной версии
+Minecraft из каталога Mojang, список с иконками, страница проекта и дозагрузка страниц. Ошибку поиска и загрузки
+версий можно повторить. Выбор проекта загружает совместимые версии; экран создания закрепляет выбранную версию и
+показывает Minecraft/Loader из проверенного манифеста только для чтения. Имя, иконка, глобальные параметры и
+параметры запуска настраиваются до сохранения; действие отключено, пока асинхронная подготовка `.mrpack` не
+проверила архив и точные версии Minecraft/Loader. `ModpackCreationPage` сохраняет план через очередь установки.
+Карточка сборки показывает обычные стадии/ошибки установки и кнопку игры после готовности. Каталог и форма
+используют generation guards и отмену сетевой подготовки при уходе со страницы.
 
 ### Профиль сборки
 
@@ -497,9 +508,10 @@ Fabric-фасет. Поиск задерживается на 300 мс, резу
 
 ### Предпросмотр
 
-`--profile-preview builds --preview-page builds|create|profile|content|resourcepacks|catalog|worlds|datapacks|datapack-catalog|settings-game`
+`--profile-preview builds --preview-page builds|create|profile|content|resourcepacks|catalog|worlds|datapacks|datapack-catalog|modpacks|modpack-create|settings-game`
 создаёт во временном корне сборки во всех состояниях (`PreviewBuildsFixture`), два мира с `level.dat`, локальные
 включённые/отключённые датапаки с origin и папочный датапак, а также fixture-каталог с зависимостью и выбором
 связанного ресурспака. Страницы `worlds`, `datapacks` и `datapack-catalog` открывают профиль нужной сборки.
-Существующие previews модов/ресурспаков/каталога также остаются доступны. HTTP-ответы подменены,
+Существующие previews модов/ресурспаков/каталога также остаются доступны. `modpacks` открывает fixture-каталог,
+а `modpack-create` автоматически выбирает fixture-модпак и форму создания. HTTP-ответы подменены,
 кэш и содержимое остаются во временном корне; внешняя сеть и реальный `%USERPROFILE%\.hako` не используются.

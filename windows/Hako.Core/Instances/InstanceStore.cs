@@ -390,9 +390,26 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         string metadataURL = "",
         string metadataSHA1 = "",
         bool legacyTexturepacks = false,
-        int javaMajorVersion = 0)
+        int javaMajorVersion = 0,
+        ModpackPlan? modpackPlan = null)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        if (modpackPlan is not null)
+        {
+            modpackPlan.Validate();
+            var loader = modpackPlan.Manifest.LoaderVersion;
+            var matchesLoader = loader is null
+                ? draft.ModLoader == InstanceModLoader.Vanilla && draft.FabricConfiguration is null
+                : draft.ModLoader == InstanceModLoader.Fabric
+                    && draft.FabricConfiguration is { Api: null } fabric
+                    && string.Equals(fabric.LoaderVersion, loader, StringComparison.Ordinal);
+            if (!string.Equals(versionID, modpackPlan.Manifest.Minecraft, StringComparison.Ordinal) || !matchesLoader)
+            {
+                throw new InstanceStorageException(InstanceStorageError.OperationFailed,
+                    "The modpack plan does not match the selected Minecraft version and loader.");
+            }
+        }
+
         _gate.Wait();
         try
         {
@@ -430,6 +447,7 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                     LegacyTexturepacks = legacyTexturepacks || draft.LegacyTexturepacks,
                     ModLoader = draft.ModLoader,
                     FabricConfiguration = draft.ModLoader == InstanceModLoader.Fabric ? draft.FabricConfiguration : null,
+                    ModpackVersionID = modpackPlan?.VersionId,
                     Architecture = draft.Architecture
                 };
                 if (instance.ModLoader == InstanceModLoader.Fabric && string.IsNullOrWhiteSpace(instance.FabricConfiguration?.LoaderVersion))
@@ -438,6 +456,7 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                         "Choose a Fabric Loader version before creating the build.");
                 }
 
+                modpackPlan?.Write(directory);
                 var updated = registry.Instances.Append(instance).ToList();
                 WriteRegistry(new InstanceRegistryFile(1, updated));
             }
@@ -456,7 +475,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     }
 
     /// <summary>Creates a queued build from a version that was already verified by MojangClient.PrepareAsync.</summary>
-    public GameInstance Create(InstanceDraft draft, PreparedInstallation prepared, bool legacyTexturepacks = false)
+    public GameInstance Create(InstanceDraft draft, PreparedInstallation prepared, bool legacyTexturepacks = false,
+        ModpackPlan? modpackPlan = null)
     {
         ArgumentNullException.ThrowIfNull(prepared);
         if (!string.Equals(prepared.Version.Id, prepared.Manifest.Id, StringComparison.Ordinal)
@@ -474,7 +494,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
             prepared.Version.Url,
             prepared.Version.Sha1,
             legacyTexturepacks,
-            prepared.Manifest.Java.MajorVersion);
+            prepared.Manifest.Java.MajorVersion,
+            modpackPlan);
     }
 
     public void SetInstallationStatus(

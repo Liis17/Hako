@@ -42,6 +42,7 @@
     <Content Include="..\..\macos\Hako\HakoTests\Fixtures\1.19.json" Link="Fixtures\Mojang\1.19.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\macos\Hako\HakoTests\Fixtures\22w18a.json" Link="Fixtures\Mojang\22w18a.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\macos\Hako\HakoTests\Fixtures\java-runtimes.json" Link="Fixtures\Mojang\java-runtimes.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Fixtures\Modpack\plan.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

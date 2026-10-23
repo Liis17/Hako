@@ -7,10 +7,11 @@ namespace Hako;
 internal enum InstanceCreationChoice
 {
     None,
-    Custom
+    Custom,
+    Modpack
 }
 
-/// <summary>«Своя сборка» or «Готовая с Modrinth» (InstanceCreationChoiceView on macOS). Modrinth modpacks arrive later.</summary>
+/// <summary>«Своя сборка» or «Готовая с Modrinth» (InstanceCreationChoiceView on macOS).</summary>
 internal static class InstanceCreationChoiceDialog
 {
     public static async Task<InstanceCreationChoice> ShowAsync()
@@ -29,9 +30,12 @@ internal static class InstanceCreationChoiceDialog
             choice = InstanceCreationChoice.Custom;
             dialog.Hide();
         };
-        var modrinth = Option("", HakoStrings.Get("CreationModrinthTitle"), HakoStrings.Get("CreationModrinthUnavailable"));
-        modrinth.IsEnabled = false;
-        ToolTipService.SetToolTip(modrinth, HakoStrings.Get("CreationModrinthUnavailable"));
+        var modrinth = Option("", HakoStrings.Get("CreationModrinthTitle"), HakoStrings.Get("CreationModrinthDetails"));
+        modrinth.Click += (_, _) =>
+        {
+            choice = InstanceCreationChoice.Modpack;
+            dialog.Hide();
+        };
 
         dialog.Content = new StackPanel
         {
