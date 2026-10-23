@@ -1121,6 +1121,495 @@ public sealed class InstanceContentControllerTests
         Assert.IsTrue(after.Items.Single().Path.EndsWith(".disabled", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public async Task WorldDatapackControllerScopesStateAndRejectsWorldRemovedDuringDownload()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary);
+        var worldA = CreateWorldFolder(root, "WorldA");
+        var worldB = CreateWorldFolder(root, "WorldB");
+        using var server = new ModrinthServer();
+        server.AddProject("datapack1", "World pack", "datapack");
+        var bytes = DatapackZip("world A");
+        var file = server.File("world.zip", bytes);
+        server.AddVersion("datapack1", "worldver1", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [file]);
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        var controller = new InstanceContentController(store, content, modrinth, fabric);
+        var changedKeys = new HashSet<InstanceContentStateKey>();
+        controller.StateChanged += (_, args) => changedKeys.Add(args.Key);
+        var targetA = InstanceContentTarget.WorldDatapacks("WorldA");
+        var targetB = InstanceContentTarget.WorldDatapacks("WorldB");
+
+        await controller.ReloadAsync(instance.Id, targetA);
+        await controller.ReloadAsync(instance.Id, targetB);
+        var revisionB = controller.GetState(instance.Id, targetB).Revision;
+        var downloadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDownload = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.DownloadStarted = downloadStarted;
+        server.OnDownload = async token => await releaseDownload.Task.WaitAsync(token);
+        var installA = controller.InstallAsync(instance.Id, targetA, server.Project("datapack1"));
+        await downloadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(controller.GetState(instance.Id, targetA).IsBusy);
+        Assert.IsFalse(controller.GetState(instance.Id, targetB).IsBusy);
+        Assert.AreEqual(revisionB, controller.GetState(instance.Id, targetB).Revision);
+        releaseDownload.SetResult();
+        Assert.IsTrue((await installA).Succeeded);
+        server.OnDownload = null;
+        server.DownloadStarted = null;
+
+        Assert.AreEqual(1, controller.GetState(instance.Id, targetA).Items.Count);
+        Assert.AreEqual(0, controller.GetState(instance.Id, targetB).Items.Count);
+        Assert.IsTrue(changedKeys.Contains(new InstanceContentStateKey(instance.Id, ModrinthContentKind.Datapack, "WorldA")));
+        Assert.IsTrue(changedKeys.Contains(new InstanceContentStateKey(instance.Id, ModrinthContentKind.Datapack, "WorldB")));
+        Assert.IsTrue(File.Exists(Path.Combine(worldA, "datapacks", "world.zip")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(worldB, "datapacks")));
+
+        var disappearingWorld = CreateWorldFolder(root, "Disappearing");
+        server.AddProject("gonepack1", "Disappearing pack", "datapack");
+        server.AddVersion("gonepack1", "gonever01", "1.0", "release", "2025-01-02T00:00:00Z",
+            ModrinthContentKind.Datapack, [server.File("gone.zip", DatapackZip("gone"))]);
+        server.OnDownload = _ =>
+        {
+            Directory.Delete(disappearingWorld, recursive: true);
+            return Task.CompletedTask;
+        };
+
+        var failed = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("Disappearing"),
+            server.Project("gonepack1"));
+        Assert.IsFalse(failed.Succeeded);
+        Assert.AreEqual(ContentFailureCode.WorldUnavailable, failed.Failure?.Code);
+        Assert.IsFalse(Directory.Exists(disappearingWorld));
+    }
+
+    [TestMethod]
+    public async Task DatapackDependenciesPreferDatapackVersionsAndSelectionRoutesOnlyChosenPack()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary,
+            modLoader: InstanceModLoader.Vanilla);
+        var world = CreateWorldFolder(root, "Selected");
+        var target = InstanceContentTarget.WorldDatapacks("Selected");
+        using var server = new ModrinthServer();
+        server.ObserveContentDirectories(Path.Combine(world, "datapacks"), Path.Combine(root, "minecraft", "resourcepacks"));
+        server.AddProject("rootpack", "Root pack", "datapack");
+        server.AddProject("dependency", "Multi-type dependency", "mod", allProjectTypes: ["mod", "datapack"]);
+        var rootFile = server.File("root.zip", DatapackZip("root"));
+        server.AddVersion("rootpack", "rootver01", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [rootFile], [Dependency(projectId: "dependency")]);
+        var dependencyFile = server.File("dependency.zip", DatapackZip("dependency"));
+        var requiredPack = server.File("required.zip", DatapackZip("required"), "required-resource-pack", primary: false);
+        var optionalPack = server.File("optional.zip", DatapackZip("optional"), "optional-resource-pack", primary: false);
+        server.AddVersion("dependency", "depver001", "2.0", "release", "2025-01-02T00:00:00Z",
+            ModrinthContentKind.Datapack, [dependencyFile, requiredPack, optionalPack]);
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        var requests = new List<ContentConfirmationRequest>();
+        var controller = new InstanceContentController(store, content, modrinth, fabric,
+            confirmSelection: (request, _) =>
+            {
+                requests.Add(request);
+                var result = request.Code == ContentConfirmationCode.DatapackResourcePacks
+                    ? new ContentConfirmationResult(ContentConfirmationChoice.Primary, "optional.zip")
+                    : new ContentConfirmationResult(ContentConfirmationChoice.Primary);
+                return Task.FromResult(result);
+            });
+
+        var result = await controller.InstallAsync(instance.Id, target, server.Project("rootpack"));
+
+        Assert.IsTrue(result.Succeeded, result.Failure?.ToString());
+        var resourceSelection = requests.Single(request => request.Code == ContentConfirmationCode.DatapackResourcePacks);
+        Assert.AreEqual(target, resourceSelection.Target);
+        var selectedFiles = resourceSelection.Files!;
+        CollectionAssert.AreEqual(new[] { "required.zip", "optional.zip" }, selectedFiles.Select(file => file.Filename).ToArray());
+        Assert.IsTrue(selectedFiles[0].Required);
+        Assert.IsFalse(selectedFiles[1].Required);
+        Assert.IsTrue(server.AllDownloadsSawEmptyContentDirectories);
+        Assert.IsTrue(File.Exists(Path.Combine(world, "datapacks", "root.zip")));
+        Assert.IsTrue(File.Exists(Path.Combine(world, "datapacks", "dependency.zip")));
+        Assert.AreEqual("dependency", (await content.ListAsync(instance.Id, target))
+            .Single(item => item.Name == "dependency.zip").Origin?.ProjectID);
+        Assert.IsTrue(File.Exists(Path.Combine(root, "minecraft", "resourcepacks", "optional.zip")));
+        var selectedPackOrigin = (await content.ListAsync(instance.Id, InstanceContentTarget.Packs)).Single().Origin;
+        Assert.AreEqual("dependency", selectedPackOrigin?.ProjectID);
+        Assert.AreEqual("depver001", selectedPackOrigin?.VersionID);
+        Assert.AreEqual("optional-resource-pack", selectedPackOrigin?.FileType);
+        Assert.AreEqual(optionalPack.Sha512, selectedPackOrigin?.Sha512);
+        Assert.IsFalse(File.Exists(Path.Combine(root, "minecraft", "resourcepacks", "required.zip")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "minecraft", "mods"))
+            && Directory.EnumerateFileSystemEntries(Path.Combine(root, "minecraft", "mods")).Any());
+        Assert.IsTrue(File.Exists(Path.Combine(world, "level.dat")));
+
+        var alternateWorld = CreateWorldFolder(root, "WithoutPack");
+        var alternateController = new InstanceContentController(store, content, modrinth, fabric,
+            confirmSelection: (request, _) => Task.FromResult(new ContentConfirmationResult(
+                request.Code == ContentConfirmationCode.DatapackResourcePacks
+                    ? ContentConfirmationChoice.Alternative : ContentConfirmationChoice.Primary)));
+        var alternate = await alternateController.InstallAsync(instance.Id,
+            InstanceContentTarget.WorldDatapacks("WithoutPack"), server.Project("rootpack"));
+        Assert.IsTrue(alternate.Succeeded, alternate.Failure?.ToString());
+        Assert.IsTrue(File.Exists(Path.Combine(alternateWorld, "datapacks", "dependency.zip")));
+        Assert.IsFalse(File.Exists(Path.Combine(root, "minecraft", "resourcepacks", "required.zip")));
+
+        var cancelledWorld = CreateWorldFolder(root, "Cancelled");
+        var cancelledController = new InstanceContentController(store, content, modrinth, fabric,
+            confirmSelection: (request, _) => Task.FromResult(new ContentConfirmationResult(
+                request.Code == ContentConfirmationCode.DatapackResourcePacks
+                    ? ContentConfirmationChoice.Cancel : ContentConfirmationChoice.Primary)));
+        var cancelled = await cancelledController.InstallAsync(instance.Id,
+            InstanceContentTarget.WorldDatapacks("Cancelled"), server.Project("rootpack"));
+        Assert.IsFalse(cancelled.Succeeded);
+        Assert.IsFalse(Directory.Exists(Path.Combine(cancelledWorld, "datapacks")));
+
+        var defaultWorld = CreateWorldFolder(root, "LegacyChoice");
+        var legacyController = new InstanceContentController(store, content, modrinth, fabric,
+            (_, _) => Task.FromResult(ContentConfirmationChoice.Primary));
+        var legacyChoice = await legacyController.InstallAsync(instance.Id,
+            InstanceContentTarget.WorldDatapacks("LegacyChoice"), server.Project("rootpack"));
+        Assert.IsTrue(legacyChoice.Succeeded, legacyChoice.Failure?.ToString());
+        Assert.IsTrue(File.Exists(Path.Combine(root, "minecraft", "resourcepacks", "required.zip")));
+        Assert.IsFalse(File.Exists(Path.Combine(defaultWorld, "datapacks", "required.zip")));
+    }
+
+    [TestMethod]
+    public async Task VanillaWorldDatapackInstallExplainsFabricOnlyDependency()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary,
+            modLoader: InstanceModLoader.Vanilla);
+        CreateWorldFolder(root, "World");
+        using var server = new ModrinthServer();
+        server.AddProject("rootpack", "Root pack", "datapack");
+        server.AddProject("moddep01", "Fabric-only dependency", "mod", allProjectTypes: ["mod"]);
+        server.AddVersion("rootpack", "rootver01", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [server.File("root.zip", DatapackZip("root"))],
+            [Dependency(projectId: "moddep01")]);
+        server.AddVersion("moddep01", "modver001", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Mod, [server.File("dependency.jar", FabricJar("dependency", "{}"))]);
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        ContentConfirmationRequest? dependencyRequest = null;
+        var controller = new InstanceContentController(store, content, modrinth, fabric,
+            (request, _) =>
+            {
+                if (request.Code == ContentConfirmationCode.Dependencies) dependencyRequest = request;
+                return Task.FromResult(ContentConfirmationChoice.Primary);
+            });
+
+        var result = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("World"),
+            server.Project("rootpack"));
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsTrue(dependencyRequest!.Projects.Any(project => project.Id == "moddep01"
+            && project.NoteCode == ContentConfirmationNoteCode.RequiresFabric));
+        Assert.IsFalse(File.Exists(Path.Combine(root, "minecraft", "saves", "World", "datapacks", "root.zip")));
+        Assert.IsFalse(Directory.Exists(Path.Combine(root, "minecraft", "mods")));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task DatapackLinkedResourcePackReusesMatchingHashAndEnablesDisabledPack(bool storedOrigin)
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary);
+        var firstWorld = CreateWorldFolder(root, "ReusePack");
+        var secondWorld = CreateWorldFolder(root, "EnablePack");
+        var linkedPackBytes = DatapackZip("linked resource pack");
+        var localPackPath = Path.Combine(temporary.Root, "local-resource-pack.zip");
+        await File.WriteAllBytesAsync(localPackPath, linkedPackBytes);
+        await content.ImportAsync(instance.Id, InstanceContentTarget.Packs, localPackPath);
+        if (storedOrigin)
+        {
+            var item = (await content.ListAsync(instance.Id, InstanceContentTarget.Packs)).Single();
+            await content.WithContentLeaseAsync(instance.Id, async (leasedRoot, leasedInstance, token) =>
+                await content.RecordOriginUnderLeaseAsync(leasedRoot, leasedInstance, item, InstanceContentTarget.Packs,
+                    Hash(linkedPackBytes), Origin("unrelated", "oldversion", linkedPackBytes) with
+                    {
+                        FileType = "optional-resource-pack",
+                        Api = new FabricApiDescriptor("unrelated", "oldversion", "old", "release",
+                            "local-resource-pack.zip", "https://example.test/pack.zip", linkedPackBytes.Length,
+                            Convert.ToHexString(SHA1.HashData(linkedPackBytes)).ToLowerInvariant(), Hash(linkedPackBytes)),
+                        IconURL = new Uri("https://example.test/icon.png")
+                    }, token));
+        }
+        var originalOrigin = (await content.ListAsync(instance.Id, InstanceContentTarget.Packs)).Single().Origin;
+        var registryPath = Path.Combine(root, "minecraft", ".hako-resourcepacks.json");
+        var registryBytes = await File.ReadAllBytesAsync(registryPath);
+
+        using var server = new ModrinthServer();
+        server.AddProject("rootpack", "Root pack", "datapack");
+        var attached = server.File("linked.zip", linkedPackBytes, "required-resource-pack", primary: false);
+        server.AddVersion("rootpack", "rootver01", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [server.File("root.zip", DatapackZip("root")), attached]);
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        var cancelSelection = true;
+        var controller = new InstanceContentController(store, content, modrinth, fabric,
+            confirmSelection: async (request, _) =>
+            {
+                CollectionAssert.AreEqual(registryBytes, await File.ReadAllBytesAsync(registryPath));
+                return new ContentConfirmationResult(cancelSelection ? ContentConfirmationChoice.Cancel
+                    : ContentConfirmationChoice.Primary, request.Code == ContentConfirmationCode.DatapackResourcePacks
+                    ? "linked.zip" : null);
+            });
+
+        var cancelled = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("ReusePack"),
+            server.Project("rootpack"));
+        Assert.IsFalse(cancelled.Succeeded);
+        Assert.AreEqual(0, server.DownloadRequests);
+        CollectionAssert.AreEqual(registryBytes, await File.ReadAllBytesAsync(registryPath));
+        Assert.IsFalse(Directory.Exists(Path.Combine(firstWorld, "datapacks")));
+        cancelSelection = false;
+
+        var first = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("ReusePack"),
+            server.Project("rootpack"));
+        Assert.IsTrue(first.Succeeded, first.Failure?.ToString());
+        Assert.AreEqual(1, server.DownloadRequests);
+        var installedPack = (await content.ListAsync(instance.Id, InstanceContentTarget.Packs)).Single();
+        Assert.IsTrue(installedPack.Enabled);
+        Assert.AreEqual(originalOrigin, installedPack.Origin);
+        CollectionAssert.AreEqual(registryBytes, await File.ReadAllBytesAsync(registryPath));
+
+        await content.SetEnabledAsync(instance.Id, installedPack, InstanceContentTarget.Packs, enabled: false);
+        registryBytes = await File.ReadAllBytesAsync(registryPath);
+        cancelSelection = true;
+        var cancelledDisabled = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("EnablePack"),
+            server.Project("rootpack"));
+        Assert.IsFalse(cancelledDisabled.Succeeded);
+        Assert.IsFalse((await content.ListAsync(instance.Id, InstanceContentTarget.Packs)).Single().Enabled);
+        CollectionAssert.AreEqual(registryBytes, await File.ReadAllBytesAsync(registryPath));
+        cancelSelection = false;
+        server.OnDownload = async _ =>
+        {
+            Assert.IsFalse((await content.ListUnderLeaseAsync(root, instance, InstanceContentTarget.Packs, true,
+                CancellationToken.None)).Single().Enabled);
+            throw new IOException("Injected download failure.");
+        };
+        var failed = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("EnablePack"),
+            server.Project("rootpack"));
+        Assert.IsFalse(failed.Succeeded);
+        Assert.IsFalse((await content.ListAsync(instance.Id, InstanceContentTarget.Packs)).Single().Enabled);
+        CollectionAssert.AreEqual(registryBytes, await File.ReadAllBytesAsync(registryPath));
+        server.OnDownload = async _ => Assert.IsFalse((await content.ListUnderLeaseAsync(root, instance,
+            InstanceContentTarget.Packs, true, CancellationToken.None)).Single().Enabled);
+        var second = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("EnablePack"),
+            server.Project("rootpack"));
+        Assert.IsTrue(second.Succeeded, second.Failure?.ToString());
+        var reenabledPack = (await content.ListAsync(instance.Id, InstanceContentTarget.Packs)).Single();
+        Assert.IsTrue(reenabledPack.Enabled);
+        Assert.AreEqual(originalOrigin, reenabledPack.Origin);
+        CollectionAssert.AreEqual(registryBytes, await File.ReadAllBytesAsync(registryPath));
+        Assert.IsTrue(File.Exists(Path.Combine(firstWorld, "datapacks", "root.zip")));
+        Assert.IsTrue(File.Exists(Path.Combine(secondWorld, "datapacks", "root.zip")));
+        var disabledPacksFolder = Path.Combine(root, "minecraft", ".hako-disabled-resourcepacks");
+        Assert.IsFalse(Directory.Exists(disabledPacksFolder) && Directory.EnumerateFileSystemEntries(disabledPacksFolder).Any());
+    }
+
+    [TestMethod]
+    public async Task IncompatibleDatapackInAnotherWorldDoesNotBlockSelectedWorldInstall()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary,
+            modLoader: InstanceModLoader.Vanilla);
+        var selectedWorld = CreateWorldFolder(root, "Selected");
+        CreateWorldFolder(root, "Other");
+        var otherTarget = InstanceContentTarget.WorldDatapacks("Other");
+        var otherSource = Path.Combine(temporary.Root, "conflict.zip");
+        var conflictBytes = DatapackZip("other world conflict");
+        await File.WriteAllBytesAsync(otherSource, conflictBytes);
+        await content.ImportAsync(instance.Id, otherTarget, otherSource);
+        var otherItem = (await content.ListAsync(instance.Id, otherTarget)).Single();
+        await content.WithContentLeaseAsync(instance.Id, async (leasedRoot, leasedInstance, token) =>
+        {
+            await content.RecordOriginUnderLeaseAsync(leasedRoot, leasedInstance, otherItem, otherTarget,
+                Hash(conflictBytes), Origin("conflict01", "conflictver", conflictBytes), token);
+        });
+        using var server = new ModrinthServer();
+        server.AddProject("conflict01", "Other-world datapack", "datapack");
+        server.AddProject("install01", "Selected-world datapack", "datapack");
+        server.AddVersion("install01", "installver", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [server.File("install.zip", DatapackZip("selected"))],
+            [Dependency(projectId: "conflict01", type: "incompatible")]);
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        var confirmations = new List<ContentConfirmationCode>();
+        var controller = new InstanceContentController(store, content, modrinth, fabric,
+            (request, _) =>
+            {
+                confirmations.Add(request.Code);
+                return Task.FromResult(ContentConfirmationChoice.Primary);
+            });
+
+        var result = await controller.InstallAsync(instance.Id, InstanceContentTarget.WorldDatapacks("Selected"),
+            server.Project("install01"));
+
+        Assert.IsTrue(result.Succeeded, result.Failure?.ToString());
+        Assert.IsFalse(confirmations.Contains(ContentConfirmationCode.IncompatibleContent));
+        Assert.IsTrue(File.Exists(Path.Combine(selectedWorld, "datapacks", "install.zip")));
+        Assert.IsTrue(File.Exists(Path.Combine(root, "minecraft", "saves", "Other", "datapacks", "conflict.zip")));
+    }
+
+    [TestMethod]
+    public async Task CorruptWorldDatapackRegistryFallsBackForListingAndBlocksMutation()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary);
+        var world = CreateWorldFolder(root, "Corrupt");
+        var datapacks = Path.Combine(world, "datapacks");
+        Directory.CreateDirectory(datapacks);
+        var bytes = DatapackZip("visible with corrupt registry");
+        var path = Path.Combine(datapacks, "pack.zip");
+        await File.WriteAllBytesAsync(path, bytes);
+        var registryPath = Path.Combine(world, ".hako-datapacks.json");
+        const string corruptRegistry = "{broken";
+        await File.WriteAllTextAsync(registryPath, corruptRegistry);
+        using var server = new ModrinthServer();
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        var controller = new InstanceContentController(store, content, modrinth, fabric);
+        var target = InstanceContentTarget.WorldDatapacks("Corrupt");
+
+        await controller.ReloadAsync(instance.Id, target);
+        var state = controller.GetState(instance.Id, target);
+        Assert.AreEqual(ContentFailureCode.RegistryCorrupt, state.Error?.Code);
+        Assert.AreEqual(1, state.Items.Count);
+        var mutation = await controller.SetEnabledAsync(instance.Id, target, state.Items.Single(), enabled: false);
+
+        Assert.IsFalse(mutation.Succeeded);
+        Assert.AreEqual(ContentFailureCode.RegistryCorrupt, mutation.Failure?.Code);
+        CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(path));
+        Assert.AreEqual(corruptRegistry, await File.ReadAllTextAsync(registryPath));
+    }
+
+    [TestMethod]
+    public async Task LateUpdateCheckForRemovedWorldPublishesWorldUnavailableAndClearsStaleItems()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary);
+        var world = CreateWorldFolder(root, "LateRemoval");
+        var target = InstanceContentTarget.WorldDatapacks("LateRemoval");
+        var oldBytes = DatapackZip("old");
+        var oldSource = Path.Combine(temporary.Root, "pack.zip");
+        await File.WriteAllBytesAsync(oldSource, oldBytes);
+        await content.ImportAsync(instance.Id, target, oldSource);
+        using var server = new ModrinthServer();
+        server.AddProject("project01", "Pack", "datapack");
+        var oldVersion = server.AddVersion("project01", "oldver01", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [server.File("pack.zip", oldBytes)]);
+        var next = server.AddVersion("project01", "newver01", "2.0", "release", "2025-02-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [server.File("pack.zip", DatapackZip("new"))]);
+        server.Recognize(Hash(oldBytes), oldVersion);
+        server.AddUpdate(Hash(oldBytes), next);
+        server.BeforeVersionUpdate = (_, _) =>
+        {
+            Directory.Delete(world, recursive: true);
+            return Task.CompletedTask;
+        };
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        var controller = new InstanceContentController(store, content, modrinth, fabric);
+
+        await controller.CheckUpdatesAsync(instance.Id, target);
+
+        var state = controller.GetState(instance.Id, target);
+        Assert.AreEqual(ContentFailureCode.WorldUnavailable, state.Error?.Code);
+        Assert.AreEqual(ContentFailureCode.WorldUnavailable, state.UpdateMessage?.Code);
+        Assert.AreEqual(0, state.Items.Count);
+        Assert.AreEqual(0, state.Updates.Count);
+        Assert.IsFalse(state.IsCheckingUpdates);
+        Assert.IsFalse(Directory.Exists(world));
+    }
+
+    [TestMethod]
+    public async Task DatapackUpdateAllReportsConfirmationRequiredWithoutDialogAndContinuesOtherItems()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var (store, instance, root, content) = await CreateReadyInstanceAsync(temporary);
+        var world = CreateWorldFolder(root, "Updates");
+        var target = InstanceContentTarget.WorldDatapacks("Updates");
+        using var server = new ModrinthServer();
+        var oldABytes = DatapackZip("old A");
+        var oldBBytes = DatapackZip("old B");
+        var newABytes = DatapackZip("new A");
+        var newBBytes = DatapackZip("new B");
+        var oldAFile = server.File("a.zip", oldABytes);
+        var oldBFile = server.File("b.zip", oldBBytes);
+        server.AddProject("firstpack", "First pack", "datapack");
+        server.AddProject("secondpack", "Second pack", "datapack");
+        var oldA = server.AddVersion("firstpack", "firstold1", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [oldAFile]);
+        var oldB = server.AddVersion("secondpack", "secondold", "1.0", "release", "2025-01-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [oldBFile]);
+        var nextA = server.AddVersion("firstpack", "firstnew1", "2.0", "release", "2025-02-01T00:00:00Z",
+            ModrinthContentKind.Datapack,
+            [server.File("a.zip", newABytes), server.File("attached.zip", DatapackZip("attached"), "required-resource-pack", primary: false)]);
+        var nextB = server.AddVersion("secondpack", "secondnew", "2.0", "release", "2025-02-01T00:00:00Z",
+            ModrinthContentKind.Datapack, [server.File("b.zip", newBBytes)]);
+        server.Recognize(Hash(oldABytes), oldA);
+        server.Recognize(Hash(oldBBytes), oldB);
+        server.AddUpdate(Hash(oldABytes), nextA);
+        server.AddUpdate(Hash(oldBBytes), nextB);
+        await File.WriteAllBytesAsync(Path.Combine(temporary.Root, "a.zip"), oldABytes);
+        await File.WriteAllBytesAsync(Path.Combine(temporary.Root, "b.zip"), oldBBytes);
+        await content.ImportAsync(instance.Id, target, Path.Combine(temporary.Root, "a.zip"));
+        await content.ImportAsync(instance.Id, target, Path.Combine(temporary.Root, "b.zip"));
+        var itemB = (await content.ListAsync(instance.Id, target)).Single(item => item.Name == "b.zip");
+        await content.SetEnabledAsync(instance.Id, itemB, target, enabled: false);
+        var levelBefore = await File.ReadAllBytesAsync(Path.Combine(world, "level.dat"));
+        using var modrinth = server.CreateModrinth(temporary.Paths);
+        using var fabric = server.CreateFabric(temporary.Paths);
+        var dialogCount = 0;
+        var controller = new InstanceContentController(store, content, modrinth, fabric,
+            (_, _) =>
+            {
+                dialogCount++;
+                return Task.FromResult(ContentConfirmationChoice.Primary);
+            });
+
+        await controller.CheckUpdatesAsync(instance.Id, target);
+        Assert.AreEqual(2, controller.GetState(instance.Id, target).Updates.Count);
+        Assert.AreEqual("firstold1", controller.GetState(instance.Id, target).Items
+            .Single(item => item.Name == "a.zip").Origin?.VersionID);
+        var result = await controller.UpdateAllAsync(instance.Id, target);
+
+        Assert.AreEqual(2, result.Items.Count);
+        Assert.IsFalse(result.Items.Single(item => item.Filename == "a.zip").Succeeded);
+        Assert.AreEqual(ContentFailureCode.ConfirmationRequired, result.Items.Single(item => item.Filename == "a.zip").Failure?.Code);
+        Assert.IsTrue(result.Items.Single(item => item.Filename == "b.zip").Succeeded);
+        Assert.AreEqual(0, dialogCount);
+        CollectionAssert.AreEqual(oldABytes, await File.ReadAllBytesAsync(Path.Combine(world, "datapacks", "a.zip")));
+        var updatedB = (await content.ListAsync(instance.Id, target)).Single(item => item.Name == "b.zip");
+        Assert.IsTrue(updatedB.DisabledPack);
+        Assert.AreEqual("secondnew", updatedB.Origin?.VersionID);
+        CollectionAssert.AreEqual(newBBytes, await File.ReadAllBytesAsync(updatedB.Path));
+        CollectionAssert.AreEqual(levelBefore, await File.ReadAllBytesAsync(Path.Combine(world, "level.dat")));
+        Assert.IsFalse(File.Exists(Path.Combine(root, "minecraft", "resourcepacks", "attached.zip")));
+    }
+
+    private static string CreateWorldFolder(string root, string worldId)
+    {
+        var path = Path.Combine(root, "minecraft", "saves", worldId);
+        Directory.CreateDirectory(path);
+        File.WriteAllBytes(Path.Combine(path, "level.dat"), WorldTestFixture.Create(worldId).Compressed);
+        return path;
+    }
+
+    private static byte[] DatapackZip(string description)
+    {
+        using var memory = new MemoryStream();
+        using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var writer = new StreamWriter(archive.CreateEntry("pack.mcmeta").Open(), new UTF8Encoding(false)))
+                writer.Write("{\"pack\":{\"pack_format\":15,\"description\":\"" + description + "\"}}");
+            using (var writer = new StreamWriter(archive.CreateEntry("data/fixture.txt").Open(), new UTF8Encoding(false)))
+                writer.Write(description);
+        }
+
+        return memory.ToArray();
+    }
+
     private sealed class CallbackRecycleOperation(Func<string, CancellationToken, Task<RecycleBinItemStatus>> action)
         : IRecycleBinOperation
     {
@@ -1194,16 +1683,19 @@ public sealed class InstanceContentControllerTests
         private readonly HttpClient _http;
         private int _downloadRequests;
         private int _allDownloadsSawEmpty = 1;
-        private string? _observedContentDirectory;
+        private string[] _observedContentDirectories = [];
 
         public ModrinthServer() => _http = new HttpClient(new CallbackHttpHandler(HandleAsync));
         public int DownloadRequests => Volatile.Read(ref _downloadRequests);
         public bool AllDownloadsSawEmptyContentDirectory => Volatile.Read(ref _allDownloadsSawEmpty) == 1;
+        public bool AllDownloadsSawEmptyContentDirectories => AllDownloadsSawEmptyContentDirectory;
         public Func<CancellationToken, Task>? OnDownload { get; set; }
         public TaskCompletionSource? DownloadStarted { get; set; }
         public Func<IReadOnlyList<string>, CancellationToken, Task>? BeforeVersionUpdate { get; set; }
 
-        public void ObserveContentDirectory(string path) => _observedContentDirectory = path;
+        public void ObserveContentDirectory(string path) => ObserveContentDirectories(path);
+
+        public void ObserveContentDirectories(params string[] paths) => _observedContentDirectories = paths;
 
         public ModrinthClient CreateModrinth(HakoPaths paths) => new(_http, ApiBase, paths);
         public FabricClient CreateFabric(HakoPaths paths) => new(_http, paths, modrinthBase: ApiBase);
@@ -1219,12 +1711,13 @@ public sealed class InstanceContentControllerTests
                 Description = "",
                 IconUrl = project.IconUrl,
                 ProjectType = project.Type,
-                AllProjectTypes = [project.Type]
+                AllProjectTypes = project.AllProjectTypes
             };
         }
 
-        public void AddProject(string id, string title, string type, string? iconUrl = null) =>
-            _projects[id] = new ProjectData(id, title, type, iconUrl is null ? null : new Uri(iconUrl));
+        public void AddProject(string id, string title, string type, string? iconUrl = null,
+            IReadOnlyList<string>? allProjectTypes = null) =>
+            _projects[id] = new ProjectData(id, title, type, iconUrl is null ? null : new Uri(iconUrl), allProjectTypes ?? [type]);
 
         public VersionData AddVersion(string projectId, string id, string number, string channel, string published,
             ModrinthContentKind kind, IReadOnlyList<FileData> files, IReadOnlyList<ModrinthDependency>? dependencies = null,
@@ -1275,10 +1768,14 @@ public sealed class InstanceContentControllerTests
                 Interlocked.Increment(ref _downloadRequests);
                 if (DownloadStarted is not null) DownloadStarted.TrySetResult();
                 if (OnDownload is not null) await OnDownload(cancellationToken);
-                if (_observedContentDirectory is { } contentDirectory
-                    && Directory.Exists(contentDirectory)
-                    && Directory.EnumerateFileSystemEntries(contentDirectory).Any())
-                    Interlocked.Exchange(ref _allDownloadsSawEmpty, 0);
+                foreach (var contentDirectory in _observedContentDirectories)
+                {
+                    if (Directory.Exists(contentDirectory) && Directory.EnumerateFileSystemEntries(contentDirectory).Any())
+                    {
+                        Interlocked.Exchange(ref _allDownloadsSawEmpty, 0);
+                        break;
+                    }
+                }
                 return JsonBytes(HttpStatusCode.OK, _downloads[uri.AbsolutePath]);
             }
 
@@ -1391,7 +1888,8 @@ public sealed class InstanceContentControllerTests
             Content = new ByteArrayContent(bytes)
         };
 
-        private sealed record ProjectData(string Id, string Title, string Type, Uri? IconUrl)
+        private sealed record ProjectData(string Id, string Title, string Type, Uri? IconUrl,
+            IReadOnlyList<string> AllProjectTypes)
         {
             public string Json => JsonSerializer.Serialize(new
             {
@@ -1401,7 +1899,7 @@ public sealed class InstanceContentControllerTests
                 description = "",
                 icon_url = IconUrl?.AbsoluteUri,
                 project_type = Type,
-                all_project_types = new[] { Type }
+                all_project_types = AllProjectTypes
             });
         }
 

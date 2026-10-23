@@ -38,6 +38,7 @@ internal static class ContentResourceKeys
         ContentConfirmationCode.IncompatibleContent => "ContentConfirmationIncompatibleTitle",
         ContentConfirmationCode.ReplaceExisting => "ContentConfirmationReplaceTitle",
         ContentConfirmationCode.DeleteContent => "ContentConfirmationDeleteTitle",
+        ContentConfirmationCode.DatapackResourcePacks => "ContentConfirmationDatapackPacksTitle",
         _ => throw new ArgumentOutOfRangeException(nameof(code))
     };
 
@@ -47,6 +48,7 @@ internal static class ContentResourceKeys
         ContentConfirmationCode.IncompatibleContent => "ContentConfirmationIncompatibleMessage",
         ContentConfirmationCode.ReplaceExisting => "ContentConfirmationReplaceMessage",
         ContentConfirmationCode.DeleteContent => "ContentConfirmationDeleteMessage",
+        ContentConfirmationCode.DatapackResourcePacks => "ContentConfirmationDatapackPacksMessage",
         _ => throw new ArgumentOutOfRangeException(nameof(code))
     };
 
@@ -56,6 +58,7 @@ internal static class ContentResourceKeys
         ContentConfirmationCode.IncompatibleContent => "ContentConfirmationIncompatiblePrimary",
         ContentConfirmationCode.ReplaceExisting => "ContentConfirmationReplacePrimary",
         ContentConfirmationCode.DeleteContent => "ContentConfirmationDeletePrimary",
+        ContentConfirmationCode.DatapackResourcePacks => "ContentConfirmationDatapackPacksPrimary",
         _ => throw new ArgumentOutOfRangeException(nameof(code))
     };
 
@@ -65,6 +68,7 @@ internal static class ContentResourceKeys
         ContentConfirmationCode.IncompatibleContent => "ContentConfirmationIncompatibleAlternative",
         ContentConfirmationCode.ReplaceExisting => "ContentConfirmationReplaceAlternative",
         ContentConfirmationCode.DeleteContent => "ContentConfirmationDeleteAlternative",
+        ContentConfirmationCode.DatapackResourcePacks => "ContentConfirmationDatapackPacksAlternative",
         _ => throw new ArgumentOutOfRangeException(nameof(code))
     };
 
@@ -100,6 +104,7 @@ internal static class ContentResourceKeys
         ContentFailureCode.ContentOperationFailed => "ContentFailureOperationFailed",
         ContentFailureCode.BulkUpdateFailed => "ContentFailureBulkUpdateFailed",
         ContentFailureCode.Cancelled => "ContentFailureCancelled",
+        ContentFailureCode.WorldUnavailable => "ContentFailureWorldUnavailable",
         _ => throw new ArgumentOutOfRangeException(nameof(code))
     };
 }

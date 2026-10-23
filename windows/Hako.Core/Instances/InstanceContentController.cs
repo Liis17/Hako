@@ -23,7 +23,8 @@ public enum ContentConfirmationCode
     Dependencies,
     IncompatibleContent,
     ReplaceExisting,
-    DeleteContent
+    DeleteContent,
+    DatapackResourcePacks
 }
 
 public enum ContentConfirmationChoice
@@ -63,10 +64,11 @@ public enum ContentFailureCode
     ModrinthRequestFailed,
     ContentOperationFailed,
     BulkUpdateFailed,
-    Cancelled
+    Cancelled,
+    WorldUnavailable
 }
 
-public readonly record struct InstanceContentStateKey(Guid InstanceId, ModrinthContentKind Kind);
+public readonly record struct InstanceContentStateKey(Guid InstanceId, ModrinthContentKind Kind, string? WorldId = null);
 
 public sealed record ContentFailure(ContentFailureCode Code, IReadOnlyDictionary<string, string> Arguments);
 
@@ -77,6 +79,8 @@ public sealed record ContentConfirmationProject(
     ContentConfirmationNoteCode? NoteCode = null,
     IReadOnlyDictionary<string, string>? NoteArguments = null);
 
+public sealed record ContentConfirmationFile(string Filename, string? FileType, bool Required);
+
 /// <summary>UI-neutral confirmation data. The UI maps codes and arguments to localized text.</summary>
 public sealed record ContentConfirmationRequest(
     ContentConfirmationCode Code,
@@ -84,9 +88,17 @@ public sealed record ContentConfirmationRequest(
     bool PrimaryActionAvailable,
     bool AlternativeActionAvailable,
     bool Destructive,
-    IReadOnlyList<ContentConfirmationProject> Projects);
+    IReadOnlyList<ContentConfirmationProject> Projects,
+    IReadOnlyList<ContentConfirmationFile>? Files = null,
+    InstanceContentTarget? Target = null);
 
 public delegate Task<ContentConfirmationChoice> ContentConfirmationCallback(
+    ContentConfirmationRequest request,
+    CancellationToken cancellationToken);
+
+public sealed record ContentConfirmationResult(ContentConfirmationChoice Choice, string? SelectedFilename = null);
+
+public delegate Task<ContentConfirmationResult> ContentConfirmationSelectionCallback(
     ContentConfirmationRequest request,
     CancellationToken cancellationToken);
 
@@ -144,6 +156,7 @@ public sealed class InstanceContentController
     private readonly ModrinthClient _modrinth;
     private readonly FabricClient _fabric;
     private readonly ContentConfirmationCallback? _confirm;
+    private readonly ContentConfirmationSelectionCallback? _confirmSelection;
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _operationGates = new();
     private readonly SemaphoreSlim _confirmationGate = new(1, 1);
     private readonly object _sync = new();
@@ -151,13 +164,15 @@ public sealed class InstanceContentController
     private readonly Dictionary<InstanceContentStateKey, long> _revisions = [];
 
     public InstanceContentController(InstanceStore store, InstanceContent content, ModrinthClient modrinth,
-        FabricClient fabric, ContentConfirmationCallback? confirm = null)
+        FabricClient fabric, ContentConfirmationCallback? confirm = null,
+        ContentConfirmationSelectionCallback? confirmSelection = null)
     {
         _store = store;
         _content = content;
         _modrinth = modrinth;
         _fabric = fabric;
         _confirm = confirm;
+        _confirmSelection = confirmSelection;
     }
 
     public event EventHandler<InstanceContentStateChangedEventArgs>? StateChanged;
@@ -165,14 +180,23 @@ public sealed class InstanceContentController
     public InstanceContentState GetState(Guid instanceId, ModrinthContentKind kind)
     {
         ValidateKind(kind);
-        var key = new InstanceContentStateKey(instanceId, kind);
+        return GetState(instanceId, InstanceContentTarget.ForKind(kind));
+    }
+
+    public InstanceContentState GetState(Guid instanceId, InstanceContentTarget target)
+    {
+        ValidateTarget(target);
+        var key = Key(instanceId, target);
         lock (_sync) return Snapshot(_states.GetValueOrDefault(key) ?? new InstanceContentState());
     }
 
-    public async Task ReloadAsync(Guid instanceId, ModrinthContentKind kind, CancellationToken cancellationToken = default)
+    public Task ReloadAsync(Guid instanceId, ModrinthContentKind kind, CancellationToken cancellationToken = default) =>
+        ReloadAsync(instanceId, InstanceContentTarget.ForKind(kind), cancellationToken);
+
+    public async Task ReloadAsync(Guid instanceId, InstanceContentTarget target, CancellationToken cancellationToken = default)
     {
-        ValidateKind(kind);
-        var key = new InstanceContentStateKey(instanceId, kind);
+        ValidateTarget(target);
+        var key = Key(instanceId, target);
         var initial = TryBeginRead(key, checkingUpdates: false);
         if (initial is null) return;
         var revision = initial.Revision;
@@ -181,9 +205,10 @@ public sealed class InstanceContentController
         {
             var instance = FindInstance(instanceId);
             var root = _store.GetInstanceDirectory(instanceId);
-            var (items, registryFailure) = await ListWithRegistryFallbackAsync(instance, kind, cancellationToken).ConfigureAwait(false);
+            ValidateTargetSnapshot(instance, root, target);
+            var (items, registryFailure) = await ListWithRegistryFallbackAsync(instance, target, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsCurrent(key, revision, instance, root)) return;
+            if (!IsCurrent(key, revision, instance, root, target)) return;
             ChangeState(key, revision, state => state with
             {
                 Items = items,
@@ -209,19 +234,33 @@ public sealed class InstanceContentController
         Guid instanceId, ModrinthContentKind kind, CancellationToken cancellationToken = default)
     {
         ValidateKind(kind);
-        var readRevision = GetState(instanceId, kind).Revision;
+        return await InstalledProjectsAsync(instanceId, InstanceContentTarget.ForKind(kind), cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<InstanceContentItem>>> InstalledProjectsAsync(
+        Guid instanceId, InstanceContentTarget target, CancellationToken cancellationToken = default)
+    {
+        ValidateTarget(target);
+        var readRevision = GetState(instanceId, target).Revision;
         var instance = FindInstance(instanceId);
-        var (items, registryFailure) = await ListWithRegistryFallbackAsync(instance, kind, cancellationToken).ConfigureAwait(false);
+        var root = _store.GetInstanceDirectory(instanceId);
+        ValidateTargetSnapshot(instance, root, target);
+        var (items, registryFailure) = await ListWithRegistryFallbackAsync(instance, target, cancellationToken).ConfigureAwait(false);
         if (registryFailure is not null)
-            SetReadError(instanceId, kind, readRevision, registryFailure);
+            SetReadError(instanceId, target, readRevision, registryFailure);
         return await GroupInstalledProjectsAsync(items, cancellationToken).ConfigureAwait(false);
     }
 
     public Task<ContentActionResult> ImportLocalAsync(Guid instanceId, ModrinthContentKind kind, string sourcePath,
-        CancellationToken cancellationToken = default) => RunMutationAsync(instanceId, kind, InstanceContentOperation.Import,
+        CancellationToken cancellationToken = default) =>
+        ImportLocalAsync(instanceId, InstanceContentTarget.ForKind(kind), sourcePath, cancellationToken);
+
+    public Task<ContentActionResult> ImportLocalAsync(Guid instanceId, InstanceContentTarget target, string sourcePath,
+        CancellationToken cancellationToken = default) => RunMutationAsync(instanceId, target, InstanceContentOperation.Import,
         async (operation, root, instance, token) =>
         {
-            var items = await _content.ListUnderLeaseAsync(root, instance, kind, includeDisabled: true, token).ConfigureAwait(false);
+            var kind = target.Kind;
+            var items = await _content.ListUnderLeaseAsync(root, instance, target, includeDisabled: true, token).ConfigureAwait(false);
             var incoming = Path.GetFileName(Path.GetFullPath(sourcePath));
             var collision = items.FirstOrDefault(item => LogicalName(kind, item).Equals(incoming, StringComparison.OrdinalIgnoreCase));
             var replace = false;
@@ -229,38 +268,43 @@ public sealed class InstanceContentController
             {
                 var choice = await ConfirmAsync(new ContentConfirmationRequest(ContentConfirmationCode.ReplaceExisting,
                     Args(("filename", incoming), ("instanceName", instance.Name)), true, false, true,
-                    [new ContentConfirmationProject(incoming, incoming, null)]), token).ConfigureAwait(false);
+                    [new ContentConfirmationProject(incoming, incoming, null)], Target: target), token).ConfigureAwait(false);
                 if (choice != ContentConfirmationChoice.Primary)
                     return new ContentActionResult(false, choice == ContentConfirmationChoice.Cancel ? null : Failure(ContentFailureCode.ConfirmationDeclined));
                 replace = true;
             }
 
-            ValidatePathSnapshot(instance, root);
-            operation.Touch(kind);
-            await _content.ImportUnderLeaseAsync(root, instance, kind, sourcePath, replace, origin: null, token).ConfigureAwait(false);
+            ValidateTargetSnapshot(instance, root, target);
+            operation.Touch(target);
+            await _content.ImportUnderLeaseAsync(root, instance, target, sourcePath, replace, origin: null, token).ConfigureAwait(false);
             return new ContentActionResult(true);
         }, cancellationToken);
 
     public Task<ContentActionResult> SetEnabledAsync(Guid instanceId, ModrinthContentKind kind,
         InstanceContentItem item, bool enabled, CancellationToken cancellationToken = default) =>
-        RunMutationAsync(instanceId, kind, InstanceContentOperation.Enable, async (operation, root, instance, token) =>
+        SetEnabledAsync(instanceId, InstanceContentTarget.ForKind(kind), item, enabled, cancellationToken);
+
+    public Task<ContentActionResult> SetEnabledAsync(Guid instanceId, InstanceContentTarget target,
+        InstanceContentItem item, bool enabled, CancellationToken cancellationToken = default) =>
+        RunMutationAsync(instanceId, target, InstanceContentOperation.Enable, async (operation, root, instance, token) =>
         {
-            var items = await _content.ListUnderLeaseAsync(root, instance, kind, includeDisabled: true, token).ConfigureAwait(false);
+            var items = await _content.ListUnderLeaseAsync(root, instance, target, includeDisabled: true, token).ConfigureAwait(false);
             var current = items.FirstOrDefault(candidate => PathEquals(candidate.Path, item.Path));
             if (current is null) throw ControllerException.With(ContentFailureCode.StaleContent);
-            ValidatePathSnapshot(instance, root);
-            operation.Touch(kind);
-            await Task.Run(() => _content.SetEnabledUnderLease(root, instance, current, kind, enabled), token).ConfigureAwait(false);
+            ValidateTargetSnapshot(instance, root, target);
+            operation.Touch(target);
+            await Task.Run(() => _content.SetEnabledUnderLease(root, instance, current, target, enabled), token).ConfigureAwait(false);
             return new ContentActionResult(true);
         }, cancellationToken);
 
     public Task<ContentActionResult> DeleteAsync(Guid instanceId, ModrinthContentKind kind,
         InstanceContentItem item, CancellationToken cancellationToken = default) =>
-        RunMutationAsync(instanceId, kind, InstanceContentOperation.Delete, async (operation, root, instance, token) =>
+        RunMutationAsync(instanceId, InstanceContentTarget.ForKind(kind), InstanceContentOperation.Delete, async (operation, root, instance, token) =>
         {
             var choice = await ConfirmAsync(new ContentConfirmationRequest(ContentConfirmationCode.DeleteContent,
                 Args(("filename", item.Name), ("instanceName", instance.Name)), true, false, true,
-                [new ContentConfirmationProject(item.Name, item.Name, item.Origin?.IconURL)]), token).ConfigureAwait(false);
+                [new ContentConfirmationProject(item.Name, item.Name, item.Origin?.IconURL)],
+                Target: InstanceContentTarget.ForKind(kind)), token).ConfigureAwait(false);
             if (choice != ContentConfirmationChoice.Primary) return new ContentActionResult(false);
             var items = await _content.ListUnderLeaseAsync(root, instance, kind, includeDisabled: true, token).ConfigureAwait(false);
             var current = items.FirstOrDefault(candidate => PathEquals(candidate.Path, item.Path));
@@ -275,31 +319,45 @@ public sealed class InstanceContentController
 
     public Task<ContentActionResult> InstallAsync(Guid instanceId, ModrinthContentKind kind,
         ModrinthProject project, string channel = "release", CancellationToken cancellationToken = default) =>
-        RunMutationAsync(instanceId, kind, InstanceContentOperation.Install,
-            (operation, root, instance, token) => InstallUnderLeaseAsync(operation, root, instance, kind, project,
+        InstallAsync(instanceId, InstanceContentTarget.ForKind(kind), project, channel, cancellationToken);
+
+    public Task<ContentActionResult> InstallAsync(Guid instanceId, InstanceContentTarget target,
+        ModrinthProject project, string channel = "release", CancellationToken cancellationToken = default) =>
+        RunMutationAsync(instanceId, target, InstanceContentOperation.Install,
+            (operation, root, instance, token) => InstallUnderLeaseAsync(operation, root, instance, target, project,
                 channel, requestedVersion: null, requestedFile: null, replacing: null, interactive: true, token),
             cancellationToken, project.Id);
 
     public Task CheckUpdatesAsync(Guid instanceId, ModrinthContentKind kind, CancellationToken cancellationToken = default) =>
-        CheckUpdatesCoreAsync(instanceId, kind, cancellationToken);
+        CheckUpdatesAsync(instanceId, InstanceContentTarget.ForKind(kind), cancellationToken);
+
+    public Task CheckUpdatesAsync(Guid instanceId, InstanceContentTarget target, CancellationToken cancellationToken = default) =>
+        CheckUpdatesCoreAsync(instanceId, target, cancellationToken);
 
     public Task<ContentActionResult> UpdateAsync(Guid instanceId, ModrinthContentKind kind,
         InstanceContentItem item, CancellationToken cancellationToken = default)
     {
         ValidateKind(kind);
-        var update = GetState(instanceId, kind).Updates.GetValueOrDefault(item.LogicalName);
+        return UpdateAsync(instanceId, InstanceContentTarget.ForKind(kind), item, cancellationToken);
+    }
+
+    public Task<ContentActionResult> UpdateAsync(Guid instanceId, InstanceContentTarget target,
+        InstanceContentItem item, CancellationToken cancellationToken = default)
+    {
+        ValidateTarget(target);
+        var update = GetState(instanceId, target).Updates.GetValueOrDefault(item.LogicalName);
         if (update is null || !PathEquals(update.Item.Path, item.Path))
             return Task.FromResult(new ContentActionResult(false, Failure(ContentFailureCode.StaleContent)));
-        return RunMutationAsync(instanceId, kind, InstanceContentOperation.Update, async (operation, root, instance, token) =>
+        return RunMutationAsync(instanceId, target, InstanceContentOperation.Update, async (operation, root, instance, token) =>
         {
-            operation.Touch(kind);
+            operation.Touch(target);
             operation.SetCurrentProject(update.Project.Id);
             if (update.Api is not null)
             {
                 return await ApplyApiUpdateUnderLeaseAsync(root, instance, update, interactive: true, token).ConfigureAwait(false);
             }
 
-            return await InstallUnderLeaseAsync(operation, root, instance, kind, update.Project, channel: null,
+            return await InstallUnderLeaseAsync(operation, root, instance, target, update.Project, channel: null,
                 update.Version, update.File, (update.Item, update.CurrentSha512), interactive: true, token,
                 requestedVersionKind: update.VersionKind).ConfigureAwait(false);
         }, cancellationToken, update.Project.Id);
@@ -309,23 +367,30 @@ public sealed class InstanceContentController
         CancellationToken cancellationToken = default)
     {
         ValidateKind(kind);
-        var updates = GetState(instanceId, kind).Updates.Values
+        return UpdateAllAsync(instanceId, InstanceContentTarget.ForKind(kind), cancellationToken);
+    }
+
+    public Task<ContentBulkUpdateResult> UpdateAllAsync(Guid instanceId, InstanceContentTarget target,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateTarget(target);
+        var updates = GetState(instanceId, target).Updates.Values
             .OrderBy(update => update.Api is null ? 1 : 0)
             .ThenBy(update => update.Item.LogicalName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (updates.Length == 0) return Task.FromResult(new ContentBulkUpdateResult([]));
 
-        return RunBulkUpdateAsync(instanceId, kind, updates, cancellationToken);
+        return RunBulkUpdateAsync(instanceId, target, updates, cancellationToken);
     }
 
-    private async Task<ContentBulkUpdateResult> RunBulkUpdateAsync(Guid instanceId, ModrinthContentKind kind,
+    private async Task<ContentBulkUpdateResult> RunBulkUpdateAsync(Guid instanceId, InstanceContentTarget target,
         IReadOnlyList<InstanceContentUpdate> updates, CancellationToken cancellationToken)
     {
         var results = new List<ContentUpdateItemResult>(updates.Count);
-        var outcome = await RunMutationAsync(instanceId, kind, InstanceContentOperation.UpdateAll,
+        var outcome = await RunMutationAsync(instanceId, target, InstanceContentOperation.UpdateAll,
             async (operation, root, instance, token) =>
             {
-                operation.Touch(kind);
+                operation.Touch(target);
                 foreach (var update in updates.OrderBy(item => item.Api is null ? 1 : 0)
                              .ThenBy(item => item.Item.LogicalName, StringComparer.OrdinalIgnoreCase))
                 {
@@ -337,7 +402,7 @@ public sealed class InstanceContentController
                             await ApplyApiUpdateUnderLeaseAsync(root, instance, update, interactive: false, token).ConfigureAwait(false);
                         else
                         {
-                            var result = await InstallUnderLeaseAsync(operation, root, instance, kind, update.Project,
+                            var result = await InstallUnderLeaseAsync(operation, root, instance, target, update.Project,
                                 channel: null, update.Version, update.File, (update.Item, update.CurrentSha512),
                                 interactive: false, token, requestedVersionKind: update.VersionKind).ConfigureAwait(false);
                             if (!result.Succeeded)
@@ -364,26 +429,27 @@ public sealed class InstanceContentController
         return new ContentBulkUpdateResult(results);
     }
 
-    private async Task<ContentActionResult> RunMutationAsync(Guid instanceId, ModrinthContentKind kind,
+    private async Task<ContentActionResult> RunMutationAsync(Guid instanceId, InstanceContentTarget target,
         InstanceContentOperation operationKind,
         Func<OperationContext, string, GameInstance, CancellationToken, Task<ContentActionResult>> action,
         CancellationToken cancellationToken, string? initialProjectId = null)
     {
-        ValidateKind(kind);
+        ValidateTarget(target);
         var gate = _operationGates.GetOrAdd(instanceId, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         var operation = new OperationContext(this, instanceId, operationKind, cancellationToken);
-        var key = new InstanceContentStateKey(instanceId, kind);
+        var key = Key(instanceId, target);
         try
         {
-            operation.Touch(kind);
+            operation.Touch(target);
             var instance = FindInstance(instanceId);
-            if (kind == ModrinthContentKind.Mod && instance.ModLoader != InstanceModLoader.Fabric)
+            if (target.Kind == ModrinthContentKind.Mod && instance.ModLoader != InstanceModLoader.Fabric)
                 throw ControllerException.With(ContentFailureCode.ModRequiresFabric);
-            if (kind == ModrinthContentKind.Mod
+            if (target.Kind == ModrinthContentKind.Mod
                 && instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing)
                 throw ControllerException.With(ContentFailureCode.BuildInstalling);
             var root = _store.GetInstanceDirectory(instanceId);
+            ValidateTargetSnapshot(instance, root, target);
             operation.SetSnapshot(instance, root);
             operation.SetCurrentProject(initialProjectId);
             try
@@ -391,7 +457,7 @@ public sealed class InstanceContentController
                 var result = await _content.WithContentLeaseAsync(instanceId, async (leasedRoot, leasedInstance, token) =>
                 {
                     operation.CallbackEntered = true;
-                    ValidatePathSnapshot(leasedInstance, leasedRoot);
+                    ValidateTargetSnapshot(leasedInstance, leasedRoot, target);
                     operation.SetSnapshot(leasedInstance, leasedRoot);
                     try
                     {
@@ -444,11 +510,12 @@ public sealed class InstanceContentController
     }
 
     private async Task<ContentActionResult> InstallUnderLeaseAsync(OperationContext operation, string root,
-        GameInstance instance, ModrinthContentKind targetKind, ModrinthProject project, string? channel,
+        GameInstance instance, InstanceContentTarget target, ModrinthProject project, string? channel,
         ModrinthVersion? requestedVersion, ModrinthFile? requestedFile,
         (InstanceContentItem Item, string Sha512)? replacing, bool interactive, CancellationToken cancellationToken,
         ModrinthContentKind? requestedVersionKind = null)
     {
+        var targetKind = target.Kind;
         if (targetKind == ModrinthContentKind.Mod && instance.ModLoader != InstanceModLoader.Fabric)
             throw ControllerException.With(ContentFailureCode.ModRequiresFabric);
         if (channel is not null && channel is not ("release" or "beta" or "alpha"))
@@ -465,15 +532,15 @@ public sealed class InstanceContentController
             throw ControllerException.With(ContentFailureCode.NoCompatibleVersion,
                 ("projectId", project.Id), ("channel", channel ?? "latest"));
 
-        var plan = await BuildDependencyPlanAsync(root, instance, project, version, cancellationToken).ConfigureAwait(false);
-        foreach (var dependency in plan.Downloads) operation.Touch(dependency.Kind);
-        foreach (var enable in plan.Enable) operation.Touch(enable.Kind);
+        var plan = await BuildDependencyPlanAsync(root, instance, target, project, version, cancellationToken).ConfigureAwait(false);
+        foreach (var dependency in plan.Downloads) operation.Touch(dependency.Target);
+        foreach (var enable in plan.Enable) operation.Touch(enable.Target);
         if (plan.Listed.Count > 0)
         {
             if (!interactive) throw ControllerException.With(ContentFailureCode.ConfirmationRequired, ("projectId", project.Id));
             var choice = await ConfirmAsync(new ContentConfirmationRequest(ContentConfirmationCode.Dependencies,
                 Args(("projectId", project.Id), ("projectTitle", project.Title), ("instanceName", instance.Name)),
-                plan.Downloads.Count > 0 || plan.Enable.Count > 0, true, false, plan.Listed), cancellationToken).ConfigureAwait(false);
+                plan.Downloads.Count > 0 || plan.Enable.Count > 0, true, false, plan.Listed, Target: target), cancellationToken).ConfigureAwait(false);
             if (choice == ContentConfirmationChoice.Cancel) return new ContentActionResult(false);
             if (choice == ContentConfirmationChoice.Alternative)
             {
@@ -486,12 +553,58 @@ public sealed class InstanceContentController
             }
         }
 
-        plan.Downloads.Add(new PlannedDownload(project, version, file, targetKind, IsRoot: true));
+        plan.Downloads.Add(new PlannedDownload(project, version, file, target, versionKind, IsRoot: true));
+        foreach (var datapack in plan.Downloads.Where(download => download.Target.Kind == ModrinthContentKind.Datapack).ToArray())
+        {
+            var options = datapack.Version.ResourcePacks;
+            if (options.Count == 0) continue;
+            if (!interactive)
+                throw ControllerException.With(ContentFailureCode.ConfirmationRequired, ("projectId", datapack.Project.Id));
+            var selection = await ConfirmSelectionAsync(new ContentConfirmationRequest(
+                ContentConfirmationCode.DatapackResourcePacks,
+                Args(("projectId", datapack.Project.Id), ("projectTitle", datapack.Project.Title),
+                    ("instanceName", instance.Name)),
+                true, true, false,
+                [new ContentConfirmationProject(datapack.Project.Id, datapack.Project.Title, datapack.Project.IconUrl)],
+                options.Select(option => new ContentConfirmationFile(option.Filename, option.FileType,
+                    option.FileType == "required-resource-pack")).ToArray(), datapack.Target), cancellationToken).ConfigureAwait(false);
+            if (selection.Choice == ContentConfirmationChoice.Cancel) return new ContentActionResult(false);
+            if (selection.Choice == ContentConfirmationChoice.Alternative) continue;
+            var selectedFilename = selection.SelectedFilename ?? options[0].Filename;
+            var selected = options.FirstOrDefault(option => string.Equals(option.Filename, selectedFilename,
+                StringComparison.Ordinal));
+            if (selected is null)
+                throw ControllerException.With(ContentFailureCode.ConfirmationDeclined, ("filename", selectedFilename));
+            var linkedPack = new PlannedDownload(datapack.Project, datapack.Version, selected,
+                InstanceContentTarget.Packs, ModrinthContentKind.Datapack, IsRoot: false);
+            var installedPacks = await _content.ListUnderLeaseAsync(root, instance, InstanceContentTarget.Packs,
+                includeDisabled: true, cancellationToken).ConfigureAwait(false);
+            InstanceContentItem? matchingPack = null;
+            foreach (var installedPack in installedPacks)
+            {
+                if (!await _content.MatchesSha512UnderLeaseAsync(root, instance, installedPack,
+                        InstanceContentTarget.Packs, selected.Sha512, cancellationToken).ConfigureAwait(false)) continue;
+                matchingPack = installedPack;
+                break;
+            }
+
+            if (matchingPack is null)
+            {
+                plan.Downloads.Add(linkedPack);
+            }
+            else
+            {
+                if (!matchingPack.Enabled) plan.Enable.Add(new PlannedEnable(matchingPack, InstanceContentTarget.Packs));
+            }
+        }
+
         var plannedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var download in plan.Downloads)
-            if (!plannedTargets.Add($"{download.Kind}:{download.File.Filename}"))
+            if (!plannedTargets.Add($"{download.Target.Kind}:{download.Target.WorldId}:{download.File.Filename}"))
                 throw ControllerException.With(ContentFailureCode.ContentOperationFailed,
                     ("filename", download.File.Filename));
+        foreach (var download in plan.Downloads) operation.Touch(download.Target);
+        foreach (var enable in plan.Enable) operation.Touch(enable.Target);
 
         var staging = Path.Combine(Path.GetTempPath(), "Hako-Modrinth-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
@@ -506,7 +619,9 @@ public sealed class InstanceContentController
                 operation.SetCurrentProject(download.Project.Id);
                 var path = Path.Combine(staging, Guid.NewGuid().ToString("N"), download.File.Filename);
                 await _modrinth.DownloadFileAsync(download.File, path, cancellationToken).ConfigureAwait(false);
-                if (download.Kind == ModrinthContentKind.Mod && configuration is not null)
+                if (download.Target.Kind == ModrinthContentKind.Datapack)
+                    InstanceContent.ValidateDatapackPackage(path, cancellationToken);
+                if (download.Target.Kind == ModrinthContentKind.Mod && configuration is not null)
                 {
                     foreach (var note in await CompatibilityNotesAsync(path, configuration.LoaderVersion,
                                  instance.JavaMajorVersion, cancellationToken).ConfigureAwait(false))
@@ -522,9 +637,9 @@ public sealed class InstanceContentController
             {
                 foreach (var conflictId in await IncompatibleProjectIdsAsync(download.Version, cancellationToken).ConfigureAwait(false))
                 {
-                    foreach (var kind in new[] { ModrinthContentKind.Mod, ModrinthContentKind.ResourcePack })
+                    foreach (var conflictTarget in ConflictTargets(target, instance))
                     {
-                        var installed = await InstalledProjectsUnderLeaseAsync(root, instance, kind, cancellationToken).ConfigureAwait(false);
+                        var installed = await InstalledProjectsUnderLeaseAsync(root, instance, conflictTarget, cancellationToken).ConfigureAwait(false);
                         if (!installed.TryGetValue(conflictId, out var files) || !files.Any(item => item.Enabled)) continue;
                         var conflict = (await _modrinth.GetProjectsAsync([conflictId], cancellationToken).ConfigureAwait(false))
                             .FirstOrDefault();
@@ -541,18 +656,18 @@ public sealed class InstanceContentController
                 if (!interactive) throw ControllerException.With(ContentFailureCode.ConfirmationRequired, ("projectId", project.Id));
                 var choice = await ConfirmAsync(new ContentConfirmationRequest(ContentConfirmationCode.IncompatibleContent,
                     Args(("projectId", project.Id), ("projectTitle", project.Title), ("instanceName", instance.Name)),
-                    true, false, true, warnings.Values.ToArray()), cancellationToken).ConfigureAwait(false);
+                    true, false, true, warnings.Values.ToArray(), Target: target), cancellationToken).ConfigureAwait(false);
                 if (choice != ContentConfirmationChoice.Primary) return new ContentActionResult(false);
             }
 
             if (replacing is { } expected)
-                await _content.ValidateExpectedHashUnderLeaseAsync(root, instance, expected.Item, targetKind,
+                await _content.ValidateExpectedHashUnderLeaseAsync(root, instance, expected.Item, target,
                     expected.Sha512, cancellationToken).ConfigureAwait(false);
 
             var collisionPlan = new List<(PlannedDownload Download, string Path, InstanceContentItem? Collision)>();
             foreach (var entry in staged)
             {
-                var collision = await PlanCollisionUnderLeaseAsync(root, instance, entry.Download.Kind,
+                var collision = await PlanCollisionUnderLeaseAsync(root, instance, entry.Download.Target,
                     entry.Download.File.Filename, entry.Download.Project,
                     entry.Download.IsRoot ? replacing?.Item : null, interactive, cancellationToken).ConfigureAwait(false);
                 if (!collision.Proceed) return new ContentActionResult(false, collision.Failure);
@@ -560,33 +675,34 @@ public sealed class InstanceContentController
                 collisionPlan.Add((entry.Download, entry.Path, collision.Item));
             }
 
-            ValidatePathSnapshot(instance, root);
+            ValidateTargetSnapshot(instance, root, target);
             foreach (var (download, path, collision) in collisionPlan)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 ValidateStagedFile(staging, path);
-                operation.Touch(download.Kind);
+                ValidateTargetSnapshot(instance, root, download.Target);
+                operation.Touch(download.Target);
                 var origin = OriginFor(download);
                 if (download.IsRoot && replacing is { } replacement)
                 {
-                    await _content.ReplaceUnderLeaseAsync(root, instance, replacement.Item, download.Kind, path,
+                    await _content.ReplaceUnderLeaseAsync(root, instance, replacement.Item, download.Target, path,
                         download.File.Filename, replacement.Sha512, origin, cancellationToken, collision).ConfigureAwait(false);
                 }
                 else
                 {
-                    await _content.ImportUnderLeaseAsync(root, instance, download.Kind, path,
+                    await _content.ImportUnderLeaseAsync(root, instance, download.Target, path,
                         replace: collision is not null, origin, cancellationToken).ConfigureAwait(false);
                 }
             }
 
             foreach (var enable in plan.Enable)
             {
-                var kind = enable.Kind;
-                var currentItems = await _content.ListUnderLeaseAsync(root, instance, kind, true, cancellationToken).ConfigureAwait(false);
+                var currentItems = await _content.ListUnderLeaseAsync(root, instance, enable.Target, true, cancellationToken).ConfigureAwait(false);
                 var current = currentItems.FirstOrDefault(item => PathEquals(item.Path, enable.Item.Path));
                 if (current is null) throw ControllerException.With(ContentFailureCode.StaleContent);
-                operation.Touch(kind);
-                await Task.Run(() => _content.SetEnabledUnderLease(root, instance, current, kind, true), cancellationToken)
+                ValidateTargetSnapshot(instance, root, enable.Target);
+                operation.Touch(enable.Target);
+                await Task.Run(() => _content.SetEnabledUnderLease(root, instance, current, enable.Target, true), cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -599,11 +715,11 @@ public sealed class InstanceContentController
     }
 
     private async Task<DependencyPlan> BuildDependencyPlanAsync(string root, GameInstance instance,
-        ModrinthProject rootProject, ModrinthVersion rootVersion,
+        InstanceContentTarget rootTarget, ModrinthProject rootProject, ModrinthVersion rootVersion,
         CancellationToken cancellationToken)
     {
         var plan = new DependencyPlan();
-        var installed = new Dictionary<ModrinthContentKind, IReadOnlyDictionary<string, IReadOnlyList<InstanceContentItem>>>();
+        var installed = new Dictionary<InstanceContentTarget, IReadOnlyDictionary<string, IReadOnlyList<InstanceContentItem>>>();
         var pending = new Queue<(ModrinthProject Project, ModrinthVersion Version)>();
         var seen = new HashSet<string>(StringComparer.Ordinal) { rootProject.Id };
         pending.Enqueue((rootProject, rootVersion));
@@ -644,19 +760,16 @@ public sealed class InstanceContentController
                     continue;
                 }
 
-                var dependencyKind = dependency.ProjectType switch
+                var dependencyResolution = await ResolveDependencyTargetAsync(dependency, rootTarget, instance,
+                    cancellationToken).ConfigureAwait(false);
+                if (dependencyResolution.Target is null)
                 {
-                    "mod" => ModrinthContentKind.Mod,
-                    "resourcepack" => ModrinthContentKind.ResourcePack,
-                    _ => (ModrinthContentKind?)null
-                };
-                if (dependencyKind is null)
-                {
-                    plan.Listed.Add(ProjectNote(dependency, ContentConfirmationNoteCode.Unsupported));
+                    plan.Listed.Add(ProjectNote(dependency, dependencyResolution.NoteCode ?? ContentConfirmationNoteCode.Unsupported));
                     continue;
                 }
 
-                if (dependencyKind == ModrinthContentKind.Mod
+                var dependencyTarget = dependencyResolution.Target;
+                if (dependencyTarget.Kind == ModrinthContentKind.Mod
                     && (instance.ModLoader != InstanceModLoader.Fabric
                         || instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing))
                 {
@@ -664,12 +777,11 @@ public sealed class InstanceContentController
                     continue;
                 }
 
-                var kind = dependencyKind.Value;
-                if (!installed.TryGetValue(kind, out var installedProjects))
+                if (!installed.TryGetValue(dependencyTarget, out var installedProjects))
                 {
-                    installedProjects = await InstalledProjectsUnderLeaseAsync(root, instance, kind, cancellationToken)
-                        .ConfigureAwait(false);
-                    installed[kind] = installedProjects;
+                    installedProjects = await InstalledProjectsUnderLeaseAsync(root, instance, dependencyTarget,
+                        cancellationToken).ConfigureAwait(false);
+                    installed[dependencyTarget] = installedProjects;
                 }
                 if (installedProjects.TryGetValue(dependency.Id, out var existing))
                 {
@@ -677,28 +789,74 @@ public sealed class InstanceContentController
                     var disabled = existing.FirstOrDefault();
                     if (disabled is not null)
                     {
-                        plan.Enable.Add(new PlannedEnable(disabled, kind));
+                        plan.Enable.Add(new PlannedEnable(disabled, dependencyTarget));
                         plan.Listed.Add(ProjectNote(dependency, ContentConfirmationNoteCode.DisabledWillBeEnabled));
                         continue;
                     }
                 }
 
-                var next = await _modrinth.GetLatestVersionAsync(dependency.Id, kind, instance.VersionID,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-                var file = next?.InstallableFile(kind);
+                var next = dependencyResolution.Version;
+                var file = dependencyResolution.File;
                 if (next is null || file is null)
                 {
                     plan.Listed.Add(ProjectNote(dependency, ContentConfirmationNoteCode.NoCompatibleVersion));
                     continue;
                 }
 
-                plan.Downloads.Add(new PlannedDownload(dependency, next, file, kind, IsRoot: false));
+                plan.Downloads.Add(new PlannedDownload(dependency, next, file, dependencyTarget,
+                    dependencyTarget.Kind, IsRoot: false));
                 plan.Listed.Add(ProjectNote(dependency, null));
                 pending.Enqueue((dependency, next));
             }
         }
 
         return plan;
+    }
+
+    private async Task<DependencyTargetResolution> ResolveDependencyTargetAsync(ModrinthProject project,
+        InstanceContentTarget rootTarget, GameInstance instance, CancellationToken cancellationToken)
+    {
+        var hasDatapackType = project.ProjectType == "datapack"
+            || project.AllProjectTypes.Contains("datapack", StringComparer.Ordinal);
+        if (rootTarget.WorldId is not null && (hasDatapackType || project.ProjectType == "mod"))
+        {
+            var datapackVersion = await _modrinth.GetLatestVersionAsync(project.Id, ModrinthContentKind.Datapack,
+                instance.VersionID, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var datapackFile = datapackVersion?.InstallableFile(ModrinthContentKind.Datapack);
+            if (datapackVersion is not null && datapackFile is not null)
+                return new DependencyTargetResolution(InstanceContentTarget.WorldDatapacks(rootTarget.WorldId),
+                    datapackVersion, datapackFile, null);
+        }
+
+        var kind = project.ProjectType switch
+        {
+            "datapack" => (ModrinthContentKind?)ModrinthContentKind.Datapack,
+            "mod" => ModrinthContentKind.Mod,
+            "resourcepack" => ModrinthContentKind.ResourcePack,
+            _ => null
+        };
+        if (kind is null) return new DependencyTargetResolution(null, null, null, ContentConfirmationNoteCode.Unsupported);
+        if (kind == ModrinthContentKind.Datapack && rootTarget.WorldId is null)
+            return new DependencyTargetResolution(null, null, null, ContentConfirmationNoteCode.Unsupported);
+        if (kind == ModrinthContentKind.Mod
+            && (instance.ModLoader != InstanceModLoader.Fabric
+                || instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing))
+            return new DependencyTargetResolution(null, null, null, ContentConfirmationNoteCode.RequiresFabric);
+
+        var target = kind switch
+        {
+            ModrinthContentKind.Mod => InstanceContentTarget.Mods,
+            ModrinthContentKind.ResourcePack => InstanceContentTarget.Packs,
+            ModrinthContentKind.Datapack => InstanceContentTarget.WorldDatapacks(rootTarget.WorldId!),
+            _ => null
+        };
+        if (target is null) return new DependencyTargetResolution(null, null, null, ContentConfirmationNoteCode.Unsupported);
+        var version = await _modrinth.GetLatestVersionAsync(project.Id, kind.Value, instance.VersionID,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        var file = version?.InstallableFile(kind.Value);
+        return version is null || file is null
+            ? new DependencyTargetResolution(target, null, null, ContentConfirmationNoteCode.NoCompatibleVersion)
+            : new DependencyTargetResolution(target, version, file, null);
     }
 
     private async Task<IReadOnlyList<ResolvedDependency>> ResolveDependencyProjectsAsync(
@@ -731,9 +889,9 @@ public sealed class InstanceContentController
     }
 
     private async Task<IReadOnlyDictionary<string, IReadOnlyList<InstanceContentItem>>> InstalledProjectsUnderLeaseAsync(
-        string root, GameInstance instance, ModrinthContentKind kind, CancellationToken cancellationToken)
+        string root, GameInstance instance, InstanceContentTarget target, CancellationToken cancellationToken)
     {
-        var items = await _content.ListUnderLeaseAsync(root, instance, kind, includeDisabled: true, cancellationToken)
+        var items = await _content.ListUnderLeaseAsync(root, instance, target, includeDisabled: true, cancellationToken)
             .ConfigureAwait(false);
         return await GroupInstalledProjectsAsync(items, cancellationToken).ConfigureAwait(false);
     }
@@ -767,10 +925,11 @@ public sealed class InstanceContentController
         }
     }
 
-    private async Task CheckUpdatesCoreAsync(Guid instanceId, ModrinthContentKind kind, CancellationToken cancellationToken)
+    private async Task CheckUpdatesCoreAsync(Guid instanceId, InstanceContentTarget target, CancellationToken cancellationToken)
     {
-        ValidateKind(kind);
-        var key = new InstanceContentStateKey(instanceId, kind);
+        ValidateTarget(target);
+        var kind = target.Kind;
+        var key = Key(instanceId, target);
         var initial = TryBeginRead(key, checkingUpdates: true);
         if (initial is null) return;
         var revision = initial.Revision;
@@ -781,6 +940,7 @@ public sealed class InstanceContentController
         {
             instance = FindInstance(instanceId);
             root = _store.GetInstanceDirectory(instanceId);
+            ValidateTargetSnapshot(instance, root, target);
         }
         catch (Exception exception)
         {
@@ -813,7 +973,7 @@ public sealed class InstanceContentController
 
         try
         {
-            var (items, registryFailure) = await ListWithRegistryFallbackAsync(instance, kind, cancellationToken).ConfigureAwait(false);
+            var (items, registryFailure) = await ListWithRegistryFallbackAsync(instance, target, cancellationToken).ConfigureAwait(false);
             var available = new Dictionary<string, InstanceContentUpdate>(StringComparer.OrdinalIgnoreCase);
             ContentFailure? updateMessage = registryFailure;
 
@@ -934,17 +1094,17 @@ public sealed class InstanceContentController
                         {
                             await _content.WithContentLeaseAsync(instanceId, async (leasedRoot, leasedInstance, token) =>
                             {
-                                ValidatePathSnapshot(leasedInstance, leasedRoot);
+                                ValidateTargetSnapshot(leasedInstance, leasedRoot, target);
                                 foreach (var origin in origins)
                                 {
                                     token.ThrowIfCancellationRequested();
                                     await _content.RecordOriginUnderLeaseAsync(leasedRoot, leasedInstance, origin.Item,
-                                        kind, origin.Hash, origin.Origin, token).ConfigureAwait(false);
+                                        target, origin.Hash, origin.Origin, token).ConfigureAwait(false);
                                 }
 
                                 return true;
                             }, cancellationToken).ConfigureAwait(false);
-                            items = await _content.ListAsync(instanceId, kind, cancellationToken: cancellationToken).ConfigureAwait(false);
+                            items = await _content.ListAsync(instanceId, target, cancellationToken: cancellationToken).ConfigureAwait(false);
                             foreach (var name in available.Keys.ToArray())
                             {
                                 var updatedItem = items.FirstOrDefault(item => item.LogicalName.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -966,7 +1126,7 @@ public sealed class InstanceContentController
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsCurrent(key, revision, instance, root)) return;
+            if (!IsCurrent(key, revision, instance, root, target)) return;
             ChangeState(key, revision, state => state with
             {
                 Items = items,
@@ -990,17 +1150,18 @@ public sealed class InstanceContentController
     }
 
     private async Task<(bool Proceed, InstanceContentItem? Item, ContentFailure? Failure)> PlanCollisionUnderLeaseAsync(
-        string root, GameInstance instance, ModrinthContentKind kind, string filename, ModrinthProject project,
+        string root, GameInstance instance, InstanceContentTarget target, string filename, ModrinthProject project,
         InstanceContentItem? replacing, bool interactive, CancellationToken cancellationToken)
     {
-        var items = await _content.ListUnderLeaseAsync(root, instance, kind, true, cancellationToken).ConfigureAwait(false);
+        var kind = target.Kind;
+        var items = await _content.ListUnderLeaseAsync(root, instance, target, true, cancellationToken).ConfigureAwait(false);
         var collision = items.FirstOrDefault(item => LogicalName(kind, item).Equals(filename, StringComparison.OrdinalIgnoreCase));
         if (collision is null || (replacing is not null && PathEquals(collision.Path, replacing.Path)))
             return (true, null, null);
         if (!interactive) throw ControllerException.With(ContentFailureCode.ConfirmationRequired, ("filename", filename));
         var choice = await ConfirmAsync(new ContentConfirmationRequest(ContentConfirmationCode.ReplaceExisting,
             Args(("filename", filename), ("instanceName", instance.Name)), true, false, true,
-            [new ContentConfirmationProject(project.Id, project.Title, project.IconUrl)]), cancellationToken).ConfigureAwait(false);
+            [new ContentConfirmationProject(project.Id, project.Title, project.IconUrl)], Target: target), cancellationToken).ConfigureAwait(false);
         return choice == ContentConfirmationChoice.Primary
             ? (true, collision, null)
             : (false, null, choice == ContentConfirmationChoice.Cancel ? null
@@ -1035,7 +1196,7 @@ public sealed class InstanceContentController
 
             await _content.ValidateExpectedHashUnderLeaseAsync(root, instance, update.Item, ModrinthContentKind.Mod,
                 update.CurrentSha512, cancellationToken).ConfigureAwait(false);
-            var collision = await PlanCollisionUnderLeaseAsync(root, instance, ModrinthContentKind.Mod,
+            var collision = await PlanCollisionUnderLeaseAsync(root, instance, InstanceContentTarget.Mods,
                 api.Filename, update.Project, update.Item, interactive, cancellationToken).ConfigureAwait(false);
             if (!collision.Proceed) return new ContentActionResult(false, collision.Failure);
             ValidatePathSnapshot(instance, root);
@@ -1050,15 +1211,15 @@ public sealed class InstanceContentController
     }
 
     private async Task<(IReadOnlyList<InstanceContentItem> Items, ContentFailure? Failure)> ListWithRegistryFallbackAsync(
-        GameInstance instance, ModrinthContentKind kind, CancellationToken cancellationToken)
+        GameInstance instance, InstanceContentTarget target, CancellationToken cancellationToken)
     {
         try
         {
-            return (await _content.ListAsync(instance.Id, kind, cancellationToken: cancellationToken).ConfigureAwait(false), null);
+            return (await _content.ListAsync(instance.Id, target, cancellationToken: cancellationToken).ConfigureAwait(false), null);
         }
         catch (Exception exception) when (IsRegistryCorruption(exception))
         {
-            var items = await _content.ListAsync(instance.Id, kind, includeDisabled: true, readOrigins: false, cancellationToken)
+            var items = await _content.ListAsync(instance.Id, target, includeDisabled: true, readOrigins: false, cancellationToken)
                 .ConfigureAwait(false);
             return (items, Failure(ContentFailureCode.RegistryCorrupt));
         }
@@ -1066,13 +1227,13 @@ public sealed class InstanceContentController
 
     private async Task RefreshTouchedUnderLeaseAsync(OperationContext operation)
     {
-        foreach (var kind in operation.TouchedKinds)
+        foreach (var target in operation.TouchedTargets)
         {
-            var key = new InstanceContentStateKey(operation.InstanceId, kind);
+            var key = Key(operation.InstanceId, target);
             try
             {
-                ValidatePathSnapshot(operation.Instance!, operation.Root!);
-                var (items, failure) = await ListWithRegistryFallbackAsync(operation.Root!, operation.Instance!, kind,
+                ValidateTargetSnapshot(operation.Instance!, operation.Root!, target);
+                var (items, failure) = await ListWithRegistryFallbackAsync(operation.Root!, operation.Instance!, target,
                     CancellationToken.None, underLease: true).ConfigureAwait(false);
                 ChangeState(key, operation.Revision(key), state => state with
                 {
@@ -1091,14 +1252,14 @@ public sealed class InstanceContentController
     private async Task RefreshTouchedOutsideLeaseAsync(OperationContext operation)
     {
         if (operation.Instance is null) return;
-        foreach (var kind in operation.TouchedKinds)
+        foreach (var target in operation.TouchedTargets)
         {
-            var key = new InstanceContentStateKey(operation.InstanceId, kind);
+            var key = Key(operation.InstanceId, target);
             try
             {
-                var (items, failure) = await ListWithRegistryFallbackAsync(operation.Instance, kind,
+                var (items, failure) = await ListWithRegistryFallbackAsync(operation.Instance, target,
                     CancellationToken.None).ConfigureAwait(false);
-                if (!IsCurrent(key, operation.Revision(key), operation.Instance, operation.Root!)) continue;
+                if (!IsCurrent(key, operation.Revision(key), operation.Instance, operation.Root!, target)) continue;
                 ChangeState(key, operation.Revision(key), state => state with
                 {
                     Items = items,
@@ -1114,21 +1275,21 @@ public sealed class InstanceContentController
     }
 
     private async Task<(IReadOnlyList<InstanceContentItem> Items, ContentFailure? Failure)> ListWithRegistryFallbackAsync(
-        string root, GameInstance instance, ModrinthContentKind kind, CancellationToken cancellationToken,
+        string root, GameInstance instance, InstanceContentTarget target, CancellationToken cancellationToken,
         bool underLease = false)
     {
         try
         {
             var items = underLease
-                ? await _content.ListUnderLeaseAsync(root, instance, kind, true, cancellationToken).ConfigureAwait(false)
-                : await _content.ListAsync(instance.Id, kind, cancellationToken: cancellationToken).ConfigureAwait(false);
+                ? await _content.ListUnderLeaseAsync(root, instance, target, true, cancellationToken).ConfigureAwait(false)
+                : await _content.ListAsync(instance.Id, target, cancellationToken: cancellationToken).ConfigureAwait(false);
             return (items, null);
         }
         catch (Exception exception) when (IsRegistryCorruption(exception))
         {
             var items = underLease
-                ? await _content.ListUnderLeaseAsync(root, instance, kind, true, cancellationToken, readOrigins: false).ConfigureAwait(false)
-                : await _content.ListAsync(instance.Id, kind, true, readOrigins: false, cancellationToken).ConfigureAwait(false);
+                ? await _content.ListUnderLeaseAsync(root, instance, target, true, cancellationToken, readOrigins: false).ConfigureAwait(false)
+                : await _content.ListAsync(instance.Id, target, true, readOrigins: false, cancellationToken).ConfigureAwait(false);
             return (items, Failure(ContentFailureCode.RegistryCorrupt));
         }
     }
@@ -1202,13 +1363,21 @@ public sealed class InstanceContentController
     }
 
     private async Task<ContentConfirmationChoice> ConfirmAsync(ContentConfirmationRequest request,
+        CancellationToken cancellationToken) =>
+        (await ConfirmSelectionAsync(request, cancellationToken).ConfigureAwait(false)).Choice;
+
+    private async Task<ContentConfirmationResult> ConfirmSelectionAsync(ContentConfirmationRequest request,
         CancellationToken cancellationToken)
     {
-        if (_confirm is null) return ContentConfirmationChoice.Cancel;
+        if (_confirmSelection is null && _confirm is null)
+            return new ContentConfirmationResult(ContentConfirmationChoice.Cancel);
         await _confirmationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await _confirm(request, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (_confirmSelection is not null)
+                return await _confirmSelection(request, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
+            return new ContentConfirmationResult(
+                await _confirm!(request, cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false));
         }
         finally
         {
@@ -1261,10 +1430,10 @@ public sealed class InstanceContentController
         RaiseStateChanged(key, snapshot);
     }
 
-    private void SetReadError(Guid instanceId, ModrinthContentKind kind, long revision, ContentFailure failure)
+    private void SetReadError(Guid instanceId, InstanceContentTarget target, long revision, ContentFailure failure)
     {
         // A read result belongs to its starting revision and cannot supersede a mutation.
-        var key = new InstanceContentStateKey(instanceId, kind);
+        var key = Key(instanceId, target);
         ChangeState(key, revision, state => state with { Error = failure });
     }
 
@@ -1279,15 +1448,29 @@ public sealed class InstanceContentController
         }
     }
 
-    private bool IsCurrent(InstanceContentStateKey key, long revision, GameInstance instance, string root)
+    private bool IsCurrent(InstanceContentStateKey key, long revision, GameInstance instance, string root,
+        InstanceContentTarget target)
     {
         lock (_sync)
             if (_revisions.GetValueOrDefault(key) != revision) return false;
         try
         {
             var current = _store.List().FirstOrDefault(candidate => candidate.Id == instance.Id);
-            return current is not null && current.FolderName == instance.FolderName
-                && PathEquals(_store.GetInstanceDirectory(instance.Id), root);
+            if (current is null || current.FolderName != instance.FolderName
+                || !PathEquals(_store.GetInstanceDirectory(instance.Id), root)) return false;
+            ValidateTargetSnapshot(current, root, target);
+            return true;
+        }
+        catch (ControllerException exception) when (exception.Failure.Code == ContentFailureCode.WorldUnavailable)
+        {
+            ChangeState(key, revision, state => state with
+            {
+                Items = [],
+                Updates = EmptyUpdates(),
+                Error = exception.Failure,
+                UpdateMessage = exception.Failure
+            });
+            return false;
         }
         catch { return false; }
     }
@@ -1304,6 +1487,18 @@ public sealed class InstanceContentController
         _ = InstanceStorage.ContainedPath("minecraft/mods", root, allowBaseReparsePoint: true);
         _ = InstanceStorage.ContainedPath(instance.LegacyTexturepacks ? "minecraft/texturepacks" : "minecraft/resourcepacks",
             root, allowBaseReparsePoint: true);
+    }
+
+    private void ValidateTargetSnapshot(GameInstance instance, string root, InstanceContentTarget target)
+    {
+        ValidatePathSnapshot(instance, root);
+        if (target.WorldId is null) return;
+        try { _ = InstanceWorlds.WorldFolder(target.WorldId, root); }
+        catch (InstanceWorldException exception)
+        {
+            throw ControllerException.With(ContentFailureCode.WorldUnavailable, ("worldId", target.WorldId),
+                ("diagnostic", exception.Message));
+        }
     }
 
     private static IReadOnlyDictionary<string, InstanceContentUpdate> RetainUpdates(
@@ -1334,6 +1529,8 @@ public sealed class InstanceContentController
         if (exception is InstanceRegistryException registry)
             return Failure(registry.Error == InstanceRegistryError.ReadFailure
                 ? ContentFailureCode.RegistryUnavailable : ContentFailureCode.RegistryCorrupt);
+        if (exception is InstanceWorldException world)
+            return Failure(ContentFailureCode.WorldUnavailable, ("diagnostic", world.Message));
         if (exception is InstanceStorageException storage)
             return Failure(storage.Error switch
             {
@@ -1353,7 +1550,35 @@ public sealed class InstanceContentController
     private static void ValidateKind(ModrinthContentKind kind)
     {
         if (kind is not (ModrinthContentKind.Mod or ModrinthContentKind.ResourcePack))
-            throw new NotSupportedException("World datapacks are handled in a later stage.");
+            throw new NotSupportedException("Datapacks require an explicit world target.");
+    }
+
+    private static void ValidateTarget(InstanceContentTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        if (target.Kind == ModrinthContentKind.Datapack)
+        {
+            if (target.WorldId is null || !InstanceStorage.IsSinglePathSegment(target.WorldId))
+                throw new ArgumentException("Datapacks require a valid world target.", nameof(target));
+        }
+        else if (target.Kind is not (ModrinthContentKind.Mod or ModrinthContentKind.ResourcePack) || target.WorldId is not null)
+        {
+            throw new ArgumentException("The content target is invalid.", nameof(target));
+        }
+    }
+
+    private static InstanceContentStateKey Key(Guid instanceId, InstanceContentTarget target) =>
+        new(instanceId, target.Kind, target.WorldId);
+
+    private static IReadOnlyList<InstanceContentTarget> ConflictTargets(InstanceContentTarget rootTarget,
+        GameInstance instance)
+    {
+        var targets = new List<InstanceContentTarget>();
+        if (instance.ModLoader == InstanceModLoader.Fabric) targets.Add(InstanceContentTarget.Mods);
+        targets.Add(InstanceContentTarget.Packs);
+        if (rootTarget.WorldId is not null)
+            targets.Add(InstanceContentTarget.WorldDatapacks(rootTarget.WorldId));
+        return targets;
     }
 
     private static string Loader(ModrinthContentKind kind) => kind switch
@@ -1447,14 +1672,14 @@ public sealed class InstanceContentController
         InstanceContentOperation operation, CancellationToken cancellationToken)
     {
         private readonly Dictionary<InstanceContentStateKey, long> _revisions = [];
-        private readonly HashSet<ModrinthContentKind> _touched = [];
+        private readonly HashSet<InstanceContentTarget> _touched = [];
         public Guid InstanceId { get; } = instanceId;
         public InstanceContentOperation Operation { get; } = operation;
         public CancellationToken CancellationToken { get; } = cancellationToken;
         public GameInstance? Instance { get; private set; }
         public string? Root { get; private set; }
         public bool CallbackEntered { get; set; }
-        public IEnumerable<ModrinthContentKind> TouchedKinds => _touched;
+        public IEnumerable<InstanceContentTarget> TouchedTargets => _touched;
         public IEnumerable<InstanceContentStateKey> Keys => _revisions.Keys.ToArray();
 
         public void SetSnapshot(GameInstance instance, string root)
@@ -1463,10 +1688,12 @@ public sealed class InstanceContentController
             Root = root;
         }
 
-        public void Touch(ModrinthContentKind kind)
+        public void Touch(ModrinthContentKind kind) => Touch(InstanceContentTarget.ForKind(kind));
+
+        public void Touch(InstanceContentTarget target)
         {
-            if (!_touched.Add(kind)) return;
-            var key = new InstanceContentStateKey(InstanceId, kind);
+            if (!_touched.Add(target)) return;
+            var key = Key(InstanceId, target);
             InstanceContentState snapshot;
             lock (owner._sync)
             {
@@ -1508,9 +1735,11 @@ public sealed class InstanceContentController
     }
 
     private sealed record PlannedDownload(ModrinthProject Project, ModrinthVersion Version,
-        ModrinthFile File, ModrinthContentKind Kind, bool IsRoot);
-    private sealed record PlannedEnable(InstanceContentItem Item, ModrinthContentKind Kind);
+        ModrinthFile File, InstanceContentTarget Target, ModrinthContentKind VersionKind, bool IsRoot);
+    private sealed record PlannedEnable(InstanceContentItem Item, InstanceContentTarget Target);
     private sealed record ResolvedDependency(ModrinthDependency Dependency, string? ProjectId, ModrinthProject? Project);
+    private sealed record DependencyTargetResolution(InstanceContentTarget? Target, ModrinthVersion? Version,
+        ModrinthFile? File, ContentConfirmationNoteCode? NoteCode);
 
     private sealed class ControllerException(ContentFailure failure) : Exception
     {

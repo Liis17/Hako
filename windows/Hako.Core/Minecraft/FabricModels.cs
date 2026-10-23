@@ -245,6 +245,13 @@ public sealed record ModrinthVersion
         return candidates.FirstOrDefault(file => file.Primary) ?? candidates.FirstOrDefault();
     }
 
+    [JsonIgnore]
+    public IReadOnlyList<ModrinthFile> ResourcePacks => Files
+        .Where(file => file.IsResourcePack && file.IsInstallable(ModrinthContentKind.ResourcePack))
+        .OrderBy(file => file.FileType == "required-resource-pack" ? 0 : 1)
+        .ThenBy(file => file.Filename, StringComparer.Ordinal)
+        .ToArray();
+
     public ModrinthFile? UpdateFile(ModrinthContentKind kind, string? fileType, string filename)
     {
         if (kind == ModrinthContentKind.Mod) return InstallableFile(kind);

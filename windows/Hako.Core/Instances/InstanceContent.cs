@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Runtime.Versioning;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Hako.Core;
@@ -46,10 +47,39 @@ public sealed record ModOrigin
 
 public sealed record ModRegistry
 {
-    [JsonRequired]
     public bool ApiProvisioned { get; init; }
     [JsonRequired]
     public Dictionary<string, ModOrigin> Files { get; init; } = new(StringComparer.Ordinal);
+}
+
+/// <summary>Identifies one content location. World datapacks always carry the selected world folder name.</summary>
+public sealed record InstanceContentTarget
+{
+    private InstanceContentTarget(ModrinthContentKind kind, string? worldId)
+    {
+        Kind = kind;
+        WorldId = worldId;
+    }
+
+    public ModrinthContentKind Kind { get; }
+    public string? WorldId { get; }
+
+    public static InstanceContentTarget Mods { get; } = new(ModrinthContentKind.Mod, null);
+    public static InstanceContentTarget Packs { get; } = new(ModrinthContentKind.ResourcePack, null);
+
+    public static InstanceContentTarget WorldDatapacks(string worldId)
+    {
+        if (!InstanceStorage.IsSinglePathSegment(worldId))
+            throw new ArgumentException("The world folder name is invalid.", nameof(worldId));
+        return new InstanceContentTarget(ModrinthContentKind.Datapack, worldId);
+    }
+
+    internal static InstanceContentTarget ForKind(ModrinthContentKind kind) => kind switch
+    {
+        ModrinthContentKind.Mod => Mods,
+        ModrinthContentKind.ResourcePack => Packs,
+        _ => throw new NotSupportedException("Datapacks require an explicit world target.")
+    };
 }
 
 public sealed record InstanceContentItem(string Path, bool IsDirectory, ModOrigin? Origin, DateTimeOffset? ModifiedAt,
@@ -86,10 +116,13 @@ internal sealed class ModSourceJsonConverter : JsonConverter<ModSource>
 public sealed class InstanceContent
 {
     private const string RegistryName = ".hako-mods.json";
+    private const int MaximumDatapackMetadataBytes = 1024 * 1024;
+    private const int MaximumDatapackArchiveEntries = 100_000;
     private readonly InstanceStore store;
     private readonly RecycleBin recycleBin;
     private readonly Action? beforeRegistryCommit;
     private readonly Action? beforeReplacementPublish;
+    private readonly Action<string>? beforeCopyDirectory;
 
     [SupportedOSPlatform("windows")]
     public InstanceContent(InstanceStore store, RecycleBin? recycleBin = null)
@@ -99,41 +132,62 @@ public sealed class InstanceContent
 
     [SupportedOSPlatform("windows")]
     internal InstanceContent(InstanceStore store, RecycleBin? recycleBin, Action? beforeRegistryCommit,
-        Action? beforeReplacementPublish = null)
+        Action? beforeReplacementPublish = null, Action<string>? beforeCopyDirectory = null)
     {
         this.store = store;
         this.recycleBin = recycleBin ?? new RecycleBin();
         this.beforeRegistryCommit = beforeRegistryCommit;
         this.beforeReplacementPublish = beforeReplacementPublish;
+        this.beforeCopyDirectory = beforeCopyDirectory;
     }
 
     /// <summary>Lists regular JARs, ZIPs, and resourcepack folders without following reparse points.</summary>
     public async Task<IReadOnlyList<InstanceContentItem>> ListAsync(Guid instanceId, ModrinthContentKind kind,
         bool includeDisabled = true, CancellationToken cancellationToken = default)
     {
-        return await ListAsync(instanceId, kind, includeDisabled, readOrigins: true, cancellationToken).ConfigureAwait(false);
+        return await ListAsync(instanceId, InstanceContentTarget.ForKind(kind), includeDisabled, cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task<IReadOnlyList<InstanceContentItem>> ListAsync(Guid instanceId, ModrinthContentKind kind,
         bool includeDisabled, bool readOrigins, CancellationToken cancellationToken = default)
     {
+        return await ListAsync(instanceId, InstanceContentTarget.ForKind(kind), includeDisabled, readOrigins,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<InstanceContentItem>> ListAsync(Guid instanceId, InstanceContentTarget target,
+        bool includeDisabled = true, CancellationToken cancellationToken = default) =>
+        await ListAsync(instanceId, target, includeDisabled, readOrigins: true, cancellationToken).ConfigureAwait(false);
+
+    internal async Task<IReadOnlyList<InstanceContentItem>> ListAsync(Guid instanceId, InstanceContentTarget target,
+        bool includeDisabled, bool readOrigins, CancellationToken cancellationToken = default)
+    {
+        ValidateTarget(target);
         var instance = store.List().FirstOrDefault(candidate => candidate.Id == instanceId)
             ?? throw new InstanceStorageException(InstanceStorageError.InstanceRegistryUnavailable, "The build no longer exists.");
         var root = await Task.Run(() => store.GetInstanceDirectory(instanceId), cancellationToken).ConfigureAwait(false);
-        return await ListUnderLeaseAsync(root, instance, kind, includeDisabled, cancellationToken, readOrigins).ConfigureAwait(false);
+        return await ListUnderLeaseAsync(root, instance, target, includeDisabled, cancellationToken, readOrigins).ConfigureAwait(false);
     }
 
     /// <summary>Imports a local JAR, ZIP, or resourcepack folder. Local imports clear stored Modrinth origin.</summary>
     public Task ImportAsync(Guid instanceId, ModrinthContentKind kind, string sourcePath, bool replace = false,
         CancellationToken cancellationToken = default) =>
-        WithContentLeaseAsync(instanceId, (root, instance, token) => ImportUnderLeaseAsync(root, instance, kind,
+        ImportAsync(instanceId, InstanceContentTarget.ForKind(kind), sourcePath, replace, cancellationToken);
+
+    public Task ImportAsync(Guid instanceId, InstanceContentTarget target, string sourcePath, bool replace = false,
+        CancellationToken cancellationToken = default) =>
+        WithContentLeaseAsync(instanceId, (root, instance, token) => ImportUnderLeaseAsync(root, instance, target,
             sourcePath, replace, origin: null, token), cancellationToken);
 
     /// <summary>Enables or disables one previously listed item while preserving its logical file and origin.</summary>
     public Task SetEnabledAsync(Guid instanceId, InstanceContentItem item, ModrinthContentKind kind, bool enabled,
         CancellationToken cancellationToken = default) =>
+        SetEnabledAsync(instanceId, item, InstanceContentTarget.ForKind(kind), enabled, cancellationToken);
+
+    public Task SetEnabledAsync(Guid instanceId, InstanceContentItem item, InstanceContentTarget target, bool enabled,
+        CancellationToken cancellationToken = default) =>
         WithContentLeaseAsync(instanceId, (root, instance, token) => Task.Run(
-            () => SetEnabledUnderLease(root, instance, item, kind, enabled), token), cancellationToken);
+            () => SetEnabledUnderLease(root, instance, item, target, enabled), token), cancellationToken);
 
     /// <summary>Moves an item to the Windows Recycle Bin; a non-recyclable or failed delete leaves its registry entry.</summary>
     [SupportedOSPlatform("windows")]
@@ -145,7 +199,12 @@ public sealed class InstanceContent
     /// <summary>Replaces a regular file only if its currently installed SHA-512 still matches the caller's snapshot.</summary>
     public Task ReplaceAsync(Guid instanceId, InstanceContentItem item, ModrinthContentKind kind, string sourcePath,
         string filename, string expectedSha512, ModOrigin? origin = null, CancellationToken cancellationToken = default) =>
-        WithContentLeaseAsync(instanceId, (root, instance, token) => ReplaceUnderLeaseAsync(root, instance, item, kind,
+        ReplaceAsync(instanceId, item, InstanceContentTarget.ForKind(kind), sourcePath, filename, expectedSha512, origin,
+            cancellationToken);
+
+    public Task ReplaceAsync(Guid instanceId, InstanceContentItem item, InstanceContentTarget target, string sourcePath,
+        string filename, string expectedSha512, ModOrigin? origin = null, CancellationToken cancellationToken = default) =>
+        WithContentLeaseAsync(instanceId, (root, instance, token) => ReplaceUnderLeaseAsync(root, instance, item, target,
             sourcePath, filename, expectedSha512, origin, token), cancellationToken);
 
     /// <summary>
@@ -176,76 +235,142 @@ public sealed class InstanceContent
     internal async Task ImportUnderLeaseAsync(string instanceRoot, GameInstance instance, ModrinthContentKind kind,
         string sourcePath, bool replace, ModOrigin? origin, CancellationToken cancellationToken)
     {
-        var folder = ContentFolder(instanceRoot, instance, kind);
-        await ImportAtAsync(instanceRoot, folder, kind, sourcePath, replace, origin, cancellationToken).ConfigureAwait(false);
+        await ImportUnderLeaseAsync(instanceRoot, instance, InstanceContentTarget.ForKind(kind), sourcePath, replace,
+            origin, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task ImportUnderLeaseAsync(string instanceRoot, GameInstance instance, InstanceContentTarget target,
+        string sourcePath, bool replace, ModOrigin? origin, CancellationToken cancellationToken)
+    {
+        ValidateTarget(target);
+        var folder = ContentFolder(instanceRoot, instance, target);
+        await ImportAtAsync(instanceRoot, instance, folder, target, sourcePath, replace, origin, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     internal Task<IReadOnlyList<InstanceContentItem>> ListUnderLeaseAsync(string instanceRoot, GameInstance instance,
         ModrinthContentKind kind, bool includeDisabled, CancellationToken cancellationToken, bool readOrigins = true) =>
-        Task.Run(() => ListAtAsync(instanceRoot, instance, kind, includeDisabled, cancellationToken, readOrigins), cancellationToken);
+        ListUnderLeaseAsync(instanceRoot, instance, InstanceContentTarget.ForKind(kind), includeDisabled,
+            cancellationToken, readOrigins);
+
+    internal Task<IReadOnlyList<InstanceContentItem>> ListUnderLeaseAsync(string instanceRoot, GameInstance instance,
+        InstanceContentTarget target, bool includeDisabled, CancellationToken cancellationToken, bool readOrigins = true) =>
+        Task.Run(() => ListAtAsync(instanceRoot, instance, target, includeDisabled, cancellationToken, readOrigins), cancellationToken);
 
     internal async Task RecordOriginUnderLeaseAsync(string instanceRoot, GameInstance instance, InstanceContentItem item,
         ModrinthContentKind kind, string expectedSha512, ModOrigin origin, CancellationToken cancellationToken)
     {
+        await RecordOriginUnderLeaseAsync(instanceRoot, instance, item, InstanceContentTarget.ForKind(kind),
+            expectedSha512, origin, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task RecordOriginUnderLeaseAsync(string instanceRoot, GameInstance instance, InstanceContentItem item,
+        InstanceContentTarget target, string expectedSha512, ModOrigin origin, CancellationToken cancellationToken)
+    {
         if (item.IsDirectory || !IsHash(expectedSha512, 128) || !IsHash(origin.Sha512, 128)
             || !string.Equals(expectedSha512, origin.Sha512, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The content origin does not match a regular file checksum.");
-        var folder = ContentFolder(instanceRoot, instance, kind);
-        var path = CheckedItemPath(instanceRoot, folder, kind, item);
+        ValidateTarget(target);
+        var folder = ContentFolder(instanceRoot, instance, target);
+        var path = CheckedItemPath(instanceRoot, folder, target, item);
         if (!string.Equals(await HashFileAsync(path, cancellationToken).ConfigureAwait(false), expectedSha512,
             StringComparison.OrdinalIgnoreCase))
             throw new IOException("The installed content changed before origin recording.");
-        var registryName = RegistryNameFor(kind);
-        var registry = ReadRegistry(instanceRoot, registryName);
+        var registry = ReadRegistry(instanceRoot, instance, target);
         var files = new Dictionary<string, ModOrigin>(registry.Files, StringComparer.Ordinal)
         {
-            [LogicalContentName(kind, item.Name).ToLowerInvariant()] = origin
+            [LogicalContentName(target.Kind, item.Name).ToLowerInvariant()] = origin
         };
         cancellationToken.ThrowIfCancellationRequested();
-        CommitRegistry(instanceRoot, registryName, registry with { Files = files });
+        CommitRegistry(instanceRoot, instance, target, registry with { Files = files });
     }
 
     internal async Task ValidateExpectedHashUnderLeaseAsync(string instanceRoot, GameInstance instance,
         InstanceContentItem item, ModrinthContentKind kind, string expectedSha512, CancellationToken cancellationToken)
     {
+        await ValidateExpectedHashUnderLeaseAsync(instanceRoot, instance, item, InstanceContentTarget.ForKind(kind),
+            expectedSha512, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async Task ValidateExpectedHashUnderLeaseAsync(string instanceRoot, GameInstance instance,
+        InstanceContentItem item, InstanceContentTarget target, string expectedSha512, CancellationToken cancellationToken)
+    {
         if (item.IsDirectory || !IsHash(expectedSha512, 128))
             throw new IOException("The installed content snapshot is invalid.");
-        var folder = ContentFolder(instanceRoot, instance, kind);
-        var path = CheckedItemPath(instanceRoot, folder, kind, item);
+        ValidateTarget(target);
+        var folder = ContentFolder(instanceRoot, instance, target);
+        var path = CheckedItemPath(instanceRoot, folder, target, item);
         if (!string.Equals(await HashFileAsync(path, cancellationToken).ConfigureAwait(false), expectedSha512,
             StringComparison.OrdinalIgnoreCase))
             throw new IOException("The installed content changed before replacement.");
+    }
+
+    internal async Task<bool> MatchesSha512UnderLeaseAsync(string instanceRoot, GameInstance instance,
+        InstanceContentItem item, InstanceContentTarget target, string expectedSha512, CancellationToken cancellationToken)
+    {
+        if (item.IsDirectory || !IsHash(expectedSha512, 128)) return false;
+        var folder = ContentFolder(instanceRoot, instance, target);
+        var path = CheckedItemPath(instanceRoot, folder, target, item);
+        return string.Equals(await HashFileAsync(path, cancellationToken).ConfigureAwait(false), expectedSha512,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     internal async Task ReplaceUnderLeaseAsync(string instanceRoot, GameInstance instance, InstanceContentItem item,
         ModrinthContentKind kind, string sourcePath, string filename, string expectedSha512, ModOrigin? origin,
         CancellationToken cancellationToken, InstanceContentItem? confirmedCollision = null)
     {
-        var folder = ContentFolder(instanceRoot, instance, kind);
-        await ReplaceAtAsync(instanceRoot, folder, kind, item, sourcePath, filename, expectedSha512, origin,
+        await ReplaceUnderLeaseAsync(instanceRoot, instance, item, InstanceContentTarget.ForKind(kind), sourcePath,
+            filename, expectedSha512, origin, cancellationToken, confirmedCollision).ConfigureAwait(false);
+    }
+
+    internal async Task ReplaceUnderLeaseAsync(string instanceRoot, GameInstance instance, InstanceContentItem item,
+        InstanceContentTarget target, string sourcePath, string filename, string expectedSha512, ModOrigin? origin,
+        CancellationToken cancellationToken, InstanceContentItem? confirmedCollision = null)
+    {
+        ValidateTarget(target);
+        var folder = ContentFolder(instanceRoot, instance, target);
+        await ReplaceAtAsync(instanceRoot, instance, folder, target, item, sourcePath, filename, expectedSha512, origin,
             cancellationToken, confirmedCollision).ConfigureAwait(false);
     }
 
     internal void SetEnabledUnderLease(string instanceRoot, GameInstance instance, InstanceContentItem item,
         ModrinthContentKind kind, bool enabled)
     {
-        var folder = ContentFolder(instanceRoot, instance, kind);
-        SetEnabledAt(instanceRoot, folder, kind, item, enabled);
+        SetEnabledUnderLease(instanceRoot, instance, item, InstanceContentTarget.ForKind(kind), enabled);
+    }
+
+    internal void SetEnabledUnderLease(string instanceRoot, GameInstance instance, InstanceContentItem item,
+        InstanceContentTarget target, bool enabled)
+    {
+        ValidateTarget(target);
+        var folder = ContentFolder(instanceRoot, instance, target);
+        SetEnabledAt(instanceRoot, instance, folder, target, item, enabled);
     }
 
     [SupportedOSPlatform("windows")]
     internal async Task<RecycleBinItemStatus> TrashUnderLeaseAsync(string instanceRoot, GameInstance instance,
         InstanceContentItem item, ModrinthContentKind kind, CancellationToken cancellationToken)
     {
-        var folder = ContentFolder(instanceRoot, instance, kind);
-        return await TrashAtAsync(instanceRoot, folder, kind, item, cancellationToken).ConfigureAwait(false);
+        return await TrashUnderLeaseAsync(instanceRoot, instance, item, InstanceContentTarget.ForKind(kind), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal async Task<RecycleBinItemStatus> TrashUnderLeaseAsync(string instanceRoot, GameInstance instance,
+        InstanceContentItem item, InstanceContentTarget target, CancellationToken cancellationToken)
+    {
+        ValidateTarget(target);
+        var folder = ContentFolder(instanceRoot, instance, target);
+        return await TrashAtAsync(instanceRoot, instance, folder, target, item, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<InstanceContentItem>> ListAtAsync(string instanceRoot, GameInstance instance,
-        ModrinthContentKind kind, bool includeDisabled, CancellationToken cancellationToken, bool readOrigins = true)
+        InstanceContentTarget target, bool includeDisabled, CancellationToken cancellationToken, bool readOrigins = true)
     {
-        var folder = ContentFolder(instanceRoot, instance, kind);
-        var registry = readOrigins ? ReadRegistry(instanceRoot, RegistryNameFor(kind)) : new ModRegistry();
+        ValidateTarget(target);
+        var kind = target.Kind;
+        var folder = ContentFolder(instanceRoot, instance, target);
+        var registry = readOrigins ? ReadRegistry(instanceRoot, instance, target) : new ModRegistry();
         var disabledFolder = IsPack(kind) ? DisabledPacksFolder(instanceRoot, folder) : null;
         var folders = new List<(string Path, bool Disabled)> { (folder, false) };
         if (includeDisabled && disabledFolder is not null) folders.Add((disabledFolder, true));
@@ -267,7 +392,7 @@ public sealed class InstanceContent
                 {
                     ModrinthContentKind.Mod => !isDirectory && (name.EndsWith(".jar", StringComparison.OrdinalIgnoreCase)
                         || includeDisabled && name.EndsWith(".jar.disabled", StringComparison.OrdinalIgnoreCase)),
-                    ModrinthContentKind.ResourcePack => isDirectory ? HasPackMetadata(instanceRoot, path)
+                    ModrinthContentKind.ResourcePack or ModrinthContentKind.Datapack => isDirectory ? HasPackMetadata(instanceRoot, path)
                         : name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase),
                     _ => false
                 };
@@ -285,49 +410,139 @@ public sealed class InstanceContent
         return items.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
-    private static string ContentFolder(string instanceRoot, GameInstance instance, ModrinthContentKind kind)
+    private static string ContentFolder(string instanceRoot, GameInstance instance, ModrinthContentKind kind) =>
+        ContentFolder(instanceRoot, instance, InstanceContentTarget.ForKind(kind));
+
+    private static string ContentFolder(string instanceRoot, GameInstance instance, InstanceContentTarget target)
     {
-        var relative = kind switch
+        ValidateTarget(target);
+        if (target.Kind == ModrinthContentKind.Datapack)
+            return CheckedDatapacksFolder(target.WorldId!, instanceRoot);
+        var relative = target.Kind switch
         {
             ModrinthContentKind.Mod => "minecraft/mods",
             ModrinthContentKind.ResourcePack => instance.LegacyTexturepacks ? "minecraft/texturepacks" : "minecraft/resourcepacks",
-            _ => throw new NotSupportedException("Local datapack operations are implemented in a later stage.")
+            _ => throw new ArgumentOutOfRangeException(nameof(target))
         };
         return InstanceStorage.ContainedPath(relative, instanceRoot, allowBaseReparsePoint: true);
+    }
+
+    private static void ValidateTarget(InstanceContentTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        if (target.Kind == ModrinthContentKind.Datapack)
+        {
+            if (target.WorldId is null || !InstanceStorage.IsSinglePathSegment(target.WorldId))
+                throw new ArgumentException("Datapack content requires a valid world folder.", nameof(target));
+        }
+        else if (target.Kind is not (ModrinthContentKind.Mod or ModrinthContentKind.ResourcePack) || target.WorldId is not null)
+        {
+            throw new ArgumentException("The content target is invalid.", nameof(target));
+        }
+    }
+
+    private static void ValidateTargetWorld(string instanceRoot, InstanceContentTarget target)
+    {
+        if (target.Kind == ModrinthContentKind.Datapack)
+            _ = CheckedDatapacksFolder(target.WorldId!, instanceRoot);
+    }
+
+    private static void EnsureTargetContentFolder(string instanceRoot, GameInstance instance, InstanceContentTarget target,
+        string folder)
+    {
+        if (target.Kind != ModrinthContentKind.Datapack)
+        {
+            Directory.CreateDirectory(folder);
+            return;
+        }
+
+        EnsureTargetLeafDirectory(instanceRoot, instance, target, folder);
+    }
+
+    private static void EnsureTargetLeafDirectory(string instanceRoot, GameInstance instance, InstanceContentTarget target,
+        string folder)
+    {
+        if (Directory.Exists(folder))
+        {
+            EnsureDirectoryIsSafe(folder);
+            ValidateTargetWorld(instanceRoot, target);
+            return;
+        }
+
+        if (target.Kind != ModrinthContentKind.Datapack)
+        {
+            Directory.CreateDirectory(folder);
+            EnsureDirectoryIsSafe(folder);
+            return;
+        }
+
+        var world = CheckedWorldFolder(target.WorldId!, instanceRoot);
+        if (!PathEquals(Path.GetDirectoryName(folder)!, world))
+            throw new IOException("The datapacks folder is outside the selected world.");
+        InstanceStorage.CreateDirectoryExclusiveAt(world, Path.GetFileName(folder));
+        ValidateTargetWorld(instanceRoot, target);
     }
 
     private static string? DisabledPacksFolder(string instanceRoot, string folder)
     {
         var name = ".hako-disabled-" + Path.GetFileName(folder);
-        return InstanceStorage.ContainedPath("minecraft/" + name, instanceRoot, allowBaseReparsePoint: true);
+        var parent = Path.GetDirectoryName(folder)!;
+        var relativeParent = Path.GetRelativePath(instanceRoot, parent).Replace(Path.DirectorySeparatorChar, '/');
+        return InstanceStorage.ContainedPath(relativeParent + "/" + name, instanceRoot, allowBaseReparsePoint: true);
     }
 
-    private static bool IsPack(ModrinthContentKind kind) => kind == ModrinthContentKind.ResourcePack;
+    private static bool IsPack(ModrinthContentKind kind) => kind is ModrinthContentKind.ResourcePack or ModrinthContentKind.Datapack;
 
     private static string RegistryNameFor(ModrinthContentKind kind) => kind switch
     {
         ModrinthContentKind.Mod => RegistryName,
         ModrinthContentKind.ResourcePack => ".hako-resourcepacks.json",
-        _ => throw new NotSupportedException("Local datapack operations are implemented in a later stage.")
+        ModrinthContentKind.Datapack => ".hako-datapacks.json",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
-    private async Task ImportAtAsync(string instanceRoot, string folder, ModrinthContentKind kind,
+    private static string RegistryPath(string instanceRoot, GameInstance instance, InstanceContentTarget target)
+    {
+        ValidateTarget(target);
+        if (target.Kind == ModrinthContentKind.Datapack)
+        {
+            var world = CheckedWorldFolder(target.WorldId!, instanceRoot);
+            return InstanceStorage.ContainedPath(RegistryNameFor(target.Kind), world);
+        }
+
+        return InstanceStorage.ContainedPath($"minecraft/{RegistryNameFor(target.Kind)}", instanceRoot,
+            allowBaseReparsePoint: true);
+    }
+
+    private static string CheckedWorldFolder(string worldId, string instanceRoot)
+    {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
+        return InstanceWorlds.WorldFolder(worldId, instanceRoot);
+    }
+
+    private static string CheckedDatapacksFolder(string worldId, string instanceRoot)
+    {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
+        return InstanceWorlds.DatapacksFolder(worldId, instanceRoot);
+    }
+
+    private async Task ImportAtAsync(string instanceRoot, GameInstance instance, string folder, InstanceContentTarget target,
         string sourcePath, bool replace, ModOrigin? origin, CancellationToken cancellationToken)
     {
-        var source = ValidateImportSource(sourcePath, kind);
+        var kind = target.Kind;
+        var source = ValidateImportSource(sourcePath, target, cancellationToken);
         if (Directory.Exists(source) && IsPathInside(source, folder))
-            throw new IOException("A resourcepack folder cannot be imported into itself or one of its children.");
-        if (origin is not null && (kind == ModrinthContentKind.ResourcePack && Directory.Exists(source)))
-            throw new ArgumentException("A directory resourcepack cannot have a file origin.", nameof(origin));
+            throw new IOException("A pack folder cannot be imported into itself or one of its children.");
+        if (origin is not null && IsPack(kind) && Directory.Exists(source))
+            throw new ArgumentException("A directory pack cannot have a file origin.", nameof(origin));
         if (origin is not null && !IsHash(origin.Sha512, 128))
             throw new InvalidDataException("The content origin has an invalid SHA-512.");
-        var registryName = RegistryNameFor(kind);
-        var registry = ReadRegistry(instanceRoot, registryName);
-        Directory.CreateDirectory(folder);
+        var registry = ReadRegistry(instanceRoot, instance, target);
+        EnsureTargetContentFolder(instanceRoot, instance, target, folder);
         EnsureDirectoryIsSafe(folder);
         var name = Path.GetFileName(source);
         ValidateContentName(name);
-        var existing = FindExisting(instanceRoot, folder, kind, name);
+        var existing = FindExisting(instanceRoot, folder, target, name);
         if (existing is not null && !replace) throw new IOException($"Content named '{name}' already exists.");
         var disabled = kind == ModrinthContentKind.Mod && existing is not null
             && existing.Value.Name.EndsWith(".jar.disabled", StringComparison.OrdinalIgnoreCase);
@@ -342,11 +557,14 @@ public sealed class InstanceContent
         var backupCreated = false;
         try
         {
-            await CopyToStageAsync(source, staged, cancellationToken).ConfigureAwait(false);
+            await CopyToStageAsync(source, staged, cancellationToken, kind == ModrinthContentKind.Datapack).ConfigureAwait(false);
+            if (kind == ModrinthContentKind.Datapack)
+                ValidateDatapackPackage(staged, cancellationToken);
             if (origin is not null && !string.Equals(await HashFileAsync(staged, cancellationToken).ConfigureAwait(false),
                 origin.Sha512, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The imported file does not match its Modrinth origin.");
             cancellationToken.ThrowIfCancellationRequested();
+            ValidateTargetWorld(instanceRoot, target);
             if (existing is not null)
             {
                 MoveEntry(existing.Value.Path, backup!);
@@ -354,13 +572,15 @@ public sealed class InstanceContent
             }
             try
             {
+                ValidateTargetWorld(instanceRoot, target);
                 MoveEntry(staged, destination);
                 var files = new Dictionary<string, ModOrigin>(registry.Files, StringComparer.Ordinal);
                 if (existing is not null) files.Remove(LogicalContentName(kind, existing.Value.Name).ToLowerInvariant());
                 var key = LogicalContentName(kind, finalName).ToLowerInvariant();
                 files.Remove(key);
                 if (origin is not null) files[key] = origin;
-                CommitRegistry(instanceRoot, registryName, registry with { Files = files });
+                ValidateTargetWorld(instanceRoot, target);
+                CommitRegistry(instanceRoot, instance, target, registry with { Files = files });
             }
             catch (Exception original)
             {
@@ -376,28 +596,28 @@ public sealed class InstanceContent
         }
     }
 
-    private async Task ReplaceAtAsync(string instanceRoot, string folder, ModrinthContentKind kind,
+    private async Task ReplaceAtAsync(string instanceRoot, GameInstance instance, string folder, InstanceContentTarget target,
         InstanceContentItem item, string sourcePath, string filename, string expectedSha512, ModOrigin? origin,
         CancellationToken cancellationToken, InstanceContentItem? confirmedCollision)
     {
-        ValidateContentFilename(filename, kind);
+        var kind = target.Kind;
+        ValidateContentFilename(filename, target);
         if (!IsHash(expectedSha512, 128)) throw new ArgumentException("An expected SHA-512 is required.", nameof(expectedSha512));
         if (item.IsDirectory) throw new IOException("Pack folders cannot be replaced by a file update.");
-        var old = CheckedItemPath(instanceRoot, folder, kind, item);
+        var old = CheckedItemPath(instanceRoot, folder, target, item);
         if (!string.Equals(await HashFileAsync(old, cancellationToken).ConfigureAwait(false), expectedSha512,
             StringComparison.OrdinalIgnoreCase))
             throw new IOException("The installed content changed before replacement.");
-        var source = ValidateImportSource(sourcePath, kind);
+        var source = ValidateImportSource(sourcePath, target, cancellationToken);
         if (string.Equals(Path.GetFullPath(source), old, StringComparison.OrdinalIgnoreCase))
             throw new IOException("The replacement source must be a separate staged file.");
         if (Directory.Exists(source)) throw new IOException("A content update must be a regular file.");
         if (origin is not null && !IsHash(origin.Sha512, 128)) throw new InvalidDataException("The content origin has an invalid SHA-512.");
-        var registryName = RegistryNameFor(kind);
-        var registry = ReadRegistry(instanceRoot, registryName);
-        var match = FindExisting(instanceRoot, folder, kind, filename);
+        var registry = ReadRegistry(instanceRoot, instance, target);
+        var match = FindExisting(instanceRoot, folder, target, filename);
         var collisionPath = match is not null && !PathEquals(match.Value.Path, old) ? match.Value.Path : null;
         if (collisionPath is not null && (confirmedCollision is null
-            || !PathEquals(CheckedItemPath(instanceRoot, folder, kind, confirmedCollision), collisionPath)))
+            || !PathEquals(CheckedItemPath(instanceRoot, folder, target, confirmedCollision), collisionPath)))
             throw new IOException($"Content named '{filename}' already exists.");
         if (confirmedCollision is not null && collisionPath is null)
             throw new IOException("The confirmed collision changed before replacement.");
@@ -406,7 +626,7 @@ public sealed class InstanceContent
             ? DisabledPacksFolder(instanceRoot, folder)!
             : folder;
         var finalName = kind == ModrinthContentKind.Mod && disabled ? filename + ".disabled" : filename;
-        var target = ChildPath(instanceRoot, destinationFolder, finalName);
+        var destination = ChildPath(instanceRoot, destinationFolder, finalName);
         var staged = ChildPath(instanceRoot, folder, ".hako-update-" + Guid.NewGuid().ToString("N") + ".tmp");
         var backup = old + ".hako-backup-" + Guid.NewGuid().ToString("N");
         var backupCreated = false;
@@ -422,6 +642,7 @@ public sealed class InstanceContent
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
+                ValidateTargetWorld(instanceRoot, target);
                 if (collisionPath is not null)
                 {
                     MoveEntry(collisionPath, collisionBackup!);
@@ -431,17 +652,18 @@ public sealed class InstanceContent
                 cancellationToken.ThrowIfCancellationRequested();
                 MoveEntry(old, backup);
                 backupCreated = true;
-                MoveEntry(staged, target);
+                MoveEntry(staged, destination);
                 published = true;
                 var files = new Dictionary<string, ModOrigin>(registry.Files, StringComparer.Ordinal);
                 files.Remove(item.LogicalName.ToLowerInvariant());
                 files.Remove(filename.ToLowerInvariant());
                 if (origin is not null) files[filename.ToLowerInvariant()] = origin;
-                CommitRegistry(instanceRoot, registryName, registry with { Files = files });
+                ValidateTargetWorld(instanceRoot, target);
+                CommitRegistry(instanceRoot, instance, target, registry with { Files = files });
             }
             catch (Exception original)
             {
-                RollBackPublishedEntry(original, target, backup, old, backupCreated,
+                RollBackPublishedEntry(original, destination, backup, old, backupCreated,
                     collisionBackup, collisionPath, collisionBackupCreated, published);
                 throw;
             }
@@ -465,10 +687,11 @@ public sealed class InstanceContent
         }
     }
 
-    private static void SetEnabledAt(string instanceRoot, string folder, ModrinthContentKind kind,
+    private static void SetEnabledAt(string instanceRoot, GameInstance instance, string folder, InstanceContentTarget target,
         InstanceContentItem item, bool enabled)
     {
-        var source = CheckedItemPath(instanceRoot, folder, kind, item);
+        var kind = target.Kind;
+        var source = CheckedItemPath(instanceRoot, folder, target, item);
         if (item.Enabled == enabled) return;
         var destinationFolder = kind == ModrinthContentKind.Mod || enabled
             ? folder
@@ -476,20 +699,21 @@ public sealed class InstanceContent
         var name = kind == ModrinthContentKind.Mod
             ? item.LogicalName + (enabled ? "" : ".disabled")
             : item.Name;
-        var collision = FindExisting(instanceRoot, folder, kind, name, source);
+        var collision = FindExisting(instanceRoot, folder, target, name, source);
         if (collision is not null) throw new IOException($"Content named '{name}' already exists.");
-        Directory.CreateDirectory(destinationFolder);
+        EnsureTargetLeafDirectory(instanceRoot, instance, target, destinationFolder);
         EnsureDirectoryIsSafe(destinationFolder);
+        ValidateTargetWorld(instanceRoot, target);
         MoveEntry(source, ChildPath(instanceRoot, destinationFolder, name));
     }
 
     [SupportedOSPlatform("windows")]
-    private async Task<RecycleBinItemStatus> TrashAtAsync(string instanceRoot, string folder, ModrinthContentKind kind,
+    private async Task<RecycleBinItemStatus> TrashAtAsync(string instanceRoot, GameInstance instance, string folder,
+        InstanceContentTarget target,
         InstanceContentItem item, CancellationToken cancellationToken)
     {
-        var path = CheckedItemPath(instanceRoot, folder, kind, item);
-        var registryName = RegistryNameFor(kind);
-        var registry = ReadRegistry(instanceRoot, registryName);
+        var path = CheckedItemPath(instanceRoot, folder, target, item);
+        var registry = ReadRegistry(instanceRoot, instance, target);
         var result = await recycleBin.DeleteAsync(path, cancellationToken).ConfigureAwait(false);
         if (result.Items.Count != 1) throw new IOException("The Recycle Bin returned an invalid result.");
         var status = result.Items[0].Status;
@@ -498,20 +722,21 @@ public sealed class InstanceContent
         if (!registry.Files.ContainsKey(key)) return status;
         var files = new Dictionary<string, ModOrigin>(registry.Files, StringComparer.Ordinal);
         files.Remove(key);
-        await Task.Run(() => CommitRegistry(instanceRoot, registryName, registry with { Files = files }), CancellationToken.None)
+        await Task.Run(() => CommitRegistry(instanceRoot, instance, target, registry with { Files = files }), CancellationToken.None)
             .ConfigureAwait(false);
         return status;
     }
 
-    private void CommitRegistry(string instanceRoot, string registryName, ModRegistry registry)
+    private void CommitRegistry(string instanceRoot, GameInstance instance, InstanceContentTarget target, ModRegistry registry)
     {
         beforeRegistryCommit?.Invoke();
-        WriteRegistry(instanceRoot, registryName, registry);
+        WriteRegistry(instanceRoot, instance, target, registry);
     }
 
     private static (string Path, string Name, bool Disabled)? FindExisting(string instanceRoot, string folder,
-        ModrinthContentKind kind, string name, string? exceptPath = null)
+        InstanceContentTarget target, string name, string? exceptPath = null)
     {
+        var kind = target.Kind;
         ValidateContentName(name);
         var logical = LogicalContentName(kind, name);
         var candidates = new List<(string Path, string Name, bool Disabled)>();
@@ -538,8 +763,10 @@ public sealed class InstanceContent
         return candidates.Count == 0 ? null : candidates[0];
     }
 
-    private static string ValidateImportSource(string sourcePath, ModrinthContentKind kind)
+    private static string ValidateImportSource(string sourcePath, InstanceContentTarget target,
+        CancellationToken cancellationToken)
     {
+        var kind = target.Kind;
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         var source = Path.GetFullPath(sourcePath);
         var attributes = File.GetAttributes(source);
@@ -551,39 +778,48 @@ public sealed class InstanceContent
             if (directory || !source.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
                 throw new IOException("Choose a regular JAR file for a mod.");
         }
-        else if (kind == ModrinthContentKind.ResourcePack)
+        else if (IsPack(kind))
         {
             if (directory)
             {
                 _ = InstanceStorage.ContainedPath("pack.mcmeta", source);
                 var metadata = Path.Combine(source, "pack.mcmeta");
-                var metadataAttributes = File.GetAttributes(metadata);
-                if ((metadataAttributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
-                    throw new IOException("A resourcepack folder must contain a regular pack.mcmeta file.");
-                ValidateDirectoryTree(source);
+                if (kind == ModrinthContentKind.Datapack)
+                    ValidateDatapackPackage(source, cancellationToken);
+                else
+                {
+                    var metadataAttributes = File.GetAttributes(metadata);
+                    if ((metadataAttributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
+                        throw new IOException("A pack folder must contain a regular pack.mcmeta file.");
+                    ValidateDirectoryTree(source, cancellationToken);
+                }
             }
             else if (!source.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
-                throw new IOException("Choose a ZIP file or a folder with pack.mcmeta for a resourcepack.");
+                throw new IOException("Choose a ZIP file or a folder with pack.mcmeta for a pack.");
             }
+            else if (kind == ModrinthContentKind.Datapack)
+                ValidateDatapackPackage(source, cancellationToken);
         }
         else
         {
-            throw new NotSupportedException("Local datapack operations are implemented in a later stage.");
+            throw new ArgumentOutOfRangeException(nameof(target));
         }
 
         ValidateContentName(Path.GetFileName(source));
         return source;
     }
 
-    private static void ValidateDirectoryTree(string root)
+    private static void ValidateDirectoryTree(string root, CancellationToken cancellationToken)
     {
         var pending = new Stack<string>();
         pending.Push(root);
         while (pending.TryPop(out var directory))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 ValidateContentName(Path.GetFileName(entry));
                 var attributes = File.GetAttributes(entry);
                 if ((attributes & FileAttributes.ReparsePoint) != 0)
@@ -593,15 +829,118 @@ public sealed class InstanceContent
         }
     }
 
-    private static async Task CopyToStageAsync(string source, string staged, CancellationToken cancellationToken)
+    internal static void ValidateDatapackPackage(string path, CancellationToken cancellationToken)
     {
-        if (Directory.Exists(source)) await CopyDirectoryAsync(source, staged, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("A datapack package cannot be a reparse point.");
+            if ((attributes & FileAttributes.Directory) != 0)
+                ValidateDatapackFolder(path, cancellationToken);
+            else
+                ValidateDatapackArchive(path, cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (InvalidDatapackPackageException) { throw; }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException or UnauthorizedAccessException)
+        {
+            throw new InvalidDatapackPackageException("The datapack package is missing a valid pack.mcmeta.", exception);
+        }
+    }
+
+    private static void ValidateDatapackFolder(string root, CancellationToken cancellationToken)
+    {
+        ValidateDirectoryTree(root, cancellationToken);
+        var metadata = InstanceStorage.ContainedPath("pack.mcmeta", root);
+        ValidatePackMetadataFile(metadata, cancellationToken);
+    }
+
+    private static void ValidateDatapackArchive(string path, CancellationToken cancellationToken)
+    {
+        using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920,
+            FileOptions.SequentialScan);
+        using var archive = new ZipArchive(input, ZipArchiveMode.Read, leaveOpen: false);
+        if (archive.Entries.Count > MaximumDatapackArchiveEntries)
+            throw new InvalidDataException("The datapack archive has too many entries.");
+        var metadata = archive.Entries.Where(entry => string.Equals(entry.FullName, "pack.mcmeta", StringComparison.Ordinal))
+            .ToArray();
+        if (metadata.Length != 1 || IsZipSymbolicLink(metadata[0]))
+            throw new InvalidDataException("The datapack archive must contain one regular root pack.mcmeta file.");
+        if (metadata[0].Length > MaximumDatapackMetadataBytes)
+            throw new InvalidDataException("The datapack pack.mcmeta file is too large.");
+        using var stream = metadata[0].Open();
+        ValidatePackMetadata(ReadBounded(stream, MaximumDatapackMetadataBytes, cancellationToken));
+    }
+
+    private static void ValidatePackMetadataFile(string path, CancellationToken cancellationToken)
+    {
+        var attributes = File.GetAttributes(path);
+        if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0
+            || new FileInfo(path).Length > MaximumDatapackMetadataBytes)
+            throw new InvalidDataException("The datapack folder must contain a bounded regular pack.mcmeta file.");
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920,
+            FileOptions.SequentialScan);
+        ValidatePackMetadata(ReadBounded(stream, MaximumDatapackMetadataBytes, cancellationToken));
+    }
+
+    private static byte[] ReadBounded(Stream input, int maximumBytes, CancellationToken cancellationToken)
+    {
+        using var output = new MemoryStream(Math.Min(maximumBytes, 4096));
+        var buffer = new byte[8192];
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var read = input.Read(buffer, 0, buffer.Length);
+            if (read == 0) break;
+            if (output.Length + read > maximumBytes)
+                throw new InvalidDataException("The datapack pack.mcmeta file is too large.");
+            output.Write(buffer, 0, read);
+        }
+
+        return output.ToArray();
+    }
+
+    private static void ValidatePackMetadata(ReadOnlyMemory<byte> bytes)
+    {
+        using var document = JsonDocument.Parse(bytes);
+        if (document.RootElement.ValueKind != JsonValueKind.Object
+            || !document.RootElement.TryGetProperty("pack", out var pack)
+            || pack.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException("The datapack pack.mcmeta file is not a pack JSON object.");
+    }
+
+    internal sealed class InvalidDatapackPackageException(string message, Exception? innerException = null)
+        : IOException(message, innerException);
+
+    private static bool IsZipSymbolicLink(ZipArchiveEntry entry)
+    {
+        var unixType = (unchecked((uint)entry.ExternalAttributes) >> 16) & 0xF000;
+        return unixType == 0xA000;
+    }
+
+    private async Task CopyToStageAsync(string source, string staged, CancellationToken cancellationToken,
+        bool existingParentsOnly)
+    {
+        if (Directory.Exists(source)) await CopyDirectoryAsync(source, staged, cancellationToken, existingParentsOnly).ConfigureAwait(false);
         else await CopyFileAsync(source, staged, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task CopyDirectoryAsync(string source, string destination, CancellationToken cancellationToken)
+    private async Task CopyDirectoryAsync(string source, string destination, CancellationToken cancellationToken,
+        bool existingParentsOnly)
     {
-        Directory.CreateDirectory(destination);
+        beforeCopyDirectory?.Invoke(source);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (existingParentsOnly)
+        {
+            // Keep staging on the destination volume without ever recreating a deleted world or ancestor.
+            if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
+            InstanceStorage.CreateDirectoryExclusiveAt(Path.GetDirectoryName(destination)!, Path.GetFileName(destination));
+        }
+        else
+        {
+            Directory.CreateDirectory(destination);
+        }
         foreach (var entry in Directory.EnumerateFileSystemEntries(source))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -612,7 +951,7 @@ public sealed class InstanceContent
                 throw new IOException("Resourcepack folders cannot contain reparse points.");
             var target = Path.Combine(destination, name);
             if ((attributes & FileAttributes.Directory) != 0)
-                await CopyDirectoryAsync(entry, target, cancellationToken).ConfigureAwait(false);
+                await CopyDirectoryAsync(entry, target, cancellationToken, existingParentsOnly).ConfigureAwait(false);
             else
                 await CopyFileAsync(entry, target, cancellationToken).ConfigureAwait(false);
         }
@@ -659,8 +998,9 @@ public sealed class InstanceContent
         return (File.GetAttributes(metadata) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) == 0;
     }
 
-    private static string CheckedItemPath(string instanceRoot, string folder, ModrinthContentKind kind, InstanceContentItem item)
+    private static string CheckedItemPath(string instanceRoot, string folder, InstanceContentTarget target, InstanceContentItem item)
     {
+        var kind = target.Kind;
         ValidateContentName(item.Name);
         var enabledFolder = folder;
         var disabledFolder = IsPack(kind) ? DisabledPacksFolder(instanceRoot, folder) : null;
@@ -675,11 +1015,11 @@ public sealed class InstanceContent
         if (kind == ModrinthContentKind.Mod && !item.Name.EndsWith(".jar", StringComparison.OrdinalIgnoreCase)
             && !item.Name.EndsWith(".jar.disabled", StringComparison.OrdinalIgnoreCase))
             throw new IOException("A mod must be a JAR file.");
-        if (kind == ModrinthContentKind.ResourcePack && !isDirectory
+        if (IsPack(kind) && !isDirectory
             && !item.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            throw new IOException("A resourcepack must be a ZIP file or a folder with pack.mcmeta.");
-        if (kind == ModrinthContentKind.ResourcePack && isDirectory && !HasPackMetadata(instanceRoot, expected))
-            throw new IOException("A resourcepack folder must contain pack.mcmeta.");
+            throw new IOException("A pack must be a ZIP file or a folder with pack.mcmeta.");
+        if (IsPack(kind) && isDirectory && !HasPackMetadata(instanceRoot, expected))
+            throw new IOException("A pack folder must contain pack.mcmeta.");
         return expected;
     }
 
@@ -700,14 +1040,15 @@ public sealed class InstanceContent
     private static string LogicalContentName(ModrinthContentKind kind, string name) =>
         kind == ModrinthContentKind.Mod ? LogicalJarName(name) : name;
 
-    private static void ValidateContentFilename(string filename, ModrinthContentKind kind)
+    private static void ValidateContentFilename(string filename, InstanceContentTarget target)
     {
+        var kind = target.Kind;
         ValidateContentName(filename);
         var suffix = kind switch
         {
             ModrinthContentKind.Mod => ".jar",
-            ModrinthContentKind.ResourcePack => ".zip",
-            _ => throw new NotSupportedException("Local datapack operations are implemented in a later stage.")
+            ModrinthContentKind.ResourcePack or ModrinthContentKind.Datapack => ".zip",
+            _ => throw new ArgumentOutOfRangeException(nameof(target))
         };
         if (!filename.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException($"A content filename must end in {suffix}.", nameof(filename));
@@ -883,6 +1224,17 @@ public sealed class InstanceContent
         if (!InstanceStorage.IsSinglePathSegment(registryName))
             throw new ArgumentException("The registry name must be one path segment.", nameof(registryName));
         var path = InstanceStorage.ContainedPath($"minecraft/{registryName}", instanceRoot, allowBaseReparsePoint: true);
+        return ReadRegistryAt(path, requireApiProvisioned: true);
+    }
+
+    private static ModRegistry ReadRegistry(string instanceRoot, GameInstance instance, InstanceContentTarget target)
+    {
+        var path = RegistryPath(instanceRoot, instance, target);
+        return ReadRegistryAt(path, requireApiProvisioned: target.Kind != ModrinthContentKind.Datapack);
+    }
+
+    private static ModRegistry ReadRegistryAt(string path, bool requireApiProvisioned)
+    {
         FileAttributes attributes;
         try { attributes = File.GetAttributes(path); }
         catch (FileNotFoundException) { return new ModRegistry(); }
@@ -892,22 +1244,30 @@ public sealed class InstanceContent
         if (new FileInfo(path).Length > 16 * 1024 * 1024)
             throw new InvalidDataException("The mod registry is too large.");
         var bytes = File.ReadAllBytes(path);
-        ValidateRegistry(bytes);
+        ValidateRegistry(bytes, requireApiProvisioned);
         return JsonSerializer.Deserialize(bytes, HakoJsonContext.Default.ModRegistry)
             ?? throw new InvalidDataException("The mod registry is empty.");
     }
 
-    private static void ValidateRegistry(ReadOnlyMemory<byte> bytes)
+    private static void ValidateRegistry(ReadOnlyMemory<byte> bytes, bool requireApiProvisioned = true)
     {
         using var document = JsonDocument.Parse(bytes);
         var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object
-            || !root.TryGetProperty("apiProvisioned", out var apiProvisioned)
-            || apiProvisioned.ValueKind is not (JsonValueKind.True or JsonValueKind.False)
             || !root.TryGetProperty("files", out var files)
             || files.ValueKind != JsonValueKind.Object)
         {
             throw new JsonException("The mod registry is missing required fields or has an invalid structure.");
+        }
+
+        if (root.TryGetProperty("apiProvisioned", out var apiProvisioned))
+        {
+            if (apiProvisioned.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw new JsonException("The mod registry apiProvisioned field has an invalid structure.");
+        }
+        else if (requireApiProvisioned)
+        {
+            throw new JsonException("The mod registry is missing the required apiProvisioned field.");
         }
 
         foreach (var file in files.EnumerateObject())
@@ -972,14 +1332,28 @@ public sealed class InstanceContent
     {
         if (!InstanceStorage.IsSinglePathSegment(registryName))
             throw new ArgumentException("The registry name must be one path segment.", nameof(registryName));
+        var path = InstanceStorage.ContainedPath($"minecraft/{registryName}", instanceRoot, allowBaseReparsePoint: true);
+        WriteRegistryAt(path, registry, createParent: true, validateWorld: null);
+    }
+
+    private static void WriteRegistry(string instanceRoot, GameInstance instance, InstanceContentTarget target,
+        ModRegistry registry)
+    {
+        var path = RegistryPath(instanceRoot, instance, target);
+        Action? validateWorld = target.WorldId is null ? null : () => ValidateTargetWorld(instanceRoot, target);
+        WriteRegistryAt(path, registry, createParent: target.WorldId is null, validateWorld);
+    }
+
+    private static void WriteRegistryAt(string path, ModRegistry registry, bool createParent, Action? validateWorld)
+    {
         foreach (var key in registry.Files.Keys)
         {
             ValidateContentName(key);
             if (!string.Equals(key, key.ToLowerInvariant(), StringComparison.Ordinal))
                 throw new InvalidDataException("Content registry keys must be lowercase logical filenames.");
         }
-        var path = InstanceStorage.ContainedPath($"minecraft/{registryName}", instanceRoot, allowBaseReparsePoint: true);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        if (createParent) Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        validateWorld?.Invoke();
         try
         {
             if ((File.GetAttributes(path) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0)
@@ -997,6 +1371,7 @@ public sealed class InstanceContent
                 stream.Flush(flushToDisk: true);
             }
 
+            validateWorld?.Invoke();
             File.Move(temporary, path, overwrite: true);
         }
         finally

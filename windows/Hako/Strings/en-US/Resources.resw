@@ -333,6 +333,10 @@ Hako</value></data>
   <data name="ContentConfirmationDeleteMessage" xml:space="preserve"><value>Move “{0}” from build “{1}” to the Recycle Bin?</value></data>
   <data name="ContentConfirmationDeletePrimary" xml:space="preserve"><value>Delete</value></data>
   <data name="ContentConfirmationDeleteAlternative" xml:space="preserve"><value>Not available</value></data>
+  <data name="ContentConfirmationDatapackPacksTitle" xml:space="preserve"><value>Resource pack for datapack</value></data>
+  <data name="ContentConfirmationDatapackPacksMessage" xml:space="preserve"><value>This datapack version includes linked resource packs. Choose one to install with the datapack.</value></data>
+  <data name="ContentConfirmationDatapackPacksPrimary" xml:space="preserve"><value>Add selected resource pack</value></data>
+  <data name="ContentConfirmationDatapackPacksAlternative" xml:space="preserve"><value>Datapack only</value></data>
   <data name="ContentNoteDisabledWillBeEnabled" xml:space="preserve"><value>The disabled project will be enabled.</value></data>
   <data name="ContentNoteUnsupported" xml:space="preserve"><value>This dependency type is not supported.</value></data>
   <data name="ContentNoteRequiresFabric" xml:space="preserve"><value>This project requires a Fabric build.</value></data>
@@ -358,4 +362,5 @@ Hako</value></data>
   <data name="ContentFailureOperationFailed" xml:space="preserve"><value>The content operation failed.</value></data>
   <data name="ContentFailureBulkUpdateFailed" xml:space="preserve"><value>{0} updates could not be completed. See the per-file details.</value></data>
   <data name="ContentFailureCancelled" xml:space="preserve"><value>The operation was cancelled.</value></data>
+  <data name="ContentFailureWorldUnavailable" xml:space="preserve"><value>The selected world is no longer available.</value></data>
 </root>

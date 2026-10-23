@@ -333,6 +333,10 @@
   <data name="ContentConfirmationDeleteMessage" xml:space="preserve"><value>Переместить «{0}» из сборки «{1}» в Корзину?</value></data>
   <data name="ContentConfirmationDeletePrimary" xml:space="preserve"><value>Удалить</value></data>
   <data name="ContentConfirmationDeleteAlternative" xml:space="preserve"><value></value></data>
+  <data name="ContentConfirmationDatapackPacksTitle" xml:space="preserve"><value>Ресурспак для датапака</value></data>
+  <data name="ContentConfirmationDatapackPacksMessage" xml:space="preserve"><value>В версии датапака есть связанные ресурспаки. Выберите один для установки вместе с датапаком.</value></data>
+  <data name="ContentConfirmationDatapackPacksPrimary" xml:space="preserve"><value>Добавить выбранный ресурспак</value></data>
+  <data name="ContentConfirmationDatapackPacksAlternative" xml:space="preserve"><value>Только датапак</value></data>
   <data name="ContentNoteDisabledWillBeEnabled" xml:space="preserve"><value>Отключённый проект будет включён.</value></data>
   <data name="ContentNoteUnsupported" xml:space="preserve"><value>Тип зависимости не поддерживается.</value></data>
   <data name="ContentNoteRequiresFabric" xml:space="preserve"><value>Для проекта нужна сборка Fabric.</value></data>
@@ -358,4 +362,5 @@
   <data name="ContentFailureOperationFailed" xml:space="preserve"><value>Не удалось выполнить операцию с содержимым.</value></data>
   <data name="ContentFailureBulkUpdateFailed" xml:space="preserve"><value>Не удалось выполнить {0} обновлений. Подробности указаны по файлам.</value></data>
   <data name="ContentFailureCancelled" xml:space="preserve"><value>Операция отменена.</value></data>
+  <data name="ContentFailureWorldUnavailable" xml:space="preserve"><value>Выбранный мир больше недоступен.</value></data>
 </root>

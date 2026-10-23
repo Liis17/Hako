@@ -260,8 +260,8 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Core/HakoPaths.cs`, `HakoRootLock.cs` | `HakoPaths`, `HakoRootLock` | Пути корней, изолированные запуски и блокировки game-root/data-root |
 | `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
 | `windows/Hako.Core/Instances/InstanceStorage.cs`, `InstanceStore.cs` | `InstanceStorage`, `InstanceStore`, `InstanceRegistryFile` | Безопасные пути, `instances.json`, транзакционное создание и управление профилями |
-| `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `ModRegistry`, `ModOrigin`, `InstanceContentItem` | Реестры модов/ресурспаков, локальные импорт, включение, замена и корзина; установка Fabric API |
-| `windows/Hako.Core/Instances/InstanceContentController.cs` | `InstanceContentController`, `InstanceContentState`, `ContentConfirmationRequest` | Core-оркестрация локального контента, зависимостей Modrinth и обновлений; подтверждения без WinUI |
+| `windows/Hako.Core/Instances/InstanceContent.cs` | `InstanceContent`, `InstanceContentTarget`, `ModRegistry`, `ModOrigin`, `InstanceContentItem` | Реестры модов/ресурспаков/датапаков мира, локальные импорт, включение и замена; установка Fabric API |
+| `windows/Hako.Core/Instances/InstanceContentController.cs` | `InstanceContentController`, `InstanceContentState`, `InstanceContentStateKey`, `ContentConfirmationRequest` | Core-оркестрация локального контента, выбранного мира, зависимостей Modrinth и обновлений; подтверждения без WinUI |
 | `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta; поиск и версии Modrinth, распознавание SHA-512, кэш и проверяемая потоковая загрузка |
 | `windows/Hako.Core/JsonContexts.cs` | `HakoJsonContext` | Source-generated JSON-контракты Hako, Fabric, контента Modrinth и его кэша |
 | `windows/Hako.Core/RecycleBin.cs` | `RecycleBin`, `IFileOperationProgressSink` | Перемещение в Корзину и подтверждённое безвозвратное удаление через API |
@@ -271,8 +271,8 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Tests/StorageTests.cs` | — | DPAPI без открытого текста токенов, очистка, повреждённый файл, сбой замены |
 | `windows/Hako.Tests/InstanceStoreTests.cs`, `UserSettingsServiceTests.cs`, `RecycleBinTests.cs` | — | Изоляция путей, файловые транзакции, настройки, блокировка и корзина |
 | `windows/Hako.Tests/ModrinthTests.cs` | — | Фасеты, совместимость версий, распознавание, кэш и проверяемые загрузки Modrinth |
-| `windows/Hako.Tests/InstanceContentTests.cs` | — | Реестры и локальные операции модов/паков, замена, корзина и reparse points |
-| `windows/Hako.Tests/InstanceContentControllerTests.cs` | — | Зависимости Modrinth, подтверждения, отмена, хеши, обновления, Fabric API и lease |
+| `windows/Hako.Tests/InstanceContentTests.cs`, `InstanceDatapackContentTests.cs` | — | Реестры и локальные операции модов/паков/датапаков, проверка `pack.mcmeta`, замена, rollback и reparse points |
+| `windows/Hako.Tests/InstanceContentControllerTests.cs` | — | Зависимости Modrinth, world-scoped состояния, подтверждения, выбор связанных паков, отмена, обновления и lease |
 | `windows/Hako.Tests/RedactionTests.cs` | — | `ToString()` записей `MicrosoftToken` и `AccountSession` без токенов |
 
 ### Аккаунт: `session.dat`
@@ -357,29 +357,47 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   включаются в исключение, а оставшаяся резервная копия не удаляется и указывается в сообщении. Перемещение в Корзину
   удаляет запись происхождения только при статусе `Recycled`;
   отказ или частичная ошибка оставляет реестр нетронутым. Папки паков локальные, их origin не записывается.
+- Датапаки мира хранятся в `minecraft/saves/<worldId>/datapacks`, отключённые — в
+  `minecraft/saves/<worldId>/.hako-disabled-datapacks`. Реестр `.hako-datapacks.json` лежит в папке мира и содержит
+  `files` с ключами lowercase ZIP-имён и тем же `ModOrigin` (Swift-ключи `projectID`, `versionID`, `pageURL`, `sha512`,
+  `versionNumber`, `iconURL`, `fileType`). `apiProvisioned` для этого реестра необязателен при чтении и записывается
+  Core при сохранении; это сохраняет совместимость с Swift. Реестр повреждённого формата не перезаписывается. ZIP
+  требует один обычный корневой `pack.mcmeta` размером до 1 МиБ с JSON object `pack`; архив ограничен 100 000 entries,
+  ZIP копируется как файл, папка обходится без перехода по reparse points. Создание datapacks leaf допускается только
+  внутри существующего проверенного мира; missing world/level metadata не восстанавливается.
 - Реестры повреждённого формата не перезаписываются. Имена проверяются как Windows path segments; импорт и чтение
   папок паков отклоняют reparse points и junction внутри дерева. Поиск записей использует сравнение без учёта регистра,
-  чтобы включение, отключение или замена не создали вторую запись того же логического файла. Локальные операции
-  датапаков пока не реализованы.
-- `InstanceContentController` — Core-only контроллер этапа 6b; persisted-схема реестров не меняется. `InstalledProjectsAsync`
+  чтобы включение, отключение или замена не создали вторую запись того же логического файла. Для обновления проверяется
+  ожидаемый старый SHA-512; disabled-состояние и origin сохраняются, публикация и реестр откатываются вместе при ошибке.
+- `InstanceContentTarget` предоставляет `.Mods`, `.Packs` и `.WorldDatapacks(worldId)`. Overload-ы `InstanceContent`
+  и `InstanceContentController` по старому `ModrinthContentKind` остаются для модов и ресурспаков; datapack-kind без
+  явной папки мира отклоняется. Локальные и Modrinth-операции мира входят в Core этапа 7b; Windows UI этапа 7c ещё
+  не подключён, удаление отдельных датапаков не предоставляется.
+- `InstanceContentController` — Core-only контроллер этапов 6b/7b; persisted-схема реестров не меняется. `InstalledProjectsAsync`
   группирует записи происхождения и распознаёт остальные файлы по SHA-512, включая отключённые. Узнанный вручную файл
   получает `ModOrigin` под content-lease только после повторной проверки ожидаемого SHA-512. `RecordOriginUnderLeaseAsync`
   обновляет только JSON-реестр и не меняет файл. Обновления связанных ZIP ресурспаков берут совместимую datapack-версию
   и сохраняют `fileType` в origin.
-- Снимок `InstanceContentState` адресован парой instance UUID + kind; `StateChanged` не маршалит на UI-поток.
+- Снимок `InstanceContentState` адресован `InstanceContentStateKey(instanceId, kind, worldId)`; для модов и ресурспаков
+  `worldId` null, для датапаков это ID папки выбранного мира. Так ошибки, обновления, busy, текущий проект и revision
+  изолированы между мирами. `StateChanged` не маршалит на UI-поток.
   При обновлении с коллизией подтверждённый файл сохраняется в `.hako-backup-<UUID>` до commit общего registry;
   до commit ошибки/отмена восстанавливают старый файл и коллизию независимо. После commit коллизия отправляется
   в корзину без caller cancellation. При отказе Shell новая версия и registry остаются опубликованы, backup
   сохраняется, `ContentOperationFailed.Arguments["diagnostic"]` сообщает путь для восстановления; JSON-форматы не меняются.
   Обработчик WinUI этапа 6c должен публиковать снимок на `DispatcherQueue`. Подтверждения передаются callback-ом через
   `ContentConfirmationRequest` с enum-кодами и string-аргументами для ru/en ресурсов; сам Core не содержит UI-локализации.
+  Для связанных ресурспаков датапака `ContentConfirmationRequest.Files` передаёт имя, `fileType` и required/optional.
+  Additive `ContentConfirmationSelectionCallback` возвращает имя выбранного ZIP; прежний callback с `Primary` сохраняет
+  поведение и выбирает первый вариант. `Alternative` продолжает без связанного ресурспака, `Cancel` останавливает операцию
+  до изменений. `WorldUnavailable` — типизированная ошибка отсутствующего/изменившегося мира для UI 7c.
   Callback получает `CancellationToken`, операции не блокируют поток UI и удерживают один content-lease без повторного
   захвата через `InstanceContent.*UnderLeaseAsync`. Windows UI подключён через app-lifetime `LauncherServices`:
   `InstanceContentView` и `ModrinthCatalogView` применяют актуальный снимок по UUID/kind на `DispatcherQueue`, сверяя
   `Revision`; уход со страницы отменяет её чтение и поиск, но не уже начатую установку. Общий `HakoDialogs` сериализует
   `ContentDialog` одного окна и завершает ожидающее подтверждение отменой при закрытии окна. `UpdateAllAsync` подтверждения не показывает: такие элементы получают
   `ConfirmationRequired`, ошибки собираются по файлам, дальнейшие обновления продолжаются. Публичное подключение контроллера
-  не меняет JSON-реестры; миры и локальные операции датапаков остаются вне текущего UI-среза.
+  не меняет JSON-реестры; UI-маршрут к мирам и датапакам остаётся на этапе 7c.
 - Кеш хешей Modrinth находится в `%LOCALAPPDATA%\Hako\Cache\Modrinth\files.json` (или в инжектируемом
   `HakoPaths.CacheRoot`); ключ файла содержит нормализованный путь, размер и время изменения. Удалённые пути и
   неиспользуемые версии очищаются при сохранении, неизвестные хеши живут только в памяти клиента. Клиенты в одном

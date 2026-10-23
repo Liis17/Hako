@@ -88,6 +88,61 @@ public sealed class ModrinthTests
     }
 
     [TestMethod]
+    public async Task DatapackSearchUsesAllTypesCategoryAndMinecraftFacets()
+    {
+        using var temporary = new TemporaryDirectory();
+        string? requestUri = null;
+        using var client = new ModrinthClient(new HttpClient(new CallbackHttpHandler((request, _) =>
+        {
+            requestUri = request.RequestUri!.AbsoluteUri;
+            return Task.FromResult(TestData.Json(HttpStatusCode.OK, "{\"hits\":[],\"total_hits\":0}"));
+        })), ApiBase, cacheRoot: temporary.Root);
+
+        await client.SearchAsync("world gen", ModrinthContentKind.Datapack, "1.20.4");
+
+        var decoded = Uri.UnescapeDataString(requestUri!);
+        StringAssert.Contains(decoded, "all_project_types:datapack");
+        StringAssert.Contains(decoded, "categories:datapack");
+        StringAssert.Contains(decoded, "versions:1.20.4");
+        Assert.IsFalse(decoded.Contains("project_type:mod", StringComparison.Ordinal));
+        Assert.IsFalse(decoded.Contains("categories:fabric", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task DatapackVersionsUseDatapackLoaderAndExcludeAttachedResourcePackFiles()
+    {
+        using var temporary = new TemporaryDirectory();
+        var bytes = Encoding.UTF8.GetBytes("archive bytes");
+        var requestUri = "";
+        var json = "[" + string.Join(',',
+            VersionJson("datapack", "release", "2025-01-02T00:00:00Z", ["1.20.4"], ["datapack"],
+                [FileJson("main.zip", bytes, primary: true), FileJson("required.zip", bytes, "required-resource-pack"),
+                 FileJson("optional.zip", bytes, "optional-resource-pack")]),
+            VersionJson("wrong-loader", "release", "2025-01-04T00:00:00Z", ["1.20.4"], ["fabric"],
+                [FileJson("fabric.zip", bytes)]),
+            VersionJson("wrong-game", "release", "2025-01-05T00:00:00Z", ["1.20.5"], ["datapack"],
+                [FileJson("wrong.zip", bytes)]),
+            VersionJson("resource-only", "release", "2025-01-03T00:00:00Z", ["1.20.4"], ["datapack"],
+                [FileJson("attached.zip", bytes, "required-resource-pack", primary: true)])) + "]";
+        using var client = new ModrinthClient(new HttpClient(new CallbackHttpHandler((request, _) =>
+        {
+            requestUri = request.RequestUri!.AbsoluteUri;
+            return Task.FromResult(TestData.Json(HttpStatusCode.OK, json));
+        })), ApiBase, cacheRoot: temporary.Root);
+
+        var versions = await client.GetCompatibleVersionsAsync("project123", ModrinthContentKind.Datapack, "1.20.4");
+
+        CollectionAssert.AreEqual(new[] { "datapack" }, versions.Select(version => version.Id).ToArray());
+        Assert.AreEqual("main.zip", versions.Single().InstallableFile(ModrinthContentKind.Datapack)!.Filename);
+        CollectionAssert.AreEqual(new[] { "required.zip", "optional.zip" },
+            versions.Single().ResourcePacks.Select(file => file.Filename).ToArray());
+        var decodedQuery = Uri.UnescapeDataString(requestUri).Replace("\r", "", StringComparison.Ordinal)
+            .Replace("\n", "", StringComparison.Ordinal).Replace(" ", "", StringComparison.Ordinal);
+        StringAssert.Contains(decodedQuery, "loaders=[\"datapack\"]");
+        StringAssert.Contains(decodedQuery, "game_versions=[\"1.20.4\"]");
+    }
+
+    [TestMethod]
     public async Task CompatibleVersionsUseActualVersionsFilesAndReleaseDateOrder()
     {
         using var temporary = new TemporaryDirectory();
