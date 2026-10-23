@@ -331,11 +331,12 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
   `Hako (Package)` (`MsixPackage`) и `Hako (Unpackaged)` (`Project`). Тип упаковки (`WindowsPackageType`)
   в `Hako.csproj` не задан; CI выбирает `MSIX` для Windows-релизной сборки.
 - `PublishTrimmed` и `PublishReadyToRun` включаются для конфигураций, отличных от `Debug`.
-  Release-публикация показывает `IL2059` в сгенерированном `XamlTypeInfo.g.cs` для `RunClassConstructor`
-  у `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion`, а также `IL2104` для
-  `SharpGen.Runtime`. `Nullable<T>` не имеет статического конструктора; предупреждение зависимости
-  относится к upstream assembly. Не подавлять их глобально через `NoWarn`, чтобы не скрыть такие же
-  предупреждения в коде Hako.
+  Известные Release-предупреждения trimming: `IL2059` в сгенерированном `XamlTypeInfo.g.cs` для
+  `RunClassConstructor` у `Nullable<bool>` присоединённого свойства `TitleBar.IsDragRegion` и `IL2104`
+  в upstream-сборках `SharpGen.Runtime` или `System.Text.Json` (набор зависит от SDK и восстановленных
+  версий зависимостей). `Nullable<T>` не имеет статического конструктора; предупреждения библиотек относятся
+  к их исходным сборкам. Не подавлять их глобально через `NoWarn`, чтобы не скрыть такие же предупреждения
+  в коде Hako.
 - Для isolated UI smoke запустить `Hako.exe --profile-preview [account|no-minecraft|guest|fixture]`
   (без режима используется `account`). `--preview-width` принимает 640–2560, `--preview-height` — 480–2560;
   эти аргументы действуют только в preview. Режимы используют fake аккаунт/гостя без реального UUID, сеть
@@ -352,9 +353,9 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: CurseForge и самообновление. Готовые Modrinth-паки устанавливаются из каталога;
-  локальный импорт `.mrpack` и обновление
-  всего модпака не поддерживаются.
+- Не реализованы: CurseForge, самообновление Windows и восстановление из `.hakobackup`/`.hakoworld`.
+  Modrinth-паки устанавливаются из каталога; локальный импорт `.mrpack` и обновление всего модпака
+  не поддерживаются.
 - Онлайн-запуск обновляет Minecraft-сессию через `MinecraftSessionCoordinator.ConnectForLaunchAsync` (refresh-grant
   с сохранением нового refresh token); без Minecraft-профиля доступен только offline-mode сборки.
 

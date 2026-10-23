@@ -89,7 +89,7 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `windows/Hako/LoginPage.xaml`, `windows/Hako/LoginPage.xaml.cs` | `LoginPage` | Фазы входа в Microsoft |
 | `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
 | `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage`, `BuildCardModel` | Раздел «Сборки»: пустое состояние или карточки сборок — [[UI/Launcher#Windows-клиент]] |
-| `windows/Hako/InstanceCreationPage.xaml(.cs)`, `InstanceCreationChoiceDialog.cs` | `InstanceCreationPage`, `InstanceCreationChoiceDialog` | Создание Vanilla-сборки |
+| `windows/Hako/InstanceCreationPage.xaml(.cs)`, `InstanceCreationChoiceDialog.cs` | `InstanceCreationPage`, `InstanceCreationChoiceDialog` | Создание своей сборки: выбор Minecraft, Vanilla/Fabric и параметров запуска |
 | `windows/Hako/InstanceProfilePage.xaml(.cs)` | `InstanceProfilePage` | Профиль сборки: запуск, установка, разделы контента, скриншоты, настройки, дублирование и резервная копия |
 | `windows/Hako/InstanceScreenshotsView.xaml(.cs)`, `ScreenshotThumbnails.cs` | `InstanceScreenshotsView`, `ScreenshotThumbnails` | Сетка скриншотов с ограниченными миниатюрами, выбором, drag-copy и перемещением в Корзину |
 | `windows/Hako/InstanceWorldsView.xaml(.cs)` | `InstanceWorldsView`, `InstanceWorldRow` | Миры, метаданные, открытие saves, дублирование, резервная копия, корзина и датапаки |

@@ -454,9 +454,12 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   (см. `AppDataDirectory.GetLocalPath` выше).
 - Гостевой вход (`AppCoordinator.IsGuest`) хранится только в памяти: после перезапуска приложение возвращается
   к `Welcome` (тест `GuestDoesNotPersistAndRestartReturnsToWelcome`).
-- Сохранённый профиль Minecraft (`MinecraftProfileId`, `MinecraftName`) — данные профиля, а не игровая сессия.
-  `MinecraftAccessToken` и `MinecraftTokenExpiresAt` нигде не читаются, обновление токенов не реализовано.
-  Выход удаляет запись целиком.
+- `MinecraftProfileId`, `MinecraftName`, `MinecraftAccessToken` и `MinecraftTokenExpiresAt` — состояние Minecraft-сессии
+  в `AccountSession`. `MinecraftSessionCoordinator.ConnectForLaunchAsync` переиспользует access token, если до истечения
+  осталось больше минуты; иначе `MicrosoftDeviceAuth.ConnectMinecraftAsync` обновляет сессию через Microsoft refresh token.
+  Ротированный refresh token сохраняется до Xbox/XSTS/Minecraft-запросов, а профиль, access token и срок действия
+  записываются через `commitIfCurrent`. Параллельные запросы используют один refresh; смена поколения аккаунта и выход
+  отменяют его. Подробный контракт — [[Auth/MicrosoftAuth#Обновление сессии для онлайн-запуска]]. Выход удаляет запись целиком.
 
 ### Решения и основания
 
