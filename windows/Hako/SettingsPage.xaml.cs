@@ -1,5 +1,6 @@
 using Hako.Core;
 using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,7 +14,8 @@ internal sealed record SettingsPageContext(
     AppCoordinator Coordinator,
     MinecraftSkinPreviewService SkinPreviewService,
     ProfilePreviewOptions? PreviewOptions,
-    UserSettingsService Settings);
+    UserSettingsService Settings,
+    PlaytimeCoordinator Playtime);
 
 public sealed partial class SettingsPage : Page, INavigationGuard
 {
@@ -32,6 +34,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     private Guid _profileRequestScope;
     private bool? _isWideProfileLayout;
     private UserSettingsService? _settings;
+    private PlaytimeCoordinator? _playtime;
     private DispatcherQueueTimer? _gameSaveTimer;
     private bool _loadingGame;
     private bool _pickingJava;
@@ -50,6 +53,8 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         _skinPreviewService = context.SkinPreviewService;
         _previewOptions = context.PreviewOptions;
         _settings = context.Settings;
+        _playtime = context.Playtime;
+        _playtime.PropertyChanged += Playtime_PropertyChanged;
         LoadGameSettings();
         _profileRequestScope = Guid.NewGuid();
         _screenVisible = true;
@@ -67,10 +72,12 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         SkinView.HeadImageReady -= SkinView_HeadImageReady;
         SkinView.DisposeView();
         _gameSaveTimer?.Stop();
+        if (_playtime is not null) _playtime.PropertyChanged -= Playtime_PropertyChanged;
         // Covers navigation without ConfirmLeaveAsync; after the guard saved, the draft equals the settings snapshot and nothing is written.
         _ = SaveGameSettingsAsync();
         _coordinator = null;
         _skinPreviewService = null;
+        _playtime = null;
         base.OnNavigatedFrom(e);
     }
 
@@ -161,6 +168,17 @@ public sealed partial class SettingsPage : Page, INavigationGuard
 
         GuestProfileStatus.Text = HakoStrings.Get("GuestProfileTitle");
         GuestProfileDetails.Text = HakoStrings.Get("GuestProfileDetails");
+        AccountPlaytimeTitle.Text = HakoStrings.Get("PlaytimeSummaryTitle");
+        AccountPlaytimeValue.Text = PlaytimeFormatter.Format(_playtime?.TotalSeconds(account?.Xuid) ?? 0,
+            _coordinator?.Language ?? AppLanguages.Default, HakoStrings.Get);
+        GuestPlaytimeTitle.Text = HakoStrings.Get("PlaytimeSummaryTitle");
+        GuestPlaytimeValue.Text = PlaytimeFormatter.Format(_playtime?.TotalSeconds(null) ?? 0,
+            _coordinator?.Language ?? AppLanguages.Default, HakoStrings.Get);
+        GuestPlaytimeTransfer.Text = HakoStrings.Get("PlaytimeGuestTransfer");
+        AccountPlaytimeError.Text = PlaytimeErrorText(_playtime?.ErrorResourceKey, _playtime?.ErrorDetail);
+        AccountPlaytimeError.Visibility = account is not null && _playtime?.ErrorResourceKey is not null ? Visibility.Visible : Visibility.Collapsed;
+        GuestPlaytimeError.Text = PlaytimeErrorText(_playtime?.ErrorResourceKey, _playtime?.ErrorDetail);
+        GuestPlaytimeError.Visibility = isGuest && _playtime?.ErrorResourceKey is not null ? Visibility.Visible : Visibility.Collapsed;
         SignInButton.Content = HakoStrings.Get("SignInButton");
         SignedOutProfileStatus.Text = HakoStrings.Get("ProfileSignedOutTitle");
         SignedOutProfileDetails.Text = HakoStrings.Get("ProfileSignedOutDetails");
@@ -183,6 +201,18 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         }
 
         UpdateSkinVisibility();
+    }
+
+    private static string PlaytimeErrorText(string? key, string? detail) => key is null
+        ? string.Empty
+        : string.IsNullOrWhiteSpace(detail)
+            ? HakoStrings.Get(key)
+            : HakoStrings.Get(key) + " " + string.Format(HakoStrings.Get("PlaytimeErrorDetails"), detail);
+
+    private void Playtime_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(PlaytimeCoordinator.Revision) or nameof(PlaytimeCoordinator.ErrorResourceKey))) return;
+        DispatcherQueue.TryEnqueue(RefreshProfile);
     }
 
     private void UpdateSkinVisibility()

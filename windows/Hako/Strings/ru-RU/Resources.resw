@@ -523,4 +523,24 @@
   <data name="ScreenshotsDeletedFormat" xml:space="preserve"><value>В Корзину перемещено скриншотов: {0}.</value></data>
   <data name="ScreenshotsDeletePartialFormat" xml:space="preserve"><value>В Корзину перемещено скриншотов: {0}; не удалось переместить: {1}.</value></data>
   <data name="ScreenshotsActionFailed" xml:space="preserve"><value>Не удалось выполнить действие со скриншотом.</value></data>
+  <data name="PlaytimeSummaryTitle" xml:space="preserve"><value>Время в Minecraft</value></data>
+  <data name="PlaytimeInstanceFormat" xml:space="preserve"><value>В игре: {0}</value></data>
+  <data name="PlaytimeGuestTransfer" xml:space="preserve"><value>При входе в Microsoft гостевое время будет добавлено к аккаунту.</value></data>
+  <data name="PlaytimeZero" xml:space="preserve"><value>0 мин</value></data>
+  <data name="PlaytimeLessThanMinute" xml:space="preserve"><value>меньше минуты</value></data>
+  <data name="PlaytimeMinuteOne" xml:space="preserve"><value>{0} минута</value></data>
+  <data name="PlaytimeMinuteFew" xml:space="preserve"><value>{0} минуты</value></data>
+  <data name="PlaytimeMinuteMany" xml:space="preserve"><value>{0} минут</value></data>
+  <data name="PlaytimeMinuteOther" xml:space="preserve"><value>{0} мин</value></data>
+  <data name="PlaytimeHourOne" xml:space="preserve"><value>{0} час</value></data>
+  <data name="PlaytimeHourFew" xml:space="preserve"><value>{0} часа</value></data>
+  <data name="PlaytimeHourMany" xml:space="preserve"><value>{0} часов</value></data>
+  <data name="PlaytimeHourOther" xml:space="preserve"><value>{0} ч</value></data>
+  <data name="PlaytimeDayOne" xml:space="preserve"><value>{0} день</value></data>
+  <data name="PlaytimeDayFew" xml:space="preserve"><value>{0} дня</value></data>
+  <data name="PlaytimeDayMany" xml:space="preserve"><value>{0} дней</value></data>
+  <data name="PlaytimeDayOther" xml:space="preserve"><value>{0} дн.</value></data>
+  <data name="PlaytimeStorageError" xml:space="preserve"><value>Не удалось обновить время в Minecraft из-за ошибки хранилища.</value></data>
+  <data name="PlaytimeHelperStartFailed" xml:space="preserve"><value>Не удалось запустить фоновый помощник учёта времени. Пока Hako открыт, время будет обновляться.</value></data>
+  <data name="PlaytimeErrorDetails" xml:space="preserve"><value>Подробности: {0}</value></data>
 </root>

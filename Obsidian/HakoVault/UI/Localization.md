@@ -98,8 +98,10 @@ Parent: [[Index]]
 | `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Ключи подтверждений, пояснений и ошибок `InstanceContentController` |
 | `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Ключи ошибок миров и метаданных, типов игры, неизвестных значений и аргументированных строк |
 | `windows/Hako/BackupResourceKeys.cs` | `BackupResourceKeys` | Ключи типизированных причин ошибки архивирования и форматирование диагностики/пути |
+| `windows/Hako.Core/Playtime/PlaytimeFormatter.cs` | `PlaytimeFormatter` | Локализованное форматирование дней, часов и минут для русского и английского языков |
+| `windows/Hako/BuildsPage.xaml.cs`, `InstanceProfilePage.xaml.cs`, `SettingsPage.xaml.cs` | `RefreshStrings` | Строки учёта времени и локализованная диагностика helper/storage |
 | `windows/Hako/InstanceScreenshotsView.xaml.cs` | `InstanceScreenshotsView.RefreshStrings` | Подписи галереи скриншотов и обновление открытого раздела при смене языка |
-| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ошибок, уведомлений, контента, миров, скриншотов и архивов |
+| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ошибок, уведомлений, контента, миров, скриншотов, архивов и строк учёта времени |
 
 ### Публичные контракты
 

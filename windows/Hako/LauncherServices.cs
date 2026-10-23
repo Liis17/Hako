@@ -4,6 +4,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -33,7 +34,8 @@ internal sealed record LauncherServices(
     WorldBackup WorldBackups,
     HttpClient? PreviewModrinthHttpClient,
     MinecraftSkinPreviewService SkinPreview,
-    ProfilePreviewOptions? PreviewOptions);
+    ProfilePreviewOptions? PreviewOptions,
+    PlaytimeCoordinator Playtime);
 
 internal sealed record InstanceProfileContext(LauncherServices Services, Guid InstanceId);
 

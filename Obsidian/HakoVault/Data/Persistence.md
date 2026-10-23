@@ -266,6 +266,7 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 | `windows/Hako.Core/Instances/InstanceContentController.cs` | `InstanceContentController`, `InstanceContentState`, `InstanceContentStateKey`, `ContentConfirmationRequest` | Core-оркестрация локального контента, выбранного мира, зависимостей Modrinth и обновлений; подтверждения без WinUI |
 | `windows/Hako.Core/Minecraft/FabricModels.cs`, `FabricClient.cs`, `ModrinthClient.cs` | `FabricConfiguration`, `FabricProfile`, `FabricVersionPredicate`, `FabricClient`, `ModrinthClient` | Fabric Meta; поиск и версии Modrinth, распознавание SHA-512, кэш и проверяемая потоковая загрузка |
 | `windows/Hako.Core/JsonContexts.cs` | `HakoJsonContext` | Source-generated JSON-контракты Hako, Fabric, контента Modrinth и его кэша |
+| `windows/Hako.Core/Playtime/PlaytimeModels.cs`, `PlaytimeStorage.cs`, `PlaytimeCoordinator.cs` | `PlaytimeLedger`, `PlaytimeLedgerStore`, `PlaytimeCoordinator` | Общий журнал игрового времени Windows, проверяемые сессии и восстановление гостевого переноса |
 | `windows/Hako.Core/RecycleBin.cs` | `RecycleBin`, `IFileOperationProgressSink` | Перемещение в Корзину и подтверждённое безвозвратное удаление через API |
 | `windows/Hako.Core/AppCoordinator.cs` | `AppCoordinator.InitializeAsync`, `SetLanguageAsync`, `LogoutAsync` | Загрузка при старте, изменение языка через общий сервис настроек, выход |
 | `windows/Hako/Program.cs`, `App.xaml.cs` | `Program.Main`, `App` | Проверка аргументов до `AppInstance`, выбор путей, блокировка корня и сервисы приложения |
@@ -461,6 +462,38 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 
 - DPAPI и файлы вместо `ApplicationData.Current`: `ApplicationData.Current` падает в unpackaged-запуске
   (причина из плана пользователя).
+
+### Игровое время Windows
+
+- Общие данные лежат в `HakoPaths.GameRoot/.hako-playtime/` как в MSIX, так и в unpackaged-запуске;
+  зашифрованный `session.dat` и настройки остаются в отдельном `DataRoot`. Поэтому игровые счётчики общие между
+  вариантами запуска, даже когда каталог данных аккаунта различается.
+- `playtime.json` хранит счётчики владельцев `account:<XUID>` и `guest`, независимые суммы по UUID сборок,
+  уже начисленное время сессий, ожидающий перенос и маркеры применённых переносов. `sessions/<UUID>.json`
+  хранит проверяемое состояние сессии; рядом используется эксклюзивный `.lock`. Записи типизированы в
+  `HakoJsonContext`, ограничены по размеру и публикуются атомарной заменой; межпроцессная запись ledger
+  дополнительно сериализована file lock. Перед чтением и созданием файлов проверяется вся цепочка родителей,
+  существующий `GameRoot`, каталог ledger и конечные ledger/lock/temp: reparse points отклоняются;
+  при отсутствии `GameRoot` хранилище его не создаёт.
+- Вход выполняет двухфазный перенос. До атомарной записи `session.dat` ledger фиксирует `pendingTransfer` с целевым
+  XUID и точными значениями гостевых счётчиков/активных session IDs на границе. После успешной записи аккаунта одна
+  атомарная ledger-транзакция добавляет только зафиксированные суммы к аккаунту, вычитает их у гостя и меняет владельца
+  перечисленных активных сессий. Время, начисленное гостю после границы, остаётся гостевым. Повтор защищён ID переноса.
+- Помощник держит session lock на время наблюдения, поэтому создание transfer boundary не ждёт его освобождения:
+  атомарный JSON-снимок читается без записи, а текущий `QueryUnbiasedInterruptTime` задаёт elapsed активных сессий.
+  Помощник продолжает checkpoints; следующая reconcile начисляет разницу уже по новому владельцу ledger-сессии.
+  Финальный журнал удерживаемой переносом сессии сохраняется до успешного начисления и удаления сессии из ledger.
+  Завершение процесса само по себе не завершает сессию: пока журнал не финализирован, фаза A сохраняет session ID,
+  даже если helper ещё не опубликовал свою identity или последний checkpoint. Для уже завершившейся игры граница
+  включает только сохранённый elapsed; поздний остаток получает владелец этой сессии после применения переноса
+  (при отмене — прежний гость). Новые гостевые сессии этим переносом не затрагиваются.
+  Отмена запуска после прикрепления процесса также проходит через reconcile и начисление, а не удаляет журнал напрямую.
+  Повтор cleanup после ошибки удаления файла не начисляет время заново.
+- При запуске незавершённый перенос применяется только если XUID совпадает с загруженным `session.dat`; иначе он
+  удаляется без применения. Ошибка после подготовки или сохранения аккаунта оставляет достаточно данных для этой
+  проверки/повтора. Выход отменяет ожидающий перенос; он не переписывает `session.dat` или DPAPI-формат.
+- При удалении сборки её строка профиля и файлы удаляются обычным `InstanceStore`, но игровые суммы остаются в ledger.
+  Неизвестные/потерянные журналы восстанавливаются по последней сохранённой контрольной точке и не начисляются повторно.
 
 ## План модпака
 

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Hako.Core.Playtime;
 
 namespace Hako.Core;
 
@@ -47,6 +48,8 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private readonly IAccountStore _accountStore;
     private readonly IMicrosoftAuthService _authService;
     private readonly object _commitLock = new();
+    private readonly SemaphoreSlim _accountTransitionGate = new(1, 1);
+    private readonly IAccountPlaytimeTransfer? _playtimeTransfer;
     private LauncherScreen _screen = LauncherScreen.Loading;
     private AppLanguage _language = AppLanguages.Default;
     private AppLanguage _savedLanguage = AppLanguages.Default;
@@ -69,8 +72,9 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         IUserSettingsStore settingsStore,
         IAccountStore accountStore,
         IMicrosoftAuthService authService,
-        TimeProvider? timeProvider = null)
-        : this(new UserSettingsService(settingsStore), accountStore, authService, timeProvider)
+        TimeProvider? timeProvider = null,
+        IAccountPlaytimeTransfer? playtimeTransfer = null)
+        : this(new UserSettingsService(settingsStore), accountStore, authService, timeProvider, playtimeTransfer)
     {
     }
 
@@ -78,11 +82,13 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         UserSettingsService settingsService,
         IAccountStore accountStore,
         IMicrosoftAuthService authService,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IAccountPlaytimeTransfer? playtimeTransfer = null)
     {
         _settingsService = settingsService;
         _accountStore = accountStore;
         _authService = authService;
+        _playtimeTransfer = playtimeTransfer;
         MinecraftSessions = new MinecraftSessionCoordinator(this, _accountStore, _authService, timeProvider);
     }
 
@@ -318,29 +324,37 @@ public sealed class AppCoordinator : INotifyPropertyChanged
             generation = _attemptGeneration;
         }
 
-        var cleared = await _accountStore.ClearAsync(action =>
+        await _accountTransitionGate.WaitAsync(cancellationToken);
+        try
         {
-            lock (_commitLock)
+            var cleared = await _accountStore.ClearAsync(action =>
             {
-                if (generation != _attemptGeneration)
+                lock (_commitLock)
                 {
-                    return false;
+                    if (generation != _attemptGeneration)
+                    {
+                        return false;
+                    }
+
+                    action();
+                    SetAccount(null, invalidateSessions: false);
+                    IsGuest = false;
+                    CurrentDeviceCode = null;
+                    LoginError = null;
+                    CurrentStartupNotice = null;
+                    Screen = LauncherScreen.Welcome;
+                    return true;
                 }
+            }, cancellationToken);
 
-                action();
-                SetAccount(null, invalidateSessions: false);
-                IsGuest = false;
-                CurrentDeviceCode = null;
-                LoginError = null;
-                CurrentStartupNotice = null;
-                Screen = LauncherScreen.Welcome;
-                return true;
+            if (!cleared)
+            {
+                throw new OperationCanceledException(cancellationToken);
             }
-        }, cancellationToken);
-
-        if (!cleared)
+        }
+        finally
         {
-            throw new OperationCanceledException(cancellationToken);
+            _accountTransitionGate.Release();
         }
     }
 
@@ -385,24 +399,62 @@ public sealed class AppCoordinator : INotifyPropertyChanged
             }
 
             var account = await _authService.SignInAsync(token, cancellationToken);
-            await _accountStore.SaveAsync(account, replaceFile =>
+            Guid? transferID = null;
+            var accountSaved = false;
+            try
             {
-                lock (_commitLock)
+                if (_playtimeTransfer is not null && CaptureAccountState().Account is null)
                 {
-                    if (!IsCurrentAttempt(generation, attempt))
-                    {
-                        return false;
-                    }
-
-                    replaceFile();
-                    SetAccount(account, invalidateSessions: true);
-                    IsGuest = false;
-                    CurrentDeviceCode = null;
-                    LoginError = null;
-                    Screen = LauncherScreen.Builds;
-                    return true;
+                    try { transferID = await _playtimeTransfer.PrepareGuestTransferAsync(account.Xuid, cancellationToken); }
+                    catch (Exception) { }
                 }
-            }, cancellationToken);
+
+                accountSaved = await _accountStore.SaveAsync(account, replaceFile =>
+                {
+                    lock (_commitLock)
+                    {
+                        if (!IsCurrentAttempt(generation, attempt))
+                        {
+                            return false;
+                        }
+
+                        replaceFile();
+                        SetAccount(account, invalidateSessions: true);
+                        IsGuest = false;
+                        CurrentDeviceCode = null;
+                        LoginError = null;
+                        Screen = LauncherScreen.Builds;
+                        return true;
+                    }
+                }, cancellationToken);
+
+                if (transferID is { } committedTransfer && accountSaved)
+                {
+                    await _accountTransitionGate.WaitAsync(CancellationToken.None);
+                    try
+                    {
+                        if (CaptureAccountState().Account?.Xuid == account.Xuid)
+                        {
+                            try { await _playtimeTransfer!.CompleteGuestTransferAsync(committedTransfer, CancellationToken.None); }
+                            catch (Exception) { }
+                        }
+                        else
+                        {
+                            try { await _playtimeTransfer!.CancelGuestTransferAsync(committedTransfer, CancellationToken.None); }
+                            catch (Exception) { }
+                        }
+                    }
+                    finally { _accountTransitionGate.Release(); }
+                }
+            }
+            finally
+            {
+                if (transferID is { } pending && !accountSaved)
+                {
+                    try { await _playtimeTransfer!.CancelGuestTransferAsync(pending, CancellationToken.None); }
+                    catch (Exception) { }
+                }
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

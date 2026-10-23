@@ -10,6 +10,8 @@
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
                     <TextBlock x:Name="NameText" FontSize="36" FontWeight="Bold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
                     <TextBlock x:Name="DetailsText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="PlaytimeText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    <TextBlock x:Name="PlaytimeErrorText" FontSize="12" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
                 </StackPanel>
                 <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto" ColumnSpacing="10" VerticalAlignment="Top">
                     <StackPanel x:Name="PlayPanel" MaxWidth="280" Spacing="8" HorizontalAlignment="Right">

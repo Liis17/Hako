@@ -1,6 +1,7 @@
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -13,6 +14,7 @@ public partial class App : Application
     private static Window? _window;
     private static HakoRootLock? _previewRootLock;
     private static LauncherServices? _services;
+    private readonly PlaytimeCoordinator? _playtime;
     private readonly AppCoordinator? _coordinator;
     private readonly MinecraftSkinPreviewService? _skinPreviewService;
     private readonly ProfilePreviewOptions? _previewOptions;
@@ -51,6 +53,9 @@ public partial class App : Application
         }
 
         _skinPreviewService = new MinecraftSkinPreviewService();
+        _playtime = _previewOptions is null
+            ? new PlaytimeCoordinator(LaunchPaths!.GameRoot, new PlaytimeHelperLauncher())
+            : PlaytimeCoordinator.CreatePreview(LaunchPaths!.GameRoot);
         if (_previewOptions is not null)
         {
             var settingsService = new UserSettingsService(new InMemoryPreviewUserSettingsStore());
@@ -58,7 +63,8 @@ public partial class App : Application
             _coordinator = new AppCoordinator(
                 settingsService,
                 new InMemoryPreviewAccountStore(_previewOptions.CreateAccount()),
-                new PreviewAuthService());
+                new PreviewAuthService(),
+                playtimeTransfer: _playtime);
         }
         else
         {
@@ -67,7 +73,8 @@ public partial class App : Application
             _coordinator = new AppCoordinator(
                 settingsService,
                 new AccountSessionStore(LaunchPaths!.DataRoot),
-                new MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System));
+                new MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System),
+                playtimeTransfer: _playtime);
         }
 
     }
@@ -118,7 +125,8 @@ public partial class App : Application
         var previewInstance = previewBuilds && InstanceStore.LoadError is null
             ? PreviewBuildsFixture.Seed(InstanceStore, _previewOptions!.Page)
             : (Guid?)null;
-        var games = new GameLaunchCoordinator(InstanceStore, UserSettingsService!, _coordinator!.MinecraftSessions, new GameProcessRunner());
+        var games = new GameLaunchCoordinator(InstanceStore, UserSettingsService!, _coordinator!.MinecraftSessions,
+            new GameProcessRunner(), playtime: _playtime);
         var content = new InstanceContent(InstanceStore);
         var contentController = new InstanceContentController(InstanceStore, content, modrinth, fabric,
             confirmSelection: HakoDialogs.ConfirmContentAsync);
@@ -128,19 +136,23 @@ public partial class App : Application
         var worldBackups = new WorldBackup(InstanceStore, content, worlds);
         _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang, fabric,
             modrinth, modpacks, modpackCatalog, content, contentController, worlds, screenshots, backups,
-            worldBackups, previewModrinthHttpClient, _skinPreviewService!, _previewOptions);
+            worldBackups, previewModrinthHttpClient, _skinPreviewService!, _previewOptions, _playtime!);
 
         _window = new MainWindow(_services);
         _window.Activate();
 
         await _coordinator.InitializeAsync();
+        await _playtime!.RecoverPendingTransferAsync(_coordinator.Account?.Xuid);
         if (InstanceStore.LoadError is null)
         {
-            _ = StartBuildServicesAsync(installations, games);
+            await StartBuildServicesAsync(installations, games);
         }
+        await _playtime.RefreshAsync();
+        _playtime.Start();
 
         if (_previewOptions is not null)
         {
+            if (previewInstance is { } fixtureInstance) _playtime.SeedPreviewInstance(fixtureInstance);
             if (_previewOptions.Mode == ProfilePreviewMode.Guest)
             {
                 _coordinator.ContinueWithoutAccount();
@@ -168,6 +180,9 @@ public partial class App : Application
                     break;
                 case PreviewPage.SettingsGame:
                     _coordinator.OpenSettings(SettingsSection.Game);
+                    break;
+                case PreviewPage.Playtime:
+                    _coordinator.OpenSettings(SettingsSection.Profile);
                     break;
                 default:
                     if (_previewOptions.Mode != ProfilePreviewMode.Builds)
@@ -214,6 +229,7 @@ public partial class App : Application
         }
 
         _services = null;
+        try { await services.Playtime.StopAsync(); } catch (Exception) { }
         services.ModpackCatalog.Dispose();
         try { await services.Installations.DisposeAsync(); } catch (Exception) { }
         try { await services.Store.DisposeAsync(); } catch (Exception) { }

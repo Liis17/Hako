@@ -523,4 +523,24 @@ Hako</value></data>
   <data name="ScreenshotsDeletedFormat" xml:space="preserve"><value>Moved {0} screenshot(s) to the Recycle Bin.</value></data>
   <data name="ScreenshotsDeletePartialFormat" xml:space="preserve"><value>Moved {0} screenshot(s) to the Recycle Bin; {1} could not be moved.</value></data>
   <data name="ScreenshotsActionFailed" xml:space="preserve"><value>Screenshot action failed.</value></data>
+  <data name="PlaytimeSummaryTitle" xml:space="preserve"><value>Time in Minecraft</value></data>
+  <data name="PlaytimeInstanceFormat" xml:space="preserve"><value>Played: {0}</value></data>
+  <data name="PlaytimeGuestTransfer" xml:space="preserve"><value>When you sign in to Microsoft, guest playtime will be added to your account.</value></data>
+  <data name="PlaytimeZero" xml:space="preserve"><value>0 min</value></data>
+  <data name="PlaytimeLessThanMinute" xml:space="preserve"><value>Less than a minute</value></data>
+  <data name="PlaytimeMinuteOne" xml:space="preserve"><value>{0} minute</value></data>
+  <data name="PlaytimeMinuteFew" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="PlaytimeMinuteMany" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="PlaytimeMinuteOther" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="PlaytimeHourOne" xml:space="preserve"><value>{0} hour</value></data>
+  <data name="PlaytimeHourFew" xml:space="preserve"><value>{0} hours</value></data>
+  <data name="PlaytimeHourMany" xml:space="preserve"><value>{0} hours</value></data>
+  <data name="PlaytimeHourOther" xml:space="preserve"><value>{0} hours</value></data>
+  <data name="PlaytimeDayOne" xml:space="preserve"><value>{0} day</value></data>
+  <data name="PlaytimeDayFew" xml:space="preserve"><value>{0} days</value></data>
+  <data name="PlaytimeDayMany" xml:space="preserve"><value>{0} days</value></data>
+  <data name="PlaytimeDayOther" xml:space="preserve"><value>{0} days</value></data>
+  <data name="PlaytimeStorageError" xml:space="preserve"><value>Minecraft playtime could not be updated because of a storage error.</value></data>
+  <data name="PlaytimeHelperStartFailed" xml:space="preserve"><value>Could not start the background playtime helper. Time will be updated while Hako is open.</value></data>
+  <data name="PlaytimeErrorDetails" xml:space="preserve"><value>Details: {0}</value></data>
 </root>

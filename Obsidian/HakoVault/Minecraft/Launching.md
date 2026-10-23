@@ -149,6 +149,7 @@ Swift Testing проверяет официальный JSON для соврем
 | `Minecraft/JavaLaunchValidation.cs` | `JavaLaunchValidation` | Проба `-XshowSettings:properties -version` |
 | `Minecraft/Win32Process.cs`, `GameProcessRunner.cs`, `JavaAnsiEncoding.cs` | `GameProcessRunner`, `GameProcessRecord`, `JavaAnsiEncoding` | Запуск, `@argfile`, `.hako-running.json`, восстановление |
 | `Instances/GameLaunchCoordinator.cs` | `GameLaunchCoordinator` | Порядок запуска, `GameRunState`, события сессий |
+| `Playtime/PlaytimeCoordinator.cs`, `PlaytimeClock.cs`, `PlaytimeHelperHost` | `PlaytimeCoordinator`, `WindowsPlaytimeClock`, `PlaytimeHelperHost` | Сессии и их восстановление; процессный помощник после закрытия приложения |
 
 Для Fabric `GameLaunchCoordinator` читает исходный профиль из `minecraft/.hako-fabric.json`, проверяет SHA-1 из
 `GameInstance.FabricProfileSHA1`, родительскую версию и `fabric-loader-{loader}-{minecraft}` ID. Отсутствующий,
@@ -189,8 +190,24 @@ Swift Testing проверяет официальный JSON для соврем
 - **`GameLaunchCoordinator`.** Требует `Ready` и lease `InstanceStore.TryBeginLaunch`; `GameRunState`
   `Preparing`/`Running`/`Failed` (ненулевой код выхода → `LaunchGameExitCode` с путём лога). `RestoreRunningGamesAsync`
   берёт lease до восстановления; повреждённая запись одной сборки даёт `Failed` (`LaunchProcessRecordInvalid`) и не
-  мешает остальным. `GameSessionStarted`/`GameSessionEnded` (instance, record с `sessionID`, код выхода) — точка
-  расширения учёта времени, срабатывает и для восстановленных игр. События приходят с фоновых потоков.
-- **Помощник времени.** `Hako.exe --playtime-helper <journal> [pid]` распознаётся в `Program.Main` до WinUI; пока это
-  прототип: берёт `pid`, `startSeconds`/`startMicroseconds` из журнала (корень или `process`), ждёт процесс только при
-  совпадении PID и времени создания (`GameProcessRunner.TryWaitForRecordedProcess`) и пишет `<journal>.finished`.
+  мешает остальным. `GameSessionStarted`/`GameSessionEnded` (instance, record с `sessionID`, код выхода) связывают запуск
+  и завершение с учётом времени и срабатывают для восстановленных игр. Сессия и владелец фиксируются до запуска игры;
+  при восстановлении используется сохранённый `sessionID`, а legacy-запись получает стабильный ID. Ошибки трекера
+  показываются отдельно и не прерывают уже запущенную игру.
+- **Журнал времени.** В `<GameRoot>/.hako-playtime/` ledger и журнал сессии разделены от `.hako-running.json`.
+  `GameProcessRecord.SessionID` связывает процесс игры и сессию. Процессная идентичность — PID плюс точное время
+  создания; совпадение только PID не засчитывается. Длительность вычисляется `QueryUnbiasedInterruptTime`, поэтому
+  прыжки системных часов и сон Windows не добавляют игровое время.
+- **Помощник времени.** `Hako.exe --playtime-helper <journal>` обрабатывается `Program.Main` до `AppInstance`,
+  WinUI и блокировки корня. Модульный инициализатор Windows App SDK также пропускается для этого режима; обычный
+  framework-dependent запуск вызывает `DeploymentManager.Initialize` в том же раннем инициализаторе, self-contained
+  приложение не запускает deployment initialization. Путь принимается только для UUID-журнала
+  внутри `.hako-playtime/sessions`; помощник
+  удерживает `.lock`, проверяет PID/время создания игры, сохраняет контрольную точку примерно каждые 10 секунд и
+  финальный снимок. Если при старте помощника исходный процесс уже не подтверждается, сохраняется последнее
+  записанное elapsed без начисления до текущего uptime; финальный интервал измеряется только после наблюдения
+  подтверждённого процесса. Запуск detached/hidden использует текущий packaged или unpackaged `Hako.exe`; помощник не берёт
+  root lock и продолжает после закрытия лаунчера. Приложение при запуске и каждые 10 секунд сверяет журнал и ledger,
+  начисляя только положительную разницу `elapsedSeconds - creditedSeconds`; повторное чтение не дублирует время.
+  Пока helper держит lock, transfer читает атомарный snapshot и вычисляет границу по unbiased uptime без изменения журнала.
+  Ошибка запуска помощника показывает локализованную диагностику, а app-lifetime reconcile продолжает работу.

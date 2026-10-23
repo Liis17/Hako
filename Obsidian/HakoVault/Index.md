@@ -17,7 +17,8 @@ Hako — нативный лаунчер Minecraft для macOS на SwiftUI и 
 CI публикует независимые стабильные релизы macOS и Windows при повышении версии соответствующей платформы. macOS-клиент проверяет и устанавливает обновления из стабильных macOS-релизов GitHub; переход прежних клиентов `nightly` выполняется вручную.
 Windows-клиент (`windows/`, WinUI 3, .NET 8) поддерживает Vanilla/Fabric, запуск, локальные моды и ресурспаки,
 миры и датапаки, каталог Modrinth, готовые сборки `.mrpack`, скриншоты, дублирование сборок и резервные копии
-`.hakobackup`/`.hakoworld`. Учёт времени игры, CurseForge и самообновление ещё не реализованы.
+`.hakobackup`/`.hakoworld`; игровое время сохраняется по аккаунту/гостю и сборке, продолжает учитываться после закрытия
+лаунчера, а гостевые счётчики переносятся при входе. CurseForge и самообновление ещё не реализованы.
 Статус описан в [[UI/Launcher#Windows-клиент]] и заметках по доменам.
 
 ## Архитектура
@@ -32,13 +33,13 @@ Windows-клиент (`windows/`, WinUI 3, .NET 8) поддерживает Vani
 
 | Заметка | Назначение |
 |---------|------------|
-| [[Data/Persistence]] | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; токены, параметры и независимые папки сборок; Windows: зашифрованный `session.dat` и `settings.json` |
+| [[Data/Persistence]] | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; токены, параметры и независимые папки сборок; Windows: зашифрованный `session.dat`, `settings.json` и общий `.hako-playtime` ledger |
 | [[Data/Backups]] | macOS и Windows: резервные копии `.hakobackup` и `.hakoworld`, состав архива и схема `data.json`; восстановление не реализовано |
 
 ## Minecraft
 
 - [[Minecraft/Installation|Установка Minecraft и Java]] — официальные API, совместимость, файлы и очередь
-- [[Minecraft/Launching|Запуск Minecraft]] — аргументы, Java, offline-сессия, процессы и восстановление
+- [[Minecraft/Launching|Запуск Minecraft]] — аргументы, Java, offline-сессия, процессы и восстановление; Windows: helper и время после закрытия лаунчера
 - [[Minecraft/Worlds|Локальные миры]] — сведения о сохранениях, копирование, корзина и управление датапаками
 - [[Minecraft/Modrinth|Каталог Modrinth]] — поиск, выбор версии, зависимости, проверка загрузок и Loader/Java
 

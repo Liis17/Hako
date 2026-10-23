@@ -2,11 +2,9 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
 using Hako.Core;
-using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using WinRT;
 
 namespace Hako;
@@ -84,66 +82,7 @@ internal static class Program
 
     private static int RunPlaytimeHelper(string[] arguments)
     {
-        if (arguments.Length is < 1 or > 2 || !Path.IsPathFullyQualified(arguments[0]))
-        {
-            return 2;
-        }
-
-        string journalPath;
-        try { journalPath = Path.GetFullPath(arguments[0]); }
-        catch (ArgumentException) { return 2; }
-        int processId;
-        ulong startSeconds;
-        ulong startMicroseconds;
-        try
-        {
-            using var journal = JsonDocument.Parse(File.ReadAllBytes(journalPath));
-            var root = journal.RootElement;
-            var identity = root.TryGetProperty("pid", out _) ? root
-                : root.TryGetProperty("process", out var process) ? process
-                : default;
-            if (identity.ValueKind != JsonValueKind.Object
-                || !identity.TryGetProperty("pid", out var pid) || !pid.TryGetInt32(out processId)
-                || !identity.TryGetProperty("startSeconds", out var seconds) || !seconds.TryGetUInt64(out startSeconds)
-                || !identity.TryGetProperty("startMicroseconds", out var microseconds) || !microseconds.TryGetUInt64(out startMicroseconds))
-            {
-                return 2;
-            }
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return 2;
-        }
-
-        if (processId <= 0 || processId == Environment.ProcessId
-            || (arguments.Length == 2 && (!int.TryParse(arguments[1], out var argumentProcessId) || argumentProcessId != processId)))
-        {
-            return 2;
-        }
-
-        // The game may have exited, or its PID been reused, between the journal write and helper startup:
-        // only the process with the journaled creation time is awaited.
-        _ = GameProcessRunner.TryWaitForRecordedProcess(
-            new GameProcessRecord(Guid.Empty, processId, startSeconds, startMicroseconds), out var exitCode);
-
-        var marker = journalPath + ".finished";
-        var temporaryMarker = marker + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            var exitCodeText = exitCode?.ToString(CultureInfo.InvariantCulture) ?? "null";
-            var finishedAt = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
-            var contents = $"{{\"pid\":{processId},\"exitCode\":{exitCodeText},\"finishedAt\":\"{finishedAt}\"}}";
-            File.WriteAllText(temporaryMarker, contents);
-            File.Move(temporaryMarker, marker, overwrite: true);
-            return 0;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            try { File.Delete(temporaryMarker); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-            return 3;
-        }
+        return PlaytimeHelperHost.Run(arguments);
     }
 
     private static HakoPaths CreatePreviewPaths()

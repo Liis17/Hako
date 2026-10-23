@@ -243,7 +243,8 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 создаются и устанавливаются фоновой очередью (пауза, продолжение, повтор), настраиваются, удаляются и запускаются
 онлайн или в offline-mode. Есть локальные моды и ресурспаки, миры и датапаки, каталог Modrinth и импорт готовых
 модпаков Modrinth `.mrpack`, скриншоты, дублирование сборок и резервные копии `.hakobackup`/`.hakoworld`
-— [[UI/Launcher#Windows-клиент]] и [[Data/Backups]].
+— [[UI/Launcher#Windows-клиент]] и [[Data/Backups]]. Также Windows учитывает игровое время по аккаунту/гостю и сборке.
+Фоновый помощник продолжает измерение после закрытия лаунчера, а двухфазный перенос сохраняет границу гостевой сессии.
 Сервисы сборок живут всё время работы приложения и создаются в `App.OnLaunched` (`LauncherServices`).
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
@@ -273,13 +274,14 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
   `Graphics/MinecraftSkinRenderer` и `Graphics/MinecraftSkinGeometry`, `HakoStrings`, `AppDataDirectory`,
   `Strings/ru-RU` и `Strings/en-US` (`Resources.resw`), `Package.appxmanifest`, `app.manifest`,
   `Properties/launchSettings.json`, решение `Hako.slnx`.
-- `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `MicrosoftDeviceAuth`,
+- `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `Playtime/` (ledger, сессии,
+  helper и coordinator), `MicrosoftDeviceAuth`,
   `AuthContracts`, `AccountSessionStore`, `UserSettingsService`, `HakoPaths`, `HakoRootLock`, `Instances/`
   (`GameInstance`, `InstanceStorage`, `InstanceStore`, `InstanceScreenshots`, `InstanceFileTree`, `InstanceBackup`,
   `WorldBackup`, `InstallationCoordinator`, `ModpackCatalog`), `Minecraft/`
   (`ModrinthClient`, `ModpackManifest`, `ModpackArchive`, `ModpackInstaller`, Mojang/Fabric install and launch logic),
   source-generated COM-корзина `RecycleBin`, `JsonContexts`.
-- `windows/Hako.Tests/` — `AppCoordinatorTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
+- `windows/Hako.Tests/` — `AppCoordinatorTests`, `PlaytimeTests`, `MicrosoftDeviceAuthTests`, `StorageTests`,
   `LocalizationResourcesTests`, `RedactionTests`, `MinecraftSkinTests`, `MinecraftSkinImageDecoderTests`,
   `MinecraftSkinGeometryTests`; `TestSupport.cs` содержит фейки времени, таймеров, хранилищ,
   сервиса входа и `TestData`. Decoder/head/geometry исходники Windows UI linked-compiled для тестов.
@@ -287,7 +289,8 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
 
 ### Запуск и единственный экземпляр
 
-1. `Program.Main` — синхронный `[STAThread] static void Main`. До `AppInstance` он разбирает `--hako-root` и `--data-root`
+1. `Program.Main` — синхронный `[STAThread] static void Main`. Режим `--playtime-helper <journal>` обрабатывается до
+   WinUI, `AppInstance` и root lock; обычный путь затем разбирает `--hako-root` и `--data-root`
    и валидирует абсолютные пути. Для переопределений нужны оба корня; неверные аргументы показывают системное сообщение
    и завершают процесс без выбора production-путей. Изолированный запуск использует ключ
    `Hako.Isolated.<sha256 корней>`, а `--profile-preview` — отдельный `Hako.ProfilePreview`.
@@ -304,14 +307,18 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
    блокировки показываются как ошибка доступа к хранилищу. Игровой корень может быть junction или symlink, а вложенные
    пути сборок остаются защищены от reparse points. `HakoPaths` задаёт
    `%USERPROFILE%\.hako`, каталог данных из `AppDataDirectory.GetLocalPath()` и `%LOCALAPPDATA%\Hako\Cache`.
-   App-lifetime сервисы используют эти пути: `InstanceStore`, `UserSettingsService` с `JsonUserSettingsStore`,
-   `AccountSessionStore` и `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`. `instances.json` атомарно
+   App-lifetime сервисы используют эти пути: `InstanceStore`, `PlaytimeCoordinator` (только `GameRoot`),
+   `UserSettingsService` с `JsonUserSettingsStore`, `AccountSessionStore` и
+   `MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System)`. `instances.json` атомарно
    сохраняет полный профиль сборки; изменения сериализуются внутри `InstanceStore`. `settings.json` хранит язык и
    optional-поля глобальных параметров игры, а `UserSettingsService` пишет единый снимок для обоих видов настроек.
    Skin preview service использует отдельный `HttpClient` с 15-секундным timeout для публичных Mojang texture API,
    без токенов; он не меняет `AccountSession` или формат persistence.
-3. `OnLaunched` сначала выполняет `InstanceStore.LoadAsync()` и только затем показывает `MainWindow`.
-   `await InitializeAsync()` выбирает `Welcome` или `Builds`; ошибка реестра остаётся в `InstanceStore.LoadError`
+3. `OnLaunched` показывает `MainWindow`, затем `AppCoordinator.InitializeAsync()` загружает настройки и аккаунт.
+   `PlaytimeCoordinator` сверяет ожидающий перенос с текущим XUID; `GameLaunchCoordinator.RestoreRunningGamesAsync`
+   восстанавливает существующие session IDs до reconcile, чтобы живая игра не считалась потерянной. После запуска
+   сервисов приложение сверяет журналы при старте и каждые 10 секунд; закрытие окна отменяет app polling, но не detached helper.
+   `InitializeAsync()` выбирает `Welcome` или `Builds`; ошибка реестра остаётся в `InstanceStore.LoadError`
    для UI. В preview-режиме `HakoPaths` указывает на уникальный временный корень, создаются fake in-memory store
    и auth-сервис, который запрещает sign-in; production-каталог данных не читается, временный корень удаляется при выходе.
    Режим
@@ -345,7 +352,7 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: учёт времени игры, CurseForge и самообновление. Готовые Modrinth-паки устанавливаются из каталога;
+- Не реализованы: CurseForge и самообновление. Готовые Modrinth-паки устанавливаются из каталога;
   локальный импорт `.mrpack` и обновление
   всего модпака не поддерживаются.
 - Онлайн-запуск обновляет Minecraft-сессию через `MinecraftSessionCoordinator.ConnectForLaunchAsync` (refresh-grant

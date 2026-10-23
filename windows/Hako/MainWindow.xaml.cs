@@ -165,7 +165,7 @@ public sealed partial class MainWindow : Window
                 case LauncherScreen.Settings when ShellFrame.Content is not SettingsPage:
                     ShellFrame.Navigate(
                         typeof(SettingsPage),
-                        new SettingsPageContext(_coordinator, _skinPreviewService, _previewOptions, _services.Settings));
+                        new SettingsPageContext(_coordinator, _skinPreviewService, _previewOptions, _services.Settings, _services.Playtime));
                     break;
             }
 

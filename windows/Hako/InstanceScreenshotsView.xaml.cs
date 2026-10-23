@@ -20,6 +20,7 @@ public sealed partial class InstanceScreenshotsView : UserControl
     private readonly ObservableCollection<ScreenshotRow> _rows = [];
     private readonly ScreenshotThumbnails _thumbnails = new();
     private readonly Dictionary<ScreenshotRow, CancellationTokenSource> _thumbnailLoads = [];
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcher;
     private LauncherServices? _services;
     private GameInstance? _instance;
     private CoalescedRefresh? _refresh;
@@ -34,6 +35,7 @@ public sealed partial class InstanceScreenshotsView : UserControl
     public InstanceScreenshotsView()
     {
         InitializeComponent();
+        _dispatcher = DispatcherQueue;
         Loaded += (_, _) => HakoStrings.LanguageChanged += HakoStrings_LanguageChanged;
         Unloaded += (_, _) => HakoStrings.LanguageChanged -= HakoStrings_LanguageChanged;
         RefreshStrings();
@@ -113,13 +115,23 @@ public sealed partial class InstanceScreenshotsView : UserControl
 
     private void Store_InstancesChanged(object? sender, EventArgs e)
     {
-        _refresh?.Request();
-        if (_active) LoadScreenshots();
+        QueueScreenshotsRefresh();
     }
 
     private void Games_GameSessionEnded(object? sender, GameSessionEventArgs e)
     {
-        if (_instance?.Id == e.InstanceId) LoadScreenshots();
+        QueueScreenshotsRefresh(e.InstanceId);
+    }
+
+    private void QueueScreenshotsRefresh(Guid? instanceID = null)
+    {
+        var generation = Interlocked.Read(ref _listGeneration);
+        _dispatcher.TryEnqueue(() =>
+        {
+            if (!_active || generation != _listGeneration
+                || (instanceID is { } id && _instance?.Id != id)) return;
+            LoadScreenshots();
+        });
     }
 
     private void RefreshAvailability()

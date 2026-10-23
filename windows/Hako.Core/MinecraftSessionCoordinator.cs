@@ -56,6 +56,8 @@ public sealed class MinecraftSessionCoordinator : INotifyPropertyChanged
         private set => SetProperty(ref _error, value);
     }
 
+    public string? CurrentAccountXuid => _app.CaptureAccountState().Account?.Xuid;
+
     public Task<AccountSession> ConnectForLaunchAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = _app.CaptureAccountState();

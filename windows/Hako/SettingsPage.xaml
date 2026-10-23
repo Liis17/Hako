@@ -118,6 +118,14 @@
                                     </Grid>
                                 </Border>
 
+                                <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock x:Name="AccountPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="AccountPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="AccountPlaytimeError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Border>
+
                                 <Button x:Name="SignOutButton" HorizontalAlignment="Left" Click="SignOutButton_Click" />
                             </StackPanel>
 
@@ -128,6 +136,10 @@
                                     <StackPanel Spacing="16">
                                         <TextBlock x:Name="GuestProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
                                         <TextBlock x:Name="GuestProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="GuestPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="GuestPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="GuestPlaytimeTransfer" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="GuestPlaytimeError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
                                         <Button x:Name="SignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
                                     </StackPanel>
                                 </Border>

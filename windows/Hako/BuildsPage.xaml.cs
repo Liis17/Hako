@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Hako.Core.Instances;
+using Hako.Core.Playtime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -34,6 +35,7 @@ public sealed partial class BuildsPage : Page
         _services.Installations.PropertyChanged += Changed;
         _services.Games.RunStateChanged += Changed;
         _services.App.MinecraftSessions.PropertyChanged += Changed;
+        _services.Playtime.PropertyChanged += Changed;
         HakoStrings.LanguageChanged += HakoStrings_LanguageChanged;
         RefreshStrings();
     }
@@ -48,6 +50,7 @@ public sealed partial class BuildsPage : Page
             services.Installations.PropertyChanged -= Changed;
             services.Games.RunStateChanged -= Changed;
             services.App.MinecraftSessions.PropertyChanged -= Changed;
+            services.Playtime.PropertyChanged -= Changed;
         }
 
         HakoStrings.LanguageChanged -= HakoStrings_LanguageChanged;
@@ -64,6 +67,7 @@ public sealed partial class BuildsPage : Page
         BuildsEmptyTitle.Text = HakoStrings.Get("BuildsEmptyTitle");
         BuildsEmptyBody.Text = HakoStrings.Get("BuildsEmptyBody");
         CreateButton.Content = HakoStrings.Get("CreateBuildButton");
+        PlaytimeError.Title = HakoStrings.Get("PlaytimeSummaryTitle");
         Refresh();
     }
 
@@ -79,6 +83,8 @@ public sealed partial class BuildsPage : Page
         RegistryError.IsOpen = loadError is not null;
         RegistryError.Title = loadError is null ? string.Empty : HakoStrings.Get("ErrorTitle");
         RegistryError.Message = loadError is null ? string.Empty : HakoStrings.Get(loadError.ResourceKey);
+        PlaytimeError.IsOpen = services.Playtime.ErrorResourceKey is not null;
+        PlaytimeError.Message = PlaytimeErrorText(services.Playtime.ErrorResourceKey, services.Playtime.ErrorDetail);
 
         var instances = services.Store.Instances.OrderBy(instance => instance.CreatedAt).ThenBy(instance => instance.Id).ToList();
         var progress = services.Installations.Progress;
@@ -130,6 +136,15 @@ public sealed partial class BuildsPage : Page
             InstancePlayLogic.Launch(services, card.Id);
         }
     }
+
+    private static string PlaytimeErrorText(string? key, string? detail)
+    {
+        if (key is null) return string.Empty;
+        var message = HakoStrings.Get(key);
+        return string.IsNullOrWhiteSpace(detail)
+            ? message
+            : message + " " + string.Format(HakoStrings.Get("PlaytimeErrorDetails"), detail);
+    }
 }
 
 public sealed class BuildCardModel(Guid id) : INotifyPropertyChanged
@@ -155,11 +170,16 @@ public sealed class BuildCardModel(Guid id) : INotifyPropertyChanged
     public bool PlayEnabled { get; private set; }
     public string PlayText { get; private set; } = "";
     public string? PlayHint { get; private set; }
+    public string Playtime { get; private set; } = "";
+    public Visibility PlaytimeVisibility { get; private set; } = Visibility.Collapsed;
 
     internal void Update(LauncherServices services, GameInstance instance, Hako.Core.Minecraft.InstallationProgress? progress)
     {
         Set(nameof(Name), Name, instance.Name, value => Name = value);
         Set(nameof(Details), Details, InstanceText.Details(instance), value => Details = value);
+        Set(nameof(Playtime), Playtime, string.Format(HakoStrings.Get("PlaytimeInstanceFormat"),
+            PlaytimeFormatter.Format(services.Playtime.InstanceSeconds(instance.Id, services.App.Account?.Xuid), services.App.Language, HakoStrings.Get)), value => Playtime = value);
+        Set(nameof(PlaytimeVisibility), PlaytimeVisibility, readyVisibility(instance), value => PlaytimeVisibility = value);
         Set(nameof(IconSymbol), IconSymbol, instance.IconSymbol, value => IconSymbol = value);
         if (_iconRevision != instance.IconRevision)
         {
@@ -201,7 +221,7 @@ public sealed class BuildCardModel(Guid id) : INotifyPropertyChanged
 
         Set(nameof(Status), Status, status, value => Status = value);
         Set(nameof(StatusBrush), StatusBrush, brush, value => StatusBrush = value);
-        Set(nameof(StatusVisibility), StatusVisibility, status.Length > 0 ? Visibility.Visible : Visibility.Collapsed, value => StatusVisibility = value);
+        Set(nameof(StatusVisibility), StatusVisibility, status.Length > 0 || ready ? Visibility.Visible : Visibility.Collapsed, value => StatusVisibility = value);
         Set(nameof(ProgressVisibility), ProgressVisibility, showProgress ? Visibility.Visible : Visibility.Collapsed, value => ProgressVisibility = value);
         Set(nameof(ProgressIndeterminate), ProgressIndeterminate, showProgress && fraction is null, value => ProgressIndeterminate = value);
         Set(nameof(Progress), Progress, fraction ?? 0, value => Progress = value);
@@ -212,6 +232,9 @@ public sealed class BuildCardModel(Guid id) : INotifyPropertyChanged
         Set(nameof(PlayText), PlayText, HakoStrings.Get("PlayButton"), value => PlayText = value);
         Set(nameof(PlayHint), PlayHint, play?.Reason ?? HakoStrings.Get("PlayHint"), value => PlayHint = value);
     }
+
+    private static Visibility readyVisibility(GameInstance instance) =>
+        instance.State == InstanceInstallationState.Ready ? Visibility.Visible : Visibility.Collapsed;
 
     internal static string LaunchErrorText(Hako.Core.Instances.GameRunState run)
     {

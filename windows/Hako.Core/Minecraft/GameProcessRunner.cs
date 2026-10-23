@@ -50,6 +50,16 @@ public sealed class GameProcessRunner
         CancellationToken cancellationToken = default,
         Action<int?>? onExit = null) => Task.Run(() => Restore(instanceId, instanceRoot, _creationTimeProvider, cancellationToken, onExit), cancellationToken);
 
+    internal bool UpdateSessionID(string instanceRoot, GameProcessRecord expected, Guid sessionID, out GameProcessRecord updated)
+    {
+        updated = expected;
+        var current = ReadRecord(instanceRoot);
+        if (current != expected || sessionID == Guid.Empty) return false;
+        updated = current with { SessionID = sessionID };
+        WriteRecord(instanceRoot, updated);
+        return true;
+    }
+
     internal static bool MatchesIdentity(GameProcessRecord record, int pid, ulong startSeconds, ulong startMicroseconds) =>
         record.Pid == pid && record.StartSeconds == startSeconds && record.StartMicroseconds == startMicroseconds;
 
@@ -421,7 +431,9 @@ public sealed class GameProcessRunner
     private static void RemoveRecordIfCurrent(string instanceRoot, GameProcessRecord record)
     {
         var current = ReadRecord(instanceRoot);
-        if (current == record)
+        if (current is not null && current.InstanceID == record.InstanceID
+            && MatchesIdentity(current, record.Pid, record.StartSeconds, record.StartMicroseconds)
+            && current.SessionID == record.SessionID)
         {
             var path = InstanceStorage.ContainedPath("minecraft/.hako-running.json", instanceRoot, allowBaseReparsePoint: true);
             TryDelete(path);

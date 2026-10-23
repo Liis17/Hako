@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 
 namespace Hako.Core.Instances;
 
@@ -56,6 +57,7 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
     private readonly Func<MinecraftLaunchRequest, CancellationToken, Task<MinecraftLaunchPlan>> _prepare;
     private readonly Func<MinecraftLaunchPlan, Guid, string, Guid?, CancellationToken, Task<GameProcessLaunch>> _start;
     private readonly TimeProvider _timeProvider;
+    private readonly PlaytimeCoordinator? _playtime;
     private readonly object _sync = new();
     private readonly Dictionary<Guid, GameRunState> _states = [];
     private readonly Dictionary<Guid, IDisposable> _launchLeases = [];
@@ -67,8 +69,9 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
         GameProcessRunner runner,
         JavaLaunchValidation? javaValidation = null,
         Func<MinecraftLaunchRequest, CancellationToken, Task<MinecraftLaunchPlan>>? prepare = null,
-        TimeProvider? timeProvider = null)
-        : this(store, settings, sessions, runner, javaValidation, prepare, null, timeProvider)
+        TimeProvider? timeProvider = null,
+        PlaytimeCoordinator? playtime = null)
+        : this(store, settings, sessions, runner, javaValidation, prepare, null, timeProvider, playtime)
     {
     }
 
@@ -80,7 +83,8 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
         JavaLaunchValidation? javaValidation,
         Func<MinecraftLaunchRequest, CancellationToken, Task<MinecraftLaunchPlan>>? prepare,
         Func<MinecraftLaunchPlan, Guid, string, Guid?, CancellationToken, Task<GameProcessLaunch>>? start,
-        TimeProvider? timeProvider)
+        TimeProvider? timeProvider,
+        PlaytimeCoordinator? playtime = null)
     {
         _store = store;
         _settings = settings;
@@ -90,6 +94,7 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
         _prepare = prepare ?? PrepareAsync;
         _start = start ?? ((plan, id, root, sessionId, token) => runner.StartAsync(plan, id, root, sessionId, token));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _playtime = playtime;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -131,6 +136,7 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
         }
 
         var leaseTransferred = false;
+        PlaytimeTrackingRequest? playtimeTracking = null;
         try
         {
             var root = _store.GetInstanceDirectory(instanceId);
@@ -162,6 +168,7 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
 
             MinecraftLaunchIdentity identity;
             AccountSession? session = null;
+            string? ownerXuid = _sessions.CurrentAccountXuid;
             if (instance.OfflineMode)
             {
                 identity = MinecraftLaunchIdentity.Offline(instance.OfflineUsername);
@@ -170,6 +177,7 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
             {
                 session = await _sessions.ConnectForLaunchAsync(cancellationToken).ConfigureAwait(false);
                 identity = OnlineIdentity(session);
+                ownerXuid = session.Xuid;
             }
 
             var request = new MinecraftLaunchRequest(instance, root, executable, identity, instance.ArgumentSource, parameters, architecture);
@@ -185,7 +193,13 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
                 }
             }
 
-            var process = await _start(plan, instanceId, root, Guid.NewGuid(), cancellationToken).ConfigureAwait(false);
+            playtimeTracking = _playtime is null
+                ? null
+                : await _playtime.BeginSessionAsync(instanceId, ownerXuid, cancellationToken).ConfigureAwait(false);
+            var sessionID = playtimeTracking?.SessionID ?? Guid.NewGuid();
+            var process = await _start(plan, instanceId, root, sessionID, cancellationToken).ConfigureAwait(false);
+            if (playtimeTracking is not null)
+                await _playtime!.AttachProcessAsync(playtimeTracking, process.Record, CancellationToken.None).ConfigureAwait(false);
             lock (_sync)
             {
                 _launchLeases[instanceId] = lease;
@@ -197,11 +211,13 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
         }
         catch (OperationCanceledException)
         {
+            if (playtimeTracking is not null) await _playtime!.CancelSessionAsync(playtimeTracking.SessionID, CancellationToken.None).ConfigureAwait(false);
             ClearState(instanceId);
             throw;
         }
         catch (Exception exception)
         {
+            if (playtimeTracking is not null) await _playtime!.CancelSessionAsync(playtimeTracking.SessionID, CancellationToken.None).ConfigureAwait(false);
             var logPath = TryGetLogPath(instanceId);
             SetState(instanceId, new GameRunState(GameRunPhase.Failed, ErrorResourceKey: ResourceKey(exception), LogPath: logPath));
             throw;
@@ -226,9 +242,10 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
             }
 
             GameProcessLaunch? restored;
+            string root;
             try
             {
-                var root = _store.GetInstanceDirectory(instance.Id);
+                root = _store.GetInstanceDirectory(instance.Id);
                 restored = await _runner.RestoreAsync(instance.Id, root, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -249,6 +266,26 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
             {
                 lease.Dispose();
                 continue;
+            }
+
+            if (_playtime is not null)
+            {
+                var record = restored.Record;
+                if (record.SessionID is null)
+                {
+                    var legacySessionID = PlaytimeCoordinator.LegacySessionID(record);
+                    if (_runner.UpdateSessionID(root, record, legacySessionID, out var updatedRecord))
+                    {
+                        record = updatedRecord;
+                        restored = restored with { Record = updatedRecord };
+                    }
+                }
+
+                if (record.SessionID is not null)
+                {
+                    record = await _playtime.ResumeSessionAsync(record, _sessions.CurrentAccountXuid, cancellationToken).ConfigureAwait(false);
+                    restored = restored with { Record = record };
+                }
             }
 
             lock (_sync)
@@ -296,6 +333,7 @@ public sealed class GameLaunchCoordinator : INotifyPropertyChanged
             }
 
             lease.Dispose();
+            if (_playtime is not null) await _playtime.ReconcileAsync(CancellationToken.None).ConfigureAwait(false);
             Raise(GameSessionEnded, new GameSessionEventArgs(instanceId, process.Record, exitCode));
         }
     }

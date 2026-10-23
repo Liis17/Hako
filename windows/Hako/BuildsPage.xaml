@@ -5,7 +5,10 @@
     xmlns:local="using:Hako">
     <Grid Padding="32" RowDefinitions="Auto,Auto,*" RowSpacing="16">
         <TextBlock x:Name="BuildsTitle" FontSize="32" FontWeight="SemiBold" />
-        <InfoBar x:Name="RegistryError" Grid.Row="1" Severity="Error" IsClosable="False" IsOpen="False" />
+        <StackPanel Grid.Row="1" Spacing="6">
+            <InfoBar x:Name="RegistryError" Severity="Error" IsClosable="False" IsOpen="False" />
+            <InfoBar x:Name="PlaytimeError" Severity="Warning" IsClosable="False" IsOpen="False" />
+        </StackPanel>
 
         <StackPanel x:Name="EmptyPanel" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520" Spacing="12" Visibility="Collapsed">
             <SymbolIcon Symbol="Library" Width="32" Height="32" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -33,6 +36,7 @@
                             </StackPanel>
                             <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="12" MinHeight="32">
                                 <StackPanel VerticalAlignment="Center" Spacing="6" Visibility="{x:Bind StatusVisibility, Mode=OneWay}">
+                                    <TextBlock Text="{x:Bind Playtime, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind PlaytimeVisibility, Mode=OneWay}" />
                                     <TextBlock Text="{x:Bind Status, Mode=OneWay}" FontSize="12" Foreground="{x:Bind StatusBrush, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
                                     <ProgressBar Value="{x:Bind Progress, Mode=OneWay}" Maximum="1" IsIndeterminate="{x:Bind ProgressIndeterminate, Mode=OneWay}" Visibility="{x:Bind ProgressVisibility, Mode=OneWay}" />
                                 </StackPanel>

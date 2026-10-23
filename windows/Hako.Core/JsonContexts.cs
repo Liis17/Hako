@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 
 namespace Hako.Core;
 
@@ -33,6 +34,12 @@ namespace Hako.Core;
 [JsonSerializable(typeof(Dictionary<string, ModrinthVersion>), TypeInfoPropertyName = "ModrinthVersionDictionary")]
 [JsonSerializable(typeof(AccountSession))]
 [JsonSerializable(typeof(GameProcessRecord))]
+[JsonSerializable(typeof(PlaytimeLedger))]
+[JsonSerializable(typeof(PlaytimeOwnerRecord))]
+[JsonSerializable(typeof(PlaytimeSessionRecord))]
+[JsonSerializable(typeof(PlaytimePendingTransfer))]
+[JsonSerializable(typeof(PlaytimeSessionJournal))]
+[JsonSerializable(typeof(PlaytimeProcessIdentity))]
 [JsonSerializable(typeof(DeviceCodeResponse))]
 [JsonSerializable(typeof(MicrosoftTokenResponse))]
 [JsonSerializable(typeof(OAuthErrorResponse))]

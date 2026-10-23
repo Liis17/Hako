@@ -99,6 +99,7 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Маппинг ошибок мира, типов игры, неизвестных значений и форматирования размера/даты |
 | `windows/Hako/BackupResourceKeys.cs` | `BackupResourceKeys` | Локализация типизированных ошибок архивов и диагностических путей |
 | `windows/Hako/LauncherServices.cs` | `LauncherServices`, `INavigationGuard`, `CoalescedRefresh`, `HakoDialogs` | App-lifetime сервисы, защита ухода со страницы, маршалинг событий Core, очередь диалогов и отмена подтверждения при закрытии окна |
+| `windows/Hako.Core/Playtime/PlaytimeCoordinator.cs` | `PlaytimeCoordinator` | Живые итоги аккаунта/гостя и сборки; UI получает обновления через `DispatcherQueue` |
 | `windows/Hako/SettingsPage.xaml`, `windows/Hako/SettingsPage.xaml.cs` | `SettingsPage` | Разделы «Основные», «Игра» и «Профиль», выход |
 | `windows/Hako/MinecraftSkinView.xaml`, `windows/Hako/MinecraftSkinView.xaml.cs` | `MinecraftSkinView` | Скин, камера, кадры ходьбы, отмена и владение renderer по видимости профиля |
 | `windows/Hako/MinecraftSkinPreviewService.cs`, `MinecraftSkinImageDecoder.cs` | `MinecraftSkinPreviewService`, `MinecraftSkinImageDecoder` | Mojang skin PNG, проверка контейнера/размера, straight RGBA, нормализованный cache по UUID |
@@ -112,9 +113,9 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
 | `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`). `LoginNotice` (`InfoBar`) показывает `OpenVerificationFailed` или `CopyCodeFailed`, если открыть страницу или скопировать код не удалось; при сбое копирования кнопка снова «Скопировать код»; копирование перехватывает любое исключение. Уведомление сбрасывается при следующем нажатии этих кнопок и при «Попробовать снова»; закрытое крестиком (`LoginNotice_Closed`) не открывается повторно при обновлении состояния |
 | `Builds` | `BuildsPage` | Пустое состояние с кнопкой «Создать сборку» или сетка карточек; ошибка реестра `instances.json` — `InfoBar` |
-| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: моды только для Fabric, ресурспаки, миры, скриншоты и настройки; меню действий дублирует сборку и создаёт резервную копию |
+| `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: время игры для выбранной сборки, моды только для Fabric, ресурспаки, миры, скриншоты и настройки; меню действий дублирует сборку и создаёт резервную копию |
 | `InstanceCreation` | `InstanceCreationPage` | Форма «Своя сборка» |
-| `Settings` | `SettingsPage` | Слева `ListView` из трёх разделов (`SettingsSection.General`, `Game`, `Profile`), справа панель выбранного |
+| `Settings` | `SettingsPage` | Слева `ListView` из трёх разделов (`SettingsSection.General`, `Game`, `Profile`), справа панель выбранного; профиль показывает время аккаунта или гостя и перенос при входе |
 | `ModpackCatalog` | `ModpackCatalogPage` | Поиск готовых сборок Modrinth, фильтр Minecraft, версии и ссылка на проект |
 | `ModpackCreation` | `ModpackCreationPage` | Форма выбранной закреплённой версии `.mrpack`, асинхронная проверка и постановка в очередь |
 

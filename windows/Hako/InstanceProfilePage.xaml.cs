@@ -4,6 +4,7 @@ using System.Threading;
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
+using Hako.Core.Playtime;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -69,6 +70,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         _services.Store.BusyStateChanged += Changed;
         _services.Installations.PropertyChanged += Changed;
         _services.Games.RunStateChanged += Changed;
+        _services.Playtime.PropertyChanged += Changed;
         _services.App.MinecraftSessions.PropertyChanged += Changed;
         _services.App.PropertyChanged += Changed;
         HakoStrings.LanguageChanged += HakoStrings_LanguageChanged;
@@ -114,6 +116,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
             services.Store.BusyStateChanged -= Changed;
             services.Installations.PropertyChanged -= Changed;
             services.Games.RunStateChanged -= Changed;
+            services.Playtime.PropertyChanged -= Changed;
             services.App.MinecraftSessions.PropertyChanged -= Changed;
             services.App.PropertyChanged -= Changed;
         }
@@ -211,6 +214,11 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         DetailsText.Text = instance.JavaMajorVersion > 0
             ? string.Format(HakoStrings.Get("InstanceDetailsJavaFormat"), instance.VersionID, InstanceText.LoaderTitle(instance), instance.JavaMajorVersion)
             : InstanceText.Details(instance);
+        PlaytimeText.Text = string.Format(HakoStrings.Get("PlaytimeInstanceFormat"),
+            PlaytimeFormatter.Format(services.Playtime.InstanceSeconds(instance.Id, services.App.Account?.Xuid), services.App.Language, HakoStrings.Get));
+        PlaytimeText.Visibility = instance.State == InstanceInstallationState.Ready ? Visibility.Visible : Visibility.Collapsed;
+        PlaytimeErrorText.Text = PlaytimeErrorTextValue(services.Playtime.ErrorResourceKey, services.Playtime.ErrorDetail);
+        PlaytimeErrorText.Visibility = services.Playtime.ErrorResourceKey is null ? Visibility.Collapsed : Visibility.Visible;
         if (_iconRevision != instance.IconRevision)
         {
             _iconRevision = instance.IconRevision;
@@ -253,6 +261,12 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         FolderText.Text = string.Format(HakoStrings.Get("InstanceFolderFormat"), FolderDisplayPath(services, instance));
         UpdateName();
     }
+
+    private static string PlaytimeErrorTextValue(string? key, string? detail) => key is null
+        ? string.Empty
+        : string.IsNullOrWhiteSpace(detail)
+            ? HakoStrings.Get(key)
+            : HakoStrings.Get(key) + " " + string.Format(HakoStrings.Get("PlaytimeErrorDetails"), detail);
 
     private void RefreshSections(LauncherServices services, GameInstance instance)
     {
