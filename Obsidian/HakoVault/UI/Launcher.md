@@ -17,6 +17,8 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Views/Launcher/LauncherPages.swift` | `LauncherPage`, `InstancesView` | Каркас вкладки и карточки сборок |
 | `macos/Hako/Hako/Views/Launcher/InstanceCreationView.swift` | `InstanceCreationView`, `CreationDismissGuard` | Каталог, проверка совместимости, форма и защита отмены |
 | `macos/Hako/Hako/Views/Launcher/InstanceProfileView.swift` | `InstanceProfileView` | Моды, текстурпаки, редактирование профиля и меню удаления, дублирования и резервной копии |
+| `macos/Hako/Hako/Views/Launcher/BackupRestoreSheet.swift` | `BackupRestoreSheet` | Подтверждённое восстановление сборки/мира из Finder |
+| `macos/Hako/Hako/Instances/BackupRestoreCoordinator.swift` | `BackupRestoreCoordinator` | Очередь импортов и транзакционная публикация файлов |
 | `macos/Hako/Hako/Views/Launcher/InstanceWorldsView.swift` | `InstanceWorldsView`, `InstanceWorldRow` | Миры сборки, сведения, размер, миниатюра и переход к датапакам |
 | `macos/Hako/Hako/Views/Launcher/InstanceScreenshotsView.swift` | `InstanceScreenshotsView` | Сетка скриншотов сборки: выделение, перетаскивание копией, Quick Look и удаление |
 | `macos/Hako/Hako/Instances/InstanceScreenshots.swift` | `InstanceScreenshots`, `InstanceScreenshot` | Список PNG, миниатюры и перемещение в корзину; `Transferable` для перетаскивания |
@@ -215,6 +217,14 @@ Microsoft/Xbox-вход сам по себе не разрешает онлай�
 копия предлагает «Показать в Finder» ([[Data/Backups]]). UUID выбирает профиль независимо от переименования папки. В заголовке показано «В игре» с тем же
 значением и форматтером, что на карточке; «В игре» и «Играть» скрыты, пока сборка не готова. Общее время профиля хранится независимо от сборок
 и сохраняется после их удаления ([[Minecraft/Launching]]).
+
+Открытие `.hakobackup` или `.hakoworld` в Finder запускает общий `BackupRestoreCoordinator`, включая
+гостевой режим и закрытое окно. Архив полностью проверяется и распаковывается до появления выбора;
+дубликаты открытий объединяются, несколько разных файлов идут последовательно. Восстановление сборки
+предлагает заменить точное совпадение или создать новую; восстановление мира предлагает готовую сборку,
+действие с совпадающей папкой и редактируемые название/папку. Замена показывает подтверждение. После
+успеха открывается восстановленный профиль или раздел миров; Minecraft автоматически не запускается.
+Формат, проверки и откат описаны в [[Data/Backups]].
 
 - Моды доступны только для Fabric; профиль Fabric изначально открывает этот раздел, Vanilla — ресурспаки.
   `InstanceFilesView` показывает активные `.jar` и отключённые `.jar.disabled`, иконку из `fabric.mod.json` внутри JAR (либо стандартный значок), переключатель активности справа,
