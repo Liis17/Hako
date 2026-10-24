@@ -24,6 +24,7 @@ public sealed record InstanceBackupManifest
         string? FabricProfileSHA1);
 
     public int FormatVersion { get; init; } = CurrentFormat;
+    public Guid? InstanceID { get; init; }
 
     [JsonConverter(typeof(UtcWholeSecondDateTimeOffsetConverter))]
     public DateTimeOffset BackupCreatedAt { get; init; }
@@ -44,7 +45,7 @@ public sealed record InstanceBackupManifest
         new InstanceParameters(), "bin/javaw.exe", false, null, null);
 }
 
-/// <summary>Creates Swift-compatible .hakobackup files. Restore/import is intentionally not implemented.</summary>
+/// <summary>Creates Swift-compatible .hakobackup files.</summary>
 public sealed class InstanceBackup
 {
     private readonly InstanceStore _store;
@@ -109,6 +110,7 @@ public sealed class InstanceBackup
                 var loader = instance.ModLoader == InstanceModLoader.Fabric ? "fabric" : "vanilla";
                 var manifest = new InstanceBackupManifest
                 {
+                    InstanceID = instance.Id,
                     BackupCreatedAt = backupTime,
                     Name = instance.Name,
                     FolderName = instance.FolderName,

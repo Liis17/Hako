@@ -429,6 +429,19 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         }
     }
 
+    internal static string ValidateArchiveName(string input)
+    {
+        var (name, folderName) = ParseName(input);
+        if (!string.Equals(name, input, StringComparison.Ordinal))
+        {
+            throw new InstanceStorageException(InstanceStorageError.InvalidBuildName,
+                "The archived build name is not in canonical form.");
+        }
+
+        ValidateReservedName(folderName);
+        return folderName;
+    }
+
     public GameInstance Create(
         InstanceDraft draft,
         string versionID,

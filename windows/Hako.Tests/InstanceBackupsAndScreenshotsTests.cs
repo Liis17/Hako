@@ -264,6 +264,7 @@ public sealed class InstanceBackupsAndScreenshotsTests
         Assert.AreEqual("2026-10-23T14:07:08Z", json.RootElement.GetProperty("backupCreatedAt").GetString());
         Assert.AreEqual(instance.Name, json.RootElement.GetProperty("name").GetString());
         Assert.AreEqual(instance.FolderName, json.RootElement.GetProperty("folderName").GetString());
+        Assert.AreEqual(instance.Id, json.RootElement.GetProperty("instanceID").GetGuid());
         Assert.IsFalse(json.RootElement.GetProperty("profile").GetProperty("offlineMode").GetBoolean());
         Assert.AreEqual("mojang", json.RootElement.GetProperty("profile").GetProperty("argumentSource").GetString());
         CollectionAssert.AreEqual(new byte[] { 8, 9 }, Convert.FromBase64String(json.RootElement.GetProperty("iconPNG").GetString()!));

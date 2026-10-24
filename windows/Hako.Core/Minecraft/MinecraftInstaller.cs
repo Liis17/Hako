@@ -484,7 +484,7 @@ public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabric
         }
     }
 
-    private static async Task<bool> IsValidFileAsync(string path, MojangDownload download, CancellationToken cancellationToken)
+    internal static async Task<bool> IsValidFileAsync(string path, MojangDownload download, CancellationToken cancellationToken)
     {
         if (!File.Exists(path))
         {
