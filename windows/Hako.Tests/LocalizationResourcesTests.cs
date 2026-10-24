@@ -11,6 +11,21 @@ namespace Hako.Tests;
 public sealed class LocalizationResourcesTests
 {
     [TestMethod]
+    [DataRow("ru-RU")]
+    [DataRow("en-US")]
+    public void BuildProfileStringLookupsHaveLocalizedResources(string language)
+    {
+        var resources = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", language, "Resources.resw"));
+        var source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "InstanceProfilePage.xaml.cs"));
+        var lookups = System.Text.RegularExpressions.Regex.Matches(source, "HakoStrings\\.Get\\(\"([^\"]+)\"\\)");
+        Assert.IsTrue(lookups.Count > 0);
+        foreach (System.Text.RegularExpressions.Match lookup in lookups)
+        {
+            CollectionAssert.Contains(resources, lookup.Groups[1].Value, $"Missing build profile resource in {language}");
+        }
+    }
+
+    [TestMethod]
     public void RussianAndEnglishResourcesHaveTheSameNonemptyKeys()
     {
         var russian = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "ru-RU", "Resources.resw"));
