@@ -634,6 +634,43 @@ public sealed class InstanceStoreTests
     }
 
     [TestMethod]
+    public void ContainedPathAllowsMissingInstallationPathsWithoutThrowing()
+    {
+        using var temporary = new TemporaryDirectory();
+        var root = temporary.Paths.GameRoot;
+        Directory.CreateDirectory(root);
+        var threadId = Environment.CurrentManagedThreadId;
+        var missingPathExceptions = 0;
+        EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (_, args) =>
+        {
+            if (Environment.CurrentManagedThreadId == threadId
+                && args.Exception is FileNotFoundException or DirectoryNotFoundException)
+            {
+                missingPathExceptions++;
+            }
+        };
+
+        AppDomain.CurrentDomain.FirstChanceException += handler;
+        try
+        {
+            foreach (var path in new[] { "minecraft/assets/objects/ab/test", "java/legal/test/LICENSE" })
+            {
+                Assert.AreEqual(Path.GetFullPath(Path.Combine(root, path)), InstanceStorage.ContainedPath(path, root));
+            }
+
+            Directory.CreateDirectory(Path.Combine(root, "minecraft", "assets"));
+            _ = InstanceStorage.ContainedPath("minecraft/assets/missing.json", root);
+            _ = InstanceStorage.ContainedPath("file.txt", Path.Combine(root, "missing-root"));
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= handler;
+        }
+
+        Assert.AreEqual(0, missingPathExceptions, "Missing installation paths should not generate debugger exception noise.");
+    }
+
+    [TestMethod]
     public void ContainedPathRejectsTraversalAbsolutePathsAndReparsePoints()
     {
         using var temporary = new TemporaryDirectory();
@@ -663,6 +700,8 @@ public sealed class InstanceStoreTests
 
         try
         {
+            Assert.ThrowsExactly<InstanceStorageException>(() => InstanceStorage.ContainedPath("junction\\file.txt", root));
+            Directory.Delete(target);
             Assert.ThrowsExactly<InstanceStorageException>(() => InstanceStorage.ContainedPath("junction\\file.txt", root));
         }
         finally
