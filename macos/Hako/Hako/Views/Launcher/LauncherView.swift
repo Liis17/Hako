@@ -27,6 +27,7 @@ struct LauncherView: View {
     @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(QuickLaunchCoordinator.self) private var quickLaunch
+    @Environment(BackupRestoreCoordinator.self) private var backupRestore
     @Query(sort: \GameInstance.createdAt) private var instances: [GameInstance]
     @State private var tab = LauncherTab.instances
     @State private var creatingInstance = false
@@ -109,6 +110,11 @@ struct LauncherView: View {
                 completeQuickLaunchNavigation()
             }
         }
+        .task(id: backupRestore.navigation?.id) {
+            if let destination = backupRestore.navigation {
+                requestTab(.instance(destination.instanceID))
+            }
+        }
         .onChange(of: tab) { completeQuickLaunchNavigation() }
         .sheet(isPresented: $creatingInstance) {
             InstanceCreationChoiceView(onCreated: { requestTab(.instances) }, onModrinth: {
@@ -168,6 +174,14 @@ struct LauncherView: View {
                 }
             }.padding(28).frame(width: confirmation.alternative == nil ? 460 : 560).interactiveDismissDisabled()
                 .onChange(of: confirmation.id, initial: true) { selectedResourcePack = nil }
+        }
+        .sheet(isPresented: Binding(get: { backupRestore.isPresented }, set: { if !$0 { backupRestore.cancelOrDismiss() } })) {
+            BackupRestoreSheet(coordinator: backupRestore)
+        }
+        .alert("Восстановление завершено", isPresented: Binding(get: { backupRestore.completionMessage != nil }, set: { if !$0 { backupRestore.dismissCompletionMessage() } })) {
+            Button("ОК", role: .cancel) { backupRestore.dismissCompletionMessage() }
+        } message: {
+            Text(backupRestore.completionMessage ?? "")
         }
         .alert(navigationError == nil ? "Переименовать сборку?" : "Не удалось переименовать сборку", isPresented: renamePromptPresented) {
             if navigationError != nil {
@@ -316,6 +330,8 @@ struct LauncherView: View {
     let container = try! ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: "steve@example.com")
     let installations = InstallationCoordinator(context: container.mainContext)
+    let content = InstanceContentController(installations: installations)
+    let backupRestore = BackupRestoreCoordinator(installations: installations, content: content)
     let appearances = MinecraftAppearanceStore()
     let sessions = MinecraftSessionCoordinator(context: container.mainContext, appearances: appearances)
     let skinLoader = MinecraftSkinLoader.shared
@@ -328,7 +344,8 @@ struct LauncherView: View {
         .modelContainer(container)
         .environment(InstanceRenameExitCoordinator())
         .environment(installations)
-        .environment(InstanceContentController(installations: installations))
+        .environment(content)
+        .environment(backupRestore)
         .environment(sessions)
         .environment(appearances)
         .environment(skinLoader)

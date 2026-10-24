@@ -1,8 +1,19 @@
 import Foundation
+import CryptoKit
 import SwiftData
 import Testing
+import Darwin
 
 @MainActor struct InstanceManagementTests {
+    private struct ZIPFixtureEntry {
+        let path: String
+        let data: Data
+        var mode: UInt32 = 0o100644
+        var flags: UInt16 = 0
+        var method: UInt16 = 0
+        var wrongCRC = false
+    }
+
     private func container() throws -> ModelContainer {
         try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
@@ -19,6 +30,159 @@ import Testing
         var draft = InstanceDraft()
         draft.name = name
         return draft
+    }
+
+    private func sha1(_ data: Data) -> String {
+        Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func crc32(_ data: Data) -> UInt32 {
+        var value = UInt32.max
+        for byte in data {
+            value ^= UInt32(byte)
+            for _ in 0..<8 { value = (value >> 1) ^ (0xedb8_8320 & (0 &- (value & 1))) }
+        }
+        return ~value
+    }
+
+    private func append(_ value: UInt16, to data: inout Data) {
+        data.append(UInt8(value & 0xff)); data.append(UInt8(value >> 8))
+    }
+
+    private func append(_ value: UInt32, to data: inout Data) {
+        append(UInt16(value & 0xffff), to: &data); append(UInt16(value >> 16), to: &data)
+    }
+
+    private func append(_ value: UInt64, to data: inout Data) {
+        append(UInt32(value & 0xffff_ffff), to: &data); append(UInt32(value >> 32), to: &data)
+    }
+
+    private func storedZIP(_ entries: [ZIPFixtureEntry]) -> Data {
+        var archive = Data()
+        var central = Data()
+        for entry in entries {
+            let name = Data(entry.path.utf8)
+            let checksum = crc32(entry.data) ^ (entry.wrongCRC ? 1 : 0)
+            let offset = UInt32(archive.count)
+            append(UInt32(0x0403_4b50), to: &archive)
+            append(UInt16(20), to: &archive); append(entry.flags, to: &archive); append(entry.method, to: &archive)
+            append(UInt16(0), to: &archive); append(UInt16(0), to: &archive)
+            append(checksum, to: &archive); append(UInt32(entry.data.count), to: &archive); append(UInt32(entry.data.count), to: &archive)
+            append(UInt16(name.count), to: &archive); append(UInt16(0), to: &archive)
+            archive.append(name); archive.append(entry.data)
+
+            append(UInt32(0x0201_4b50), to: &central)
+            append(UInt16(0x0314), to: &central); append(UInt16(20), to: &central)
+            append(entry.flags, to: &central); append(entry.method, to: &central)
+            append(UInt16(0), to: &central); append(UInt16(0), to: &central)
+            append(checksum, to: &central); append(UInt32(entry.data.count), to: &central); append(UInt32(entry.data.count), to: &central)
+            append(UInt16(name.count), to: &central); append(UInt16(0), to: &central); append(UInt16(0), to: &central)
+            append(UInt16(0), to: &central); append(UInt16(0), to: &central)
+            append(entry.mode << 16, to: &central); append(offset, to: &central)
+            central.append(name)
+        }
+        let centralOffset = UInt32(archive.count)
+        archive.append(central)
+        append(UInt32(0x0605_4b50), to: &archive)
+        append(UInt16(0), to: &archive); append(UInt16(0), to: &archive)
+        append(UInt16(entries.count), to: &archive); append(UInt16(entries.count), to: &archive)
+        append(UInt32(central.count), to: &archive); append(centralOffset, to: &archive); append(UInt16(0), to: &archive)
+        return archive
+    }
+
+    private func storedZIP64World(_ manifest: WorldBackupManifest, worldData: Data) throws -> Data {
+        let inputs: [ZIPFixtureEntry] = [
+            .init(path: "data.json", data: try WorldBackupManifest.encoder().encode(manifest)),
+            .init(path: "world/", data: Data(), mode: 0o040755),
+            .init(path: "world/level.dat", data: worldData)
+        ]
+        var archive = Data()
+        var central = Data()
+        for entry in inputs {
+            let name = Data(entry.path.utf8), checksum = crc32(entry.data), offset = UInt64(archive.count)
+            append(UInt32(0x0403_4b50), to: &archive)
+            append(UInt16(45), to: &archive); append(entry.flags, to: &archive); append(entry.method, to: &archive)
+            append(UInt16(0), to: &archive); append(UInt16(0), to: &archive)
+            append(checksum, to: &archive); append(UInt32.max, to: &archive); append(UInt32.max, to: &archive)
+            append(UInt16(name.count), to: &archive); append(UInt16(20), to: &archive)
+            archive.append(name)
+            append(UInt16(1), to: &archive); append(UInt16(16), to: &archive)
+            append(UInt64(entry.data.count), to: &archive); append(UInt64(entry.data.count), to: &archive)
+            archive.append(entry.data)
+
+            append(UInt32(0x0201_4b50), to: &central)
+            append(UInt16(0x032d), to: &central); append(UInt16(45), to: &central)
+            append(entry.flags, to: &central); append(entry.method, to: &central)
+            append(UInt16(0), to: &central); append(UInt16(0), to: &central)
+            append(checksum, to: &central); append(UInt32.max, to: &central); append(UInt32.max, to: &central)
+            append(UInt16(name.count), to: &central); append(UInt16(28), to: &central); append(UInt16(0), to: &central)
+            append(UInt16(0), to: &central); append(UInt16(0), to: &central)
+            append(entry.mode << 16, to: &central); append(UInt32(offset), to: &central)
+            central.append(name)
+            append(UInt16(1), to: &central); append(UInt16(24), to: &central)
+            append(UInt64(entry.data.count), to: &central); append(UInt64(entry.data.count), to: &central); append(offset, to: &central)
+        }
+        let centralOffset = UInt64(archive.count), centralSize = UInt64(central.count)
+        archive.append(central)
+        let zip64Offset = UInt64(archive.count)
+        append(UInt32(0x0606_4b50), to: &archive); append(UInt64(44), to: &archive)
+        append(UInt16(45), to: &archive); append(UInt16(45), to: &archive)
+        append(UInt32(0), to: &archive); append(UInt32(0), to: &archive)
+        append(UInt64(inputs.count), to: &archive); append(UInt64(inputs.count), to: &archive)
+        append(centralSize, to: &archive); append(centralOffset, to: &archive)
+        append(UInt32(0x0706_4b50), to: &archive); append(UInt32(0), to: &archive)
+        append(zip64Offset, to: &archive); append(UInt32(1), to: &archive)
+        append(UInt32(0x0605_4b50), to: &archive)
+        append(UInt16(0), to: &archive); append(UInt16(0), to: &archive)
+        append(UInt16.max, to: &archive); append(UInt16.max, to: &archive)
+        append(UInt32.max, to: &archive); append(UInt32.max, to: &archive); append(UInt16(0), to: &archive)
+        return archive
+    }
+
+    private func validBackupFixture() async throws -> (ModelContainer, URL, InstanceStore, GameInstance, URL, InstanceBackupManifest) {
+        let root = try temporary()
+        let container = try container()
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root))
+        let versionID = "1.21.1"
+        let instance = try store.create(draft("Restore Pack"), versionID: versionID,
+                                        metadataURL: "https://example.test/version.json", metadataSHA1: "pending", javaMajorVersion: 21)
+        let folder = try store.storage.directory(instance.folderName)
+        let javaHome = folder.appendingPathComponent("java/runtime", isDirectory: true)
+        let java = javaHome.appendingPathComponent("bin/java")
+        try FileManager.default.createDirectory(at: java.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var cpu: UInt32 = 0
+        #if arch(arm64)
+        cpu = UInt32(bitPattern: CPU_TYPE_ARM64)
+        #else
+        cpu = UInt32(bitPattern: CPU_TYPE_X86_64)
+        #endif
+        var executable = Data([0xcf, 0xfa, 0xed, 0xfe])
+        for shift in stride(from: 0, to: 32, by: 8) { executable.append(UInt8((cpu >> shift) & 0xff)) }
+        executable.append(contentsOf: repeatElement(UInt8(0), count: 128))
+        try executable.write(to: java)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: java.path)
+        try Data("JAVA_VERSION=\"21.0.1\"\n".utf8).write(to: javaHome.appendingPathComponent("release"))
+
+        let client = Data("verified Minecraft client fixture".utf8)
+        let metadata = try JSONSerialization.data(withJSONObject: [
+            "id": versionID,
+            "downloads": ["client": ["url": "https://example.test/client.jar", "sha1": sha1(client), "size": client.count]],
+            "libraries": []
+        ], options: [.sortedKeys])
+        let versionFolder = folder.appendingPathComponent("minecraft/versions/\(versionID)", isDirectory: true)
+        try FileManager.default.createDirectory(at: versionFolder, withIntermediateDirectories: true)
+        try metadata.write(to: versionFolder.appendingPathComponent("\(versionID).json"))
+        try client.write(to: versionFolder.appendingPathComponent("\(versionID).jar"))
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("minecraft/mods"), withIntermediateDirectories: true)
+        instance.metadataSHA1 = sha1(metadata)
+        instance.javaExecutable = "runtime/bin/java"
+        instance.state = .ready
+        try container.mainContext.save()
+
+        let archive = try await store.backup(instance, content: InstanceContent())
+        let manifestData = try await FabricClient.archiveEntry(InstanceBackupManifest.fileName, in: archive, limit: 1_048_576)
+        let manifest = try InstanceBackupManifest.decoder().decode(InstanceBackupManifest.self, from: manifestData)
+        return (container, root, store, instance, archive, manifest)
     }
 
     @Test func deleteErasesFolderAndRecord() throws {
@@ -135,18 +299,62 @@ import Testing
         source.iconSymbol = ""
         source.iconData = Data("png".utf8)
         source.modLoader = .fabric
-        source.fabricConfiguration = FabricConfiguration(loaderVersion: "0.16.5", api: api)
+        let apiData = Data("fabric api fixture".utf8)
+        let restoredAPI = FabricAPIDescriptor(projectID: FabricAPIDescriptor.project, versionID: "api", version: "0.100.0", channel: "release", filename: "fabric-api.jar", url: URL(string: "https://example.test/fabric-api.jar")!, size: Int64(apiData.count), sha1: sha1(apiData), sha512: FabricClient.hash(apiData))
+        source.fabricConfiguration = FabricConfiguration(loaderVersion: "0.16.5", api: restoredAPI)
         let instance = try store.create(source, versionID: "1.21.1", metadataURL: "https://example.test/v.json", metadataSHA1: "hash", javaMajorVersion: 21)
         instance.state = .ready
         try container.mainContext.save()
         let folder = root.appendingPathComponent("Backup_Pack")
-        try FileManager.default.createDirectory(at: folder.appendingPathComponent("java/bin"), withIntermediateDirectories: true)
-        try Data("java".utf8).write(to: folder.appendingPathComponent("java/bin/java"))
-        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("java/link").path, withDestinationPath: "bin/java")
+        let javaFolder = folder.appendingPathComponent("java/runtime", isDirectory: true)
+        let java = javaFolder.appendingPathComponent("bin/java")
+        try FileManager.default.createDirectory(at: java.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: javaFolder.appendingPathComponent("alias"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: javaFolder.appendingPathComponent("lib"), withIntermediateDirectories: true)
+        var cpu: UInt32 = 0
+        #if arch(arm64)
+        cpu = UInt32(bitPattern: CPU_TYPE_ARM64)
+        #else
+        cpu = UInt32(bitPattern: CPU_TYPE_X86_64)
+        #endif
+        var javaBytes = Data([0xcf, 0xfa, 0xed, 0xfe])
+        for shift in stride(from: 0, to: 32, by: 8) { javaBytes.append(UInt8((cpu >> shift) & 0xff)) }
+        javaBytes.append(contentsOf: repeatElement(UInt8(0), count: 128))
+        try javaBytes.write(to: java)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: java.path)
+        try FileManager.default.createSymbolicLink(atPath: javaFolder.appendingPathComponent("alias/java").path, withDestinationPath: "../bin/java")
+        try Data("JAVA_VERSION=\"21.0.1\"\n".utf8).write(to: javaFolder.appendingPathComponent("release"))
+        let helper = javaFolder.appendingPathComponent("lib/jspawnhelper")
+        try Data("helper".utf8).write(to: helper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+        let clientJar = Data("fixture client jar".utf8)
+        let version = try JSONSerialization.data(withJSONObject: [
+            "id": "1.21.1",
+            "downloads": ["client": ["url": "https://example.test/client.jar", "sha1": sha1(clientJar), "size": clientJar.count]],
+            "libraries": []
+        ], options: [.sortedKeys])
+        let versionFolder = folder.appendingPathComponent("minecraft/versions/1.21.1", isDirectory: true)
+        try FileManager.default.createDirectory(at: versionFolder, withIntermediateDirectories: true)
+        try version.write(to: versionFolder.appendingPathComponent("1.21.1.json"))
+        try clientJar.write(to: versionFolder.appendingPathComponent("1.21.1.jar"))
+        let fabricProfile = try JSONSerialization.data(withJSONObject: [
+            "id": "fabric-loader-0.16.5-1.21.1",
+            "inheritsFrom": "1.21.1",
+            "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+            "libraries": []
+        ], options: [.sortedKeys])
+        try fabricProfile.write(to: folder.appendingPathComponent("minecraft/.hako-fabric.json"))
+        instance.metadataSHA1 = sha1(version)
+        instance.javaExecutable = "runtime/alias/java"
+        instance.fabricProfileSHA1 = sha1(fabricProfile)
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("java/link").path, withDestinationPath: "runtime/bin/java")
         try FileManager.default.createDirectory(at: folder.appendingPathComponent("minecraft/mods"), withIntermediateDirectories: true)
+        try apiData.write(to: folder.appendingPathComponent("minecraft/mods/fabric-api.jar"))
         try Data("one".utf8).write(to: folder.appendingPathComponent("minecraft/mods/one.jar"))
         try Data("two".utf8).write(to: folder.appendingPathComponent("minecraft/mods/two.jar.disabled"))
         try Data("{}".utf8).write(to: folder.appendingPathComponent("minecraft/.hako-running.json"))
+        try Data("stale source manifest".utf8).write(to: folder.appendingPathComponent("data.json"))
+        try container.mainContext.save()
 
         let archive = try await store.backup(instance, content: InstanceContent())
         #expect(archive.deletingLastPathComponent().standardizedFileURL == root.appendingPathComponent("backups").standardizedFileURL)
@@ -160,9 +368,11 @@ import Testing
         listing.arguments = ["-Z1", archive.path]
         listing.standardOutput = output
         try listing.run()
-        let entries = Set(String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).split(separator: "\n").map(String.init))
+        let entryNames = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).split(separator: "\n").map(String.init)
+        let entries = Set(entryNames)
         listing.waitUntilExit()
-        #expect(entries.isSuperset(of: ["data.json", "icon.png", "java/bin/java", "java/link", "minecraft/mods/one.jar", "minecraft/mods/two.jar.disabled"]))
+        #expect(entries.isSuperset(of: ["data.json", "icon.png", "java/runtime/bin/java", "java/runtime/alias/java", "java/link", "minecraft/mods/fabric-api.jar", "minecraft/mods/one.jar", "minecraft/mods/two.jar.disabled"]))
+        #expect(entryNames.filter { $0 == "data.json" }.count == 1)
         #expect(!entries.contains("minecraft/.hako-running.json"))
 
         let data = try await FabricClient.archiveEntry("data.json", in: archive, limit: 1_048_576)
@@ -170,9 +380,316 @@ import Testing
         #expect(manifest.formatVersion == 1 && manifest.name == "Backup Pack" && manifest.folderName == "Backup_Pack")
         #expect(manifest.minecraftVersion == "1.21.1" && manifest.modLoader == "fabric" && manifest.loaderVersion == "0.16.5" && manifest.javaMajorVersion == 21)
         #expect(manifest.iconPNG == Data("png".utf8) && manifest.iconSymbol.isEmpty)
-        #expect(manifest.modCount == 2 && manifest.mods.map(\.file) == ["one.jar", "two.jar"] && manifest.mods.map(\.enabled) == [true, false])
-        #expect(manifest.profile.metadataURL == instance.metadataURL && manifest.profile.fabricConfiguration?.api == api)
+        #expect(manifest.modCount == 3 && manifest.mods.map(\.file) == ["fabric-api.jar", "one.jar", "two.jar"] && manifest.mods.map(\.enabled) == [true, true, false])
+        #expect(manifest.instanceID == instance.id)
+        #expect(manifest.profile.metadataURL == instance.metadataURL && manifest.profile.fabricConfiguration?.api == restoredAPI)
         #expect(String(decoding: data, as: UTF8.self).contains("\"iconPNG\" : \"\(Data("png".utf8).base64EncodedString())\""))
+
+        let staged = try await RestoreArchive.prepare(archive, under: root)
+        defer { RestoreArchive.discardStage(staged.directory) }
+        var stagingInfo = stat()
+        #expect(lstat(staged.directory.path, &stagingInfo) == 0 && stagingInfo.st_mode & 0o777 == 0o700)
+        #expect(FileManager.default.fileExists(atPath: staged.directory.appendingPathComponent("minecraft/versions/1.21.1/1.21.1.jar").path))
+        #expect(!FileManager.default.fileExists(atPath: staged.directory.appendingPathComponent("data.json").path))
+        let executableURL = staged.directory.appendingPathComponent("java/runtime/bin/java")
+        var executableInfo = stat()
+        #expect(lstat(executableURL.path, &executableInfo) == 0 && executableInfo.st_mode & 0o777 == 0o755)
+        let helperURL = staged.directory.appendingPathComponent("java/runtime/lib/jspawnhelper")
+        var helperInfo = stat()
+        #expect(lstat(helperURL.path, &helperInfo) == 0 && helperInfo.st_mode & 0o777 == 0o755)
+        #expect((try staged.directory.appendingPathComponent("java/runtime/alias/java").resourceValues(forKeys: [.isSymbolicLinkKey])).isSymbolicLink == true)
+        await #expect(throws: InstanceFileError.self) {
+            _ = try await RestoreArchive.prepare(archive, under: root, availableBytes: { _ in 0 })
+        }
+
+        let createdAt = instance.createdAt
+        let playtime = InstancePlaytime(ownerKey: "guest", instanceID: instance.id)
+        playtime.totalSeconds = 731
+        container.mainContext.insert(playtime)
+        try container.mainContext.save()
+        let newStage = try await RestoreArchive.prepare(archive, under: root)
+        let copy = try store.restoreInstance(manifest, stagedDirectory: newStage.directory, name: "Restored Pack", replacing: nil).instance
+        #expect(copy.id != manifest.instanceID && copy.id != instance.id)
+        #expect(copy.name == "Restored Pack" && copy.folderName == "Restored_Pack")
+        var restoredRootInfo = stat()
+        #expect(lstat(root.appendingPathComponent("Restored_Pack").path, &restoredRootInfo) == 0 && restoredRootInfo.st_mode & 0o777 == 0o755)
+        #expect(abs(copy.createdAt.timeIntervalSince(manifest.instanceCreatedAt)) < 1)
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Restored_Pack/minecraft/versions/1.21.1/1.21.1.jar").path))
+
+        try store.rename(instance, to: "Current Pack")
+        let currentFolder = root.appendingPathComponent("Current_Pack", isDirectory: true)
+        try Data("keep only until replacement".utf8).write(to: currentFolder.appendingPathComponent("current-only.txt"))
+        instance.metadataURL = "https://example.test/changed.json"
+        instance.javaExecutable = "missing/java"
+        instance.offlineMode = true
+        instance.state = .paused
+        try container.mainContext.save()
+        let replacementStage = try await RestoreArchive.prepare(archive, under: root)
+        let replaced = try store.restoreInstance(manifest, stagedDirectory: replacementStage.directory, name: "Ignored", replacing: instance)
+        #expect(replaced.instance.id == instance.id && replaced.instance.name == "Current Pack" && replaced.instance.folderName == "Current_Pack")
+        #expect(replaced.instance.createdAt == createdAt && replaced.instance.state == .ready)
+        #expect(replaced.instance.metadataURL == manifest.profile.metadataURL && replaced.instance.javaExecutable == "runtime/alias/java")
+        #expect(replaced.instance.modLoader == .fabric && !replaced.instance.offlineMode)
+        #expect(!FileManager.default.fileExists(atPath: currentFolder.appendingPathComponent("current-only.txt").path))
+        #expect(try Data(contentsOf: currentFolder.appendingPathComponent("minecraft/mods/fabric-api.jar")) == apiData)
+        #expect(try container.mainContext.fetch(FetchDescriptor<InstancePlaytime>()).first?.totalSeconds == 731)
+        #expect(try FileManager.default.contentsOfDirectory(at: root.appendingPathComponent("backups"), includingPropertiesForKeys: nil).filter { $0.pathExtension == "hakobackup" }.count == 1)
+    }
+
+    @Test func restoreMatchingUsesUUIDThenOnlyAnUnambiguousLegacySignature() async throws {
+        let (container, root, store, instance, _, manifest) = try await validBackupFixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        var unknownID = manifest
+        unknownID.instanceID = UUID()
+        #expect(BackupRestoreCoordinator.matchingInstance(for: unknownID, among: [instance]) == nil)
+
+        var legacy = manifest
+        legacy.instanceID = nil
+        var legacyJSON = try #require(JSONSerialization.jsonObject(with: InstanceBackupManifest.encoder().encode(legacy)) as? [String: Any])
+        legacyJSON["instanceID"] = nil
+        let decodedLegacy = try InstanceBackupManifest.decoder().decode(InstanceBackupManifest.self, from: JSONSerialization.data(withJSONObject: legacyJSON))
+        #expect(decodedLegacy.instanceID == nil)
+        #expect(BackupRestoreCoordinator.matchingInstance(for: legacy, among: [instance])?.id == instance.id)
+        let duplicate = GameInstance(name: "Duplicate", folderName: instance.folderName, versionID: instance.versionID,
+                                     metadataURL: instance.metadataURL, metadataSHA1: instance.metadataSHA1)
+        #expect(BackupRestoreCoordinator.matchingInstance(for: legacy, among: [instance, duplicate]) == nil)
+        try store.rename(instance, to: "Renamed Restore")
+        #expect(BackupRestoreCoordinator.matchingInstance(for: manifest, among: [instance])?.id == manifest.instanceID)
+        #expect(BackupRestoreCoordinator.matchingInstance(for: legacy, among: [instance]) == nil)
+    }
+
+    @Test func restoreStaticallyRejectsForeignJavaAndNeverExecutesArchivePrograms() async throws {
+        let (container, root, store, instance, originalArchive, _) = try await validBackupFixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let java = root.appendingPathComponent("\(instance.folderName)/java/runtime/bin/java")
+        let release = root.appendingPathComponent("\(instance.folderName)/java/runtime/release")
+        var archiveToRemove = originalArchive
+        func repack() async throws -> URL {
+            try? FileManager.default.removeItem(at: archiveToRemove)
+            archiveToRemove = try await store.backup(instance, content: InstanceContent())
+            return archiveToRemove
+        }
+
+        let sentinel = root.appendingPathComponent("archive-java-was-run")
+        let script = "#!/bin/sh\n/usr/bin/touch \"\(sentinel.path)\"\n"
+        try Data(script.utf8).write(to: java)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: java.path)
+        let scriptedArchive = try await repack()
+        await #expect(throws: InstanceFileError.self) { _ = try await RestoreArchive.prepare(scriptedArchive, under: root) }
+        #expect(!FileManager.default.fileExists(atPath: sentinel.path))
+
+        #if arch(arm64)
+        let foreignCPU = UInt32(bitPattern: CPU_TYPE_X86_64)
+        #else
+        let foreignCPU = UInt32(bitPattern: CPU_TYPE_ARM64)
+        #endif
+        var foreignMachO = Data([0xcf, 0xfa, 0xed, 0xfe])
+        for shift in stride(from: 0, to: 32, by: 8) { foreignMachO.append(UInt8((foreignCPU >> shift) & 0xff)) }
+        foreignMachO.append(contentsOf: repeatElement(UInt8(0), count: 128))
+        try foreignMachO.write(to: java)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: java.path)
+        let foreignArchive = try await repack()
+        await #expect(throws: InstanceFileError.self) { _ = try await RestoreArchive.prepare(foreignArchive, under: root) }
+
+        #if arch(arm64)
+        let nativeCPU = UInt32(bitPattern: CPU_TYPE_ARM64)
+        #else
+        let nativeCPU = UInt32(bitPattern: CPU_TYPE_X86_64)
+        #endif
+        var nativeMachO = Data([0xcf, 0xfa, 0xed, 0xfe])
+        for shift in stride(from: 0, to: 32, by: 8) { nativeMachO.append(UInt8((nativeCPU >> shift) & 0xff)) }
+        nativeMachO.append(contentsOf: repeatElement(UInt8(0), count: 128))
+        try nativeMachO.write(to: java)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: java.path)
+        try Data("JAVA_VERSION=\"8.0.0\"\n".utf8).write(to: release)
+        let oldJavaArchive = try await repack()
+        await #expect(throws: InstanceFileError.self) { _ = try await RestoreArchive.prepare(oldJavaArchive, under: root) }
+        #expect(!FileManager.default.fileExists(atPath: sentinel.path))
+    }
+
+    @Test func restoreQueueDeduplicatesFilesAndCancellationAdvancesThenCleansStaging() async throws {
+        let (container, root, _, _, archive, _) = try await validBackupFixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let alias = root.appendingPathComponent("alias.hakobackup")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: archive)
+        let second = root.appendingPathComponent("second.hakobackup")
+        try FileManager.default.copyItem(at: archive, to: second)
+        let installations = InstallationCoordinator(context: container.mainContext, storage: .init(root: root))
+        let coordinator = BackupRestoreCoordinator(installations: installations, content: InstanceContentController(installations: installations))
+
+        coordinator.enqueue([archive, alias, second])
+        #expect(coordinator.currentURL?.standardizedFileURL == archive.standardizedFileURL && coordinator.queuedCount == 1)
+        coordinator.enqueue([alias])
+        #expect(coordinator.queuedCount == 1)
+        coordinator.cancelOrDismiss()
+        #expect(coordinator.currentURL?.standardizedFileURL == second.standardizedFileURL)
+        for _ in 0..<500 where coordinator.staged == nil && coordinator.errorMessage == nil { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(coordinator.staged?.archive.standardizedFileURL == second.standardizedFileURL)
+        #expect(coordinator.instanceName == "Restore Pack 2")
+        coordinator.cancelOrDismiss()
+        for _ in 0..<100 {
+            let stages = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil))?.filter { $0.lastPathComponent.hasPrefix(".restore-stage-") } ?? []
+            if stages.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(coordinator.currentURL == nil && coordinator.queuedCount == 0 && coordinator.staged == nil)
+        #expect(try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).allSatisfy { !$0.lastPathComponent.hasPrefix(".restore-stage-") })
+    }
+
+    @Test func restoreFilesystemFailureAndSaveFailureRollBackWithoutMerging() async throws {
+        let (container, root, _, instance, archive, manifest) = try await validBackupFixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let current = root.appendingPathComponent(instance.folderName, isDirectory: true)
+        try Data("old data".utf8).write(to: current.appendingPathComponent("old-only.txt"))
+        try Data("old installed client".utf8).write(to: current.appendingPathComponent("minecraft/versions/1.21.1/1.21.1.jar"))
+        let originalName = instance.name
+        let originalVersion = instance.versionID
+
+        var moves = 0
+        let fileFailStore = InstanceStore(context: container.mainContext, storage: .init(root: root), restoreMove: { source, destination in
+            moves += 1
+            if moves == 2 { throw InstanceFileError.message("Injected rename failure") }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        let fileFailStage = try await RestoreArchive.prepare(archive, under: root)
+        #expect(throws: InstanceFileError.self) {
+            try fileFailStore.restoreInstance(manifest, stagedDirectory: fileFailStage.directory, name: "Ignored", replacing: instance)
+        }
+        #expect(FileManager.default.fileExists(atPath: current.appendingPathComponent("old-only.txt").path))
+        #expect(try Data(contentsOf: current.appendingPathComponent("minecraft/versions/1.21.1/1.21.1.jar")) == Data("old installed client".utf8))
+        #expect(instance.name == originalName && instance.versionID == originalVersion)
+
+        let saveFailStore = InstanceStore(context: container.mainContext, storage: .init(root: root), persist: {
+            throw InstanceFileError.message("Injected model save failure")
+        })
+        let saveFailStage = try await RestoreArchive.prepare(archive, under: root)
+        #expect(throws: InstanceFileError.self) {
+            try saveFailStore.restoreInstance(manifest, stagedDirectory: saveFailStage.directory, name: "Ignored", replacing: instance)
+        }
+        #expect(FileManager.default.fileExists(atPath: current.appendingPathComponent("old-only.txt").path))
+        #expect(try Data(contentsOf: current.appendingPathComponent("minecraft/versions/1.21.1/1.21.1.jar")) == Data("old installed client".utf8))
+        #expect(instance.name == originalName && instance.versionID == originalVersion)
+        #expect(saveFailStore.contentBusy.isEmpty)
+    }
+
+    @Test func failedInstanceRollbackRetainsDataAndReportsRecoveryPath() async throws {
+        let (container, root, _, instance, archive, manifest) = try await validBackupFixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let current = root.appendingPathComponent(instance.folderName, isDirectory: true)
+        try Data("only surviving old data".utf8).write(to: current.appendingPathComponent("old-only.txt"))
+        var moves = 0
+        let store = InstanceStore(context: container.mainContext, storage: .init(root: root), restoreMove: { source, destination in
+            moves += 1
+            if moves == 2 || moves == 3 { throw InstanceFileError.message("Injected swap/rollback failure") }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        let stage = try await RestoreArchive.prepare(archive, under: root)
+        do {
+            _ = try store.restoreInstance(manifest, stagedDirectory: stage.directory, name: "Ignored", replacing: instance)
+            Issue.record("Expected an instance rollback failure.")
+        } catch let failure as InstanceRestoreCommitFailure {
+            #expect(failure.recoveryLocations.count == 1)
+            #expect(failure.localizedDescription.contains(failure.recoveryLocations[0].path))
+            #expect(try Data(contentsOf: failure.recoveryLocations[0].appendingPathComponent("old-only.txt")) == Data("only surviving old data".utf8))
+        }
+        #expect(instance.name == manifest.name && instance.folderName == manifest.folderName)
+        #expect(moves == 3 && store.contentBusy.isEmpty)
+    }
+
+    @Test func restoreZIP64WorldRoundTripAndRejectsMalformedOrUnsafeEntries() async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = WorldBackupManifest.SourceInstance(id: UUID(), name: "Source", folderName: "Source",
+                                                        minecraftVersion: "1.21.1", modLoader: "vanilla", loaderVersion: nil)
+        let manifest = WorldBackupManifest(backupCreatedAt: Date(), name: "Realm", folderName: "World", saveVersion: "1.21.1",
+                                           gameType: 0, lastPlayed: nil, size: nil, iconPNG: nil, sourceInstance: source, datapacks: [])
+        let zip64 = root.appendingPathComponent("world.hakoworld")
+        try storedZIP64World(manifest, worldData: WorldTestFixture.level(name: "Realm")).write(to: zip64)
+        let staged = try await RestoreArchive.prepare(zip64, under: root)
+        defer { RestoreArchive.discardStage(staged.directory) }
+        guard case .world(let restoredManifest) = staged.kind else { Issue.record("Expected a world archive."); return }
+        #expect(restoredManifest.name == "Realm")
+        #expect(try WorldMetadata.read(Data(contentsOf: staged.directory.appendingPathComponent("world/level.dat"))).name == "Realm")
+        RestoreArchive.discardStage(staged.directory)
+
+        let mismatchedManifest = WorldBackupManifest(backupCreatedAt: Date(), name: "Realm", folderName: "World", saveVersion: "999",
+                                                      gameType: 0, lastPlayed: nil, size: nil, iconPNG: nil, sourceInstance: source, datapacks: [])
+        let mismatchedArchive = root.appendingPathComponent("mismatched.hakoworld")
+        try storedZIP64World(mismatchedManifest, worldData: WorldTestFixture.level(name: "Realm")).write(to: mismatchedArchive)
+        await #expect(throws: InstanceFileError.self) { _ = try await RestoreArchive.prepare(mismatchedArchive, under: root) }
+
+        let symlinkMode: UInt32 = 0o120777
+        let attacks: [[ZIPFixtureEntry]] = [
+            [.init(path: "../escape", data: Data("escape".utf8))],
+            [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java/Item", data: Data()), .init(path: "java/item", data: Data())],
+            [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java", data: Data()), .init(path: "java/file", data: Data())],
+            [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java/link", data: Data("target".utf8), mode: symlinkMode), .init(path: "java/link/child", data: Data())],
+            [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java/one", data: Data("two".utf8), mode: symlinkMode), .init(path: "java/two", data: Data("real".utf8), mode: symlinkMode), .init(path: "java/real", data: Data())],
+            [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "world/link", data: Data("level.dat".utf8), mode: symlinkMode)],
+            [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "data.json", data: Data("{}".utf8))],
+            [.init(path: "data.json", data: Data("{}".utf8), flags: 1)],
+            [.init(path: "data.json", data: Data("{}".utf8), method: 12)],
+            [.init(path: "data.json", data: Data("{}".utf8), wrongCRC: true)]
+        ]
+        for (index, entries) in attacks.enumerated() {
+            let archive = root.appendingPathComponent("attack-\(index).hakobackup")
+            try storedZIP(entries).write(to: archive)
+            await #expect(throws: InstanceFileError.self) { _ = try await RestoreArchive.prepare(archive, under: root) }
+        }
+        let truncated = root.appendingPathComponent("truncated.hakobackup")
+        try Data("not a ZIP".utf8).write(to: truncated)
+        await #expect(throws: InstanceFileError.self) { _ = try await RestoreArchive.prepare(truncated, under: root) }
+        #expect(!(try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).contains { $0.lastPathComponent == "escape" }))
+        #expect(try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).allSatisfy { !$0.lastPathComponent.hasPrefix(".restore-stage-") })
+    }
+
+    @Test func abandonedRestoreCleanupDeletesOnlyOwnedScratchAndPreservesRecoveryFolders() throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let deadPID = Int32.max
+        let ownedID = UUID()
+        let ownedToken = "\(deadPID)-\(ownedID.uuidString)"
+        let ownedStage = root.appendingPathComponent(".restore-stage-\(ownedToken)", isDirectory: true)
+        try FileManager.default.createDirectory(at: ownedStage, withIntermediateDirectories: false)
+        try Data(ownedToken.utf8).write(to: root.appendingPathComponent(ownedStage.lastPathComponent + ".owner"))
+
+        let unownedID = UUID()
+        let unownedStage = root.appendingPathComponent(".restore-stage-\(deadPID)-\(unownedID.uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: unownedStage, withIntermediateDirectories: false)
+        let retiredInstance = root.appendingPathComponent(".restore-retired-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: retiredInstance, withIntermediateDirectories: false)
+        let orphanID = UUID()
+        let orphanName = ".restore-stage-\(deadPID)-\(orphanID.uuidString)"
+        let orphanMarker = root.appendingPathComponent(orphanName + ".owner")
+        try Data("\(deadPID)-\(orphanID.uuidString)".utf8).write(to: orphanMarker)
+
+        let saves = root.appendingPathComponent("Installed/minecraft/saves", isDirectory: true)
+        try FileManager.default.createDirectory(at: saves, withIntermediateDirectories: true)
+        let worldID = UUID()
+        let worldToken = "\(deadPID)-\(worldID.uuidString)"
+        let ownedWorld = saves.appendingPathComponent(".hako-restore-world-\(worldToken)", isDirectory: true)
+        try FileManager.default.createDirectory(at: ownedWorld, withIntermediateDirectories: false)
+        try Data(worldToken.utf8).write(to: saves.appendingPathComponent(ownedWorld.lastPathComponent + ".owner"))
+        let unownedWorld = saves.appendingPathComponent(".hako-restore-world-\(deadPID)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: unownedWorld, withIntermediateDirectories: false)
+        let retiredWorld = saves.appendingPathComponent(".hako-restore-retired-world-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: retiredWorld, withIntermediateDirectories: false)
+        let orphanWorldID = UUID()
+        let orphanWorldName = ".hako-restore-world-\(deadPID)-\(orphanWorldID.uuidString)"
+        let orphanWorldMarker = saves.appendingPathComponent(orphanWorldName + ".owner")
+        try Data("\(deadPID)-\(orphanWorldID.uuidString)".utf8).write(to: orphanWorldMarker)
+
+        RestoreArchive.cleanAbandonedStaging(under: root)
+
+        #expect(!FileManager.default.fileExists(atPath: ownedStage.path))
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent(ownedStage.lastPathComponent + ".owner").path))
+        #expect(FileManager.default.fileExists(atPath: unownedStage.path))
+        #expect(FileManager.default.fileExists(atPath: retiredInstance.path))
+        #expect(!FileManager.default.fileExists(atPath: orphanMarker.path))
+        #expect(!FileManager.default.fileExists(atPath: ownedWorld.path))
+        #expect(FileManager.default.fileExists(atPath: unownedWorld.path))
+        #expect(FileManager.default.fileExists(atPath: retiredWorld.path))
+        #expect(!FileManager.default.fileExists(atPath: orphanWorldMarker.path))
     }
 
     @Test func backupsFolderNameIsReserved() throws {

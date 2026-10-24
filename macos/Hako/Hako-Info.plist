@@ -4,5 +4,51 @@
 <dict>
 	<key>HakoCommit</key>
 	<string>$(HAKO_COMMIT)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Hako Instance Backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.launcher.hako.hakobackup</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Hako World Backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.launcher.hako.hakoworld</string></array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array><string>com.pkware.zip-archive</string></array>
+			<key>UTTypeDescription</key>
+			<string>Hako Instance Backup</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.launcher.hako.hakobackup</string>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>hakobackup</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array><string>com.pkware.zip-archive</string></array>
+			<key>UTTypeDescription</key>
+			<string>Hako World Backup</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.launcher.hako.hakoworld</string>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>hakoworld</string></array></dict>
+		</dict>
+	</array>
 </dict>
 </plist>

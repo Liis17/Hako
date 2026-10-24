@@ -20,6 +20,7 @@ struct ContentView: View {
     @Environment(MinecraftSessionCoordinator.self) private var sessions
     @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
     @Environment(QuickLaunchCoordinator.self) private var quickLaunch
+    @Environment(BackupRestoreCoordinator.self) private var backupRestore
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(\.openWindow) private var openWindow
 
@@ -59,6 +60,15 @@ struct ContentView: View {
                 else { openWindow(id: "main") }
                 NSApp.activate()
             }
+            let guestLauncher = $isGuestLauncher, signingIn = $isSigningIn
+            let hasAccount = accounts.first != nil
+            backupRestore.registerWindowPresenter { [weak renameExit] in
+                signingIn.wrappedValue = false
+                if !hasAccount { guestLauncher.wrappedValue = true }
+                if let window = renameExit?.window { window.makeKeyAndOrderFront(nil) }
+                else { openWindow(id: "main") }
+                NSApp.activate()
+            }
         }
         .task(id: quickLaunch.presentation?.id) {
             if quickLaunch.presentation != nil { isSigningIn = false; isGuestLauncher = true }
@@ -79,12 +89,16 @@ struct ContentView: View {
 #Preview {
     let container = try! ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let installations = InstallationCoordinator(context: container.mainContext)
+    let content = InstanceContentController(installations: installations)
+    let backupRestore = BackupRestoreCoordinator(installations: installations, content: content)
     let sessions = MinecraftSessionCoordinator(context: container.mainContext)
     let playtime = try! PlaytimeCoordinator(context: container.mainContext)
     let games = GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime)
     return ContentView()
         .modelContainer(container)
         .environment(installations)
+        .environment(content)
+        .environment(backupRestore)
         .environment(sessions)
         .environment(playtime)
         .environment(InstanceRenameExitCoordinator())

@@ -30,6 +30,8 @@ nonisolated struct InstanceBackupManifest: Codable, Sendable {
 
     var formatVersion = currentFormat
     let backupCreatedAt: Date
+    /// UUID сборки для точного восстановления; отсутствует в копиях, созданных до появления этого поля.
+    var instanceID: UUID? = nil
     let name: String
     let folderName: String
     let instanceCreatedAt: Date
@@ -86,7 +88,7 @@ extension InstanceStore {
         catch { items = try await content.list(at: modsFolder, mods: true, readOrigins: false) }
         let mods = items.map { InstanceBackupManifest.Mod(file: $0.logicalName, enabled: $0.enabled, source: $0.source, projectID: $0.origin?.projectID, versionID: $0.origin?.versionID) }
         let manifest = InstanceBackupManifest(
-            backupCreatedAt: Date(), name: name, folderName: folderName, instanceCreatedAt: createdAt,
+            backupCreatedAt: Date(), instanceID: instance.id, name: name, folderName: folderName, instanceCreatedAt: createdAt,
             minecraftVersion: versionID, modLoader: modLoader, loaderVersion: fabric?.loaderVersion,
             javaMajorVersion: javaMajorVersion, iconSymbol: iconSymbol, iconPNG: iconPNG,
             modCount: mods.count, mods: mods, profile: profile)
@@ -112,7 +114,7 @@ nonisolated enum InstanceBackup {
         try InstanceBackupManifest.encoder().encode(manifest).write(to: data)
         try await zip(["-q", "-j", partial.path, data.path], in: staging)
         // -y сохраняет ссылки внутри jre.bundle ссылками, а не копиями их целей.
-        try await zip(["-q", "-r", "-y", partial.path, ".", "-x", "minecraft/.hako-running.json", ".hako-game/*"], in: source)
+        try await zip(["-q", "-r", "-y", partial.path, ".", "-x", "data.json", "./data.json", "minecraft/.hako-running.json", ".hako-game/*"], in: source)
         try manager.moveItem(at: partial, to: target)
         return target
     }

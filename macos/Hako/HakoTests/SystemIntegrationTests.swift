@@ -1,6 +1,7 @@
 import AppIntents
 import CoreSpotlight
 import Darwin
+import Foundation
 import SwiftData
 import Testing
 
@@ -145,6 +146,48 @@ import Testing
         fixture.recorder.failIndex = false
         try await fixture.indexer.synchronize()
         #expect(fixture.recorder.entries[instance.id] != nil)
+    }
+
+    @Test func recoveredRunningMarkerBlocksBackupReplacementBeforeFilesMove() async throws {
+        let fixture = try SystemIntegrationFixture()
+        defer { fixture.cleanup() }
+        let instance = try fixture.instance("Running Pack")
+        let root = try fixture.store.storage.directory(instance.folderName)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["60"]
+        try process.run()
+        defer { if process.isRunning { process.terminate() } }
+
+        let sessionID = try fixture.playtime.beginSession(instanceID: instance.id, xuid: nil)
+        var record = try #require(GameProcessRecord.identity(pid: process.processIdentifier, instanceID: instance.id))
+        record.sessionID = sessionID
+        try JSONEncoder().encode(record).write(to: GameProcessRecord.url(in: root), options: .atomic)
+        fixture.games.start()
+        #expect(fixture.store.launchBusy.contains(instance.id))
+        #expect(fixture.games.states[instance.id] == .running)
+
+        let profile = InstanceBackupManifest.Profile(metadataURL: instance.metadataURL, metadataSHA1: instance.metadataSHA1,
+                                                     argumentSource: instance.argumentSource, offlineMode: instance.offlineMode,
+                                                     offlineUsername: instance.offlineUsername, parameters: instance.parameters,
+                                                     javaExecutable: instance.javaExecutable, legacyTexturepacks: instance.legacyTexturepacks,
+                                                     fabricConfiguration: try instance.fabricConfiguration(), fabricProfileSHA1: instance.fabricProfileSHA1)
+        let manifest = InstanceBackupManifest(backupCreatedAt: Date(), instanceID: instance.id, name: instance.name,
+                                              folderName: instance.folderName, instanceCreatedAt: instance.createdAt,
+                                              minecraftVersion: instance.versionID, modLoader: instance.modLoaderRaw,
+                                              loaderVersion: nil, javaMajorVersion: 21, iconSymbol: instance.iconSymbol,
+                                              iconPNG: nil, modCount: 0, mods: [], profile: profile)
+        let staged = fixture.store.storage.root.appendingPathComponent(".restore-stage-test", isDirectory: true)
+        try FileManager.default.createDirectory(at: staged, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: staged) }
+        try Data("keep".utf8).write(to: root.appendingPathComponent("keep.txt"))
+        #expect(throws: InstanceFileError.self) {
+            try fixture.store.restoreInstance(manifest, stagedDirectory: staged, name: "Ignored", replacing: instance)
+        }
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("keep.txt").path))
+        #expect(fixture.store.launchBusy.contains(instance.id))
+        try await fixture.terminateRunningGamesAndWait()
+        process.waitUntilExit()
     }
 
     @Test func intentUsesUuidAndWaitsForNavigationBeforeLaunchingTheGame() async throws {

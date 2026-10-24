@@ -19,6 +19,7 @@ struct InstanceProfileView: View {
     let onDelete: () -> Void
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(InstallationCoordinator.self) private var installations
+    @Environment(BackupRestoreCoordinator.self) private var backupRestore
     @Environment(PlaytimeCoordinator.self) private var playtime
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section = InstanceSection.packs
@@ -66,6 +67,10 @@ struct InstanceProfileView: View {
         }.frame(maxWidth: profileColumnWidth, maxHeight: .infinity, alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: syncPendingRename)
+        .onChange(of: backupRestore.navigation?.id, initial: true) {
+            guard let navigation = backupRestore.navigation, navigation.instanceID == instance.id else { return }
+            section = navigation.world == nil ? (instance.modLoader == .fabric ? .mods : .packs) : .worlds
+        }
         .onChange(of: nameDraft) { syncPendingRename() }
         .onChange(of: instance.name) { oldName, newName in
             if nameDraft == oldName { nameDraft = newName }
