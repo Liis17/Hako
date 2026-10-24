@@ -187,16 +187,24 @@ internal static class BackupRestoreDialog
             {
                 await services.Installations.EnqueueAsync(restored.Id);
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-                                              or InvalidOperationException)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                await HakoDialogs.ShowErrorAsync(HakoStrings.Get("RestoreQueueStartFailed"));
+                // The install pump may have taken the build between the commit and this call; report only a build that is still waiting.
+                System.Diagnostics.Debug.WriteLine($"Could not enqueue restored build: {exception.GetType().Name}");
+                if (IsQueuedAndInactive(services, restored.Id))
+                {
+                    await HakoDialogs.ShowErrorAsync(HakoStrings.Get("RestoreQueueStartFailed"));
+                }
             }
         }
 
         if (restore.CleanupWarning) await ShowCleanupWarningAsync();
         return new RestoreNavigation(restored.Id, InstanceProfileSection.Settings);
     }
+
+    private static bool IsQueuedAndInactive(LauncherServices services, Guid id) =>
+        services.Store.Instances.Any(instance => instance.Id == id && instance.State == InstanceInstallationState.Queued)
+        && services.Installations.ActiveInstanceId != id;
 
     private static async Task<RestoreNavigation?> RestoreWorldAsync(
         LauncherServices services,

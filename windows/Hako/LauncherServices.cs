@@ -319,7 +319,10 @@ internal static class HakoDialogs
                 _ = RunOperationAsync(activeDialog);
             });
 
-            if (!operationStarted || Volatile.Read(ref userCancelled) != 0)
+            // The operation never starts when the dialog failed to open, so there is nothing to wait for.
+            if (!operationStarted) return (true, default);
+
+            if (Volatile.Read(ref userCancelled) != 0)
             {
                 operationCancellation.Cancel();
                 try { return (true, await operationCompletion.Task); }

@@ -255,7 +255,8 @@ public partial class App : Application
                 try
                 {
                     if (_services is not { } services) continue;
-                    if (services.App.Account is null && !services.App.IsGuest)
+                    // A guest session must not replace the sign-in screen while the user is completing it.
+                    if (services.App.Account is null && !services.App.IsGuest && services.App.Screen != LauncherScreen.Login)
                     {
                         services.App.ContinueWithoutAccount();
                     }
@@ -263,10 +264,14 @@ public partial class App : Application
                     var success = await BackupRestoreDialog.RestoreAsync(services, entry.Path);
                     if (success is not null) lastSuccess = success;
                 }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-                                                  or ArgumentException or InvalidOperationException)
+                catch (OperationCanceledException)
                 {
-                    await HakoDialogs.ShowErrorAsync(HakoStrings.Get("RestoreFailureOperationFailed"));
+                }
+                catch (Exception exception)
+                {
+                    // Keep the queue alive: one unexpected failure must not drop the remaining files.
+                    System.Diagnostics.Debug.WriteLine($"Restore queue entry failed: {exception.GetType().Name}");
+                    await ShowRestoreFailureAsync();
                 }
             }
         }
@@ -274,10 +279,15 @@ public partial class App : Application
         {
             try
             {
-                if (lastSuccess is not null && _window is MainWindow mainWindow)
+                if (lastSuccess is not null && _window is MainWindow mainWindow
+                    && _services?.App.Screen is not (LauncherScreen.Login or LauncherScreen.Welcome or LauncherScreen.Loading))
                 {
                     await mainWindow.NavigateToRestoreAsync(lastSuccess);
                 }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not open restored build: {exception.GetType().Name}");
             }
             finally
             {
@@ -285,6 +295,18 @@ public partial class App : Application
                 Interlocked.Exchange(ref _restoreQueueRunning, 0);
                 if (RestoreQueue.HasPending) StartRestoreQueue();
             }
+        }
+    }
+
+    private static async Task ShowRestoreFailureAsync()
+    {
+        try
+        {
+            await HakoDialogs.ShowErrorAsync(HakoStrings.Get("RestoreFailureOperationFailed"));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine($"Could not show restore failure: {exception.GetType().Name}");
         }
     }
 
