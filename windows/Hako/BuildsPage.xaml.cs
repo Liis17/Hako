@@ -123,7 +123,7 @@ public sealed partial class BuildsPage : Page
 
     private void Card_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (!e.Handled && sender is FrameworkElement { DataContext: BuildCardModel card })
+        if (!e.Handled && sender is FrameworkElement { Tag: BuildCardModel card })
         {
             _services?.App.OpenInstance(card.Id);
         }

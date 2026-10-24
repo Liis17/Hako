@@ -36,6 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\Hako\InstanceProfilePage.xaml.cs" Link="Fixtures\InstanceProfilePage.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Hako\Strings\**\Resources.resw" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Hako\Assets\Steve.png" Link="Fixtures\WindowsSteve.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\macos\Hako\Hako\Resources\Steve.png" Link="Fixtures\MacSteve.png" CopyToOutputDirectory="PreserveNewest" />

@@ -153,7 +153,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         ModsSectionButton.Content = HakoStrings.Get("InstanceSectionMods");
         ResourcePacksSectionButton.Content = HakoStrings.Get("InstanceSectionResourcePacks");
         WorldsSectionButton.Content = HakoStrings.Get("InstanceSectionWorlds");
-        ScreenshotsSectionButton.Content = HakoStrings.Get("InstanceSectionScreenshots");
+        ScreenshotsSectionButton.Content = HakoStrings.Get("ScreenshotsTitle");
         SettingsSectionButton.Content = HakoStrings.Get("SettingsTitle");
         ProfileSectionTitle.Text = HakoStrings.Get("InstanceProfileSection");
         NameLabel.Text = HakoStrings.Get("CreationNameLabel");

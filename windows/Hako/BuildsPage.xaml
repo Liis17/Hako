@@ -28,7 +28,7 @@
                               Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
                               ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto"
-                              Tapped="Card_Tapped" IsTapEnabled="True">
+                              Tapped="Card_Tapped" IsTapEnabled="True" Tag="{x:Bind}">
                             <local:InstanceIconView Width="56" Height="56" Symbol="{x:Bind IconSymbol, Mode=OneWay}" Picture="{x:Bind IconImage, Mode=OneWay}" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{x:Bind Name, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
