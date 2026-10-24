@@ -39,6 +39,7 @@ public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabric
     private const int MaximumNativeArchiveEntries = 100_000;
     private const long MaximumNativeArchiveSize = 1024L * 1024 * 1024;
     private const int BufferSize = 81920;
+    private const string NativeDirectoryJavaTemplate = "${natives_directory}/java";
     private static readonly HashSet<string> ReservedDeviceNames = BuildReservedDeviceNames();
     private readonly FabricClient _fabricClient = fabricClient ?? new FabricClient();
 
@@ -330,7 +331,8 @@ public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabric
         progress?.Report(new InstallationProgress(InstallationProgressStage.PreparingLibraries, totalBytes, totalBytes, jobs.Length, jobs.Length));
         if (nativeArchives.Count > 0)
         {
-            await ExtractNativesAsync(nativeArchives.DistinctBy(value => value.RelativePath, StringComparer.OrdinalIgnoreCase).ToArray(), root, cancellationToken)
+            await ExtractNativesAsync(nativeArchives.DistinctBy(value => value.RelativePath, StringComparer.OrdinalIgnoreCase).ToArray(), root,
+                NativePublishDirectory(manifest), cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -591,9 +593,36 @@ public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabric
         }
     }
 
+    /// <summary>
+    /// Versions whose JVM template points java.library.path at <c>${natives_directory}/java</c> (Minecraft 26.3+)
+    /// publish native libraries into that subdirectory; older versions use the natives folder root.
+    /// </summary>
+    private static string NativePublishDirectory(MojangVersionMetadata manifest)
+    {
+        const string nativesRoot = "minecraft/natives";
+        if (manifest.Arguments is not { } arguments)
+        {
+            return nativesRoot;
+        }
+
+        foreach (var group in arguments.Values)
+        {
+            foreach (var argument in group)
+            {
+                if (argument.Values.Any(value => value.Contains(NativeDirectoryJavaTemplate, StringComparison.Ordinal)))
+                {
+                    return $"{nativesRoot}/java";
+                }
+            }
+        }
+
+        return nativesRoot;
+    }
+
     private static async Task ExtractNativesAsync(
         IReadOnlyList<NativeArchive> archives,
         string root,
+        string destinationRelative,
         CancellationToken cancellationToken)
     {
         var stagingRelative = $"minecraft/.hako-natives-{Guid.NewGuid():N}.tmp";
@@ -608,7 +637,7 @@ public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabric
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            PublishNativeStaging(stagingPath, root, Directory.Move);
+            PublishNativeStaging(stagingPath, root, Directory.Move, destinationRelative);
         }
         finally
         {
@@ -749,7 +778,8 @@ public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabric
         }
     }
 
-    internal static void PublishNativeStaging(string stagingPath, string root, Action<string, string> moveDirectory)
+    internal static void PublishNativeStaging(string stagingPath, string root, Action<string, string> moveDirectory,
+        string destinationRelative = "minecraft/natives")
     {
         var pending = new Stack<string>();
         pending.Push(stagingPath);
@@ -770,7 +800,8 @@ public sealed class MinecraftInstaller(MojangClient client, FabricClient? fabric
             }
         }
 
-        var destination = InstanceStorage.ContainedPath("minecraft/natives", root);
+        var destination = InstanceStorage.ContainedPath(destinationRelative, root);
+        CreateDirectory(Path.GetDirectoryName(destinationRelative) ?? "minecraft", root);
         var backup = InstanceStorage.ContainedPath($"minecraft/.hako-natives-backup-{Guid.NewGuid():N}.tmp", root);
         var destinationMoved = false;
         try
