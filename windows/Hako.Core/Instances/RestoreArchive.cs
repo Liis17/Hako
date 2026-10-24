@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.IO.Compression;
+using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -24,11 +25,13 @@ public enum RestoreArchiveFailureReason
     InvalidManifest,
     InvalidInstance,
     InvalidWorld,
+    InvalidName,
     InsufficientSpace,
     RegistryUnavailable,
     BuildUnavailable,
     BuildBusy,
     DestinationConflict,
+    RollbackFailed,
     Cancelled,
     OperationFailed
 }
@@ -44,10 +47,28 @@ public sealed record RestorePreparationResult(StagedRestoreArchive? Staged, Rest
         new(null, new RestoreArchiveFailure(reason, diagnostic));
 }
 
+public sealed record RestoreArchiveCommitResult(
+    GameInstance? Instance,
+    string? WorldFolderName,
+    RestoreArchiveFailure? Failure,
+    bool CleanupWarning)
+{
+    public bool Succeeded => Failure is null && (Instance is not null || WorldFolderName is not null);
+
+    internal static RestoreArchiveCommitResult InstanceSuccess(GameInstance instance, bool cleanupWarning) =>
+        new(instance, null, null, cleanupWarning);
+
+    internal static RestoreArchiveCommitResult WorldSuccess(string worldFolderName, bool cleanupWarning) =>
+        new(null, worldFolderName, null, cleanupWarning);
+
+    internal static RestoreArchiveCommitResult Failed(RestoreArchiveFailureReason reason, string diagnostic) =>
+        new(null, null, new RestoreArchiveFailure(reason, diagnostic), false);
+}
+
 /// <summary>Validated archive data extracted into an isolated Hako staging folder.</summary>
 public sealed class StagedRestoreArchive
 {
-    private int _completed;
+    private int _operationState;
 
     internal StagedRestoreArchive(
         string directory,
@@ -55,6 +76,8 @@ public sealed class StagedRestoreArchive
         InstanceBackupManifest? instanceManifest,
         WorldBackupManifest? worldManifest,
         bool needsJavaInstallation,
+        GameArchitecture? architecture,
+        int? javaMajorVersion,
         GameInstance? matchingInstance,
         string? modpackVersionID)
     {
@@ -63,6 +86,8 @@ public sealed class StagedRestoreArchive
         InstanceManifest = instanceManifest;
         WorldManifest = worldManifest;
         NeedsJavaInstallation = needsJavaInstallation;
+        Architecture = architecture;
+        JavaMajorVersion = javaMajorVersion;
         MatchingInstance = matchingInstance;
         ModpackVersionID = modpackVersionID;
     }
@@ -71,15 +96,20 @@ public sealed class StagedRestoreArchive
     public InstanceBackupManifest? InstanceManifest { get; }
     public WorldBackupManifest? WorldManifest { get; }
     public bool NeedsJavaInstallation { get; }
+    public GameArchitecture? Architecture { get; }
+    public int? JavaMajorVersion { get; }
     public GameInstance? MatchingInstance { get; }
     public string? ModpackVersionID { get; }
-    public bool IsCompleted => Volatile.Read(ref _completed) != 0;
+    public bool IsCompleted => Volatile.Read(ref _operationState) == 2;
 
     internal string DirectoryPath { get; }
-    internal bool TryComplete() => Interlocked.CompareExchange(ref _completed, 1, 0) == 0;
+    internal bool TryBeginOperation() => Interlocked.CompareExchange(ref _operationState, 1, 0) == 0;
+    internal void CompleteOperation() => Volatile.Write(ref _operationState, 2);
+    internal void ReleaseOperation() => Interlocked.CompareExchange(ref _operationState, 0, 1);
 }
 
 /// <summary>Validates and extracts Swift-compatible .hakobackup and .hakoworld files.</summary>
+[SupportedOSPlatform("windows")]
 public sealed class RestoreArchive
 {
     private const long MaximumArchiveSize = 20L * 1024 * 1024 * 1024;
@@ -174,6 +204,8 @@ public sealed class RestoreArchive
             bool needsJavaInstallation = false;
             GameInstance? matchingInstance;
             string? modpackVersionID = null;
+            GameArchitecture? architecture = null;
+            int? javaMajorVersion = null;
             if (kind == RestoreArchiveKind.Instance)
             {
                 instanceManifest = Deserialize(manifestBytes, HakoJsonContext.Default.InstanceBackupManifest,
@@ -286,6 +318,8 @@ public sealed class RestoreArchive
                     }
                     else
                     {
+                        architecture = java.Architecture;
+                        javaMajorVersion = java.JavaMajorVersion;
                         modpackVersionID = await ValidateExtractedInstanceAsync(stagingDirectory, instanceManifest,
                             java.Architecture, java.JavaMajorVersion, cancellationToken).ConfigureAwait(false);
                     }
@@ -298,6 +332,8 @@ public sealed class RestoreArchive
 
                 if (needsJavaInstallation)
                 {
+                    architecture = null;
+                    javaMajorVersion = null;
                     modpackVersionID = await ValidateExtractedInstanceAsync(stagingDirectory, instanceManifest,
                         null, null, cancellationToken).ConfigureAwait(false);
                 }
@@ -308,7 +344,7 @@ public sealed class RestoreArchive
             }
 
             var staged = new StagedRestoreArchive(stagingDirectory, kind, instanceManifest, worldManifest,
-                needsJavaInstallation, matchingInstance, modpackVersionID);
+                needsJavaInstallation, architecture, javaMajorVersion, matchingInstance, modpackVersionID);
             stagingDirectory = null;
             return RestorePreparationResult.Success(staged);
         }
@@ -358,20 +394,475 @@ public sealed class RestoreArchive
     {
         ArgumentNullException.ThrowIfNull(staged);
         cancellationToken.ThrowIfCancellationRequested();
-        if (staged.TryComplete())
+        if (!staged.TryBeginOperation())
         {
-            var stagePath = Path.GetFullPath(staged.DirectoryPath);
-            var expectedParent = Path.GetFullPath(_store.GameRoot);
-            if (!string.Equals(Path.GetDirectoryName(stagePath), expectedParent, StringComparison.OrdinalIgnoreCase)
-                || !Path.GetFileName(stagePath).StartsWith(StagePrefix, StringComparison.Ordinal))
+            if (staged.IsCompleted) return Task.CompletedTask;
+            throw new IOException("The restore staging directory is already in use.");
+        }
+
+        try
+        {
+            if (!Directory.Exists(staged.DirectoryPath) && !File.Exists(staged.DirectoryPath))
             {
-                throw new IOException("The restore staging directory is invalid.");
+                staged.CompleteOperation();
+                return Task.CompletedTask;
             }
 
-            InstanceStorage.DeleteCreatedDirectory(stagePath);
+            ValidateStageDirectory(staged.DirectoryPath);
+            InstanceStorage.DeleteCreatedDirectory(staged.DirectoryPath);
+            staged.CompleteOperation();
+        }
+        catch
+        {
+            staged.ReleaseOperation();
+            throw;
         }
 
         return Task.CompletedTask;
+    }
+
+    public async Task<RestoreArchiveCommitResult> CommitInstanceAsync(
+        StagedRestoreArchive staged,
+        string name,
+        Guid? replaceInstanceID = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(staged);
+        if (staged.Kind != RestoreArchiveKind.Instance || staged.InstanceManifest is null)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.InvalidArchive,
+                "The staged archive is not a build backup.");
+        }
+        if (!staged.TryBeginOperation())
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.BuildBusy,
+                "The staged backup is already being used or has been completed.");
+        }
+
+        var completed = false;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_store.IsLoaded || _store.LoadError is not null)
+            {
+                return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.RegistryUnavailable,
+                    "The build registry is unavailable.");
+            }
+
+            var manifest = staged.InstanceManifest;
+            var instance = new GameInstance
+            {
+                Id = replaceInstanceID ?? Guid.NewGuid(),
+                CreatedAt = manifest.InstanceCreatedAt,
+                VersionID = manifest.MinecraftVersion,
+                MetadataURL = manifest.Profile.MetadataURL,
+                MetadataSHA1 = manifest.Profile.MetadataSHA1,
+                IconSymbol = manifest.IconSymbol,
+                ArgumentSource = manifest.Profile.ArgumentSource,
+                OfflineMode = manifest.Profile.OfflineMode,
+                OfflineUsername = manifest.Profile.OfflineUsername,
+                Parameters = manifest.Profile.Parameters,
+                State = staged.NeedsJavaInstallation ? InstanceInstallationState.Queued : InstanceInstallationState.Ready,
+                JavaExecutable = staged.NeedsJavaInstallation ? "bin/javaw.exe" : manifest.Profile.JavaExecutable,
+                JavaMajorVersion = staged.JavaMajorVersion ?? manifest.JavaMajorVersion,
+                LegacyTexturepacks = manifest.Profile.LegacyTexturepacks,
+                ModLoader = manifest.ModLoader == "fabric" ? InstanceModLoader.Fabric : InstanceModLoader.Vanilla,
+                FabricConfiguration = manifest.Profile.FabricConfiguration is { } fabric
+                    ? new FabricConfiguration(fabric.LoaderVersion, staged.ModpackVersionID is null ? fabric.Api : null)
+                    : null,
+                FabricProfileSHA1 = manifest.Profile.FabricProfileSHA1,
+                ModpackVersionID = staged.ModpackVersionID,
+                Architecture = staged.Architecture?.ToString(),
+                PauseRequested = false,
+                ErrorCode = null,
+                ErrorMessage = null,
+                IconRevision = Guid.NewGuid()
+            };
+
+            var outcome = await Task.Run(
+                () => _store.CommitRestoredInstance(staged, instance, name, replaceInstanceID, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+            staged.CompleteOperation();
+            completed = true;
+            return RestoreArchiveCommitResult.InstanceSuccess(outcome.Instance, outcome.CleanupWarning);
+        }
+        catch (OperationCanceledException)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.Cancelled,
+                "Restoring the build was cancelled.");
+        }
+        catch (RestoreArchiveException exception)
+        {
+            return RestoreArchiveCommitResult.Failed(exception.Reason, exception.Message);
+        }
+        catch (InstanceStorageException exception)
+        {
+            return RestoreArchiveCommitResult.Failed(MapStoreFailure(exception), "The build could not be restored.");
+        }
+        catch (InstanceFileTreeReparseException)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.UnsafePath,
+                "The staged build contains an unsafe file system entry.");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.OperationFailed,
+                "The build could not be restored.");
+        }
+        finally
+        {
+            if (!completed) staged.ReleaseOperation();
+        }
+    }
+
+    public async Task<RestoreArchiveCommitResult> CommitWorldAsync(
+        StagedRestoreArchive staged,
+        Guid targetInstanceID,
+        string name,
+        string folderName,
+        bool replace,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(staged);
+        if (staged.Kind != RestoreArchiveKind.World || staged.WorldManifest is null)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.InvalidArchive,
+                "The staged archive is not a world backup.");
+        }
+        if (!staged.TryBeginOperation())
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.BuildBusy,
+                "The staged backup is already being used or has been completed.");
+        }
+
+        var completed = false;
+        try
+        {
+            var result = await Task.Run(
+                () => CommitWorld(staged, targetInstanceID, name, folderName, replace, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+            completed = result.Succeeded;
+            if (completed) staged.CompleteOperation();
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.Cancelled,
+                "Restoring the world was cancelled.");
+        }
+        catch (RestoreArchiveException exception)
+        {
+            return RestoreArchiveCommitResult.Failed(exception.Reason, exception.Message);
+        }
+        catch (InstanceStorageException exception)
+        {
+            return RestoreArchiveCommitResult.Failed(MapStoreFailure(exception), "The world could not be restored.");
+        }
+        catch (InstanceWorldException exception)
+        {
+            return RestoreArchiveCommitResult.Failed(exception.Error == InstanceWorldFailureReason.ReparsePointNotAllowed
+                ? RestoreArchiveFailureReason.UnsafePath
+                : RestoreArchiveFailureReason.DestinationConflict, "The world destination is unavailable.");
+        }
+        catch (InstanceFileTreeReparseException)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.UnsafePath,
+                "The staged world contains an unsafe file system entry.");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.OperationFailed,
+                "The world could not be restored.");
+        }
+        finally
+        {
+            if (!completed) staged.ReleaseOperation();
+        }
+    }
+
+    private RestoreArchiveCommitResult CommitWorld(
+        StagedRestoreArchive staged,
+        Guid targetInstanceID,
+        string name,
+        string folderName,
+        bool replace,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_store.IsLoaded || _store.LoadError is not null)
+        {
+            return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.RegistryUnavailable,
+                "The build registry is unavailable.");
+        }
+
+        if (!_store.TryBeginContent(targetInstanceID, out var lease, out var blockedReason))
+        {
+            return RestoreArchiveCommitResult.Failed(blockedReason is InstanceStorageError.InstanceRegistryNotLoaded
+                    or InstanceStorageError.InstanceRegistryUnavailable
+                    ? RestoreArchiveFailureReason.RegistryUnavailable
+                    : blockedReason is InstanceStorageError.BuildInstalling or InstanceStorageError.BuildRunning
+                        or InstanceStorageError.BuildFilesBusy
+                        ? RestoreArchiveFailureReason.BuildBusy
+                        : RestoreArchiveFailureReason.BuildUnavailable,
+                "The selected build is unavailable or busy.");
+        }
+
+        using (lease)
+        {
+            var target = _store.Instances.FirstOrDefault(instance => instance.Id == targetInstanceID);
+            if (target is null || target.State != InstanceInstallationState.Ready)
+            {
+                return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.BuildUnavailable,
+                    "Choose a ready build for the world.");
+            }
+
+            ValidateWorldName(name);
+            ValidateWorldFolderName(folderName);
+            ValidateStageDirectory(staged.DirectoryPath);
+            var instanceRoot = _store.GetInstanceDirectory(targetInstanceID);
+            var minecraftPath = InstanceStorage.ContainedPath("minecraft", instanceRoot);
+            Directory.CreateDirectory(minecraftPath);
+            var savesPath = InstanceStorage.ContainedPath("minecraft/saves", instanceRoot);
+            Directory.CreateDirectory(savesPath);
+            var stageWorld = InstanceStorage.ContainedPath("world", staged.DirectoryPath);
+            var stageAttributes = File.GetAttributes(stageWorld);
+            if ((stageAttributes & (FileAttributes.Directory | FileAttributes.ReparsePoint | FileAttributes.Device))
+                != FileAttributes.Directory)
+            {
+                throw Failure(RestoreArchiveFailureReason.InvalidWorld, "The staged world folder is invalid.");
+            }
+
+            _ = InstanceFileTree.Snapshot(stageWorld, null, cancellationToken);
+            RenameWorldMetadata(stageWorld, name, cancellationToken);
+
+            var requestedFolderName = replace ? folderName : FindAvailableWorldFolderName(savesPath, folderName);
+            var folderKey = WorldFolderKey(requestedFolderName);
+            var existingName = replace
+                ? Directory.EnumerateFileSystemEntries(savesPath)
+                    .Select(Path.GetFileName)
+                    .FirstOrDefault(item => string.Equals(WorldFolderKey(item!), folderKey, StringComparison.Ordinal))
+                : null;
+            if (existingName is null && replace)
+            {
+                return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.DestinationConflict,
+                    "There is no world folder to replace.");
+            }
+
+            var destinationName = existingName ?? requestedFolderName;
+            var destination = InstanceStorage.ContainedPath(destinationName, savesPath);
+            if (existingName is not null)
+            {
+                try { _ = InstanceWorlds.WorldFolder(existingName, instanceRoot); }
+                catch (InstanceWorldException exception)
+                {
+                    throw Failure(exception.Error == InstanceWorldFailureReason.ReparsePointNotAllowed
+                        ? RestoreArchiveFailureReason.UnsafePath
+                        : RestoreArchiveFailureReason.DestinationConflict,
+                        "The existing world folder cannot be replaced.", exception);
+                }
+            }
+
+            var retired = Path.Combine(_store.GameRoot, ".hako-retired-" + Guid.NewGuid().ToString("N"));
+            var oldMoved = false;
+            var newMoved = false;
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (existingName is not null)
+                {
+                    _store.MoveRestoreDirectory(destination, retired);
+                    oldMoved = true;
+                }
+
+                try { _store.MoveRestoreDirectory(stageWorld, destination); }
+                catch (IOException) when (Directory.Exists(destination) || File.Exists(destination))
+                {
+                    throw Failure(RestoreArchiveFailureReason.DestinationConflict,
+                        "The world destination became occupied.");
+                }
+                newMoved = true;
+                _ = InstanceWorlds.WorldFolder(destinationName, instanceRoot);
+            }
+            catch (Exception operationFailure)
+            {
+                List<Exception>? rollbackFailures = null;
+                if (newMoved)
+                {
+                    try { _store.MoveRestoreDirectory(destination, stageWorld); }
+                    catch (Exception rollbackFailure) { rollbackFailures = [rollbackFailure]; }
+                }
+                if (oldMoved)
+                {
+                    try { _store.MoveRestoreDirectory(retired, destination); }
+                    catch (Exception rollbackFailure)
+                    {
+                        rollbackFailures ??= [];
+                        rollbackFailures.Add(rollbackFailure);
+                    }
+                }
+
+                if (rollbackFailures is not null)
+                {
+                    rollbackFailures.Insert(0, operationFailure);
+                    var recoveryPaths = new[] { stageWorld, destination, retired }
+                        .Where(path => Directory.Exists(path) || File.Exists(path));
+                    return RestoreArchiveCommitResult.Failed(RestoreArchiveFailureReason.RollbackFailed,
+                        $"The world restore failed and rollback was incomplete. Recovery data remains at: {string.Join(", ", recoveryPaths)}.");
+                }
+
+                return RestoreArchiveCommitResult.Failed(MapWorldOperationFailure(operationFailure),
+                    "The world could not be restored.");
+            }
+
+            var cleanupWarning = false;
+            if (oldMoved)
+            {
+                var cleanupPath = retired;
+                try { cleanupPath = _store.MarkRetiredRestoreDirectory(retired); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Could not mark retired world folder: {exception.GetType().Name}");
+                }
+                try { _store.DeleteRetiredRestoreDirectory(cleanupPath); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    cleanupWarning = true;
+                }
+            }
+            try { InstanceStorage.DeleteCreatedDirectory(staged.DirectoryPath); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                cleanupWarning = true;
+            }
+
+            return RestoreArchiveCommitResult.WorldSuccess(destinationName, cleanupWarning);
+        }
+    }
+
+    private static void ValidateWorldName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 256 || name.Any(char.IsControl))
+        {
+            throw Failure(RestoreArchiveFailureReason.InvalidName, "Enter a valid world name.");
+        }
+    }
+
+    private static void ValidateWorldFolderName(string folderName)
+    {
+        if (folderName.Length is < 1 or > 240 || !InstanceStorage.IsSinglePathSegment(folderName))
+        {
+            throw Failure(RestoreArchiveFailureReason.InvalidName, "Enter a valid world folder name.");
+        }
+    }
+
+    private static string WorldFolderKey(string folderName) =>
+        folderName.Normalize(NormalizationForm.FormC).ToUpperInvariant();
+
+    private static string FindAvailableWorldFolderName(string savesPath, string requestedName)
+    {
+        var existingNames = Directory.EnumerateFileSystemEntries(savesPath)
+            .Select(Path.GetFileName)
+            .Select(name => WorldFolderKey(name!))
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (!existingNames.Contains(WorldFolderKey(requestedName))) return requestedName;
+        for (var number = 2; number <= 999; number++)
+        {
+            var suffix = " " + number;
+            var candidate = requestedName[..Math.Min(requestedName.Length, 240 - suffix.Length)].TrimEnd() + suffix;
+            if (InstanceStorage.IsSinglePathSegment(candidate) && !existingNames.Contains(WorldFolderKey(candidate))) return candidate;
+        }
+
+        throw Failure(RestoreArchiveFailureReason.DestinationConflict,
+            "No unique world folder name is available.");
+    }
+
+    private static void RenameWorldMetadata(string worldDirectory, string name, CancellationToken cancellationToken)
+    {
+        var renamedCount = 0;
+        foreach (var filename in new[] { "level.dat", "level.dat_old" })
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var path = InstanceStorage.ContainedPath(filename, worldDirectory);
+            if (!File.Exists(path)) continue;
+            if (!IsOrdinaryFile(path) || new FileInfo(path).Length > MaximumMetadataSize)
+            {
+                throw Failure(RestoreArchiveFailureReason.InvalidWorld, "World metadata is unsafe or too large.");
+            }
+
+            try
+            {
+                var compressed = File.ReadAllBytes(path);
+                var renamed = WorldMetadata.Renamed(compressed, name, cancellationToken);
+                var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        output.Write(renamed);
+                        output.Flush(flushToDisk: true);
+                    }
+                    File.Move(temporary, path, overwrite: true);
+                }
+                finally
+                {
+                    try { File.Delete(temporary); }
+                    catch (FileNotFoundException) { }
+                }
+
+                renamedCount++;
+            }
+            catch (WorldMetadataException exception)
+            {
+                throw Failure(RestoreArchiveFailureReason.InvalidWorld, "World metadata could not be renamed.", exception);
+            }
+        }
+
+        if (renamedCount == 0)
+        {
+            throw Failure(RestoreArchiveFailureReason.InvalidWorld, "World metadata is missing.");
+        }
+    }
+
+    private static RestoreArchiveFailureReason MapWorldOperationFailure(Exception exception) => exception switch
+    {
+        RestoreArchiveException restore => restore.Reason,
+        InstanceStorageException storage => MapStoreFailure(storage),
+        InstanceWorldException world when world.Error == InstanceWorldFailureReason.ReparsePointNotAllowed =>
+            RestoreArchiveFailureReason.UnsafePath,
+        InstanceWorldException => RestoreArchiveFailureReason.DestinationConflict,
+        InstanceFileTreeReparseException => RestoreArchiveFailureReason.UnsafePath,
+        OperationCanceledException => RestoreArchiveFailureReason.Cancelled,
+        _ => RestoreArchiveFailureReason.OperationFailed
+    };
+
+    private static RestoreArchiveFailureReason MapStoreFailure(InstanceStorageException exception) => exception.Error switch
+    {
+        InstanceStorageError.InvalidBuildName or InstanceStorageError.ReservedBuildName => RestoreArchiveFailureReason.InvalidName,
+        InstanceStorageError.DuplicateBuildName or InstanceStorageError.BuildFolderExists => RestoreArchiveFailureReason.DestinationConflict,
+        InstanceStorageError.BuildInstalling or InstanceStorageError.BuildRunning or InstanceStorageError.BuildFilesBusy => RestoreArchiveFailureReason.BuildBusy,
+        InstanceStorageError.InstanceRegistryNotLoaded or InstanceStorageError.InstanceRegistryUnavailable => RestoreArchiveFailureReason.RegistryUnavailable,
+        InstanceStorageError.InvalidPath or InstanceStorageError.PathTraversal or InstanceStorageError.ReparsePointNotAllowed => RestoreArchiveFailureReason.UnsafePath,
+        _ => RestoreArchiveFailureReason.OperationFailed
+    };
+
+    private void ValidateStageDirectory(string stagePath)
+    {
+        var fullPath = Path.GetFullPath(stagePath);
+        var name = Path.GetFileName(fullPath);
+        if (!string.Equals(Path.GetDirectoryName(fullPath), Path.GetFullPath(_store.GameRoot), StringComparison.OrdinalIgnoreCase)
+            || !name.StartsWith(StagePrefix, StringComparison.Ordinal)
+            || !Guid.TryParseExact(name[StagePrefix.Length..], "N", out _))
+        {
+            throw new IOException("The restore staging directory is invalid.");
+        }
+
+        var attributes = File.GetAttributes(fullPath);
+        if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint | FileAttributes.Device))
+            != FileAttributes.Directory)
+        {
+            throw new IOException("The restore staging directory is unsafe.");
+        }
     }
 
     private static List<ArchiveEntry> ValidateArchiveEntries(
@@ -1259,6 +1750,8 @@ internal sealed class RestoreArchiveException(
 {
     public RestoreArchiveFailureReason Reason { get; } = reason;
 }
+
+internal sealed record RestoreInstanceCommitOutcome(GameInstance Instance, bool CleanupWarning);
 
 internal sealed class RestoreArchivePathRegistry
 {

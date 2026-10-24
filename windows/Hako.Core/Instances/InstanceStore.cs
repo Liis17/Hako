@@ -44,6 +44,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Action? _beforeRegistryCommit;
     private readonly Action? _beforeDeleteStagingCleanup;
+    private readonly Action<string, string>? _beforeRestoreMove;
+    private readonly Action<string>? _beforeRetiredDelete;
     private readonly object _deleteStagingSync = new();
     private readonly object _deleteStagingTasksSync = new();
     private readonly object _snapshotSync = new();
@@ -57,15 +59,22 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     private ImmutableHashSet<Guid> _contentBusy = ImmutableHashSet<Guid>.Empty;
 
     public InstanceStore(HakoPaths paths, Action? beforeRegistryCommit = null)
-        : this(paths, beforeRegistryCommit, null)
+        : this(paths, beforeRegistryCommit, null, null, null)
     {
     }
 
-    internal InstanceStore(HakoPaths paths, Action? beforeRegistryCommit, Action? beforeDeleteStagingCleanup)
+    internal InstanceStore(
+        HakoPaths paths,
+        Action? beforeRegistryCommit,
+        Action? beforeDeleteStagingCleanup,
+        Action<string, string>? beforeRestoreMove = null,
+        Action<string>? beforeRetiredDelete = null)
     {
         _storage = new InstanceStorage(paths);
         _beforeRegistryCommit = beforeRegistryCommit;
         _beforeDeleteStagingCleanup = beforeDeleteStagingCleanup;
+        _beforeRestoreMove = beforeRestoreMove;
+        _beforeRetiredDelete = beforeRetiredDelete;
     }
 
     internal Task? DeleteStagingCleanupTask => Volatile.Read(ref _deleteStagingCleanupTask);
@@ -879,6 +888,312 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         }
     }
 
+    internal RestoreInstanceCommitOutcome CommitRestoredInstance(
+        StagedRestoreArchive staged,
+        GameInstance candidate,
+        string inputName,
+        Guid? replaceInstanceID,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(staged);
+        ArgumentNullException.ThrowIfNull(candidate);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsLoaded || LoadError is not null)
+        {
+            throw new RestoreArchiveException(RestoreArchiveFailureReason.RegistryUnavailable,
+                "The build registry is unavailable.");
+        }
+
+        using var contentLease = replaceInstanceID is { } contentTargetID
+            ? AcquireRestoreContentLease(contentTargetID)
+            : null;
+
+        _gate.Wait(cancellationToken);
+        try
+        {
+            var registry = GetRegistrySnapshot();
+            var manifest = staged.InstanceManifest
+                ?? throw new RestoreArchiveException(RestoreArchiveFailureReason.InvalidArchive,
+                    "The staged archive is not a build backup.");
+            ValidateRestoreStage(staged.DirectoryPath);
+
+            GameInstance? target = null;
+            if (replaceInstanceID is { } targetID)
+            {
+                target = registry.Instances.FirstOrDefault(item => item.Id == targetID);
+                if (target is null || staged.MatchingInstance?.Id != targetID || !MatchesBackup(target, manifest))
+                {
+                    throw new RestoreArchiveException(RestoreArchiveFailureReason.BuildUnavailable,
+                        "The selected build no longer matches this backup.");
+                }
+
+                if (target.State != InstanceInstallationState.Ready)
+                {
+                    throw new RestoreArchiveException(RestoreArchiveFailureReason.BuildUnavailable,
+                        "The selected build is not ready to be replaced.");
+                }
+            }
+
+            var (name, folderName) = target is null
+                ? FindAvailableRestoreName(inputName, registry.Instances)
+                : (target.Name, target.FolderName);
+            ValidateReservedName(folderName);
+            if (target is not null) _storage.EnsureAvailable(folderName, registry.Instances, target.Id);
+            ValidateOffline(new InstanceDraft
+            {
+                OfflineMode = candidate.OfflineMode,
+                OfflineUsername = candidate.OfflineUsername
+            });
+
+            var destination = _storage.Directory(folderName);
+            if (File.Exists(destination))
+            {
+                throw new RestoreArchiveException(RestoreArchiveFailureReason.DestinationConflict,
+                    "The build destination is occupied.");
+            }
+
+            var oldDirectory = target is null ? null : _storage.Directory(target.FolderName);
+            var oldExists = oldDirectory is not null && Directory.Exists(oldDirectory);
+            if (target is null && Directory.Exists(destination))
+            {
+                throw new RestoreArchiveException(RestoreArchiveFailureReason.DestinationConflict,
+                    "The build destination is occupied.");
+            }
+
+            var restored = candidate with
+            {
+                Id = target?.Id ?? candidate.Id,
+                Name = name,
+                FolderName = folderName,
+                CreatedAt = target?.CreatedAt ?? candidate.CreatedAt
+            };
+            var stageAttributes = File.GetAttributes(staged.DirectoryPath);
+            _ = InstanceFileTree.Snapshot(staged.DirectoryPath, null, cancellationToken);
+            var retired = Path.Combine(_storage.Root, ".hako-retired-" + Guid.NewGuid().ToString("N"));
+            var oldMoved = false;
+            var newMoved = false;
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (oldExists)
+                {
+                    MoveRestoreDirectory(oldDirectory!, retired);
+                    oldMoved = true;
+                }
+
+                try { MoveRestoreDirectory(staged.DirectoryPath, destination); }
+                catch (IOException) when (EntryExists(destination))
+                {
+                    throw new RestoreArchiveException(RestoreArchiveFailureReason.DestinationConflict,
+                        "The build destination became occupied.");
+                }
+                newMoved = true;
+                File.SetAttributes(destination, FileAttributes.Directory);
+                cancellationToken.ThrowIfCancellationRequested();
+                var instances = target is null
+                    ? registry.Instances.Append(restored).ToList()
+                    : registry.Instances.Select(item => item.Id == target.Id ? restored : item).ToList();
+                WriteRegistry(new InstanceRegistryFile(1, instances));
+            }
+            catch (Exception operationFailure)
+            {
+                List<Exception>? rollbackFailures = null;
+                if (newMoved)
+                {
+                    try
+                    {
+                        MoveRestoreDirectory(destination, staged.DirectoryPath);
+                        File.SetAttributes(staged.DirectoryPath, stageAttributes);
+                    }
+                    catch (Exception rollbackFailure)
+                    {
+                        rollbackFailures = [rollbackFailure];
+                    }
+                }
+
+                if (oldMoved)
+                {
+                    try { MoveRestoreDirectory(retired, oldDirectory!); }
+                    catch (Exception rollbackFailure)
+                    {
+                        rollbackFailures ??= [];
+                        rollbackFailures.Add(rollbackFailure);
+                    }
+                }
+
+                if (rollbackFailures is not null)
+                {
+                    rollbackFailures.Insert(0, operationFailure);
+                    var recoveryPaths = new[] { staged.DirectoryPath, destination, retired }
+                        .Where(path => Directory.Exists(path) || File.Exists(path));
+                    throw new RestoreArchiveException(RestoreArchiveFailureReason.RollbackFailed,
+                        $"The restore failed and rollback was incomplete. Recovery data remains at: {string.Join(", ", recoveryPaths)}.",
+                        new AggregateException(rollbackFailures));
+                }
+
+                throw;
+            }
+
+            NotifyInstancesChanged();
+            var cleanupWarning = false;
+            if (oldMoved)
+            {
+                var cleanupPath = retired;
+                try { cleanupPath = MarkRetiredRestoreDirectory(retired); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    Debug.WriteLine($"Could not mark retired restore folder: {exception.GetType().Name}");
+                }
+                try { DeleteRetiredRestoreDirectory(cleanupPath); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    cleanupWarning = true;
+                    Debug.WriteLine($"Could not remove retired restore folder: {exception.GetType().Name}");
+                }
+            }
+
+            return new RestoreInstanceCommitOutcome(restored, cleanupWarning);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    internal void MoveRestoreDirectory(string from, string to)
+    {
+        _beforeRestoreMove?.Invoke(from, to);
+        InstanceStorage.MoveDirectory(from, to);
+    }
+
+    internal void DeleteRetiredRestoreDirectory(string path)
+    {
+        _beforeRetiredDelete?.Invoke(path);
+        InstanceStorage.DeleteCreatedDirectory(path);
+    }
+
+    private IDisposable AcquireRestoreContentLease(Guid id)
+    {
+        IDisposable? lease;
+        InstanceStorageError? reason;
+        try
+        {
+            if (!TryBeginContent(id, out lease, out reason))
+            {
+                var failure = reason is InstanceStorageError.InstanceRegistryNotLoaded or InstanceStorageError.InstanceRegistryUnavailable
+                    ? RestoreArchiveFailureReason.RegistryUnavailable
+                    : reason is InstanceStorageError.BuildInstalling or InstanceStorageError.BuildRunning or InstanceStorageError.BuildFilesBusy
+                        ? RestoreArchiveFailureReason.BuildBusy
+                        : RestoreArchiveFailureReason.BuildUnavailable;
+                throw new RestoreArchiveException(failure, "The selected build is unavailable or busy.");
+            }
+        }
+        catch (KeyNotFoundException exception)
+        {
+            throw new RestoreArchiveException(RestoreArchiveFailureReason.BuildUnavailable,
+                "The selected build no longer exists.", exception);
+        }
+
+        try
+        {
+            if (Instances.FirstOrDefault(instance => instance.Id == id)?.State != InstanceInstallationState.Ready)
+            {
+                throw new RestoreArchiveException(RestoreArchiveFailureReason.BuildUnavailable,
+                    "The selected build is not ready to be replaced.");
+            }
+
+            return lease!;
+        }
+        catch
+        {
+            lease?.Dispose();
+            throw;
+        }
+    }
+
+    internal string MarkRetiredRestoreDirectory(string path)
+    {
+        var name = Path.GetFileName(path);
+        if (!TryGetRestoreTemporaryName(name, retired: true, committed: false))
+        {
+            throw new RestoreArchiveException(RestoreArchiveFailureReason.UnsafePath,
+                "The retired restore folder is invalid.");
+        }
+
+        var committedPath = path + ".committed";
+        InstanceStorage.MoveDirectory(path, committedPath);
+        return committedPath;
+    }
+
+    private (string Name, string FolderName) FindAvailableRestoreName(
+        string inputName,
+        IReadOnlyCollection<GameInstance> instances)
+    {
+        var initial = ParseName(inputName);
+        ValidateReservedName(initial.FolderName);
+        try
+        {
+            _storage.EnsureAvailable(initial.FolderName, instances);
+            return initial;
+        }
+        catch (InstanceStorageException exception) when (exception.Error is
+            InstanceStorageError.DuplicateBuildName or InstanceStorageError.BuildFolderExists)
+        {
+        }
+
+        for (var number = 2; number <= 999; number++)
+        {
+            var suffix = " " + number;
+            var candidate = ParseName(initial.Name[..Math.Min(initial.Name.Length, 60 - suffix.Length)].TrimEnd() + suffix);
+            ValidateReservedName(candidate.FolderName);
+            try
+            {
+                _storage.EnsureAvailable(candidate.FolderName, instances);
+                return candidate;
+            }
+            catch (InstanceStorageException exception) when (exception.Error is
+                InstanceStorageError.DuplicateBuildName or InstanceStorageError.BuildFolderExists)
+            {
+            }
+        }
+
+        throw new InstanceStorageException(InstanceStorageError.DuplicateBuildName,
+            "No unique build name is available for this backup.");
+    }
+
+    private void ValidateRestoreStage(string stagePath)
+    {
+        var fullPath = Path.GetFullPath(stagePath);
+        var name = Path.GetFileName(fullPath);
+        if (!string.Equals(Path.GetDirectoryName(fullPath), Path.GetFullPath(_storage.Root), StringComparison.OrdinalIgnoreCase)
+            || !name.StartsWith(".hako-restore-", StringComparison.Ordinal)
+            || !Guid.TryParseExact(name[".hako-restore-".Length..], "N", out _))
+        {
+            throw new RestoreArchiveException(RestoreArchiveFailureReason.UnsafePath,
+                "The restore staging folder is invalid.");
+        }
+
+        var attributes = File.GetAttributes(fullPath);
+        if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint | FileAttributes.Device))
+            != FileAttributes.Directory)
+        {
+            throw new RestoreArchiveException(RestoreArchiveFailureReason.UnsafePath,
+                "The restore staging folder is unsafe.");
+        }
+
+        _ = InstanceStorage.ContainedPath(name, _storage.Root, allowBaseReparsePoint: true);
+    }
+
+    private static bool MatchesBackup(GameInstance instance, InstanceBackupManifest manifest) =>
+        manifest.InstanceID is { } id
+            ? instance.Id == id
+            : string.Equals(instance.FolderName, manifest.FolderName, StringComparison.OrdinalIgnoreCase)
+              && string.Equals(instance.VersionID, manifest.MinecraftVersion, StringComparison.Ordinal)
+              && string.Equals(instance.ModLoader == InstanceModLoader.Fabric ? "fabric" : "vanilla",
+                  manifest.ModLoader, StringComparison.Ordinal)
+              && string.Equals(instance.FabricConfiguration?.LoaderVersion, manifest.LoaderVersion,
+                  StringComparison.Ordinal);
+
     private static bool IsTransientCopyPath(string path) =>
         path.Equals(".hako-game", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith(".hako-game/", StringComparison.OrdinalIgnoreCase)
@@ -1259,7 +1574,15 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         {
             foreach (var entry in System.IO.Directory.EnumerateFileSystemEntries(_storage.Root))
             {
-                if (!TryParseDeleteStagingName(Path.GetFileName(entry), out var instanceId))
+                var name = Path.GetFileName(entry);
+                if (TryGetRestoreTemporaryName(name, retired: false, committed: false)
+                    || TryGetRestoreTemporaryName(name, retired: true, committed: true))
+                {
+                    TryDeleteStaging(entry);
+                    continue;
+                }
+
+                if (!TryParseDeleteStagingName(name, out var instanceId))
                 {
                     continue;
                 }
@@ -1336,6 +1659,21 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
 
         instanceId = parsedInstanceId;
         return true;
+    }
+
+    private static bool TryGetRestoreTemporaryName(string name, bool retired, bool committed)
+    {
+        var prefix = retired ? ".hako-retired-" : ".hako-restore-";
+        var suffix = committed ? ".committed" : string.Empty;
+        if (!name.StartsWith(prefix, StringComparison.Ordinal)
+            || !name.EndsWith(suffix, StringComparison.Ordinal)
+            || name.Length <= prefix.Length + suffix.Length)
+        {
+            return false;
+        }
+
+        var identifierLength = name.Length - prefix.Length - suffix.Length;
+        return Guid.TryParseExact(name.AsSpan(prefix.Length, identifierLength), "N", out _);
     }
 
     private void TryDeleteStaging(string path)
