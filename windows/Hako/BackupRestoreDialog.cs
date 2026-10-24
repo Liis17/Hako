@@ -187,7 +187,8 @@ internal static class BackupRestoreDialog
             {
                 await services.Installations.EnqueueAsync(restored.Id);
             }
-            catch (InvalidOperationException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
+                                              or InvalidOperationException)
             {
                 await HakoDialogs.ShowErrorAsync(HakoStrings.Get("RestoreQueueStartFailed"));
             }
