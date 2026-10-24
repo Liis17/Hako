@@ -73,7 +73,11 @@ Hako под ARM64 тоже распознаёт ARM64-хост. На ARM64 сн�
 
 `MojangCompatibility.Libraries` сохраняет порядок библиотек из манифеста, включая legacy natives.
 Суффикс `${arch}` в legacy classifier подменяется на `64`, `32` или `arm64`; `natives-windows` без
-суффикса также поддерживается для x86.
+суффикса также поддерживается для x86. Все выбранные natives — и старого формата с картой `natives`,
+и нового формата 26.3+, где каждый native-jar — отдельная запись с classifier в `name` и
+`downloads.artifact` — всегда ставятся на распаковку (`ExtractNatives`), поэтому нативные jar не
+попадают в classpath и всегда распаковываются в natives-каталог; excludes берутся из `extract.exclude`,
+когда они есть у записи.
 
 `MinecraftInstaller.InstallAsync` пишет только в корень переданной сборки и использует
 `InstanceStorage.ContainedPath` этапа хранения для путей и запрета reparse points. Java собирается из
@@ -84,13 +88,16 @@ runtime manifest raw-файлов. Link-записи отклоняются на
 Очистка best-effort и не останавливает установку при ошибках доступа, ввода-вывода или гонках. Это безопасно,
 поскольку `InstanceStore` не допускает одновременные установки одного корня.
 Клиент и полный JSON версии размещаются в `minecraft/versions/{id}/`, библиотеки — в
-`minecraft/libraries/`, legacy natives после безопасной проверки ZIP — в `minecraft/natives/`, logging —
-в `minecraft/assets/log_configs/`. Современные native JAR остаются в libraries. Asset objects хранятся
+`minecraft/libraries/`, native JAR после безопасной проверки ZIP — в `minecraft/natives/`, а при
+шаблоне JVM `java.library.path=${natives_directory}/java` (формат версии 26.3+) — в
+`minecraft/natives/java/`; каталог определяется по аргументам версии (`NativePublishDirectory`),
+logging — в `minecraft/assets/log_configs/`. Asset objects хранятся
 в `minecraft/assets/objects/`; только virtual и `map_to_resources` проверяют имена и создают проверяемые
 копии, коллизии Windows-путей без учёта регистра отклоняются. Создаются `minecraft/mods` и папка
-ресурспаков (`resourcepacks`, либо `texturepacks` для legacy версии). Все legacy native archives сначала
-распаковываются во временную staging-папку и публикуются заменой каталога `minecraft/natives` после
-завершения; если переименование staging не удалось, прежний каталог восстанавливается. Отмена и ошибки
+ресурспаков (`resourcepacks`, либо `texturepacks` для legacy версии). Все native archives сначала
+распаковываются во временную staging-папку и публикуются заменой каталога `minecraft/natives` (или
+`minecraft/natives/java`) после завершения; если переименование staging не удалось, прежний каталог
+восстанавливается. Отмена и ошибки
 распаковки удаляют staging без частично опубликованных файлов.
 
 `Instances/InstallationCoordinator.cs` — app-lifetime FIFO-очередь, одна активная установка, порядок по `CreatedAt`.

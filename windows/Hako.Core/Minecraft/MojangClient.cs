@@ -496,7 +496,7 @@ public static class MojangCompatibility
                 native,
                 native.Path,
                 IsNative: true,
-                ExtractNatives: library.Extract is not null,
+                ExtractNatives: true,
                 ExtractionExcludes: library.Extract?.Exclude ?? []));
             mappedGroups.Add(library.NativeGroup);
         }
@@ -528,7 +528,7 @@ public static class MojangCompatibility
                 download,
                 download.Path,
                 IsNative: true,
-                ExtractNatives: candidate.Library.Extract is not null,
+                ExtractNatives: true,
                 ExtractionExcludes: candidate.Library.Extract?.Exclude ?? []));
             mappedGroups.Add(group.Key);
         }

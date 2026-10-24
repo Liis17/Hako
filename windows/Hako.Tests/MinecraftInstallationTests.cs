@@ -201,6 +201,60 @@ public sealed class MinecraftInstallationTests
     }
 
     [TestMethod]
+    public void ClassifiedNativeEntriesWithoutAnExtractSectionAreQueuedForExtraction()
+    {
+        var manifest = new MojangVersionMetadata
+        {
+            Libraries =
+            [
+                new MojangLibrary
+                {
+                    Name = "org.lwjgl:lwjgl:3.4.3",
+                    Downloads = new MojangLibraryDownloads { Artifact = Download("lwjgl-3.4.3.jar") }
+                },
+                new MojangLibrary
+                {
+                    Name = "org.lwjgl:lwjgl:3.4.3:natives-windows",
+                    Downloads = new MojangLibraryDownloads { Artifact = Download("lwjgl-3.4.3-natives-windows.jar") },
+                    Rules = [new MojangRule { Action = "allow", Os = new MojangOperatingSystem { Name = "windows" } }]
+                }
+            ]
+        };
+
+        var libraries = MojangCompatibility.Libraries(manifest, GameArchitecture.X64);
+
+        Assert.AreEqual(2, libraries.Count);
+        var native = libraries.Single(library => library.IsNative);
+        Assert.AreEqual("lwjgl-3.4.3-natives-windows.jar", native.Path);
+        Assert.IsTrue(native.ExtractNatives);
+        Assert.IsFalse(native.ExtractionExcludes!.Any());
+    }
+
+    [TestMethod]
+    public void NativeMapLibrariesExtractEvenWhenTheExtractSectionIsMissing()
+    {
+        var manifest = new MojangVersionMetadata
+        {
+            Libraries =
+            [
+                new MojangLibrary
+                {
+                    Name = "org.lwjgl:lwjgl:3.3.1",
+                    Natives = new Dictionary<string, string> { ["windows"] = "natives-windows" },
+                    Downloads = new MojangLibraryDownloads
+                    {
+                        Classifiers = new Dictionary<string, MojangDownload> { ["natives-windows"] = Download("lwjgl-natives-windows.jar") }
+                    }
+                }
+            ]
+        };
+
+        var libraries = MojangCompatibility.Libraries(manifest, GameArchitecture.X64);
+
+        Assert.IsTrue(libraries.Single().ExtractNatives);
+    }
+
+    [TestMethod]
     [DataRow("8u74-b01", 8)]
     [DataRow("1.8.0_202", 8)]
     [DataRow("17.0.15", 17)]
@@ -779,6 +833,25 @@ public sealed class MinecraftInstallationTests
     }
 
     [TestMethod]
+    public async Task ModernNativesPublishIntoTheJavaLibraryPathSubdirectory()
+    {
+        using var temporary = new TestDirectory();
+        var zip = CreateZip("lwjgl.dll", "META-INF/MANIFEST.MF");
+        var fixture = CreateInstallFixture(
+            includeAssets: false,
+            arguments: JvmArguments("-Djava.library.path=${natives_directory}/java", "-Djna.tmpdir=${natives_directory}/jna"),
+            libraries: [CreateNativeLibrary(zip, ["META-INF/"])],
+            nativeArchiveBytes: zip);
+        using var client = new MojangClient(new HttpClient(fixture.Handler));
+        var installer = new MinecraftInstaller(client);
+
+        await installer.InstallAsync(fixture.Prepared, temporary.Path);
+
+        Assert.IsTrue(File.Exists(Path.Combine(temporary.Path, "minecraft", "natives", "java", "lwjgl.dll")));
+        Assert.IsFalse(File.Exists(Path.Combine(temporary.Path, "minecraft", "natives", "java", "META-INF", "MANIFEST.MF")));
+    }
+
+    [TestMethod]
     public async Task FailureInSecondNativeArchiveDoesNotPublishAnyStagedFiles()
     {
         using var temporary = new TestDirectory();
@@ -1017,6 +1090,7 @@ public sealed class MinecraftInstallationTests
         IReadOnlyList<string>? assetNames = null,
         bool virtualAssets = true,
         bool mapToResources = true,
+        Dictionary<string, List<MojangArgument>>? arguments = null,
         IReadOnlyCollection<LibraryInstallation>? libraries = null,
         byte[]? nativeArchiveBytes = null,
         IReadOnlyDictionary<string, byte[]>? downloadPayloadOverrides = null,
@@ -1076,6 +1150,7 @@ public sealed class MinecraftInstallationTests
             JavaVersion = new MojangJavaRequirement { Component = "java-runtime-gamma", MajorVersion = 17 },
             Downloads = new Dictionary<string, MojangDownload>(StringComparer.OrdinalIgnoreCase) { ["client"] = clientDownload },
             Libraries = [],
+            Arguments = arguments,
             AssetIndex = assetReference,
             Logging = new Dictionary<string, MojangLoggingConfiguration>
             {
@@ -1171,6 +1246,11 @@ public sealed class MinecraftInstallationTests
         Url = "https://test/" + path,
         Sha1 = Hash("content"),
         Size = 7
+    };
+
+    private static Dictionary<string, List<MojangArgument>> JvmArguments(params string[] values) => new(StringComparer.Ordinal)
+    {
+        ["jvm"] = values.Select(value => new MojangArgument { Value = JsonSerializer.SerializeToElement(value) }).ToList()
     };
 
     private sealed record InstallFixture(PreparedInstallation Prepared, PayloadHandler Handler, byte[] ClientBytes);
