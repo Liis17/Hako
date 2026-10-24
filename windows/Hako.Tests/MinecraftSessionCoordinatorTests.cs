@@ -6,6 +6,33 @@ namespace Hako.Tests;
 public sealed class MinecraftSessionCoordinatorTests
 {
     [TestMethod]
+    public async Task AccountNotificationFailureDoesNotAbortOnlineSessionRefresh()
+    {
+        var accountStore = new MemoryAccountStore(TestData.Account());
+        var app = await CreateAppAsync(accountStore, new RefreshAuthService(), expireMinecraftToken: true);
+        var notifications = 0;
+        app.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(AppCoordinator.Account))
+            {
+                throw new System.Runtime.InteropServices.COMException("Wrong UI thread", unchecked((int)0x8001010E));
+            }
+        };
+        app.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(AppCoordinator.Account)) notifications++;
+        };
+
+        var connected = await Task.Run(() => app.MinecraftSessions.ConnectForLaunchAsync());
+
+        Assert.AreEqual("minecraft-connected-secret", connected.MinecraftAccessToken);
+        Assert.AreEqual(connected, accountStore.SavedAccount);
+        Assert.AreEqual(connected, app.Account);
+        Assert.AreEqual(2, notifications);
+        Assert.AreEqual(MinecraftSessionStatus.Connected, app.MinecraftSessions.Status);
+    }
+
+    [TestMethod]
     public async Task RotatedRefreshTokenIsSavedEvenWhenMinecraftConnectionFails()
     {
         var accountStore = new MemoryAccountStore(TestData.Account());

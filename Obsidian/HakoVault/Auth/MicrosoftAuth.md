@@ -231,3 +231,6 @@ SwiftUI ModelContext. Замена записи того же XUID отменя�
   и отменяют refresh. Поздний результат не восстановит удалённый `session.dat` и не заменит новый аккаунт.
 - `Status` (`Idle`/`Connecting`/`Connected`/`Failed`) и `Error` для UI; события приходят с потока refresh —
   UI маршалит их в `DispatcherQueue`.
+- Уведомление `AppCoordinator.Account` при refresh также приходит с фонового потока; `MainWindow`
+  переносит обработку в сохранённую `DispatcherQueue` окна и пропускает её после закрытия.
+  Ошибка отдельного подписчика `Account` не прерывает фиксацию аккаунта и доставку остальным подписчикам.

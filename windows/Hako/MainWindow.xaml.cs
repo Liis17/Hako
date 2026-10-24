@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<Guid, NavigationViewItem> _instanceItems = [];
     private readonly Dictionary<Guid, Guid> _instanceIconRevisions = [];
     private readonly CoalescedRefresh _instancesRefresh;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcher;
     private bool _changingSelection;
     private bool _windowActive;
     private bool _windowVisible;
@@ -34,6 +35,7 @@ public sealed partial class MainWindow : Window
     internal MainWindow(LauncherServices services)
     {
         InitializeComponent();
+        _dispatcher = DispatcherQueue;
         AppWindow.SetIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -95,6 +97,17 @@ public sealed partial class MainWindow : Window
 
     private void Coordinator_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (!_dispatcher.HasThreadAccess)
+        {
+            _dispatcher.TryEnqueue(() => Coordinator_PropertyChanged(sender, e));
+            return;
+        }
+
+        if (_closed)
+        {
+            return;
+        }
+
         if (e.PropertyName == nameof(AppCoordinator.Language))
         {
             HakoStrings.SetLanguage(_coordinator.Language);

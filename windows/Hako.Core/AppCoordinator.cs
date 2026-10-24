@@ -561,7 +561,22 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         }
 
         _account = account;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Account)));
+        // A UI subscriber failure must not turn an already committed token rotation into an auth failure.
+        var handlers = PropertyChanged;
+        if (handlers is not null)
+        {
+            foreach (PropertyChangedEventHandler handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler(this, new PropertyChangedEventArgs(nameof(Account)));
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+
         if (invalidateSessions)
         {
             InvalidateAccountOperationsLocked();
