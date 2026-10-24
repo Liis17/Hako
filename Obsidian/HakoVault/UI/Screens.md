@@ -78,6 +78,9 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 Экраны WinUI 3 в `windows/Hako/`. `MainWindow` (`windows/Hako/MainWindow.xaml.cs`) показывает страницу по
 `LauncherScreen` из `AppCoordinator.Screen` (`windows/Hako.Core/AppCoordinator.cs`). Фон окна — системный
 `MicaBackdrop` в `windows/Hako/MainWindow.xaml`; WinUI `TitleBar` показывает Hako, а экраны и `NavigationView` расположены под заголовком.
+Иконки Windows в `windows/Hako/Assets/` используют коробку с сакурой из `macos/Hako/Hako/AppIcon.icon/Assets/box.png`
+на бело-розовом градиенте: `AppIcon.ico` встроена в EXE и задаётся через `AppWindow.SetIcon`, `AppIcon.png` используется
+в `TitleBar`, PNG-ресурсы логотипов и заставки подключены через `Package.appxmanifest`.
 Начальный целевой размер клиентской области — 1280×720 эффективных пикселей с учётом DPI; итоговый размер окна ограничивается рабочей областью монитора и центрируется в ней.
 
 ### Источники

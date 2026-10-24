@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
     internal MainWindow(LauncherServices services)
     {
         InitializeComponent();
+        AppWindow.SetIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 

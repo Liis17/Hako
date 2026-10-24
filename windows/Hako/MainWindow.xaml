@@ -15,7 +15,11 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TitleBar x:Name="AppTitleBar" Title="Hako" />
+        <TitleBar x:Name="AppTitleBar" Title="Hako">
+            <TitleBar.IconSource>
+                <ImageIconSource ImageSource="ms-appx:///Assets/AppIcon.png" />
+            </TitleBar.IconSource>
+        </TitleBar>
 
         <Frame x:Name="FlowFrame" Grid.Row="1" />
 
