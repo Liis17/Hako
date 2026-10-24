@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
@@ -14,6 +15,9 @@ public partial class App : Application
     private static Window? _window;
     private static HakoRootLock? _previewRootLock;
     private static LauncherServices? _services;
+    private static readonly BackupRestoreQueue RestoreQueue = new();
+    private static int _restoreQueueReady;
+    private static int _restoreQueueRunning;
     private readonly PlaytimeCoordinator? _playtime;
     private readonly AppCoordinator? _coordinator;
     private readonly MinecraftSkinPreviewService? _skinPreviewService;
@@ -25,6 +29,7 @@ public partial class App : Application
     internal static ProfilePreviewOptions? LaunchOptions { get; set; }
     internal static HakoPaths? LaunchPaths { get; set; }
     internal static string? PreviewRoot { get; set; }
+    internal static string[] InitialRestorePaths { get; set; } = [];
     internal static UserSettingsService? UserSettingsService { get; private set; }
     internal static InstanceStore? InstanceStore { get; private set; }
 
@@ -134,9 +139,10 @@ public partial class App : Application
         var screenshots = new InstanceScreenshots(InstanceStore);
         var backups = new InstanceBackup(InstanceStore, content);
         var worldBackups = new WorldBackup(InstanceStore, content, worlds);
+        var restores = new RestoreArchive(InstanceStore);
         _services = new LauncherServices(_coordinator, UserSettingsService!, InstanceStore, installations, games, mojang, fabric,
             modrinth, modpacks, modpackCatalog, content, contentController, worlds, screenshots, backups,
-            worldBackups, previewModrinthHttpClient, _skinPreviewService!, _previewOptions, _playtime!);
+            worldBackups, restores, previewModrinthHttpClient, _skinPreviewService!, _previewOptions, _playtime!);
 
         _window = new MainWindow(_services);
         _window.Activate();
@@ -192,6 +198,115 @@ public partial class App : Application
 
                     break;
             }
+        }
+
+        if (InitialRestorePaths.Length > 0 && _coordinator.Account is null)
+        {
+            _coordinator.ContinueWithoutAccount();
+        }
+
+        Volatile.Write(ref _restoreQueueReady, 1);
+        QueueRestoreFiles(InitialRestorePaths);
+        InitialRestorePaths = [];
+        StartRestoreQueue();
+    }
+
+    internal static void QueueRestoreFiles(IEnumerable<string> paths)
+    {
+        var added = false;
+        foreach (var path in paths) added |= RestoreQueue.Enqueue(path);
+        if (added) StartRestoreQueue();
+    }
+
+    internal static void RestoreWindowReady() => StartRestoreQueue();
+
+    private static void StartRestoreQueue()
+    {
+        if (Volatile.Read(ref _restoreQueueReady) == 0
+            || HakoDialogs.Root is null
+            || Interlocked.CompareExchange(ref _restoreQueueRunning, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = ProcessRestoreQueueAsync();
+    }
+
+    private static async Task ProcessRestoreQueueAsync()
+    {
+        RestoreNavigation? lastSuccess = null;
+        var completedEntries = new List<BackupRestoreQueueEntry>();
+        try
+        {
+            var store = _services?.Store;
+            if (store is null || !store.IsLoaded || store.LoadError is not null)
+            {
+                var message = HakoStrings.Get("RestoreRegistryUnavailable");
+                var loadError = store?.LoadError;
+                if (loadError is not null) message += "\n" + HakoStrings.Get(loadError.ResourceKey);
+                await HakoDialogs.ShowErrorAsync(message);
+                while (RestoreQueue.TryDequeue(out var pending)) RestoreQueue.Complete(pending);
+                return;
+            }
+
+            while (RestoreQueue.TryDequeue(out var entry))
+            {
+                completedEntries.Add(entry);
+                try
+                {
+                    if (_services is not { } services) continue;
+                    // A guest session must not replace the sign-in screen while the user is completing it.
+                    if (services.App.Account is null && !services.App.IsGuest && services.App.Screen != LauncherScreen.Login)
+                    {
+                        services.App.ContinueWithoutAccount();
+                    }
+
+                    var success = await BackupRestoreDialog.RestoreAsync(services, entry.Path);
+                    if (success is not null) lastSuccess = success;
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception exception)
+                {
+                    // Keep the queue alive: one unexpected failure must not drop the remaining files.
+                    System.Diagnostics.Debug.WriteLine($"Restore queue entry failed: {exception.GetType().Name}");
+                    await ShowRestoreFailureAsync();
+                }
+            }
+        }
+        finally
+        {
+            try
+            {
+                if (lastSuccess is not null && _window is MainWindow mainWindow
+                    && _services?.App.Screen is not (LauncherScreen.Login or LauncherScreen.Welcome or LauncherScreen.Loading))
+                {
+                    await mainWindow.NavigateToRestoreAsync(lastSuccess);
+                }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not open restored build: {exception.GetType().Name}");
+            }
+            finally
+            {
+                foreach (var entry in completedEntries) RestoreQueue.Complete(entry);
+                Interlocked.Exchange(ref _restoreQueueRunning, 0);
+                if (RestoreQueue.HasPending) StartRestoreQueue();
+            }
+        }
+    }
+
+    private static async Task ShowRestoreFailureAsync()
+    {
+        try
+        {
+            await HakoDialogs.ShowErrorAsync(HakoStrings.Get("RestoreFailureOperationFailed"));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine($"Could not show restore failure: {exception.GetType().Name}");
         }
     }
 

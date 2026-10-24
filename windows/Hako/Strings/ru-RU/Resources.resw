@@ -543,4 +543,59 @@
   <data name="PlaytimeStorageError" xml:space="preserve"><value>Не удалось обновить время в Minecraft из-за ошибки хранилища.</value></data>
   <data name="PlaytimeHelperStartFailed" xml:space="preserve"><value>Не удалось запустить фоновый помощник учёта времени. Пока Hako открыт, время будет обновляться.</value></data>
   <data name="PlaytimeErrorDetails" xml:space="preserve"><value>Подробности: {0}</value></data>
+  <data name="RestoreOpenFile" xml:space="preserve"><value>Восстановить из файла…</value></data>
+  <data name="RestoreTitle" xml:space="preserve"><value>Восстановление из копии</value></data>
+  <data name="RestoreCancel" xml:space="preserve"><value>Отмена</value></data>
+  <data name="RestoreChecking" xml:space="preserve"><value>Проверяем и подготавливаем архив…</value></data>
+  <data name="RestoreRegistryUnavailable" xml:space="preserve"><value>Нельзя восстановить копию: список сборок не удалось загрузить.</value></data>
+  <data name="RestoreBuildTitle" xml:space="preserve"><value>Восстановить сборку</value></data>
+  <data name="RestoreBuildDetails" xml:space="preserve"><value>Копия: {0}&#10;Minecraft: {1}&#10;Загрузчик: {2}&#10;Модов: {3}</value></data>
+  <data name="RestoreNoMatchingBuild" xml:space="preserve"><value>Подходящая сборка не найдена</value></data>
+  <data name="RestoreApply" xml:space="preserve"><value>Восстановить</value></data>
+  <data name="RestoreCreateNew" xml:space="preserve"><value>Создать новую сборку</value></data>
+  <data name="RestoreReplaceBuild" xml:space="preserve"><value>Заменить подходящую сборку</value></data>
+  <data name="RestoreBuildName" xml:space="preserve"><value>Название новой сборки</value></data>
+  <data name="RestoreJavaRequired" xml:space="preserve"><value>Для этой копии потребуется загрузить совместимую Java через Интернет.</value></data>
+  <data name="RestoreReplaceBuildTitle" xml:space="preserve"><value>Заменить сборку?</value></data>
+  <data name="RestoreReplaceBuildMessage" xml:space="preserve"><value>Файлы сборки «{0}» будут заменены содержимым копии. Это действие нельзя отменить.</value></data>
+  <data name="RestoreReplace" xml:space="preserve"><value>Заменить</value></data>
+  <data name="RestoreJavaTitle" xml:space="preserve"><value>Потребуется установить Java</value></data>
+  <data name="RestoreJavaConfirmation" xml:space="preserve"><value>Hako поставит сборку в очередь и загрузит совместимую Java при наличии подключения к Интернету. Продолжить?</value></data>
+  <data name="RestoreContinue" xml:space="preserve"><value>Продолжить</value></data>
+  <data name="RestoreQueueStartFailed" xml:space="preserve"><value>Сборка восстановлена, но не попала в очередь установки. Перезапустите Hako, чтобы продолжить установку.</value></data>
+  <data name="RestoreNoReadyBuild" xml:space="preserve"><value>Для восстановления мира нужна готовая сборка.</value></data>
+  <data name="RestoreWorldTitle" xml:space="preserve"><value>Восстановить мир</value></data>
+  <data name="RestoreWorldDetails" xml:space="preserve"><value>Копия мира: {0}&#10;Версия сохранения: {1}&#10;Режим: {2}&#10;Minecraft в исходной сборке: {3}&#10;Загрузчик исходной сборки: {4}</value></data>
+  <data name="RestoreUnknownVersion" xml:space="preserve"><value>не указана</value></data>
+  <data name="RestoreWorldBuild" xml:space="preserve"><value>Сборка назначения</value></data>
+  <data name="RestoreWorldName" xml:space="preserve"><value>Название мира</value></data>
+  <data name="RestoreWorldFolder" xml:space="preserve"><value>Папка мира</value></data>
+  <data name="RestoreCopyWorld" xml:space="preserve"><value>Создать отдельную копию мира</value></data>
+  <data name="RestoreReplaceWorld" xml:space="preserve"><value>Заменить мир в выбранной папке</value></data>
+  <data name="RestoreReplaceWorldWith" xml:space="preserve"><value>Заменить мир «{0}»</value></data>
+  <data name="RestoreWorldBuildMismatchTitle" xml:space="preserve"><value>Сборка отличается от исходной</value></data>
+  <data name="RestoreWorldBuildMismatchMessage" xml:space="preserve"><value>Мир будет восстановлен в сборку «{0}», версия Minecraft или загрузчик которой отличаются от исходной сборки. Продолжить?</value></data>
+  <data name="RestoreReplaceWorldTitle" xml:space="preserve"><value>Заменить мир?</value></data>
+  <data name="RestoreReplaceWorldMessage" xml:space="preserve"><value>Содержимое мира «{0}» будет заменено. Это действие нельзя отменить.</value></data>
+  <data name="RestoreFabric" xml:space="preserve"><value>Fabric</value></data>
+  <data name="RestoreVanilla" xml:space="preserve"><value>Vanilla</value></data>
+  <data name="RestoreRecoveryDetails" xml:space="preserve"><value>Проверьте сохранённые данные: {0}</value></data>
+  <data name="RestoreCleanupWarningTitle" xml:space="preserve"><value>Копия восстановлена</value></data>
+  <data name="RestoreCleanupWarning" xml:space="preserve"><value>Восстановление завершено, но временные файлы прежней версии не удалось удалить.</value></data>
+  <data name="RestoreFailureUnsupportedFileType" xml:space="preserve"><value>Выберите файл .hakobackup или .hakoworld.</value></data>
+  <data name="RestoreFailureFileUnavailable" xml:space="preserve"><value>Файл копии не найден или недоступен.</value></data>
+  <data name="RestoreFailureInvalidArchive" xml:space="preserve"><value>Архив повреждён или имеет неподдерживаемый формат.</value></data>
+  <data name="RestoreFailureUnsafePath" xml:space="preserve"><value>Архив содержит небезопасный путь или ссылку.</value></data>
+  <data name="RestoreFailureInvalidManifest" xml:space="preserve"><value>Манифест копии повреждён или не соответствует содержимому.</value></data>
+  <data name="RestoreFailureInvalidBuild" xml:space="preserve"><value>Содержимое сборки повреждено или не соответствует манифесту.</value></data>
+  <data name="RestoreFailureInvalidWorld" xml:space="preserve"><value>Данные мира повреждены или не соответствуют манифесту.</value></data>
+  <data name="RestoreFailureInvalidName" xml:space="preserve"><value>Указано недопустимое имя или папка назначения.</value></data>
+  <data name="RestoreFailureInsufficientSpace" xml:space="preserve"><value>Недостаточно свободного места для восстановления.</value></data>
+  <data name="RestoreFailureRegistryUnavailable" xml:space="preserve"><value>Не удалось загрузить список сборок.</value></data>
+  <data name="RestoreFailureBuildUnavailable" xml:space="preserve"><value>Сборка назначения больше недоступна или не готова.</value></data>
+  <data name="RestoreFailureBuildBusy" xml:space="preserve"><value>Сборка занята другой операцией. Повторите попытку позже.</value></data>
+  <data name="RestoreFailureDestinationConflict" xml:space="preserve"><value>Папка назначения уже занята или больше не существует.</value></data>
+  <data name="RestoreFailureRollbackFailed" xml:space="preserve"><value>Не удалось завершить восстановление и полностью вернуть исходное состояние.</value></data>
+  <data name="RestoreFailureCancelled" xml:space="preserve"><value>Восстановление отменено.</value></data>
+  <data name="RestoreFailureOperationFailed" xml:space="preserve"><value>Не удалось восстановить копию.</value></data>
 </root>

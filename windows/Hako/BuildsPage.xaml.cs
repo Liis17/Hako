@@ -10,6 +10,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.Storage.Pickers;
+using WinRT.Interop;
 
 namespace Hako;
 
@@ -64,6 +66,7 @@ public sealed partial class BuildsPage : Page
     private void RefreshStrings()
     {
         BuildsTitle.Text = HakoStrings.Get("BuildsTitle");
+        RestoreFileButton.Content = HakoStrings.Get("RestoreOpenFile");
         BuildsEmptyTitle.Text = HakoStrings.Get("BuildsEmptyTitle");
         BuildsEmptyBody.Text = HakoStrings.Get("BuildsEmptyBody");
         CreateButton.Content = HakoStrings.Get("CreateBuildButton");
@@ -120,6 +123,18 @@ public sealed partial class BuildsPage : Page
     }
 
     private void CreateButton_Click(object sender, RoutedEventArgs e) => MainWindow.RequestCreation(App.CurrentWindow);
+
+    private async void RestoreFileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (App.CurrentWindow is not { } window) return;
+
+        var picker = new FileOpenPicker();
+        picker.FileTypeFilter.Add(".hakobackup");
+        picker.FileTypeFilter.Add(".hakoworld");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(window));
+        var file = await picker.PickSingleFileAsync();
+        if (file is not null) App.QueueRestoreFiles([file.Path]);
+    }
 
     private void Card_Tapped(object sender, TappedRoutedEventArgs e)
     {
