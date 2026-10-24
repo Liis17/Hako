@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private bool _closeRequested;
     private bool _navigating;
     private Guid? _shownInstanceId;
+    private InstanceProfileSection? _restoreProfileSection;
 
     internal MainWindow(LauncherServices services)
     {
@@ -50,7 +51,11 @@ public sealed partial class MainWindow : Window
         _services.Store.InstancesChanged += Store_InstancesChanged;
         RootGrid.Loaded += (_, _) =>
         {
-            if (RootGrid.XamlRoot is { } root) HakoDialogs.AttachWindow(DispatcherQueue, root);
+            if (RootGrid.XamlRoot is { } root)
+            {
+                HakoDialogs.AttachWindow(DispatcherQueue, root);
+                App.RestoreWindowReady();
+            }
         };
         Activated += Window_Activated;
         VisibilityChanged += Window_VisibilityChanged;
@@ -164,9 +169,13 @@ public sealed partial class MainWindow : Window
                     break;
                 case LauncherScreen.Instance when _coordinator.SelectedInstanceId is { } id
                                                   && (ShellFrame.Content is not InstanceProfilePage || _shownInstanceId != id):
+                {
                     _shownInstanceId = id;
-                    ShellFrame.Navigate(typeof(InstanceProfilePage), new InstanceProfileContext(_services, id));
+                    var initialSection = _restoreProfileSection;
+                    _restoreProfileSection = null;
+                    ShellFrame.Navigate(typeof(InstanceProfilePage), new InstanceProfileContext(_services, id, initialSection));
                     break;
+                }
                 case LauncherScreen.InstanceCreation when ShellFrame.Content is not InstanceCreationPage:
                     ShellFrame.Navigate(typeof(InstanceCreationPage), _services);
                     break;
@@ -382,6 +391,19 @@ public sealed partial class MainWindow : Window
             UpdateSelection();
         }
     }
+
+    internal Task NavigateToRestoreAsync(RestoreNavigation navigation) => NavigateAsync(() =>
+    {
+        if (_shownInstanceId == navigation.InstanceId && ShellFrame.Content is InstanceProfilePage profile)
+        {
+            _coordinator.OpenInstance(navigation.InstanceId);
+            profile.SelectSection(navigation.Section);
+            return;
+        }
+
+        _restoreProfileSection = navigation.Section;
+        _coordinator.OpenInstance(navigation.InstanceId);
+    });
 
     /// <summary>Opens the build creation flow from a page (the empty state of Сборки) with the same guard as the rail.</summary>
     internal static void RequestCreation(Window? window)

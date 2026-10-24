@@ -298,6 +298,35 @@ public sealed class RestoreArchiveTests
     }
 
     [TestMethod]
+    [DataRow("name")]
+    [DataRow("version")]
+    [DataRow("mode")]
+    [DataRow("lastPlayed")]
+    public async Task WorldManifestMetadataMismatchWithLevelDatIsRejected(string field)
+    {
+        await using var temporary = new TemporaryDirectory();
+        var store = temporary.CreateStore();
+        await store.LoadAsync();
+        var source = store.Create(new InstanceDraft { Name = "World source" }, "1.20.4");
+        store.SetInstallationStatus(source.Id, InstanceInstallationState.Ready, pauseRequested: false);
+        var archivePath = Path.Combine(temporary.Root, $"mismatch-{field}.hakoworld");
+        await WriteWorldArchiveAsync(archivePath, source, manifest => field switch
+        {
+            "name" => manifest with { Name = "Different name" },
+            "version" => manifest with { SaveVersion = "1.21.2" },
+            "mode" => manifest with { GameType = 1 },
+            "lastPlayed" => manifest with { LastPlayed = DateTimeOffset.UnixEpoch.AddSeconds(3) },
+            _ => manifest
+        });
+
+        var result = await CreateRestore(store).PrepareAsync(archivePath);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(RestoreArchiveFailureReason.InvalidWorld, result.Failure?.Reason);
+        AssertNoStaging(store);
+    }
+
+    [TestMethod]
     public async Task RegistryWriteFailureRestoresOriginalAndKeepsStagingDiscardable()
     {
         await using var temporary = new TemporaryDirectory();
@@ -758,7 +787,8 @@ public sealed class RestoreArchiveTests
         return bytes;
     }
 
-    private static async Task WriteWorldArchiveAsync(string path, GameInstance sourceInstance)
+    private static async Task WriteWorldArchiveAsync(string path, GameInstance sourceInstance,
+        Func<WorldBackupManifest, WorldBackupManifest>? changeManifest = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var worldMetadata = WorldTestFixture.Create(name: "Archive World", version: "1.21.1", gameType: 0, lastPlayed: 1_000);
@@ -774,6 +804,7 @@ public sealed class RestoreArchiveTests
                 sourceInstance.FolderName, sourceInstance.VersionID, "vanilla", null),
             Datapacks = []
         };
+        if (changeManifest is not null) manifest = changeManifest(manifest);
         await using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
         using var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true);
         AddEntry(archive, "data.json", JsonSerializer.SerializeToUtf8Bytes(manifest, HakoJsonContext.Default.WorldBackupManifest));
