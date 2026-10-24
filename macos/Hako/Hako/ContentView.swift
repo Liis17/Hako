@@ -53,11 +53,15 @@ struct ContentView: View {
         .onChange(of: accounts.isEmpty) { _, isEmpty in
             isSigningIn = false
             if isEmpty { sessions.signOut() }
-            presentation.accountsChanged(hasAccount: !isEmpty, restoreVisible: backupRestore.isPresented || backupRestore.completionMessage != nil)
+            presentation.accountsChanged(hasAccount: !isEmpty, restoreVisible: backupRestore.shouldPresentRestoreLauncher)
         }
         .onChange(of: accounts.first?.persistentModelID) { characterEditor.invalidateForAccountChange() }
         .task(id: accounts.first?.persistentModelID) { if let account = accounts.first { await sessions.monitor(account) } }
         .onAppear {
+            if backupRestore.shouldPresentRestoreLauncher {
+                isSigningIn = false
+                presentation.restoreRequested()
+            }
             let renameExit = renameExit, openWindow = openWindow
             quickLaunch.registerWindowPresenter { [weak renameExit] in
                 if let window = renameExit?.window { window.makeKeyAndOrderFront(nil) }
@@ -74,9 +78,10 @@ struct ContentView: View {
             if quickLaunch.presentation != nil { isSigningIn = false; presentation.restoreRequested() }
         }
         .task(id: backupRestore.presentationRequestID) {
-            guard backupRestore.presentationRequestID != nil else { return }
+            guard let requestID = backupRestore.presentationRequestID else { return }
             isSigningIn = false
             presentation.restoreRequested()
+            backupRestore.consumePresentationRequest(requestID)
         }
         .onDisappear { quickLaunch.cancelPresentations() }
         .alert("Не удалось запустить сборку", isPresented: Binding(get: { quickLaunch.error != nil }, set: { if !$0 { quickLaunch.error = nil } })) {

@@ -651,24 +651,31 @@ import zlib
         try FileManager.default.copyItem(at: archive, to: second)
         let installations = InstallationCoordinator(context: container.mainContext, storage: .init(root: root))
         let coordinator = BackupRestoreCoordinator(installations: installations, content: InstanceContentController(installations: installations))
+        var presentationCount = 0
+        coordinator.registerWindowPresenter { presentationCount += 1 }
 
         coordinator.enqueue([archive, alias, second])
         #expect(coordinator.currentURL?.standardizedFileURL == archive.standardizedFileURL && coordinator.queuedCount == 1)
+        #expect(presentationCount == 1)
         coordinator.enqueue([alias])
         #expect(coordinator.queuedCount == 1)
+        #expect(presentationCount == 2)
         coordinator.cancelOrDismiss()
+        for _ in 0..<500 where coordinator.currentURL?.standardizedFileURL != second.standardizedFileURL { try await Task.sleep(for: .milliseconds(10)) }
         #expect(coordinator.currentURL?.standardizedFileURL == second.standardizedFileURL)
+        #expect(presentationCount == 3)
         for _ in 0..<500 where coordinator.staged == nil && coordinator.errorMessage == nil { try await Task.sleep(for: .milliseconds(10)) }
         #expect(coordinator.staged?.archive.standardizedFileURL == second.standardizedFileURL)
         #expect(coordinator.instanceName == "Restore Pack 2")
+        let canceledStage = try #require(coordinator.staged?.directory)
+        let canceledMarker = canceledStage.deletingLastPathComponent().appendingPathComponent(canceledStage.lastPathComponent + ".owner")
         coordinator.cancelOrDismiss()
-        for _ in 0..<100 {
-            let stages = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil))?.filter { $0.lastPathComponent.hasPrefix(".restore-stage-") } ?? []
-            if stages.isEmpty { break }
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        #expect(coordinator.isCleaningStage)
+        for _ in 0..<500 where coordinator.isCleaningStage { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(!coordinator.isCleaningStage)
         #expect(coordinator.currentURL == nil && coordinator.queuedCount == 0 && coordinator.staged == nil)
-        #expect(try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).allSatisfy { !$0.lastPathComponent.hasPrefix(".restore-stage-") })
+        #expect(!FileManager.default.fileExists(atPath: canceledStage.path))
+        #expect(!FileManager.default.fileExists(atPath: canceledMarker.path))
     }
 
     @Test func restoreFilesystemFailureAndSaveFailureRollBackWithoutMerging() async throws {

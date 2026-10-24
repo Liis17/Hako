@@ -42,6 +42,7 @@ nonisolated enum WorldRestoreAction: String, Sendable {
     private(set) var currentURL: URL?
     private(set) var isPreparing = false
     private(set) var isCommitting = false
+    private(set) var isCleaningStage = false
     private(set) var errorMessage: String?
     private(set) var completionMessage: String?
     private(set) var presentationRequestID: UUID?
@@ -84,6 +85,9 @@ nonisolated enum WorldRestoreAction: String, Sendable {
 
     var isPresented: Bool { currentURL != nil }
     var isQueueing: Bool { !queue.isEmpty }
+    var shouldPresentRestoreLauncher: Bool {
+        isPresented || isQueueing || isCleaningStage || completionMessage != nil || navigation != nil
+    }
     var queuedCount: Int { queue.count }
     var archiveName: String { currentURL?.lastPathComponent ?? "" }
     var currentKind: RestoreArchiveKind? { staged?.kind }
@@ -109,7 +113,7 @@ nonisolated enum WorldRestoreAction: String, Sendable {
             queue.append(.init(id: UUID(), url: url, keys: keys))
         }
         if currentURL != nil || !queue.isEmpty { requestWindowPresentation() }
-        beginNextIfNeeded()
+        beginNextIfNeeded(presentWindow: false)
     }
 
     private func requestWindowPresentation() {
@@ -117,10 +121,17 @@ nonisolated enum WorldRestoreAction: String, Sendable {
         windowPresenter?()
     }
 
+    func consumePresentationRequest(_ id: UUID) {
+        guard presentationRequestID == id else { return }
+        presentationRequestID = nil
+    }
+
     func cancelOrDismiss() {
-        guard !isCommitting else { return }
-        preparationTask?.cancel()
-        preparationTask = nil
+        guard !isCommitting, !isCleaningStage else { return }
+        if let preparationTask {
+            preparationTask.cancel()
+            return
+        }
         finishCurrent()
     }
 
@@ -336,11 +347,12 @@ nonisolated enum WorldRestoreAction: String, Sendable {
         return names.contains { Self.worldFolderKey($0) == Self.worldFolderKey(archived) }
     }
 
-    private func beginNextIfNeeded() {
-        guard active == nil, currentURL == nil, let next = queue.first else { return }
+    private func beginNextIfNeeded(presentWindow: Bool = true) {
+        guard !isCleaningStage, active == nil, currentURL == nil, let next = queue.first else { return }
         queue.removeFirst()
         active = next
         currentURL = next.url
+        if presentWindow { windowPresenter?() }
         worldTargetID = nil
         applyWorldDefaults {
             worldAction = .copy
@@ -359,7 +371,14 @@ nonisolated enum WorldRestoreAction: String, Sendable {
             guard let self else { return }
             do {
                 let result = try await RestoreArchive.prepare(next.url, under: self.installations.store.storage.root)
-                guard self.active?.id == id else { RestoreArchive.discardStage(result.directory); return }
+                if Task.isCancelled || self.active?.id != id {
+                    await RestoreArchive.discardStageOffActor(result.directory)
+                    guard self.active?.id == id else { return }
+                    self.isPreparing = false
+                    self.preparationTask = nil
+                    self.finishCurrent()
+                    return
+                }
                 self.staged = result
                 self.isPreparing = false
                 self.preparationTask = nil
@@ -396,7 +415,7 @@ nonisolated enum WorldRestoreAction: String, Sendable {
                         ((try? $0.fabricConfiguration()?.loaderVersion) ?? nil) == manifest.sourceInstance.loaderVersion
                 }
                 selectWorldTarget(compatible.count == 1 ? compatible[0].id : nil)
-                if compatible.count != 1 { worldName = manifest.name }
+                if compatible.count != 1 { applyWorldDefaults { worldName = manifest.name } }
             }
         }
     }
@@ -533,7 +552,7 @@ nonisolated enum WorldRestoreAction: String, Sendable {
                 throw WorldRestoreCommitFailure(message: String(appLocalized: "Не удалось откатить восстановление мира. Данные сохранены по путям: \(recovery.map(\.path).joined(separator: ", "))"), recoveryLocations: recovery)
             }
             if let targetStage, FileManager.default.fileExists(atPath: targetStage.path) {
-                do { try RestoreArchive.discardWorldStage(targetStage) }
+                do { try await RestoreArchive.discardWorldStage(targetStage) }
                 catch {
                     throw WorldRestoreCommitFailure(
                         message: String(appLocalized: "Не удалось очистить временную папку восстановления. Данные сохранены по пути: \(targetStage.path)"),
@@ -636,8 +655,9 @@ nonisolated enum WorldRestoreAction: String, Sendable {
     }
 
     private func finishCurrent(preserve: Bool? = nil) {
+        guard !isCleaningStage else { return }
         let keep = preserve ?? preserveStage
-        if !keep, let directory = staged?.directory { RestoreArchive.discardStage(directory) }
+        let directoryToDiscard = keep ? nil : staged?.directory
         if let active {
             active.url.stopAccessingSecurityScopedResource()
             identifiers.subtract(active.keys)
@@ -651,8 +671,23 @@ nonisolated enum WorldRestoreAction: String, Sendable {
         awaitingConfirmation = false
         preserveStage = false
         preparationTask = nil
-        beginNextIfNeeded()
-        if currentURL == nil, queue.isEmpty, let navigationAfterQueue {
+        if let directoryToDiscard {
+            isCleaningStage = true
+            Task { [weak self] in
+                await RestoreArchive.discardStageOffActor(directoryToDiscard)
+                guard let self else { return }
+                self.isCleaningStage = false
+                self.beginNextIfNeeded()
+                self.publishNavigationIfQueueDrained()
+            }
+        } else {
+            beginNextIfNeeded()
+            publishNavigationIfQueueDrained()
+        }
+    }
+
+    private func publishNavigationIfQueueDrained() {
+        if currentURL == nil, queue.isEmpty, !isCleaningStage, let navigationAfterQueue {
             self.navigationAfterQueue = nil
             navigation = navigationAfterQueue
         }

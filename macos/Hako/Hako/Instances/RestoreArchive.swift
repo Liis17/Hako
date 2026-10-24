@@ -149,6 +149,14 @@ nonisolated enum RestoreArchive {
     }
 
     static func discardStage(_ directory: URL) {
+        discardStageContents(directory)
+    }
+
+    @concurrent static func discardStageOffActor(_ directory: URL) async {
+        discardStageContents(directory)
+    }
+
+    private static func discardStageContents(_ directory: URL) {
         guard directory.lastPathComponent.hasPrefix(".restore-stage-") else { return }
         let marker = ownershipMarkerURL(for: directory)
         let token = String(directory.lastPathComponent.dropFirst(".restore-stage-".count))
@@ -161,7 +169,11 @@ nonisolated enum RestoreArchive {
         if scratchIsMissing(directory) { try? FileManager.default.removeItem(at: marker) }
     }
 
-    static func discardWorldStage(_ directory: URL) throws {
+    @concurrent static func discardWorldStage(_ directory: URL) async throws {
+        try discardWorldStageContents(directory)
+    }
+
+    private static func discardWorldStageContents(_ directory: URL) throws {
         guard directory.lastPathComponent.hasPrefix(".hako-restore-world-") else { return }
         let marker = ownershipMarkerURL(for: directory)
         var metadata = stat()

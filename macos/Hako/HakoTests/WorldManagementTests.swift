@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SwiftData
 import Testing
 
@@ -57,8 +58,13 @@ import Testing
     }
 
     private func waitForRestoreCommit(_ coordinator: BackupRestoreCoordinator) async throws {
-        for _ in 0..<500 where coordinator.isCommitting { try await Task.sleep(for: .milliseconds(10)) }
-        #expect(!coordinator.isCommitting)
+        for _ in 0..<500 where coordinator.isCommitting || coordinator.isCleaningStage { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(!coordinator.isCommitting && !coordinator.isCleaningStage)
+    }
+
+    private func waitForRestoreCleanup(_ coordinator: BackupRestoreCoordinator) async throws {
+        for _ in 0..<500 where coordinator.isCleaningStage { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(!coordinator.isCleaningStage)
     }
 
     private func waitForRestoreArchive(_ coordinator: BackupRestoreCoordinator, _ archive: URL) async throws {
@@ -66,6 +72,87 @@ import Testing
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(coordinator.currentURL == archive && coordinator.staged != nil)
+    }
+
+    @Test func restorePresentationRequestIsConsumedAndDoesNotReplayAfterCancellationOrCompletion() async throws {
+        let (container, root, instance, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let archive = try await backupArchive(in: root, instance: instance)
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content)
+
+        coordinator.enqueue([archive])
+        let firstRequest = try #require(coordinator.presentationRequestID)
+        coordinator.consumePresentationRequest(UUID())
+        #expect(coordinator.presentationRequestID == firstRequest)
+        var firstWindow = LauncherPresentationState()
+        firstWindow.restoreRequested()
+        coordinator.consumePresentationRequest(firstRequest)
+        #expect(coordinator.presentationRequestID == nil && firstWindow.isGuestLauncher)
+        var reopenedWhileActive = LauncherPresentationState()
+        reopenedWhileActive.accountsChanged(hasAccount: false, restoreVisible: coordinator.shouldPresentRestoreLauncher)
+        #expect(reopenedWhileActive.isGuestLauncher)
+
+        try await waitForRestoreStage(coordinator)
+        let canceledStage = try #require(coordinator.staged?.directory)
+        let canceledMarker = canceledStage.deletingLastPathComponent().appendingPathComponent(canceledStage.lastPathComponent + ".owner")
+        coordinator.cancelOrDismiss()
+        #expect(coordinator.isCleaningStage)
+        try await waitForRestoreCleanup(coordinator)
+        #expect(!FileManager.default.fileExists(atPath: canceledStage.path))
+        #expect(!FileManager.default.fileExists(atPath: canceledMarker.path))
+        var reopenedAfterCancel = LauncherPresentationState()
+        reopenedAfterCancel.accountsChanged(hasAccount: false, restoreVisible: coordinator.shouldPresentRestoreLauncher)
+        #expect(!reopenedAfterCancel.isGuestLauncher)
+
+        coordinator.enqueue([archive])
+        let secondRequest = try #require(coordinator.presentationRequestID)
+        #expect(secondRequest != firstRequest)
+        coordinator.consumePresentationRequest(firstRequest)
+        #expect(coordinator.presentationRequestID == secondRequest)
+        var secondWindow = LauncherPresentationState()
+        secondWindow.restoreRequested()
+        coordinator.consumePresentationRequest(secondRequest)
+        #expect(coordinator.presentationRequestID == nil && secondWindow.isGuestLauncher)
+        try await waitForRestoreStage(coordinator)
+        coordinator.selectWorldTarget(instance.id)
+        coordinator.setWorldAction(.copy)
+        coordinator.requestCommit()
+        try await waitForRestoreCommit(coordinator)
+        let navigation = try #require(coordinator.navigation)
+        coordinator.completeNavigation(navigation.id)
+        #expect(!coordinator.shouldPresentRestoreLauncher)
+        var reopenedAfterCompletion = LauncherPresentationState()
+        reopenedAfterCompletion.accountsChanged(hasAccount: false, restoreVisible: coordinator.shouldPresentRestoreLauncher)
+        #expect(!reopenedAfterCompletion.isGuestLauncher)
+    }
+
+    @Test func offActorDiscardPreservesOwnerMarkersForUnsafeScratchPaths() async throws {
+        let (_, root, _, _) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let external = root.appendingPathComponent("keep", isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        let sentinel = external.appendingPathComponent("sentinel")
+        try Data("keep".utf8).write(to: sentinel)
+
+        let token = "\(getpid())-\(UUID().uuidString)"
+        let stage = root.appendingPathComponent(".restore-stage-\(token)", isDirectory: true)
+        let owner = root.appendingPathComponent(stage.lastPathComponent + ".owner")
+        try FileManager.default.createSymbolicLink(at: stage, withDestinationURL: external)
+        try Data(token.utf8).write(to: owner)
+        await RestoreArchive.discardStageOffActor(stage)
+        #expect(FileManager.default.fileExists(atPath: stage.path))
+        #expect(FileManager.default.fileExists(atPath: owner.path))
+        #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
+
+        let worldToken = "\(getpid())-\(UUID().uuidString)"
+        let worldStage = root.appendingPathComponent(".hako-restore-world-\(worldToken)", isDirectory: true)
+        let worldOwner = root.appendingPathComponent(worldStage.lastPathComponent + ".owner")
+        try FileManager.default.createSymbolicLink(at: worldStage, withDestinationURL: external)
+        try Data(worldToken.utf8).write(to: worldOwner)
+        await #expect(throws: InstanceFileError.self) { try await RestoreArchive.discardWorldStage(worldStage) }
+        #expect(FileManager.default.fileExists(atPath: worldStage.path))
+        #expect(FileManager.default.fileExists(atPath: worldOwner.path))
+        #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
     }
 
     @Test func datapackDisablingIsReversibleAndWorldScoped() async throws {
@@ -273,6 +360,7 @@ import Testing
         #expect(exactCoordinator.needsConfirmation)
         #expect(exactCoordinator.confirmationMessage.contains("1.21.1") && exactCoordinator.confirmationMessage.contains("1.20.4"))
         exactCoordinator.cancelOrDismiss()
+        try await waitForRestoreCleanup(exactCoordinator)
         try FileManager.default.removeItem(at: exactArchive)
         source.versionID = "1.21.1"
 
@@ -307,6 +395,7 @@ import Testing
         #expect(coordinator.confirmationMessage.contains("Мир будет установлен в другую сборку."))
         #expect(!coordinator.confirmationMessage.contains("Версия Minecraft отличается"))
         coordinator.cancelOrDismiss()
+        try await waitForRestoreCleanup(coordinator)
     }
 
     @Test func changingWorldTargetPreservesEditsAndRechecksFolderConflict() async throws {
@@ -393,8 +482,46 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: world.appendingPathComponent("region.dat").path))
         #expect(content.installations.store.contentBusy.isEmpty)
         #expect(moveCount == 3)
+        let stage = try #require(coordinator.staged?.directory)
+        let marker = stage.deletingLastPathComponent().appendingPathComponent(stage.lastPathComponent + ".owner")
         coordinator.cancelOrDismiss()
         #expect(coordinator.staged == nil && coordinator.currentURL == nil)
+        #expect(coordinator.isCleaningStage)
+        try await waitForRestoreCleanup(coordinator)
+        #expect(!FileManager.default.fileExists(atPath: stage.path))
+        #expect(!FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    @Test func failedWorldRollbackPreservesArchiveStageAndOwnerMarkerAfterDismissal() async throws {
+        let (container, root, instance, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let world = root.appendingPathComponent("Source/minecraft/saves/World", isDirectory: true)
+        try Data("recovery data".utf8).write(to: world.appendingPathComponent("recovery-only.txt"))
+        let archive = try await backupArchive(in: root, instance: instance)
+        var moveCount = 0
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content, worldMove: { source, destination in
+            moveCount += 1
+            if moveCount == 2 || moveCount == 3 { throw InstanceFileError.message("Injected swap and rollback failure") }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        coordinator.enqueue([archive])
+        try await waitForRestoreStage(coordinator)
+        coordinator.selectWorldTarget(instance.id)
+        coordinator.requestCommit()
+        coordinator.commitConfirmed()
+        try await waitForRestoreCommit(coordinator)
+
+        let stage = try #require(coordinator.staged?.directory)
+        let marker = stage.deletingLastPathComponent().appendingPathComponent(stage.lastPathComponent + ".owner")
+        let recovery = try #require(try FileManager.default.contentsOfDirectory(at: world.deletingLastPathComponent(), includingPropertiesForKeys: nil)
+            .first(where: { $0.lastPathComponent.hasPrefix(".hako-restore-retired-world-") }))
+        #expect(coordinator.errorMessage != nil)
+        #expect(try Data(contentsOf: recovery.appendingPathComponent("recovery-only.txt")) == Data("recovery data".utf8))
+
+        coordinator.cancelOrDismiss()
+        #expect(coordinator.staged == nil && !coordinator.isCleaningStage)
+        #expect(FileManager.default.fileExists(atPath: stage.path))
+        #expect(FileManager.default.fileExists(atPath: marker.path))
     }
 
     @Test func deletionRequiresConfirmationAndRevalidatesWorld() async throws {
