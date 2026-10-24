@@ -4,7 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Hako">
     <Grid Padding="32" RowDefinitions="Auto,Auto,*" RowSpacing="16">
-        <TextBlock x:Name="BuildsTitle" FontSize="32" FontWeight="SemiBold" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <TextBlock x:Name="BuildsTitle" FontSize="32" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button x:Name="RestoreFileButton" Grid.Column="1" Click="RestoreFileButton_Click" />
+        </Grid>
         <StackPanel Grid.Row="1" Spacing="6">
             <InfoBar x:Name="RegistryError" Severity="Error" IsClosable="False" IsOpen="False" />
             <InfoBar x:Name="PlaytimeError" Severity="Warning" IsClosable="False" IsOpen="False" />

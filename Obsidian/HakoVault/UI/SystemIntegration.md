@@ -43,6 +43,27 @@ observable request открывает лаунчер даже при холод�
 применения целевого раздела либо отмены перехода, а очередь файлов оставляет переход к последнему успеху.
 Восстановление файлов никогда не вызывает запуск игры.
 
+## Открытие архивов в Windows
+
+`windows/Hako/Package.appxmanifest` объявляет `.hakobackup` и `.hakoworld` через `uap:FileTypeAssociation`.
+При холодном запуске `Program.Main` читает `AppInstance.GetActivatedEventArgs()` до `Application.Start`
+и сохраняет пути файловой активации до инициализации `App`. Для распакованного запуска он также принимает
+позиционные пути с этими расширениями; `--hako-root` и `--data-root` продолжают разбираться как параметры.
+
+В открытом процессе `Program` получает `FileActivatedEventArgs.Files` из `AppInstance.Activated`, ставит
+передачу путей на `DispatcherQueue` и активирует главное окно. Если Windows запустила второй процесс,
+его аргументы активации перенаправляются зарегистрированному экземпляру. `App.QueueRestoreFiles`
+нормализует пути и добавляет их в app-lifetime `BackupRestoreQueue`: запросы выполняются по одному,
+а путь, уже ожидающий или обрабатываемый, повторно не добавляется. Очередь начинает работу после
+`InstanceStore.LoadAsync` и `AppCoordinator.InitializeAsync`; без аккаунта открывается гостевой лаунчер,
+сохранённый аккаунт остаётся без изменений. Если хранилище не загрузилось, импорт не начинается.
+
+`BuildsPage` запускает `FileOpenPicker` для двух расширений, инициализируя его HWND текущего WinUI-окна.
+Обработка использует `RestoreArchive` и `BackupRestoreDialog` ([[Data/Backups]]). После последнего
+успеха `MainWindow.NavigateToRestoreAsync` вызывает общий `NavigateAsync`, который проверяет
+`INavigationGuard`; сборка открывается в профиле, мир — в разделе «Миры». Ни активация файла,
+ни восстановление сами по себе не запускают Minecraft.
+
 ## Dock
 
 `HakoApplicationDelegate.applicationDockMenu` в `macos/Hako/Hako/Instances/InstanceRenameExitCoordinator.swift`

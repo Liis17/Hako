@@ -16,8 +16,6 @@ namespace Hako;
 /// <summary>Build profile (InstanceProfileView on macOS): header, «Играть», installation controls, «⋯» and the «Настройки» section.</summary>
 public sealed partial class InstanceProfilePage : Page, INavigationGuard
 {
-    private enum ProfileSection { Mods, ResourcePacks, Worlds, Screenshots, Settings }
-
     private LauncherServices? _services;
     private Guid _id;
     private GameInstance? _instance;
@@ -37,7 +35,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
     private string? _nameErrorKey;
     private readonly NameValidation _nameValidation = new();
     private int _instancesChangedPending;
-    private ProfileSection _selectedSection = ProfileSection.Settings;
+    private InstanceProfileSection _selectedSection = InstanceProfileSection.Settings;
     private bool _updatingSectionTabs;
 
     public InstanceProfilePage()
@@ -78,16 +76,16 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         _instance = Current();
         if (_instance is { } instance)
         {
-            _selectedSection = instance.ModLoader == InstanceModLoader.Fabric
-                ? ProfileSection.Mods : ProfileSection.ResourcePacks;
-            if (_services.PreviewOptions is { Mode: ProfilePreviewMode.Builds } preview)
+            _selectedSection = context.InitialSection ?? (instance.ModLoader == InstanceModLoader.Fabric
+                ? InstanceProfileSection.Mods : InstanceProfileSection.ResourcePacks);
+            if (context.InitialSection is null && _services.PreviewOptions is { Mode: ProfilePreviewMode.Builds } preview)
             {
                 _selectedSection = preview.Page switch
                 {
-                    PreviewPage.Content or PreviewPage.Catalog => ProfileSection.Mods,
-                    PreviewPage.ResourcePacks => ProfileSection.ResourcePacks,
-                    PreviewPage.Worlds or PreviewPage.Datapacks or PreviewPage.DatapackCatalog => ProfileSection.Worlds,
-                    PreviewPage.Screenshots => ProfileSection.Screenshots,
+                    PreviewPage.Content or PreviewPage.Catalog => InstanceProfileSection.Mods,
+                    PreviewPage.ResourcePacks => InstanceProfileSection.ResourcePacks,
+                    PreviewPage.Worlds or PreviewPage.Datapacks or PreviewPage.DatapackCatalog => InstanceProfileSection.Worlds,
+                    PreviewPage.Screenshots => InstanceProfileSection.Screenshots,
                     _ => _selectedSection
                 };
             }
@@ -272,13 +270,13 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
     {
         var hasMods = instance.ModLoader == InstanceModLoader.Fabric;
         ModsSectionButton.Visibility = hasMods ? Visibility.Visible : Visibility.Collapsed;
-        if (!hasMods && _selectedSection == ProfileSection.Mods)
-            _selectedSection = ProfileSection.ResourcePacks;
+        if (!hasMods && _selectedSection == InstanceProfileSection.Mods)
+            _selectedSection = InstanceProfileSection.ResourcePacks;
 
-        var showContent = _selectedSection is ProfileSection.Mods or ProfileSection.ResourcePacks;
-        var showWorlds = _selectedSection == ProfileSection.Worlds;
-        var showScreenshots = _selectedSection == ProfileSection.Screenshots;
-        SettingsSection.Visibility = _selectedSection == ProfileSection.Settings ? Visibility.Visible : Visibility.Collapsed;
+        var showContent = _selectedSection is InstanceProfileSection.Mods or InstanceProfileSection.ResourcePacks;
+        var showWorlds = _selectedSection == InstanceProfileSection.Worlds;
+        var showScreenshots = _selectedSection == InstanceProfileSection.Screenshots;
+        SettingsSection.Visibility = _selectedSection == InstanceProfileSection.Settings ? Visibility.Visible : Visibility.Collapsed;
         ContentSection.Visibility = showContent ? Visibility.Visible : Visibility.Collapsed;
         WorldsSection.Visibility = showWorlds ? Visibility.Visible : Visibility.Collapsed;
         ScreenshotsSection.Visibility = showScreenshots ? Visibility.Visible : Visibility.Collapsed;
@@ -289,7 +287,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         _updatingSectionTabs = false;
         if (showContent)
         {
-            var kind = _selectedSection == ProfileSection.Mods
+            var kind = _selectedSection == InstanceProfileSection.Mods
                 ? ModrinthContentKind.Mod : ModrinthContentKind.ResourcePack;
             ContentSection.Configure(services, instance, kind);
         }
@@ -301,10 +299,10 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         ScreenshotsSection.SetActive(showScreenshots);
     }
 
-    private void SelectSection(ProfileSection section)
+    internal void SelectSection(InstanceProfileSection section)
     {
         if (_instance is not { } instance || _services is not { } services) return;
-        if (section == ProfileSection.Mods && instance.ModLoader != InstanceModLoader.Fabric) return;
+        if (section == InstanceProfileSection.Mods && instance.ModLoader != InstanceModLoader.Fabric) return;
         _selectedSection = section;
         RefreshSections(services, instance);
     }
@@ -312,7 +310,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
     private void SectionTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_updatingSectionTabs || SectionTabs.SelectedItem is not RadioButton { Tag: string tag }) return;
-        if (Enum.TryParse<ProfileSection>(tag, out var section)) SelectSection(section);
+        if (Enum.TryParse<InstanceProfileSection>(tag, out var section)) SelectSection(section);
     }
 
     internal void WindowReturned()

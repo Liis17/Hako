@@ -32,12 +32,18 @@ internal sealed record LauncherServices(
     InstanceScreenshots Screenshots,
     InstanceBackup Backups,
     WorldBackup WorldBackups,
+    RestoreArchive Restores,
     HttpClient? PreviewModrinthHttpClient,
     MinecraftSkinPreviewService SkinPreview,
     ProfilePreviewOptions? PreviewOptions,
     PlaytimeCoordinator Playtime);
 
-internal sealed record InstanceProfileContext(LauncherServices Services, Guid InstanceId);
+internal enum InstanceProfileSection { Mods, ResourcePacks, Worlds, Screenshots, Settings }
+
+internal sealed record InstanceProfileContext(
+    LauncherServices Services,
+    Guid InstanceId,
+    InstanceProfileSection? InitialSection = null);
 
 /// <summary>A page with unsaved input asks before the window navigates away or closes.</summary>
 internal interface INavigationGuard
@@ -173,7 +179,10 @@ internal static class HakoDialogs
         }
     }
 
-    private static async Task<ContentDialogResult> ShowAsync(Func<ContentDialog> createDialog, CancellationToken cancellationToken)
+    private static async Task<ContentDialogResult> ShowAsync(
+        Func<ContentDialog> createDialog,
+        CancellationToken cancellationToken,
+        Action<ContentDialog>? opened = null)
     {
         CancellationToken windowToken;
         lock (WindowSync)
@@ -229,14 +238,14 @@ internal static class HakoDialogs
                 return await ShowOnUiThreadAsync(createDialog, cancellationToken, dialog =>
                 {
                     lock (dialogSync) activeDialog = dialog;
-                });
+                }, opened);
             }
 
             if (!dispatcher.TryEnqueue(() => _ = CompleteOnUiThreadAsync(createDialog, cancellationToken,
                     dialog =>
                     {
                         lock (dialogSync) activeDialog = dialog;
-                    }, completion)))
+                    }, completion, opened)))
             {
                 return ContentDialogResult.None;
             }
@@ -246,6 +255,93 @@ internal static class HakoDialogs
         finally
         {
             Gate.Release();
+        }
+    }
+
+    public static async Task<(bool Cancelled, T? Value)> ShowProgressAsync<T>(
+        ContentDialog dialog,
+        Func<CancellationToken, Task<T>> operation,
+        Action<ContentDialog>? refresh = null)
+    {
+        using var operationCancellation = new CancellationTokenSource();
+        var operationCompletion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operationStarted = false;
+        var operationFinished = 0;
+        var userCancelled = 0;
+        EventHandler? languageChanged = null;
+        dialog.CloseButtonClick += (_, _) => Interlocked.Exchange(ref userCancelled, 1);
+        dialog.Closing += (_, _) =>
+        {
+            if (Volatile.Read(ref operationFinished) == 0) Interlocked.Exchange(ref userCancelled, 1);
+        };
+
+        async Task RunOperationAsync(ContentDialog activeDialog)
+        {
+            try
+            {
+                var value = await operation(operationCancellation.Token);
+                Volatile.Write(ref operationFinished, 1);
+                operationCompletion.TrySetResult(value);
+            }
+            catch (OperationCanceledException)
+            {
+                Volatile.Write(ref operationFinished, 1);
+                operationCompletion.TrySetCanceled(operationCancellation.Token);
+            }
+            catch (Exception exception)
+            {
+                Volatile.Write(ref operationFinished, 1);
+                operationCompletion.TrySetException(exception);
+            }
+            finally
+            {
+                DispatcherQueue? dispatcher;
+                lock (WindowSync) dispatcher = _dispatcher;
+                if (dispatcher?.HasThreadAccess == true) HideDialog(activeDialog);
+                else dispatcher?.TryEnqueue(() => HideDialog(activeDialog));
+            }
+        }
+
+        try
+        {
+            await ShowAsync(() =>
+            {
+                refresh?.Invoke(dialog);
+                if (refresh is not null)
+                {
+                    languageChanged = (_, _) => refresh(dialog);
+                    HakoStrings.LanguageChanged += languageChanged;
+                }
+                return dialog;
+            }, CancellationToken.None, activeDialog =>
+            {
+                operationStarted = true;
+                _ = RunOperationAsync(activeDialog);
+            });
+
+            // The operation never starts when the dialog failed to open, so there is nothing to wait for.
+            if (!operationStarted) return (true, default);
+
+            if (Volatile.Read(ref userCancelled) != 0)
+            {
+                operationCancellation.Cancel();
+                try { return (true, await operationCompletion.Task); }
+                catch (OperationCanceledException) { }
+                return (true, default);
+            }
+
+            try
+            {
+                return (false, await operationCompletion.Task);
+            }
+            catch (OperationCanceledException)
+            {
+                return (true, default);
+            }
+        }
+        finally
+        {
+            if (languageChanged is not null) HakoStrings.LanguageChanged -= languageChanged;
         }
     }
 
@@ -302,11 +398,11 @@ internal static class HakoDialogs
 
     private static async Task CompleteOnUiThreadAsync(Func<ContentDialog> createDialog,
         CancellationToken cancellationToken, Action<ContentDialog?> setDialog,
-        TaskCompletionSource<ContentDialogResult> completion)
+        TaskCompletionSource<ContentDialogResult> completion, Action<ContentDialog>? opened)
     {
         try
         {
-            completion.TrySetResult(await ShowOnUiThreadAsync(createDialog, cancellationToken, setDialog));
+            completion.TrySetResult(await ShowOnUiThreadAsync(createDialog, cancellationToken, setDialog, opened));
         }
         catch (Exception exception)
         {
@@ -315,7 +411,8 @@ internal static class HakoDialogs
     }
 
     private static async Task<ContentDialogResult> ShowOnUiThreadAsync(
-        Func<ContentDialog> createDialog, CancellationToken cancellationToken, Action<ContentDialog?> setDialog)
+        Func<ContentDialog> createDialog, CancellationToken cancellationToken, Action<ContentDialog?> setDialog,
+        Action<ContentDialog>? opened = null)
     {
         if (cancellationToken.IsCancellationRequested) return ContentDialogResult.None;
         var root = Root;
@@ -325,6 +422,7 @@ internal static class HakoDialogs
         dialog.XamlRoot = root;
         dialog.RequestedTheme = (root.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Default;
         setDialog(dialog);
+        if (opened is not null) dialog.Opened += (_, _) => opened(dialog);
 
         try
         {

@@ -33,6 +33,7 @@
     <Compile Include="..\Hako\ContentResourceKeys.cs" Link="ContentResourceKeys.cs" />
     <Compile Include="..\Hako\WorldResourceKeys.cs" Link="WorldResourceKeys.cs" />
     <Compile Include="..\Hako\BackupResourceKeys.cs" Link="BackupResourceKeys.cs" />
+    <Compile Include="..\Hako\BackupRestoreQueue.cs" Link="BackupRestoreQueue.cs" />
   </ItemGroup>
 
   <ItemGroup>

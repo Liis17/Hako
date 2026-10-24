@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
@@ -6,6 +8,7 @@ using Hako.Core.Playtime;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using WinRT;
+using Windows.ApplicationModel.Activation;
 
 namespace Hako;
 
@@ -49,6 +52,10 @@ internal static class Program
         }
 
         var activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
+        App.InitialRestorePaths = ExtractRestorePaths(args)
+            .Concat(ExtractRestorePaths(activationArgs))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         var instanceKey = App.LaunchOptions is not null
             ? "Hako.ProfilePreview"
             : App.LaunchPaths?.GetInstanceKey() ?? "Hako.Main";
@@ -64,10 +71,39 @@ internal static class Program
         {
             var dispatcher = DispatcherQueue.GetForCurrentThread();
             SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(dispatcher));
-            mainInstance.Activated += (_, _) => dispatcher.TryEnqueue(App.ActivateMainWindow);
+            mainInstance.Activated += (_, activation) =>
+            {
+                var paths = ExtractRestorePaths(activation);
+                dispatcher.TryEnqueue(() =>
+                {
+                    App.ActivateMainWindow();
+                    App.QueueRestoreFiles(paths);
+                });
+            };
             _ = new App();
         });
     }
+
+    private static IEnumerable<string> ExtractRestorePaths(string[] arguments) => arguments
+        .Where(IsRestoreArchivePath);
+
+    private static IEnumerable<string> ExtractRestorePaths(AppActivationArguments activation)
+    {
+        if (activation.Kind != ExtendedActivationKind.File
+            || activation.Data is not IFileActivatedEventArgs fileActivation)
+        {
+            return [];
+        }
+
+        return fileActivation.Files
+            .Select(file => file.Path)
+            .Where(IsRestoreArchivePath)
+            .ToArray();
+    }
+
+    private static bool IsRestoreArchivePath(string path) =>
+        Path.GetExtension(path).Equals(".hakobackup", StringComparison.OrdinalIgnoreCase)
+        || Path.GetExtension(path).Equals(".hakoworld", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryRunPlaytimeHelper(string[] args)
     {

@@ -543,4 +543,59 @@ Hako</value></data>
   <data name="PlaytimeStorageError" xml:space="preserve"><value>Minecraft playtime could not be updated because of a storage error.</value></data>
   <data name="PlaytimeHelperStartFailed" xml:space="preserve"><value>Could not start the background playtime helper. Time will be updated while Hako is open.</value></data>
   <data name="PlaytimeErrorDetails" xml:space="preserve"><value>Details: {0}</value></data>
+  <data name="RestoreOpenFile" xml:space="preserve"><value>Restore from file…</value></data>
+  <data name="RestoreTitle" xml:space="preserve"><value>Restore from backup</value></data>
+  <data name="RestoreCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="RestoreChecking" xml:space="preserve"><value>Checking and preparing the archive…</value></data>
+  <data name="RestoreRegistryUnavailable" xml:space="preserve"><value>The backup cannot be restored because the build list could not be loaded.</value></data>
+  <data name="RestoreBuildTitle" xml:space="preserve"><value>Restore build</value></data>
+  <data name="RestoreBuildDetails" xml:space="preserve"><value>Backup: {0}&#10;Minecraft: {1}&#10;Loader: {2}&#10;Mods: {3}</value></data>
+  <data name="RestoreNoMatchingBuild" xml:space="preserve"><value>No matching build was found</value></data>
+  <data name="RestoreApply" xml:space="preserve"><value>Restore</value></data>
+  <data name="RestoreCreateNew" xml:space="preserve"><value>Create a new build</value></data>
+  <data name="RestoreReplaceBuild" xml:space="preserve"><value>Replace the matching build</value></data>
+  <data name="RestoreBuildName" xml:space="preserve"><value>New build name</value></data>
+  <data name="RestoreJavaRequired" xml:space="preserve"><value>This backup needs a compatible Java runtime downloaded from the Internet.</value></data>
+  <data name="RestoreReplaceBuildTitle" xml:space="preserve"><value>Replace build?</value></data>
+  <data name="RestoreReplaceBuildMessage" xml:space="preserve"><value>The files in “{0}” will be replaced with the backup contents. This cannot be undone.</value></data>
+  <data name="RestoreReplace" xml:space="preserve"><value>Replace</value></data>
+  <data name="RestoreJavaTitle" xml:space="preserve"><value>Java installation required</value></data>
+  <data name="RestoreJavaConfirmation" xml:space="preserve"><value>Hako will queue this build and download a compatible Java runtime when an Internet connection is available. Continue?</value></data>
+  <data name="RestoreContinue" xml:space="preserve"><value>Continue</value></data>
+  <data name="RestoreQueueStartFailed" xml:space="preserve"><value>The build was restored but could not be added to the installation queue. Restart Hako to continue installation.</value></data>
+  <data name="RestoreNoReadyBuild" xml:space="preserve"><value>A ready build is required to restore a world.</value></data>
+  <data name="RestoreWorldTitle" xml:space="preserve"><value>Restore world</value></data>
+  <data name="RestoreWorldDetails" xml:space="preserve"><value>World backup: {0}&#10;Save version: {1}&#10;Game mode: {2}&#10;Source Minecraft: {3}&#10;Source loader: {4}</value></data>
+  <data name="RestoreUnknownVersion" xml:space="preserve"><value>not specified</value></data>
+  <data name="RestoreWorldBuild" xml:space="preserve"><value>Destination build</value></data>
+  <data name="RestoreWorldName" xml:space="preserve"><value>World name</value></data>
+  <data name="RestoreWorldFolder" xml:space="preserve"><value>World folder</value></data>
+  <data name="RestoreCopyWorld" xml:space="preserve"><value>Create a separate world copy</value></data>
+  <data name="RestoreReplaceWorld" xml:space="preserve"><value>Replace the world in the selected folder</value></data>
+  <data name="RestoreReplaceWorldWith" xml:space="preserve"><value>Replace “{0}”</value></data>
+  <data name="RestoreWorldBuildMismatchTitle" xml:space="preserve"><value>Build differs from the source</value></data>
+  <data name="RestoreWorldBuildMismatchMessage" xml:space="preserve"><value>The world will be restored to “{0}”, whose Minecraft version or loader differs from the source build. Continue?</value></data>
+  <data name="RestoreReplaceWorldTitle" xml:space="preserve"><value>Replace world?</value></data>
+  <data name="RestoreReplaceWorldMessage" xml:space="preserve"><value>The contents of “{0}” will be replaced. This cannot be undone.</value></data>
+  <data name="RestoreFabric" xml:space="preserve"><value>Fabric</value></data>
+  <data name="RestoreVanilla" xml:space="preserve"><value>Vanilla</value></data>
+  <data name="RestoreRecoveryDetails" xml:space="preserve"><value>Check the remaining recovery data at: {0}</value></data>
+  <data name="RestoreCleanupWarningTitle" xml:space="preserve"><value>Backup restored</value></data>
+  <data name="RestoreCleanupWarning" xml:space="preserve"><value>The restore completed, but temporary files from the previous version could not be removed.</value></data>
+  <data name="RestoreFailureUnsupportedFileType" xml:space="preserve"><value>Choose a .hakobackup or .hakoworld file.</value></data>
+  <data name="RestoreFailureFileUnavailable" xml:space="preserve"><value>The backup file could not be found or opened.</value></data>
+  <data name="RestoreFailureInvalidArchive" xml:space="preserve"><value>The archive is damaged or uses an unsupported format.</value></data>
+  <data name="RestoreFailureUnsafePath" xml:space="preserve"><value>The archive contains an unsafe path or link.</value></data>
+  <data name="RestoreFailureInvalidManifest" xml:space="preserve"><value>The backup manifest is damaged or does not match its contents.</value></data>
+  <data name="RestoreFailureInvalidBuild" xml:space="preserve"><value>The build contents are damaged or do not match the manifest.</value></data>
+  <data name="RestoreFailureInvalidWorld" xml:space="preserve"><value>The world data is damaged or does not match the manifest.</value></data>
+  <data name="RestoreFailureInvalidName" xml:space="preserve"><value>The destination name or folder is invalid.</value></data>
+  <data name="RestoreFailureInsufficientSpace" xml:space="preserve"><value>There is not enough free space to restore this backup.</value></data>
+  <data name="RestoreFailureRegistryUnavailable" xml:space="preserve"><value>The build list could not be loaded.</value></data>
+  <data name="RestoreFailureBuildUnavailable" xml:space="preserve"><value>The destination build is no longer available or is not ready.</value></data>
+  <data name="RestoreFailureBuildBusy" xml:space="preserve"><value>The build is busy with another operation. Try again later.</value></data>
+  <data name="RestoreFailureDestinationConflict" xml:space="preserve"><value>The destination folder is occupied or no longer exists.</value></data>
+  <data name="RestoreFailureRollbackFailed" xml:space="preserve"><value>The restore did not finish and the previous state could not be fully recovered.</value></data>
+  <data name="RestoreFailureCancelled" xml:space="preserve"><value>The restore was cancelled.</value></data>
+  <data name="RestoreFailureOperationFailed" xml:space="preserve"><value>The backup could not be restored.</value></data>
 </root>
