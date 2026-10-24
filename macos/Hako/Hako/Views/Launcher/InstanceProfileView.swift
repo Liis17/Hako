@@ -19,6 +19,7 @@ struct InstanceProfileView: View {
     let onDelete: () -> Void
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(InstallationCoordinator.self) private var installations
+    @Environment(BackupRestoreCoordinator.self) private var backupRestore
     @Environment(PlaytimeCoordinator.self) private var playtime
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var section = InstanceSection.packs
@@ -37,7 +38,7 @@ struct InstanceProfileView: View {
 
     private enum RenameAction {
         case save
-        case section(InstanceSection)
+        case section(InstanceSection, restoreNavigationID: UUID? = nil)
 
         var isSectionChange: Bool {
             if case .section = self { return true }
@@ -66,13 +67,18 @@ struct InstanceProfileView: View {
         }.frame(maxWidth: profileColumnWidth, maxHeight: .infinity, alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: syncPendingRename)
+        .onChange(of: backupRestore.navigation?.id, initial: true) {
+            guard let navigation = backupRestore.navigation, navigation.instanceID == instance.id else { return }
+            let target = navigation.world == nil ? (instance.modLoader == .fabric ? InstanceSection.mods : .packs) : .worlds
+            requestSectionChange(target, restoreNavigationID: navigation.id)
+        }
         .onChange(of: nameDraft) { syncPendingRename() }
         .onChange(of: instance.name) { oldName, newName in
             if nameDraft == oldName { nameDraft = newName }
             syncPendingRename()
         }
         .onDisappear { if renameExit.pendingRename?.instanceID == instance.id { renameExit.pendingRename = nil } }
-        .alert(actionError == nil ? "Переименовать сборку?" : "Не удалось выполнить действие", isPresented: Binding(get: { renameAction != nil || actionError != nil }, set: { if !$0 { renameAction = nil; actionError = nil } })) {
+        .alert(actionError == nil ? "Переименовать сборку?" : "Не удалось выполнить действие", isPresented: Binding(get: { renameAction != nil || actionError != nil }, set: { if !$0 { cancelRenameAction() } })) {
             if actionError != nil {
                 Button("ОК", role: .cancel) { actionError = nil }
             } else {
@@ -119,7 +125,7 @@ struct InstanceProfileView: View {
                 HStack(spacing: 8) { ProgressView().controlSize(.small); Text(operation).font(.callout).foregroundStyle(.secondary) }
             }
             if instance.state != .ready { installationPanel }
-            Picker("Раздел сборки", selection: Binding(get: { section }, set: requestSectionChange)) {
+            Picker("Раздел сборки", selection: Binding(get: { section }, set: { requestSectionChange($0) })) {
                 ForEach(InstanceSection.allCases) { item in
                     Text(item.title).tag(item)
                         .disabled(item == .mods && instance.modLoader != .fabric)
@@ -196,10 +202,16 @@ struct InstanceProfileView: View {
         withAnimation(.smooth) { catalog = .init(target: target) }
     }
 
-    private func requestSectionChange(_ newSection: InstanceSection) {
-        guard newSection != section else { return }
-        if nameDraft != instance.name { renameAction = .section(newSection) }
-        else { section = newSection }
+    private func requestSectionChange(_ newSection: InstanceSection, restoreNavigationID: UUID? = nil) {
+        guard newSection != section else {
+            if let restoreNavigationID { backupRestore.completeNavigation(restoreNavigationID) }
+            return
+        }
+        if nameDraft != instance.name { renameAction = .section(newSection, restoreNavigationID: restoreNavigationID) }
+        else {
+            section = newSection
+            if let restoreNavigationID { backupRestore.completeNavigation(restoreNavigationID) }
+        }
     }
 
     private func confirmRename() {
@@ -210,22 +222,37 @@ struct InstanceProfileView: View {
             try installations.store.rename(instance, to: nameDraft)
             nameDraft = instance.name
             renameExit.pendingRename = nil
-            if let renameAction, case .section(let newSection) = renameAction { section = newSection }
+            if let renameAction, case .section(let newSection, let restoreNavigationID) = renameAction {
+                section = newSection
+                if let restoreNavigationID { backupRestore.completeNavigation(restoreNavigationID) }
+            }
             renameAction = nil
             actionError = nil
         } catch {
+            if case .section(_, let restoreNavigationID) = renameAction, let restoreNavigationID {
+                backupRestore.cancelNavigation(restoreNavigationID)
+            }
             renameAction = nil
             actionError = error.localizedDescription
         }
     }
 
     private func declineRename() {
-        if let renameAction, case .section(let newSection) = renameAction {
+        if let renameAction, case .section(let newSection, let restoreNavigationID) = renameAction {
             nameDraft = instance.name
             renameExit.pendingRename = nil
             section = newSection
+            if let restoreNavigationID { backupRestore.completeNavigation(restoreNavigationID) }
         }
         renameAction = nil
+    }
+
+    private func cancelRenameAction() {
+        if case .section(_, let restoreNavigationID) = renameAction, let restoreNavigationID {
+            backupRestore.cancelNavigation(restoreNavigationID)
+        }
+        renameAction = nil
+        actionError = nil
     }
 
     private func syncPendingRename() {

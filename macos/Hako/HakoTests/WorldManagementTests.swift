@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import SwiftData
 import Testing
 
@@ -34,6 +35,124 @@ import Testing
         #expect(process.terminationStatus == 0)
         defer { try? FileManager.default.removeItem(at: folder); try? FileManager.default.removeItem(at: archive) }
         return try Data(contentsOf: archive)
+    }
+
+    private func backupArchive(in root: URL, instance: GameInstance, worldFolder: String = "World") async throws -> URL {
+        let source = WorldBackupManifest.SourceInstance(id: instance.id, name: instance.name, folderName: instance.folderName,
+                                                        minecraftVersion: instance.versionID, modLoader: instance.modLoaderRaw,
+                                                        loaderVersion: try instance.fabricConfiguration()?.loaderVersion)
+        let folder = root.appendingPathComponent("\(instance.folderName)/minecraft/saves/\(worldFolder)", isDirectory: true)
+        let metadata = try WorldMetadata.read(Data(contentsOf: folder.appendingPathComponent("level.dat")))
+        let manifest = WorldBackupManifest(backupCreatedAt: Date(), name: try #require(metadata.name), folderName: worldFolder, saveVersion: metadata.version,
+                                           gameType: metadata.gameType, lastPlayed: metadata.lastPlayed, size: nil, iconPNG: nil,
+                                           sourceInstance: source, datapacks: [])
+        return try await WorldBackup.archive(world: worldFolder, in: root.appendingPathComponent(instance.folderName), manifest: manifest,
+                                             into: root.appendingPathComponent(InstanceStorage.worldsFolder))
+    }
+
+    private func waitForRestoreStage(_ coordinator: BackupRestoreCoordinator) async throws {
+        for _ in 0..<500 where coordinator.staged == nil && coordinator.errorMessage == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(coordinator.staged != nil || coordinator.errorMessage != nil)
+    }
+
+    private func waitForRestoreCommit(_ coordinator: BackupRestoreCoordinator) async throws {
+        for _ in 0..<500 where coordinator.isCommitting || coordinator.isCleaningStage { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(!coordinator.isCommitting && !coordinator.isCleaningStage)
+    }
+
+    private func waitForRestoreCleanup(_ coordinator: BackupRestoreCoordinator) async throws {
+        for _ in 0..<500 where coordinator.isCleaningStage { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(!coordinator.isCleaningStage)
+    }
+
+    private func waitForRestoreArchive(_ coordinator: BackupRestoreCoordinator, _ archive: URL) async throws {
+        for _ in 0..<500 where coordinator.currentURL != archive || coordinator.staged == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(coordinator.currentURL == archive && coordinator.staged != nil)
+    }
+
+    @Test func restorePresentationRequestIsConsumedAndDoesNotReplayAfterCancellationOrCompletion() async throws {
+        let (container, root, instance, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let archive = try await backupArchive(in: root, instance: instance)
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content)
+
+        coordinator.enqueue([archive])
+        let firstRequest = try #require(coordinator.presentationRequestID)
+        coordinator.consumePresentationRequest(UUID())
+        #expect(coordinator.presentationRequestID == firstRequest)
+        var firstWindow = LauncherPresentationState()
+        firstWindow.restoreRequested()
+        coordinator.consumePresentationRequest(firstRequest)
+        #expect(coordinator.presentationRequestID == nil && firstWindow.isGuestLauncher)
+        var reopenedWhileActive = LauncherPresentationState()
+        reopenedWhileActive.accountsChanged(hasAccount: false, restoreVisible: coordinator.shouldPresentRestoreLauncher)
+        #expect(reopenedWhileActive.isGuestLauncher)
+
+        try await waitForRestoreStage(coordinator)
+        let canceledStage = try #require(coordinator.staged?.directory)
+        let canceledMarker = canceledStage.deletingLastPathComponent().appendingPathComponent(canceledStage.lastPathComponent + ".owner")
+        coordinator.cancelOrDismiss()
+        #expect(coordinator.isCleaningStage)
+        try await waitForRestoreCleanup(coordinator)
+        #expect(!FileManager.default.fileExists(atPath: canceledStage.path))
+        #expect(!FileManager.default.fileExists(atPath: canceledMarker.path))
+        var reopenedAfterCancel = LauncherPresentationState()
+        reopenedAfterCancel.accountsChanged(hasAccount: false, restoreVisible: coordinator.shouldPresentRestoreLauncher)
+        #expect(!reopenedAfterCancel.isGuestLauncher)
+
+        coordinator.enqueue([archive])
+        let secondRequest = try #require(coordinator.presentationRequestID)
+        #expect(secondRequest != firstRequest)
+        coordinator.consumePresentationRequest(firstRequest)
+        #expect(coordinator.presentationRequestID == secondRequest)
+        var secondWindow = LauncherPresentationState()
+        secondWindow.restoreRequested()
+        coordinator.consumePresentationRequest(secondRequest)
+        #expect(coordinator.presentationRequestID == nil && secondWindow.isGuestLauncher)
+        try await waitForRestoreStage(coordinator)
+        coordinator.selectWorldTarget(instance.id)
+        coordinator.setWorldAction(.copy)
+        coordinator.requestCommit()
+        try await waitForRestoreCommit(coordinator)
+        let navigation = try #require(coordinator.navigation)
+        coordinator.completeNavigation(navigation.id)
+        #expect(!coordinator.shouldPresentRestoreLauncher)
+        var reopenedAfterCompletion = LauncherPresentationState()
+        reopenedAfterCompletion.accountsChanged(hasAccount: false, restoreVisible: coordinator.shouldPresentRestoreLauncher)
+        #expect(!reopenedAfterCompletion.isGuestLauncher)
+    }
+
+    @Test func offActorDiscardPreservesOwnerMarkersForUnsafeScratchPaths() async throws {
+        let (_, root, _, _) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let external = root.appendingPathComponent("keep", isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        let sentinel = external.appendingPathComponent("sentinel")
+        try Data("keep".utf8).write(to: sentinel)
+
+        let token = "\(getpid())-\(UUID().uuidString)"
+        let stage = root.appendingPathComponent(".restore-stage-\(token)", isDirectory: true)
+        let owner = root.appendingPathComponent(stage.lastPathComponent + ".owner")
+        try FileManager.default.createSymbolicLink(at: stage, withDestinationURL: external)
+        try Data(token.utf8).write(to: owner)
+        await RestoreArchive.discardStageOffActor(stage)
+        #expect(FileManager.default.fileExists(atPath: stage.path))
+        #expect(FileManager.default.fileExists(atPath: owner.path))
+        #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
+
+        let worldToken = "\(getpid())-\(UUID().uuidString)"
+        let worldStage = root.appendingPathComponent(".hako-restore-world-\(worldToken)", isDirectory: true)
+        let worldOwner = root.appendingPathComponent(worldStage.lastPathComponent + ".owner")
+        try FileManager.default.createSymbolicLink(at: worldStage, withDestinationURL: external)
+        try Data(worldToken.utf8).write(to: worldOwner)
+        await #expect(throws: InstanceFileError.self) { try await RestoreArchive.discardWorldStage(worldStage) }
+        #expect(FileManager.default.fileExists(atPath: worldStage.path))
+        #expect(FileManager.default.fileExists(atPath: worldOwner.path))
+        #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
     }
 
     @Test func datapackDisablingIsReversibleAndWorldScoped() async throws {
@@ -118,10 +237,291 @@ import Testing
         #expect(try await FabricClient.archiveEntry("world/data.json", in: archive, limit: 100) == Data("world json".utf8))
         #expect(try await FabricClient.archiveEntry("world/.hako-disabled-datapacks/Folder/pack.png", in: archive, limit: 100) == Data("pack image".utf8))
         #expect(try FileManager.default.contentsOfDirectory(atPath: archive.deletingLastPathComponent().path) == [archive.lastPathComponent])
+        let staged = try await RestoreArchive.prepare(archive, under: root)
+        defer { RestoreArchive.discardStage(staged.directory) }
+        guard case .world(let restoredManifest) = staged.kind else { Issue.record("Expected a world archive."); return }
+        #expect(restoredManifest.folderName == "World" && restoredManifest.worldPath == "world")
+        #expect(try Data(contentsOf: staged.directory.appendingPathComponent("world/DIM-1/region/r.0.0.mca")) == Data("region".utf8))
+        #expect(try WorldMetadata.read(Data(contentsOf: staged.directory.appendingPathComponent("world/level.dat"))).name == manifest.name)
+        #expect(FileManager.default.fileExists(atPath: staged.directory.appendingPathComponent("world/.hako-disabled-datapacks/Folder/pack.mcmeta").path))
         await #expect(throws: InstanceFileError.self) { _ = try await WorldBackup.archive(world: "World", in: source, manifest: manifest, into: archive.deletingLastPathComponent()) }
         try FileManager.default.removeItem(at: folder)
         await #expect(throws: InstanceFileError.self) { _ = try await WorldBackup.archive(world: "World", in: source, manifest: manifest, into: archive.deletingLastPathComponent()) }
         #expect(!FileManager.default.fileExists(atPath: folder.path))
+    }
+
+    @Test func worldBackupArchiveRoundTripsUnicodeFolderAndDatapackPaths() async throws {
+        let (container, root, instance, _) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let nfdWorld = "Wor\u{301}ld 🌸"
+        let nfdPack = "Cafe\u{301} 🌸"
+        let nfdFile = "Данные é e\u{301}.txt"
+        let source = root.appendingPathComponent(instance.folderName, isDirectory: true)
+        let world = source.appendingPathComponent("minecraft/saves/\(nfdWorld)", isDirectory: true)
+        let packFile = world.appendingPathComponent("datapacks/\(nfdPack)/\(nfdFile)")
+        let worldFile = world.appendingPathComponent("Мир 🌸 é e\u{301}.txt")
+        try FileManager.default.createDirectory(at: packFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try WorldTestFixture.level(name: "Мир 🌸", played: 1_700_000_000_000).write(to: world.appendingPathComponent("level.dat"))
+        try Data("{}".utf8).write(to: packFile.deletingLastPathComponent().appendingPathComponent("pack.mcmeta"))
+        try Data("datapack name".utf8).write(to: packFile)
+        try Data("world name".utf8).write(to: worldFile)
+        let sourceInstance = WorldBackupManifest.SourceInstance(id: instance.id, name: instance.name, folderName: instance.folderName,
+                                                                minecraftVersion: instance.versionID, modLoader: instance.modLoaderRaw,
+                                                                loaderVersion: nil)
+        let manifest = WorldBackupManifest(backupCreatedAt: Date(), name: "Мир 🌸", folderName: nfdWorld, saveVersion: "1.21.1",
+                                           gameType: 0, lastPlayed: Date(timeIntervalSince1970: 1_700_000_000), size: nil,
+                                           iconPNG: nil, sourceInstance: sourceInstance,
+                                           datapacks: [.init(file: nfdPack, path: "datapacks/\(nfdPack)", enabled: true,
+                                                             isDirectory: true, sha512: nil, iconPNG: nil)])
+        let archive = try await WorldBackup.archive(world: nfdWorld, in: source, manifest: manifest,
+                                                    into: root.appendingPathComponent(InstanceStorage.worldsFolder))
+        let staged = try await RestoreArchive.prepare(archive, under: root)
+        defer { RestoreArchive.discardStage(staged.directory) }
+        #expect(FileManager.default.fileExists(atPath: staged.directory.appendingPathComponent("world/datapacks/Café 🌸/Данные é é.txt").path))
+        #expect(try Data(contentsOf: staged.directory.appendingPathComponent("world/Мир 🌸 é é.txt")) == Data("world name".utf8))
+    }
+
+    @Test func restoresWorldCopyWithRenamedNBTAndInvalidatesWorldCaches() async throws {
+        let (container, root, instance, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let sourceWorld = root.appendingPathComponent("Source/minecraft/saves/World", isDirectory: true)
+        try WorldTestFixture.level(name: "Мир 🌸").write(to: sourceWorld.appendingPathComponent("level.dat_old"))
+        try Data("archived region".utf8).write(to: sourceWorld.appendingPathComponent("region.dat"))
+        let archive = try await backupArchive(in: root, instance: instance)
+        try Data("modified live world".utf8).write(to: sourceWorld.appendingPathComponent("live-only.txt"))
+
+        let cached = InstanceContentItem(url: sourceWorld.appendingPathComponent("stale.zip"), isDirectory: false)
+        content.datapacks[instance.id] = ["World 2": [cached]]
+        content.worldBackupURLs[instance.id] = archive
+        let oldRevision = content.worldRevisions[instance.id, default: 0]
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content)
+        coordinator.enqueue([archive])
+        try await waitForRestoreStage(coordinator)
+        coordinator.selectWorldTarget(instance.id)
+        content.installations.store.launchBusy.insert(instance.id)
+        #expect(coordinator.worldTargetError != nil)
+        content.installations.store.launchBusy.remove(instance.id)
+        coordinator.worldName = "Imported Realm"
+        #expect(coordinator.worldAction == .replace)
+        coordinator.setWorldAction(.copy)
+        #expect(coordinator.worldFolderName == "World 2" && coordinator.worldFolderError == nil)
+        coordinator.requestCommit()
+        try await waitForRestoreCommit(coordinator)
+
+        let copy = root.appendingPathComponent("Source/minecraft/saves/World 2", isDirectory: true)
+        #expect(coordinator.errorMessage == nil && coordinator.currentURL == nil)
+        #expect(try WorldMetadata.read(Data(contentsOf: sourceWorld.appendingPathComponent("level.dat"))).name == "Мир 🌸")
+        #expect(try WorldMetadata.read(Data(contentsOf: copy.appendingPathComponent("level.dat"))).name == "Imported Realm")
+        #expect(try WorldMetadata.read(Data(contentsOf: copy.appendingPathComponent("level.dat_old"))).name == "Imported Realm")
+        #expect(try Data(contentsOf: copy.appendingPathComponent("region.dat")) == Data("archived region".utf8))
+        #expect(FileManager.default.fileExists(atPath: sourceWorld.appendingPathComponent("live-only.txt").path))
+        #expect(content.worldRevisions[instance.id] == oldRevision + 1)
+        #expect(content.datapacks[instance.id]?["World 2"] == nil && content.worldBackupURLs[instance.id] == nil)
+        #expect(coordinator.navigation?.world == "World 2" && coordinator.navigation?.instanceID == instance.id)
+        #expect(content.installations.store.contentBusy.isEmpty)
+        let navigationID = try #require(coordinator.navigation?.id)
+        coordinator.completeNavigation(navigationID)
+        #expect(coordinator.navigation == nil)
+        coordinator.completeNavigation(navigationID)
+        #expect(coordinator.navigation == nil)
+
+        try Data("replace-only".utf8).write(to: sourceWorld.appendingPathComponent("replace-only.txt"))
+        let replacement = BackupRestoreCoordinator(installations: content.installations, content: content)
+        replacement.enqueue([archive])
+        try await waitForRestoreStage(replacement)
+        replacement.selectWorldTarget(instance.id)
+        #expect(replacement.worldAction == .replace)
+        replacement.setWorldAction(.copy)
+        #expect(replacement.worldFolderName == "World 3" && replacement.worldFolderError == nil && replacement.worldArchiveFolderIsOccupied)
+        replacement.setWorldAction(.replace)
+        #expect(replacement.worldFolderName == "World" && replacement.worldAction == .replace)
+        replacement.worldName = "Replacement Realm"
+        replacement.requestCommit()
+        #expect(replacement.awaitingConfirmation)
+        replacement.commitConfirmed()
+        try await waitForRestoreCommit(replacement)
+        #expect(replacement.errorMessage == nil)
+        #expect(try WorldMetadata.read(Data(contentsOf: sourceWorld.appendingPathComponent("level.dat"))).name == "Replacement Realm")
+        #expect(!FileManager.default.fileExists(atPath: sourceWorld.appendingPathComponent("replace-only.txt").path))
+        #expect(try Data(contentsOf: sourceWorld.appendingPathComponent("region.dat")) == Data("archived region".utf8))
+        #expect(content.worldRevisions[instance.id] == oldRevision + 2)
+        #expect(content.installations.store.contentBusy.isEmpty)
+    }
+
+    @Test func worldRestoreConfirmationCoversSameUUIDConfigurationChangesAndOtherInstances() async throws {
+        let (container, root, source, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let exactArchive = try await backupArchive(in: root, instance: source)
+        let exactCoordinator = BackupRestoreCoordinator(installations: content.installations, content: content)
+        exactCoordinator.enqueue([exactArchive])
+        try await waitForRestoreStage(exactCoordinator)
+        exactCoordinator.selectWorldTarget(source.id)
+        source.versionID = "1.20.4"
+        #expect(exactCoordinator.needsConfirmation)
+        #expect(exactCoordinator.confirmationMessage.contains("1.21.1") && exactCoordinator.confirmationMessage.contains("1.20.4"))
+        exactCoordinator.cancelOrDismiss()
+        try await waitForRestoreCleanup(exactCoordinator)
+        try FileManager.default.removeItem(at: exactArchive)
+        source.versionID = "1.21.1"
+
+        let worldRoot = root.appendingPathComponent("\(source.folderName)/minecraft/saves/World", isDirectory: true)
+        let metadata = try WorldMetadata.read(Data(contentsOf: worldRoot.appendingPathComponent("level.dat")))
+        let unknownSourceID = UUID()
+        let sourceInfo = WorldBackupManifest.SourceInstance(id: unknownSourceID, name: source.name, folderName: source.folderName,
+                                                            minecraftVersion: source.versionID, modLoader: source.modLoaderRaw,
+                                                            loaderVersion: try source.fabricConfiguration()?.loaderVersion)
+        let manifest = WorldBackupManifest(backupCreatedAt: Date(), name: try #require(metadata.name), folderName: "World",
+                                           saveVersion: metadata.version, gameType: metadata.gameType, lastPlayed: metadata.lastPlayed,
+                                           size: nil, iconPNG: nil, sourceInstance: sourceInfo, datapacks: [])
+        let archive = try await WorldBackup.archive(world: "World", in: root.appendingPathComponent(source.folderName), manifest: manifest,
+                                                    into: root.appendingPathComponent(InstanceStorage.worldsFolder))
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content)
+        coordinator.enqueue([archive])
+        try await waitForRestoreStage(coordinator)
+
+        #expect(coordinator.worldTargetID == source.id)
+        coordinator.selectWorldTarget(source.id)
+        source.versionID = "1.20.4"
+        #expect(coordinator.needsConfirmation)
+        #expect(coordinator.confirmationMessage.contains("Мир будет установлен в другую сборку."))
+        #expect(coordinator.confirmationMessage.contains("1.21.1") && coordinator.confirmationMessage.contains("1.20.4"))
+
+        let other = GameInstance(name: "Other", folderName: "Other", versionID: "1.21.1",
+                                 metadataURL: source.metadataURL, metadataSHA1: source.metadataSHA1)
+        other.state = .ready
+        container.mainContext.insert(other)
+        coordinator.selectWorldTarget(other.id)
+        #expect(coordinator.needsConfirmation)
+        #expect(coordinator.confirmationMessage.contains("Мир будет установлен в другую сборку."))
+        #expect(!coordinator.confirmationMessage.contains("Версия Minecraft отличается"))
+        coordinator.cancelOrDismiss()
+        try await waitForRestoreCleanup(coordinator)
+    }
+
+    @Test func changingWorldTargetPreservesEditsAndRechecksFolderConflict() async throws {
+        let (container, root, source, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let archive = try await backupArchive(in: root, instance: source)
+        var draft = InstanceDraft(); draft.name = "Other Target"
+        let other = try content.installations.store.create(draft, versionID: source.versionID,
+                                                           metadataURL: source.metadataURL, metadataSHA1: source.metadataSHA1)
+        other.state = .ready
+        let occupied = root.appendingPathComponent("Other_Target/minecraft/saves/Imported", isDirectory: true)
+        try FileManager.default.createDirectory(at: occupied, withIntermediateDirectories: true)
+        try WorldTestFixture.level(name: "Occupied").write(to: occupied.appendingPathComponent("level.dat"))
+
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content)
+        coordinator.enqueue([archive])
+        try await waitForRestoreStage(coordinator)
+        coordinator.selectWorldTarget(source.id)
+        coordinator.worldName = "Imported Realm"
+        coordinator.worldFolderName = "Imported"
+        coordinator.setWorldAction(.copy)
+        coordinator.selectWorldTarget(other.id)
+        #expect(coordinator.worldName == "Imported Realm")
+        #expect(coordinator.worldFolderName == "Imported")
+        #expect(coordinator.worldAction == .copy && coordinator.worldFolderError != nil)
+        coordinator.worldFolderName = "Imported Copy"
+        #expect(coordinator.worldFolderError == nil)
+    }
+
+    @Test func restoreQueueNavigatesOnlyToLastSuccessfulWorldAndConsumesOnce() async throws {
+        let (container, root, instance, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let saves = root.appendingPathComponent("Source/minecraft/saves", isDirectory: true)
+        let otherWorld = saves.appendingPathComponent("Other", isDirectory: true)
+        try FileManager.default.copyItem(at: saves.appendingPathComponent("World"), to: otherWorld)
+        let first = try await backupArchive(in: root, instance: instance, worldFolder: "World")
+        let last = try await backupArchive(in: root, instance: instance, worldFolder: "Other")
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content)
+        coordinator.enqueue([first, last])
+        try await waitForRestoreArchive(coordinator, first)
+        coordinator.selectWorldTarget(instance.id)
+        coordinator.requestCommit()
+        #expect(coordinator.awaitingConfirmation)
+        coordinator.commitConfirmed()
+        try await waitForRestoreCommit(coordinator)
+        #expect(coordinator.navigation == nil)
+        try await waitForRestoreArchive(coordinator, last)
+        coordinator.selectWorldTarget(instance.id)
+        coordinator.requestCommit()
+        #expect(coordinator.awaitingConfirmation)
+        coordinator.commitConfirmed()
+        try await waitForRestoreCommit(coordinator)
+        let navigation = try #require(coordinator.navigation)
+        #expect(navigation.world == "Other" && navigation.instanceID == instance.id)
+        coordinator.cancelNavigation(navigation.id)
+        #expect(coordinator.navigation == nil)
+        let reopened = BackupRestoreCoordinator(installations: content.installations, content: content)
+        #expect(reopened.navigation == nil)
+    }
+
+    @Test func failedWorldReplacementRestoresPreviousFolderAndKeepsStageForDismissal() async throws {
+        let (container, root, instance, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let world = root.appendingPathComponent("Source/minecraft/saves/World", isDirectory: true)
+        let archive = try await backupArchive(in: root, instance: instance)
+        try Data("old-only".utf8).write(to: world.appendingPathComponent("old-only.txt"))
+        var moveCount = 0
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content, worldMove: { source, destination in
+            moveCount += 1
+            if moveCount == 2 { throw InstanceFileError.message("Injected world swap failure") }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        coordinator.enqueue([archive])
+        try await waitForRestoreStage(coordinator)
+        coordinator.selectWorldTarget(instance.id)
+        #expect(coordinator.worldAction == .replace)
+        coordinator.requestCommit()
+        #expect(coordinator.awaitingConfirmation)
+        coordinator.commitConfirmed()
+        try await waitForRestoreCommit(coordinator)
+
+        #expect(coordinator.errorMessage != nil && coordinator.staged != nil)
+        #expect(FileManager.default.fileExists(atPath: world.appendingPathComponent("old-only.txt").path))
+        #expect(!FileManager.default.fileExists(atPath: world.appendingPathComponent("region.dat").path))
+        #expect(content.installations.store.contentBusy.isEmpty)
+        #expect(moveCount == 3)
+        let stage = try #require(coordinator.staged?.directory)
+        let marker = stage.deletingLastPathComponent().appendingPathComponent(stage.lastPathComponent + ".owner")
+        coordinator.cancelOrDismiss()
+        #expect(coordinator.staged == nil && coordinator.currentURL == nil)
+        #expect(coordinator.isCleaningStage)
+        try await waitForRestoreCleanup(coordinator)
+        #expect(!FileManager.default.fileExists(atPath: stage.path))
+        #expect(!FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    @Test func failedWorldRollbackPreservesArchiveStageAndOwnerMarkerAfterDismissal() async throws {
+        let (container, root, instance, content) = try fixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        let world = root.appendingPathComponent("Source/minecraft/saves/World", isDirectory: true)
+        try Data("recovery data".utf8).write(to: world.appendingPathComponent("recovery-only.txt"))
+        let archive = try await backupArchive(in: root, instance: instance)
+        var moveCount = 0
+        let coordinator = BackupRestoreCoordinator(installations: content.installations, content: content, worldMove: { source, destination in
+            moveCount += 1
+            if moveCount == 2 || moveCount == 3 { throw InstanceFileError.message("Injected swap and rollback failure") }
+            try FileManager.default.moveItem(at: source, to: destination)
+        })
+        coordinator.enqueue([archive])
+        try await waitForRestoreStage(coordinator)
+        coordinator.selectWorldTarget(instance.id)
+        coordinator.requestCommit()
+        coordinator.commitConfirmed()
+        try await waitForRestoreCommit(coordinator)
+
+        let stage = try #require(coordinator.staged?.directory)
+        let marker = stage.deletingLastPathComponent().appendingPathComponent(stage.lastPathComponent + ".owner")
+        let recovery = try #require(try FileManager.default.contentsOfDirectory(at: world.deletingLastPathComponent(), includingPropertiesForKeys: nil)
+            .first(where: { $0.lastPathComponent.hasPrefix(".hako-restore-retired-world-") }))
+        #expect(coordinator.errorMessage != nil)
+        #expect(try Data(contentsOf: recovery.appendingPathComponent("recovery-only.txt")) == Data("recovery data".utf8))
+
+        coordinator.cancelOrDismiss()
+        #expect(coordinator.staged == nil && !coordinator.isCleaningStage)
+        #expect(FileManager.default.fileExists(atPath: stage.path))
+        #expect(FileManager.default.fileExists(atPath: marker.path))
     }
 
     @Test func deletionRequiresConfirmationAndRevalidatesWorld() async throws {

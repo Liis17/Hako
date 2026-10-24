@@ -68,6 +68,8 @@
 		F8A000000000000000000003 /* Hako/Minecraft/MinecraftAppearanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000013 /* Hako/Minecraft/MinecraftAppearanceStore.swift */; };
 		F8A000000000000000000004 /* Hako/Minecraft/MinecraftSkinUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000014 /* Hako/Minecraft/MinecraftSkinUpload.swift */; };
 		F8A000000000000000000005 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000015 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift */; };
+		F81000000000000000000001 /* Hako/Instances/BackupRestoreCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000011 /* Hako/Instances/BackupRestoreCoordinator.swift */; };
+		F81000000000000000000002 /* Hako/Instances/RestoreArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000012 /* Hako/Instances/RestoreArchive.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -156,6 +158,8 @@
 		F8A000000000000000000013 /* Hako/Minecraft/MinecraftAppearanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftAppearanceStore.swift; sourceTree = SOURCE_ROOT; };
 		F8A000000000000000000014 /* Hako/Minecraft/MinecraftSkinUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftSkinUpload.swift; sourceTree = SOURCE_ROOT; };
 		F8A000000000000000000015 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftCharacterPreviewFixture.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000011 /* Hako/Instances/BackupRestoreCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/BackupRestoreCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000012 /* Hako/Instances/RestoreArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/RestoreArchive.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -274,6 +278,8 @@
 				F8A000000000000000000013 /* Hako/Minecraft/MinecraftAppearanceStore.swift */,
 				F8A000000000000000000014 /* Hako/Minecraft/MinecraftSkinUpload.swift */,
 				F8A000000000000000000015 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift */,
+				F81000000000000000000011 /* Hako/Instances/BackupRestoreCoordinator.swift */,
+				F81000000000000000000012 /* Hako/Instances/RestoreArchive.swift */,
 			);
 			name = "Skin Test Sources";
 			sourceTree = "<group>";
@@ -459,6 +465,8 @@
 				F7A000000000000000000003 /* Hako/Playtime/PlaytimeJournal.swift in Sources */,
 				F7A000000000000000000004 /* Hako/Playtime/PlaytimeHelperClient.swift in Sources */,
 				F7A000000000000000000006 /* Hako/Playtime/PlaytimeFormatter.swift in Sources */,
+				F81000000000000000000001 /* Hako/Instances/BackupRestoreCoordinator.swift in Sources */,
+				F81000000000000000000002 /* Hako/Instances/RestoreArchive.swift in Sources */,
 			);
 		};
 		F7A000000000000000000032 /* Sources */ = {

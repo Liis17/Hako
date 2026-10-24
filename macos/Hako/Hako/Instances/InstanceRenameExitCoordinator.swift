@@ -53,6 +53,19 @@ enum InstanceRenameExitRequest: Equatable {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let services else { return }
+        services.start()
+        services.backupRestore.enqueue(urls)
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        guard let services else { sender.reply(toOpenOrPrint: .failure); return }
+        services.start()
+        services.backupRestore.enqueue(filenames.map { URL(fileURLWithPath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         guard let services else { return nil }
         services.start()

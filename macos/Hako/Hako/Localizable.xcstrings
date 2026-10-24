@@ -10816,6 +10816,1718 @@
           }
         }
       }
+    },
+    "%@ · Minecraft %@ · %@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Minecraft %@ · %@%@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Minecraft %@ · %@%@"
+          }
+        }
+      }
+    },
+    "Fabric API в резервной копии отсутствует или повреждён." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API is missing from or damaged in the backup."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API в резервной копии отсутствует или повреждён."
+          }
+        }
+      }
+    },
+    "Fabric API из манифеста отсутствует в списке модов." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API from the manifest is missing from the mod list."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabric API из манифеста отсутствует в списке модов."
+          }
+        }
+      }
+    },
+    "Java в резервной копии старше минимальной версии для этой сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Java version in the backup is older than this instance requires."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Java в резервной копии старше минимальной версии для этой сборки."
+          }
+        }
+      }
+    },
+    "ZIP-архив использует неподдерживаемое сжатие, шифрование или тип файла." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ZIP archive uses unsupported compression, encryption, or a file type."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZIP-архив использует неподдерживаемое сжатие, шифрование или тип файла."
+          }
+        }
+      }
+    },
+    "ZIP-архив повреждён или содержит небезопасные файлы." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ZIP archive is damaged or contains unsafe files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZIP-архив повреждён или содержит небезопасные файлы."
+          }
+        }
+      }
+    },
+    "Архитектура Java в резервной копии несовместима с этим Mac." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Java architecture in the backup is incompatible with this Mac."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Архитектура Java в резервной копии несовместима с этим Mac."
+          }
+        }
+      }
+    },
+    "Библиотека Fabric в резервной копии отсутствует или повреждена." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Fabric library is missing from or damaged in the backup."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Библиотека Fabric в резервной копии отсутствует или повреждена."
+          }
+        }
+      }
+    },
+    "Библиотека Minecraft в резервной копии отсутствует или повреждена." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Minecraft library is missing from or damaged in the backup."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Библиотека Minecraft в резервной копии отсутствует или повреждена."
+          }
+        }
+      }
+    },
+    "Будут восстановлены файлы и профиль запуска. Текущие файлы сборки заменятся; имя, папка, дата создания и время игры сохранятся." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The files and launch profile will be restored. Current instance files will be replaced; its name, folder, creation date, and playtime will be preserved."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Будут восстановлены файлы и профиль запуска. Текущие файлы сборки заменятся; имя, папка, дата создания и время игры сохранятся."
+          }
+        }
+      }
+    },
+    "В очереди: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queued: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В очереди: %lld"
+          }
+        }
+      }
+    },
+    "В резервной копии находится Java для Windows. На Mac её восстановить нельзя." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup contains Windows Java, which cannot be restored on a Mac."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В резервной копии находится Java для Windows. На Mac её восстановить нельзя."
+          }
+        }
+      }
+    },
+    "В резервной копии отсутствует пользовательская иконка сборки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup is missing the custom instance icon."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В резервной копии отсутствует пользовательская иконка сборки."
+          }
+        }
+      }
+    },
+    "В резервной копии отсутствуют допустимые метаданные Java." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup is missing valid Java metadata."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В резервной копии отсутствуют допустимые метаданные Java."
+          }
+        }
+      }
+    },
+    "В резервной копии отсутствуют обязательные файлы Minecraft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup is missing required Minecraft files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В резервной копии отсутствуют обязательные файлы Minecraft."
+          }
+        }
+      }
+    },
+    "В резервной копии отсутствуют файлы метаданных мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup is missing world metadata files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В резервной копии отсутствуют файлы метаданных мира."
+          }
+        }
+      }
+    },
+    "В старой копии нет ID сборки. Совпадение найдено по имени папки, версии Minecraft и загрузчику." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This older backup has no instance ID. The match uses the folder name, Minecraft version, and loader."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В старой копии нет ID сборки. Совпадение найдено по имени папки, версии Minecraft и загрузчику."
+          }
+        }
+      }
+    },
+    "Введите название мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a world name."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите название мира."
+          }
+        }
+      }
+    },
+    "Версия Fabric Loader отличается: в копии %@, в сборке %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric Loader version differs: the backup has %@, and the instance has %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия Fabric Loader отличается: в копии %@, в сборке %@."
+          }
+        }
+      }
+    },
+    "Версия Minecraft отличается: в копии %@, в сборке %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Minecraft version differs: the backup has %@, and the instance has %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Версия Minecraft отличается: в копии %@, в сборке %@."
+          }
+        }
+      }
+    },
+    "Восстанавливаем…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстанавливаем…"
+          }
+        }
+      }
+    },
+    "Восстановить" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановить"
+          }
+        }
+      }
+    },
+    "Восстановить мир?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore world?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановить мир?"
+          }
+        }
+      }
+    },
+    "Восстановление из резервной копии" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore from backup"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление из резервной копии"
+          }
+        }
+      }
+    },
+    "Восстановленная сборка" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restored Instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановленная сборка"
+          }
+        }
+      }
+    },
+    "Временная папка мира вышла за пределы распаковки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The staged world is outside the extraction directory."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временная папка мира вышла за пределы распаковки."
+          }
+        }
+      }
+    },
+    "Временная папка мира повреждена." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The staged world is damaged."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временная папка мира повреждена."
+          }
+        }
+      }
+    },
+    "Временный мир не удалось полностью подготовить." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The temporary world could not be prepared completely."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временный мир не удалось полностью подготовить."
+          }
+        }
+      }
+    },
+    "Временный мир содержит небезопасный объект." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The temporary world contains an unsafe item."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временный мир содержит небезопасный объект."
+          }
+        }
+      }
+    },
+    "Все текущие файлы выбранной сборки будут заменены без резервной копии. Имя, папка, дата создания и время игры сохранятся." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All current files in the selected instance will be replaced without creating another backup. Its name, folder, creation date, and playtime will be preserved."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все текущие файлы выбранной сборки будут заменены без резервной копии. Имя, папка, дата создания и время игры сохранятся."
+          }
+        }
+      }
+    },
+    "Выберите готовую сборку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a ready instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите готовую сборку"
+          }
+        }
+      }
+    },
+    "Выберите готовую сборку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a ready instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите готовую сборку."
+          }
+        }
+      }
+    },
+    "Выберите файл .hakobackup или .hakoworld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a .hakobackup or .hakoworld file."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите файл .hakobackup или .hakoworld."
+          }
+        }
+      }
+    },
+    "Выбранная сборка для замены больше не существует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected instance to replace no longer exists."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбранная сборка для замены больше не существует."
+          }
+        }
+      }
+    },
+    "Действие" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Action"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Действие"
+          }
+        }
+      }
+    },
+    "Для восстановления мира на диске назначения недостаточно свободного места." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is not enough free space on the destination disk to restore the world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для восстановления мира на диске назначения недостаточно свободного места."
+          }
+        }
+      }
+    },
+    "Для распаковки архива недостаточно свободного места." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is not enough free space to extract the archive."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для распаковки архива недостаточно свободного места."
+          }
+        }
+      }
+    },
+    "Для этой копии не найдена однозначно совпадающая сборка. Создайте новую сборку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No single matching instance was found for this backup. Create a new instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой копии не найдена однозначно совпадающая сборка. Создайте новую сборку."
+          }
+        }
+      }
+    },
+    "Добавить отдельную копию" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a separate copy"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить отдельную копию"
+          }
+        }
+      }
+    },
+    "Если папка уже существует" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the folder already exists"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Если папка уже существует"
+          }
+        }
+      }
+    },
+    "Загрузчик отличается: в копии %@, в сборке %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The loader differs: the backup has %@, and the instance has %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузчик отличается: в копии %@, в сборке %@."
+          }
+        }
+      }
+    },
+    "Заменить сборку?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace instance?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить сборку?"
+          }
+        }
+      }
+    },
+    "Заменить совпадающую сборку" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace matching instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить совпадающую сборку"
+          }
+        }
+      }
+    },
+    "Заменить существующий мир" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace existing world"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заменить существующий мир"
+          }
+        }
+      }
+    },
+    "Иконка в резервной копии сборки не соответствует манифесту." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance icon in the backup does not match its manifest."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Иконка в резервной копии сборки не соответствует манифесту."
+          }
+        }
+      }
+    },
+    "Имя сборки" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance name"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя сборки"
+          }
+        }
+      }
+    },
+    "Имя сборки в резервной копии недопустимо." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance name in the backup is invalid."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя сборки в резервной копии недопустимо."
+          }
+        }
+      }
+    },
+    "Исполняемый файл Java отсутствует или находится за пределами Java в резервной копии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Java executable is missing or is outside the backup’s Java directory."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исполняемый файл Java отсутствует или находится за пределами Java в резервной копии."
+          }
+        }
+      }
+    },
+    "Источник: %@ · Minecraft %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source: %@ · Minecraft %@ · %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник: %@ · Minecraft %@ · %@"
+          }
+        }
+      }
+    },
+    "Копия от %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup from %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Копия от %@"
+          }
+        }
+      }
+    },
+    "Манифест Minecraft в резервной копии слишком велик." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Minecraft manifest in the backup is too large."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Манифест Minecraft в резервной копии слишком велик."
+          }
+        }
+      }
+    },
+    "Манифест Vanilla содержит параметры Fabric." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Vanilla manifest contains Fabric settings."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Манифест Vanilla содержит параметры Fabric."
+          }
+        }
+      }
+    },
+    "Манифест резервной копии мира повреждён или не поддерживается." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world backup manifest is damaged or unsupported."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Манифест резервной копии мира повреждён или не поддерживается."
+          }
+        }
+      }
+    },
+    "Манифест резервной копии сборки повреждён или не поддерживается." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance backup manifest is damaged or unsupported."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Манифест резервной копии сборки повреждён или не поддерживается."
+          }
+        }
+      }
+    },
+    "Метаданные мира в резервной копии слишком велики." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world metadata in the backup is too large."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Метаданные мира в резервной копии слишком велики."
+          }
+        }
+      }
+    },
+    "Мир будет установлен в другую сборку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world will be restored to a different instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мир будет установлен в другую сборку."
+          }
+        }
+      }
+    },
+    "Мир восстановлен, но прежняя папка осталась в %@. Удалите её после проверки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world was restored, but the previous folder remains at %@. Remove it after checking the restored world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мир восстановлен, но прежняя папка осталась в %@. Удалите её после проверки."
+          }
+        }
+      }
+    },
+    "Мир и его датапаки будут восстановлены в выбранную сборку. Minecraft и Fabric при необходимости могут отличаться; приложение запросит подтверждение перед записью." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world and its datapacks will be restored to the selected instance. Minecraft or Fabric versions may differ; the app will ask before writing the files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мир и его датапаки будут восстановлены в выбранную сборку. Minecraft и Fabric при необходимости могут отличаться; приложение запросит подтверждение перед записью."
+          }
+        }
+      }
+    },
+    "Мод из манифеста отсутствует или имеет неверный тип." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A mod listed in the manifest is missing or has the wrong file type."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мод из манифеста отсутствует или имеет неверный тип."
+          }
+        }
+      }
+    },
+    "Название мира" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World name"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название мира"
+          }
+        }
+      }
+    },
+    "Название мира в манифесте и файлах сохранения не совпадает." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world name in the manifest does not match its save files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название мира в манифесте и файлах сохранения не совпадает."
+          }
+        }
+      }
+    },
+    "Не удалось откатить восстановление мира. Данные сохранены по путям: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World restore could not be rolled back. The data was preserved at: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось откатить восстановление мира. Данные сохранены по путям: %@"
+          }
+        }
+      }
+    },
+    "Не удалось очистить временную папку восстановления. Данные сохранены по пути: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The temporary restore folder could not be cleaned up. The data was preserved at: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось очистить временную папку восстановления. Данные сохранены по пути: %@"
+          }
+        }
+      }
+    },
+    "Не удалось проверить свободное место на диске." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not check the available disk space."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить свободное место на диске."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать временный мир для восстановления." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the temporary world for restoration."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать временный мир для восстановления."
+          }
+        }
+      }
+    },
+    "Недопустимое имя папки мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world folder name is invalid."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимое имя папки мира."
+          }
+        }
+      }
+    },
+    "Нет готовых сборок для восстановления мира. Сначала создайте и установите сборку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no ready instances for restoring a world. Create and install an instance first."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет готовых сборок для восстановления мира. Сначала создайте и установите сборку."
+          }
+        }
+      }
+    },
+    "Описание Fabric API в резервной копии повреждено." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric API details in the backup are damaged."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Описание Fabric API в резервной копии повреждено."
+          }
+        }
+      }
+    },
+    "Папка мира" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World folder"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка мира"
+          }
+        }
+      }
+    },
+    "Папка мира уже существует. Выберите замену или другое имя." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world folder already exists. Choose replacement or another name."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка мира уже существует. Выберите замену или другое имя."
+          }
+        }
+      }
+    },
+    "Папка миров содержит небезопасный объект." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The saves directory contains an unsafe item."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка миров содержит небезопасный объект."
+          }
+        }
+      }
+    },
+    "Папка назначения изменилась. Проверьте список миров и повторите восстановление." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The destination folder changed. Check the world list and try restoring again."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка назначения изменилась. Проверьте список миров и повторите восстановление."
+          }
+        }
+      }
+    },
+    "Папка назначения содержит небезопасный объект." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The destination folder contains an unsafe item."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка назначения содержит небезопасный объект."
+          }
+        }
+      }
+    },
+    "Папка назначения уже занята и не является готовым миром." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The destination folder is occupied and is not a valid world."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка назначения уже занята и не является готовым миром."
+          }
+        }
+      }
+    },
+    "Папка: %@ · Сохранение Minecraft %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder: %@ · Minecraft save %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка: %@ · Сохранение Minecraft %@"
+          }
+        }
+      }
+    },
+    "Проверяем архив и готовим изолированную распаковку…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the archive and preparing an isolated extraction…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверяем архив и готовим изолированную распаковку…"
+          }
+        }
+      }
+    },
+    "Профиль Fabric в резервной копии не соответствует манифесту." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric profile in the backup does not match its manifest."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль Fabric в резервной копии не соответствует манифесту."
+          }
+        }
+      }
+    },
+    "Профиль Fabric в резервной копии слишком велик." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric profile in the backup is too large."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль Fabric в резервной копии слишком велик."
+          }
+        }
+      }
+    },
+    "Профиль Fabric не соответствует загрузчику в манифесте." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric profile does not match the loader in the manifest."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль Fabric не соответствует загрузчику в манифесте."
+          }
+        }
+      }
+    },
+    "Профиль Fabric отсутствует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Fabric profile is missing."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль Fabric отсутствует."
+          }
+        }
+      }
+    },
+    "Профиль Minecraft или его JAR не соответствует резервной копии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Minecraft profile or its JAR does not match the backup."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Профиль Minecraft или его JAR не соответствует резервной копии."
+          }
+        }
+      }
+    },
+    "Размер архива слишком велик для восстановления." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive is too large to restore."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер архива слишком велик для восстановления."
+          }
+        }
+      }
+    },
+    "Размер мира слишком велик для восстановления." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world is too large to restore."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер мира слишком велик для восстановления."
+          }
+        }
+      }
+    },
+    "Сборка больше не совпадает с этой резервной копией. Создайте новую сборку." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance no longer matches this backup. Create a new instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка больше не совпадает с этой резервной копией. Создайте новую сборку."
+          }
+        }
+      }
+    },
+    "Сборка для восстановления больше не готова." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance is no longer ready for restoring files."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка для восстановления больше не готова."
+          }
+        }
+      }
+    },
+    "Сборка для замены" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance to replace"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка для замены"
+          }
+        }
+      }
+    },
+    "Сборка назначения" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destination instance"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка назначения"
+          }
+        }
+      }
+    },
+    "Сборка не готова." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance is not ready."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка не готова."
+          }
+        }
+      }
+    },
+    "Список датапаков в резервной копии мира повреждён." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The datapack list in the world backup is damaged."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список датапаков в резервной копии мира повреждён."
+          }
+        }
+      }
+    },
+    "Список модов в манифесте резервной копии повреждён." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The mod list in the backup manifest is damaged."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список модов в манифесте резервной копии повреждён."
+          }
+        }
+      }
+    },
+    "Существующая папка мира будет заменена без резервной копии." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The existing world folder will be replaced without creating another backup."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Существующая папка мира будет заменена без резервной копии."
+          }
+        }
+      }
+    },
+    "Файл датапака из манифеста отсутствует или имеет неверный тип." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A datapack listed in the manifest is missing or has the wrong file type."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл датапака из манифеста отсутствует или имеет неверный тип."
+          }
+        }
+      }
+    },
+    "Файл резервной копии недоступен или повреждён." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup file is unavailable or damaged."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл резервной копии недоступен или повреждён."
+          }
+        }
+      }
+    },
+    "Не удалось проверить временную папку восстановления." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not validate the temporary restore folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить временную папку восстановления."
+          }
+        }
+      }
+    },
+    "Сборка для замены больше не существует." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance to replace no longer exists."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка для замены больше не существует."
+          }
+        }
+      }
+    },
+    "Можно заменить только сборку, совпадающую с этой резервной копией." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only an instance matching this backup can be replaced."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Можно заменить только сборку, совпадающую с этой резервной копией."
+          }
+        }
+      }
+    },
+    "Остановите установку сборки перед восстановлением." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop the instance installation before restoring."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Остановите установку сборки перед восстановлением."
+          }
+        }
+      }
+    },
+    "Не удалось откатить восстановление. Данные сохранены по путям: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance restoration could not be rolled back. Data preserved at: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось откатить восстановление. Данные сохранены по путям: %@"
+          }
+        }
+      }
+    },
+    "Сборка восстановлена, но старые файлы остались в %@. Удалите их после проверки." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance was restored, but its old files remain at %@. Remove them after checking the restored instance."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборка восстановлена, но старые файлы остались в %@. Удалите их после проверки."
+          }
+        }
+      }
+    },
+    "Временная папка сборки не принадлежит восстановлению." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The temporary instance folder is not owned by this restore."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временная папка сборки не принадлежит восстановлению."
+          }
+        }
+      }
+    },
+    "Временная папка мира не принадлежит восстановлению." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The temporary world folder is not owned by this restore."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Временная папка мира не принадлежит восстановлению."
+          }
+        }
+      }
+    },
+    "Не удалось очистить временную папку восстановления мира." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not clean up the temporary world restore folder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось очистить временную папку восстановления мира."
+          }
+        }
+      }
+    },
+    "Папка сборки изменилась перед восстановлением." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance folder changed before restore."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка сборки изменилась перед восстановлением."
+          }
+        }
+      }
+    },
+    "Папка сборки содержит небезопасный объект." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The instance folder contains an unsafe item."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Папка сборки содержит небезопасный объект."
+          }
+        }
+      }
+    },
+    "Режим игры:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game mode:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режим игры:"
+          }
+        }
+      }
+    },
+    "Сведения в манифесте мира не совпадают с level.dat." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The world manifest does not match level.dat."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сведения в манифесте мира не совпадают с level.dat."
+          }
+        }
+      }
+    },
+    "Восстановление завершено" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore complete"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление завершено"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

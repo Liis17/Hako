@@ -27,6 +27,7 @@ struct LauncherView: View {
     @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(QuickLaunchCoordinator.self) private var quickLaunch
+    @Environment(BackupRestoreCoordinator.self) private var backupRestore
     @Query(sort: \GameInstance.createdAt) private var instances: [GameInstance]
     @State private var tab = LauncherTab.instances
     @State private var creatingInstance = false
@@ -37,6 +38,7 @@ struct LauncherView: View {
     @State private var isConfirmingCharacterDiscard = false
     @State private var navigationError: String?
     @State private var deleteError: String?
+    @State private var pendingRestoreNavigationID: UUID?
 
     init(account: Account?, onSignIn: @escaping () -> Void = {}, startsInCharacterEditor: Bool = false) {
         self.account = account
@@ -109,6 +111,11 @@ struct LauncherView: View {
                 completeQuickLaunchNavigation()
             }
         }
+        .task(id: backupRestore.navigation?.id) {
+            guard let destination = backupRestore.navigation else { pendingRestoreNavigationID = nil; return }
+            pendingRestoreNavigationID = destination.id
+            requestTab(.instance(destination.instanceID))
+        }
         .onChange(of: tab) { completeQuickLaunchNavigation() }
         .sheet(isPresented: $creatingInstance) {
             InstanceCreationChoiceView(onCreated: { requestTab(.instances) }, onModrinth: {
@@ -169,6 +176,14 @@ struct LauncherView: View {
             }.padding(28).frame(width: confirmation.alternative == nil ? 460 : 560).interactiveDismissDisabled()
                 .onChange(of: confirmation.id, initial: true) { selectedResourcePack = nil }
         }
+        .sheet(isPresented: Binding(get: { backupRestore.isPresented }, set: { if !$0 { backupRestore.cancelOrDismiss() } })) {
+            BackupRestoreSheet(coordinator: backupRestore)
+        }
+        .alert("Восстановление завершено", isPresented: Binding(get: { backupRestore.completionMessage != nil }, set: { if !$0 { backupRestore.dismissCompletionMessage() } })) {
+            Button("ОК", role: .cancel) { backupRestore.dismissCompletionMessage() }
+        } message: {
+            Text(backupRestore.completionMessage ?? "")
+        }
         .alert(navigationError == nil ? "Переименовать сборку?" : "Не удалось переименовать сборку", isPresented: renamePromptPresented) {
             if navigationError != nil {
                 Button("ОК", role: .cancel) { navigationError = nil }
@@ -208,6 +223,7 @@ struct LauncherView: View {
             switch characterNavigation.request(presentationID: presentationID, isSaving: characterEditor.isSaving,
                                                hasUnsavedChanges: characterEditor.hasUnsavedChanges, quickLaunch: quickLaunch) {
             case .blocked:
+                cancelPendingRestoreNavigation()
                 return
             case .confirmDiscard:
                 pendingEditorDestination = destination
@@ -233,6 +249,7 @@ struct LauncherView: View {
     private func cancelCharacterNavigation() {
         characterNavigation.cancel(quickLaunch: quickLaunch)
         pendingEditorDestination = nil
+        cancelPendingRestoreNavigation()
     }
 
     private func discardCharacterDraftAndNavigate() {
@@ -277,6 +294,7 @@ struct LauncherView: View {
         } catch {
             pendingTab = nil
             renameExit.cancelExit()
+            cancelPendingRestoreNavigation()
             if let request = quickLaunch.presentation { quickLaunch.completePresentation(request.id, error: error) }
             else { navigationError = error.localizedDescription }
         }
@@ -305,9 +323,19 @@ struct LauncherView: View {
     private func dismissRenamePrompt() {
         if navigationError != nil {
             navigationError = nil
-        } else if pendingTab != nil || renameExit.exitRequest != nil {
+        } else if pendingTab != nil {
+            pendingTab = nil
+            renameExit.pendingRename = nil
+            cancelPendingRestoreNavigation()
+        } else if renameExit.exitRequest != nil {
             declinePendingRename()
         }
+    }
+
+    private func cancelPendingRestoreNavigation() {
+        guard let id = pendingRestoreNavigationID else { return }
+        backupRestore.cancelNavigation(id)
+        pendingRestoreNavigationID = nil
     }
 
 }
@@ -316,6 +344,8 @@ struct LauncherView: View {
     let container = try! ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let account = Account(xbox: XboxProfile(xuid: "preview", gamertag: "Steve", avatarURL: nil), email: "steve@example.com")
     let installations = InstallationCoordinator(context: container.mainContext)
+    let content = InstanceContentController(installations: installations)
+    let backupRestore = BackupRestoreCoordinator(installations: installations, content: content)
     let appearances = MinecraftAppearanceStore()
     let sessions = MinecraftSessionCoordinator(context: container.mainContext, appearances: appearances)
     let skinLoader = MinecraftSkinLoader.shared
@@ -328,7 +358,8 @@ struct LauncherView: View {
         .modelContainer(container)
         .environment(InstanceRenameExitCoordinator())
         .environment(installations)
-        .environment(InstanceContentController(installations: installations))
+        .environment(content)
+        .environment(backupRestore)
         .environment(sessions)
         .environment(appearances)
         .environment(skinLoader)

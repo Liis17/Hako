@@ -21,6 +21,7 @@ import SwiftData
     let modelContainer: ModelContainer
     let installations: InstallationCoordinator
     let content: InstanceContentController
+    let backupRestore: BackupRestoreCoordinator
     let sessions: MinecraftSessionCoordinator
     let appearances: MinecraftAppearanceStore
     let skinLoader: MinecraftSkinLoader
@@ -58,6 +59,7 @@ import SwiftData
         modelContainer = container
         installations = InstallationCoordinator(context: container.mainContext, storage: storage)
         content = InstanceContentController(installations: installations)
+        backupRestore = BackupRestoreCoordinator(installations: installations, content: content)
         appearances = MinecraftAppearanceStore()
         if let fixtureSession {
             skinLoader = MinecraftSkinLoader(session: fixtureSession)

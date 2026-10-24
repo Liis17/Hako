@@ -25,8 +25,9 @@ nonisolated struct InstanceStorage: Sendable {
     }
 
     static func containedURL(_ path: String, in root: URL) throws -> URL {
-        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
-        guard !path.isEmpty, !path.contains("\0"), !path.contains("\\"),
+        let canonicalPath = path.precomposedStringWithCanonicalMapping
+        let parts = canonicalPath.split(separator: "/", omittingEmptySubsequences: false)
+        guard !canonicalPath.isEmpty, !canonicalPath.contains("\0"), !canonicalPath.contains("\\"),
               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
             throw InstanceFileError.message(String(appLocalized: "Недопустимый путь к файлу сборки."))
         }
@@ -77,14 +78,16 @@ nonisolated struct InstanceStorage: Sendable {
     let context: ModelContext
     let storage: InstanceStorage
     private let persist: () throws -> Void
+    private let restoreMove: (URL, URL) throws -> Void
     var launchBusy: Set<UUID> = []
     var contentBusy: Set<UUID> = []
 
-    init(context: ModelContext, storage: InstanceStorage = .init(), persist: (() throws -> Void)? = nil) {
+    init(context: ModelContext, storage: InstanceStorage = .init(), persist: (() throws -> Void)? = nil, restoreMove: ((URL, URL) throws -> Void)? = nil) {
         container = context.container
         self.context = context
         self.storage = storage
         self.persist = persist ?? { try context.save() }
+        self.restoreMove = restoreMove ?? { try FileManager.default.moveItem(at: $0, to: $1) }
     }
 
     func validateName(_ name: String, excluding instance: GameInstance? = nil) throws -> String {
@@ -277,6 +280,136 @@ nonisolated struct InstanceStorage: Sendable {
         }
     }
 
+    func restoreInstance(_ manifest: InstanceBackupManifest, stagedDirectory: URL, name inputName: String, replacing target: GameInstance?) async throws -> InstanceRestoreCommitResult {
+        let manager = FileManager.default
+        let isNew = target.map { _ in false } ?? true
+        let rootPath = storage.root.standardizedFileURL.path
+        guard stagedDirectory.deletingLastPathComponent().standardizedFileURL.path == rootPath,
+              stagedDirectory.lastPathComponent.hasPrefix(".restore-stage-"),
+              (try stagedDirectory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]).isDirectory) == true,
+              (try stagedDirectory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]).isSymbolicLink) != true else {
+            throw InstanceFileError.message(String(appLocalized: "Не удалось проверить временную папку восстановления."))
+        }
+        if let target {
+            let instances = try context.fetch(FetchDescriptor<GameInstance>())
+            guard instances.contains(where: { $0.id == target.id }) else {
+                throw InstanceFileError.message(String(appLocalized: "Сборка для замены больше не существует."))
+            }
+            let matchesArchive: Bool
+            if let instanceID = manifest.instanceID {
+                matchesArchive = target.id == instanceID
+            } else {
+                matchesArchive = target.folderName.compare(manifest.folderName, options: .caseInsensitive) == .orderedSame &&
+                    target.versionID == manifest.minecraftVersion && target.modLoaderRaw == manifest.modLoader &&
+                    ((try? target.fabricConfiguration()?.loaderVersion) ?? nil) == manifest.loaderVersion
+            }
+            guard matchesArchive else {
+                throw InstanceFileError.message(String(appLocalized: "Можно заменить только сборку, совпадающую с этой резервной копией."))
+            }
+            if let reason = managementBlockedReason(target) { throw InstanceFileError.message(reason) }
+            guard target.state != .installing, target.state != .queued else { throw InstanceFileError.message(String(appLocalized: "Остановите установку сборки перед восстановлением.")) }
+        }
+
+        let name: String
+        let folder: String
+        if let target {
+            name = target.name
+            folder = target.folderName
+        } else {
+            name = try InstanceName.validated(inputName)
+            folder = try validateName(name)
+        }
+        try manager.createDirectory(at: storage.root, withIntermediateDirectories: true)
+        let destination = try storage.directory(folder)
+        let destinationIdentity = try restoreDirectoryIdentity(destination)
+        let destinationExists = destinationIdentity != nil
+        if isNew && destinationExists { throw InstanceFileError.message(String(appLocalized: "Сборка или папка с таким именем уже существует.")) }
+
+        if let target { contentBusy.insert(target.id) }
+        defer { if let target { contentBusy.remove(target.id) } }
+
+        let icon = stagedDirectory.appendingPathComponent("icon.png")
+        if !manifest.iconSymbol.isEmpty && manager.fileExists(atPath: icon.path) { try manager.removeItem(at: icon) }
+
+        let instance = target ?? GameInstance(name: name, folderName: folder, versionID: manifest.minecraftVersion,
+                                               metadataURL: manifest.profile.metadataURL, metadataSHA1: manifest.profile.metadataSHA1)
+        let previousCreatedAt = target?.createdAt
+        if isNew { instance.createdAt = manifest.instanceCreatedAt }
+        instance.name = name
+        instance.folderName = folder
+        instance.versionID = manifest.minecraftVersion
+        instance.metadataURL = manifest.profile.metadataURL
+        instance.metadataSHA1 = manifest.profile.metadataSHA1
+        instance.javaMajorVersion = manifest.javaMajorVersion
+        instance.javaExecutable = manifest.profile.javaExecutable
+        instance.legacyTexturepacks = manifest.profile.legacyTexturepacks
+        instance.modLoaderRaw = manifest.modLoader
+        instance.fabricConfigurationData = try manifest.profile.fabricConfiguration.map { try JSONEncoder().encode($0) }
+        instance.fabricProfileSHA1 = manifest.profile.fabricProfileSHA1
+        instance.iconSymbol = manifest.iconSymbol
+        instance.argumentSource = manifest.profile.argumentSource
+        instance.offlineMode = manifest.profile.offlineMode
+        instance.offlineUsername = manifest.profile.offlineUsername
+        instance.parameters = manifest.profile.parameters
+        instance.state = .ready
+        instance.pauseRequested = false
+        instance.installationError = nil
+        instance.iconRevision = UUID()
+
+        let retired = storage.root.appendingPathComponent(".restore-retired-\(UUID().uuidString)", isDirectory: true)
+        var oldMoved = false
+        var newMoved = false
+        do {
+            guard try restoreDirectoryIdentity(destination) == destinationIdentity else {
+                throw InstanceFileError.message(String(appLocalized: "Папка сборки изменилась перед восстановлением."))
+            }
+            try RestoreArchive.prepareInstanceStageForCommit(stagedDirectory)
+            if destinationExists {
+                try restoreMove(destination, retired)
+                oldMoved = true
+            }
+            try restoreMove(stagedDirectory, destination)
+            newMoved = true
+            if isNew { context.insert(instance) }
+            try persist()
+        } catch {
+            context.rollback()
+            if let previousCreatedAt { instance.createdAt = previousCreatedAt }
+            var recovery: [URL] = []
+            if newMoved {
+                do { try restoreMove(destination, stagedDirectory) }
+                catch { recovery.append(destination) }
+            }
+            if oldMoved {
+                do { try restoreMove(retired, destination) }
+                catch { recovery.append(retired) }
+            }
+            if !recovery.isEmpty {
+                throw InstanceRestoreCommitFailure(message: String(appLocalized: "Не удалось откатить восстановление. Данные сохранены по путям: \(recovery.map(\.path).joined(separator: ", "))"), recoveryLocations: recovery)
+            }
+            throw error
+        }
+
+        var cleanupWarning: String?
+        if oldMoved {
+            do { try await RestoreArchive.removeRetiredDirectory(at: retired) }
+            catch { cleanupWarning = String(appLocalized: "Сборка восстановлена, но старые файлы остались в \(retired.path). Удалите их после проверки." ) }
+        }
+        return InstanceRestoreCommitResult(instance: instance, cleanupWarning: cleanupWarning)
+    }
+
+    private func restoreDirectoryIdentity(_ url: URL) throws -> String? {
+        var metadata = stat()
+        if lstat(url.path, &metadata) == 0 {
+            guard metadata.st_mode & S_IFMT == S_IFDIR else {
+                throw InstanceFileError.message(String(appLocalized: "Папка сборки содержит небезопасный объект."))
+            }
+            return "\(metadata.st_dev):\(metadata.st_ino)"
+        }
+        guard errno == ENOENT else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
+        return nil
+    }
+
     /// Стирает папку сборки без корзины; время игры хранится отдельно и остаётся.
     func delete(_ instance: GameInstance) throws {
         if let reason = managementBlockedReason(instance) { throw InstanceFileError.message(reason) }
@@ -317,4 +450,15 @@ nonisolated struct InstanceStorage: Sendable {
             try FileManager.default.moveItem(at: from, to: to)
         }
     }
+}
+
+@MainActor struct InstanceRestoreCommitResult {
+    let instance: GameInstance
+    let cleanupWarning: String?
+}
+
+nonisolated struct InstanceRestoreCommitFailure: LocalizedError, Sendable {
+    let message: String
+    let recoveryLocations: [URL]
+    var errorDescription: String? { message }
 }

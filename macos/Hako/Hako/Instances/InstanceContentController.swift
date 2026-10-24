@@ -58,9 +58,47 @@ struct ModrinthUpdate {
     @ObservationIgnored private var answers: [UUID: CheckedContinuation<ContentChoice, Never>] = [:]
     @ObservationIgnored private var reloads: [String: UUID] = [:]
     @ObservationIgnored private var modrinthCheckRequests: [String: UUID] = [:]
+    @ObservationIgnored private var fabricUpdateRequests: [UUID: UUID] = [:]
 
     init(installations: InstallationCoordinator, modrinth: ModrinthClient = .init()) { self.installations = installations; self.modrinth = modrinth }
     var confirmation: ContentConfirmation? { confirmations.first }
+
+    func invalidateAfterRestore(_ instance: GameInstance, world: String? = nil) {
+        let id = instance.id
+        reloads = reloads.filter { !$0.key.hasPrefix("\(id):") }
+        if let world {
+            datapacks[id]?[world] = nil
+            worldInstallMessages[id]?[world] = nil
+            worldOperations[id]?[world] = nil
+            worldBackupURLs[id] = nil
+            worldRevisions[id, default: 0] += 1
+            let key = "\(id):world:\(world)"
+            modrinthUpdates[key] = nil
+            modrinthUpdateMessages[key] = nil
+            modrinthCheckRequests[key] = nil
+            checkingModrinth.remove(key)
+        } else {
+            mods[id] = nil
+            packs[id] = nil
+            datapacks[id] = nil
+            worldInstallMessages[id] = nil
+            worldOperations[id] = nil
+            worldBackupURLs[id] = nil
+            errors[id] = nil
+            updates[id] = nil
+            updateMessages[id] = nil
+            fabricUpdateRequests[id] = nil
+            checkingUpdates.remove(id)
+            catalogInstalling[id] = nil
+            catalogInstallTargets[id] = nil
+            let prefix = "\(id):"
+            modrinthUpdates = modrinthUpdates.filter { !$0.key.hasPrefix(prefix) }
+            modrinthUpdateMessages = modrinthUpdateMessages.filter { !$0.key.hasPrefix(prefix) }
+            modrinthCheckRequests = modrinthCheckRequests.filter { !$0.key.hasPrefix(prefix) }
+            checkingModrinth = checkingModrinth.filter { !$0.hasPrefix(prefix) }
+            worldRevisions[id, default: 0] += 1
+        }
+    }
 
     func folder(_ instance: GameInstance, mods: Bool) throws -> URL {
         try InstanceStorage.containedURL("minecraft/\(mods ? "mods" : instance.legacyTexturepacks ? "texturepacks" : "resourcepacks")", in: installations.store.storage.directory(instance.folderName))
@@ -334,16 +372,23 @@ struct ModrinthUpdate {
     func checkUpdates(_ instance: GameInstance) async {
         guard instance.modLoader == .fabric, !checkingUpdates.contains(instance.id),
               mods[instance.id]?.contains(where: { $0.origin?.api != nil }) == true else { return }
+        let request = UUID(), id = instance.id, folderName = instance.folderName
+        fabricUpdateRequests[id] = request
         checkingUpdates.insert(instance.id); updateMessages[instance.id] = nil
-        defer { checkingUpdates.remove(instance.id) }
+        defer {
+            if fabricUpdateRequests[id] == request {
+                fabricUpdateRequests[id] = nil
+                checkingUpdates.remove(id)
+            }
+        }
         do {
             guard let configuration = try instance.fabricConfiguration() else { return }
             let latest = try await installations.fabricClient.latestAPI(minecraft: instance.versionID)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, fabricUpdateRequests[id] == request, instance.folderName == folderName else { return }
             let current = (mods[instance.id] ?? []).filter { $0.origin?.api != nil && $0.origin?.versionID != latest.versionID }
             guard !current.isEmpty else { updates[instance.id] = [:]; return }
             let metadata = try await installations.fabricClient.metadata(for: latest)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, fabricUpdateRequests[id] == request, instance.folderName == folderName else { return }
             guard try metadata.supports(loader: configuration.loaderVersion, java: instance.javaMajorVersion) else {
                 updates[instance.id] = [:]
                 updateMessages[instance.id] = String(appLocalized: "Fabric API \(latest.version) требует другой версии Loader или Java. Текущая версия сохранена.")
@@ -355,7 +400,9 @@ struct ModrinthUpdate {
             }
             updates[instance.id] = available
         } catch {
-            if !Task.isCancelled { updateMessages[instance.id] = String(appLocalized: "Не удалось проверить обновление Fabric API: \(error.localizedDescription)") }
+            if !Task.isCancelled, fabricUpdateRequests[id] == request {
+                updateMessages[instance.id] = String(appLocalized: "Не удалось проверить обновление Fabric API: \(error.localizedDescription)")
+            }
         }
     }
 

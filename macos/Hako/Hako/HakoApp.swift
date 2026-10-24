@@ -25,6 +25,7 @@ struct HakoApp: App {
             ContentView(startsInCharacterEditor: services.startsInCharacterEditor)
                 .environment(services.installations)
                 .environment(services.content)
+                .environment(services.backupRestore)
                 .environment(services.sessions)
                 .environment(services.appearances)
                 .environment(services.skinLoader)
