@@ -48,6 +48,8 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     private readonly Action<string>? _beforeRetiredDelete;
     private readonly object _deleteStagingSync = new();
     private readonly object _deleteStagingTasksSync = new();
+    private readonly object _reservedNamesSync = new();
+    private readonly HashSet<string> _reservedTemporaryNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _snapshotSync = new();
     private IReadOnlyList<GameInstance> _instances = Array.AsReadOnly(Array.Empty<GameInstance>());
     private InstanceRegistryException? _loadError;
@@ -908,6 +910,9 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
             ? AcquireRestoreContentLease(contentTargetID)
             : null;
 
+        var stageAttributes = File.GetAttributes(staged.DirectoryPath);
+        _ = InstanceFileTree.Snapshot(staged.DirectoryPath, null, cancellationToken);
+        (GameInstance Restored, string? RetiredPath) committed;
         _gate.Wait(cancellationToken);
         try
         {
@@ -967,8 +972,6 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                 FolderName = folderName,
                 CreatedAt = target?.CreatedAt ?? candidate.CreatedAt
             };
-            var stageAttributes = File.GetAttributes(staged.DirectoryPath);
-            _ = InstanceFileTree.Snapshot(staged.DirectoryPath, null, cancellationToken);
             var retired = Path.Combine(_storage.Root, ".hako-retired-" + Guid.NewGuid().ToString("N"));
             var oldMoved = false;
             var newMoved = false;
@@ -1035,29 +1038,15 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
             }
 
             NotifyInstancesChanged();
-            var cleanupWarning = false;
-            if (oldMoved)
-            {
-                var cleanupPath = retired;
-                try { cleanupPath = MarkRetiredRestoreDirectory(retired); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    Debug.WriteLine($"Could not mark retired restore folder: {exception.GetType().Name}");
-                }
-                try { DeleteRetiredRestoreDirectory(cleanupPath); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    cleanupWarning = true;
-                    Debug.WriteLine($"Could not remove retired restore folder: {exception.GetType().Name}");
-                }
-            }
-
-            return new RestoreInstanceCommitOutcome(restored, cleanupWarning);
+            committed = (restored, oldMoved ? retired : null);
         }
         finally
         {
             _gate.Release();
         }
+
+        var cleanupWarning = committed.RetiredPath is { } retiredPath && FinishRetiredRestoreDirectory(retiredPath);
+        return new RestoreInstanceCommitOutcome(committed.Restored, cleanupWarning);
     }
 
     internal void MoveRestoreDirectory(string from, string to)
@@ -1123,6 +1112,30 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         var committedPath = path + ".committed";
         InstanceStorage.MoveDirectory(path, committedPath);
         return committedPath;
+    }
+
+    /// <summary>Marks and removes the replaced folder after the registry commit. Returns true when removal failed.</summary>
+    internal bool FinishRetiredRestoreDirectory(string retiredPath)
+    {
+        // Load-time cleanup may see the folder under its committed name; keep it until this commit finishes.
+        using var reservation = ReserveTemporaryName(Path.GetFileName(retiredPath));
+        var cleanupPath = retiredPath;
+        try { cleanupPath = MarkRetiredRestoreDirectory(retiredPath); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Could not mark retired restore folder: {exception.GetType().Name}");
+        }
+
+        try
+        {
+            DeleteRetiredRestoreDirectory(cleanupPath);
+            return false;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Could not remove retired restore folder: {exception.GetType().Name}");
+            return true;
+        }
     }
 
     private (string Name, string FolderName) FindAvailableRestoreName(
@@ -1578,7 +1591,11 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
                 if (TryGetRestoreTemporaryName(name, retired: false, committed: false)
                     || TryGetRestoreTemporaryName(name, retired: true, committed: true))
                 {
-                    TryDeleteStaging(entry);
+                    if (!IsTemporaryNameReserved(name))
+                    {
+                        TryDeleteStaging(entry);
+                    }
+
                     continue;
                 }
 
@@ -1659,6 +1676,25 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
 
         instanceId = parsedInstanceId;
         return true;
+    }
+
+    /// <summary>Protects a temporary folder of this process from load-time cleanup until the returned lease is disposed.</summary>
+    internal IDisposable ReserveTemporaryName(string name)
+    {
+        lock (_reservedNamesSync) _reservedTemporaryNames.Add(name);
+        return new BusyLease(() =>
+        {
+            lock (_reservedNamesSync) _reservedTemporaryNames.Remove(name);
+        });
+    }
+
+    private bool IsTemporaryNameReserved(string name)
+    {
+        // A committed retired folder is reserved under the name it had before the commit marker was added.
+        var reservedName = name.EndsWith(".committed", StringComparison.Ordinal)
+            ? name[..^".committed".Length]
+            : name;
+        lock (_reservedNamesSync) return _reservedTemporaryNames.Contains(reservedName);
     }
 
     private static bool TryGetRestoreTemporaryName(string name, bool retired, bool committed)

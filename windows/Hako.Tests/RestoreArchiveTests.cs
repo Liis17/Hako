@@ -464,6 +464,32 @@ public sealed class RestoreArchiveTests
     }
 
     [TestMethod]
+    public async Task RetiredDirectoryCleanupDoesNotHoldInstanceGate()
+    {
+        await using var temporary = new TemporaryDirectory();
+        InstanceStore? store = null;
+        var gateAvailableDuringRetiredDelete = false;
+        store = temporary.Track(new InstanceStore(temporary.Paths, null, null, beforeRetiredDelete: _ =>
+        {
+            gateAvailableDuringRetiredDelete = Task.Run(() => store!.ValidateName("Probe")).Wait(TimeSpan.FromSeconds(10));
+        }));
+        await store.LoadAsync();
+        var original = store.Create(new InstanceDraft { Name = "Build" }, "1.20.4");
+        store.SetInstallationStatus(original.Id, InstanceInstallationState.Ready, pauseRequested: false);
+        var archivePath = Path.Combine(temporary.Root, "gate.hakobackup");
+        await WriteInstanceArchiveAsync(archivePath, CreateFixture(original.Id, "bin/javaw.exe"),
+            additionalEntries: AddNativeJavaEntries);
+        var restore = CreateRestore(store);
+        var prepared = await restore.PrepareAsync(archivePath);
+        Assert.IsTrue(prepared.Succeeded, prepared.Failure?.Diagnostic);
+
+        var result = await restore.CommitInstanceAsync(prepared.Staged!, "Ignored", original.Id);
+
+        Assert.IsTrue(result.Succeeded, result.Failure?.Diagnostic);
+        Assert.IsTrue(gateAvailableDuringRetiredDelete);
+    }
+
+    [TestMethod]
     public async Task LoadCleansAbandonedRestoreAndRetiredDirectories()
     {
         await using var temporary = new TemporaryDirectory();
@@ -482,6 +508,32 @@ public sealed class RestoreArchiveTests
         Assert.IsFalse(Directory.Exists(abandonedRestore));
         Assert.IsFalse(Directory.Exists(abandonedRetired));
         Assert.IsTrue(Directory.Exists(recoveryRetired));
+    }
+
+    [TestMethod]
+    public async Task LoadCleanupKeepsLiveRestoreStagingOfThisProcess()
+    {
+        await using var temporary = new TemporaryDirectory();
+        var store = temporary.CreateStore();
+        await store.LoadAsync();
+        await store.DeleteStagingCleanupTask!;
+        var archivePath = Path.Combine(temporary.Root, "live.hakobackup");
+        await WriteInstanceArchiveAsync(archivePath, CreateFixture());
+        var restore = CreateRestore(store);
+        var prepared = await restore.PrepareAsync(archivePath);
+        Assert.IsTrue(prepared.Succeeded, prepared.Failure?.Diagnostic);
+        var liveStaging = prepared.Staged!.DirectoryPath;
+        var abandonedRestore = Path.Combine(store.GameRoot, ".hako-restore-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(abandonedRestore);
+
+        await store.LoadAsync();
+        await store.DeleteStagingCleanupTask!;
+
+        Assert.IsFalse(Directory.Exists(abandonedRestore));
+        Assert.IsTrue(Directory.Exists(liveStaging));
+        var committed = await restore.CommitInstanceAsync(prepared.Staged, "Live");
+        Assert.IsTrue(committed.Succeeded, committed.Failure?.Diagnostic);
+        AssertNoStaging(store);
     }
 
     [TestMethod]

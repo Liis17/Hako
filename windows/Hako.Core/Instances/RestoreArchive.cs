@@ -69,6 +69,7 @@ public sealed record RestoreArchiveCommitResult(
 public sealed class StagedRestoreArchive
 {
     private int _operationState;
+    private IDisposable? _stageReservation;
 
     internal StagedRestoreArchive(
         string directory,
@@ -79,9 +80,11 @@ public sealed class StagedRestoreArchive
         GameArchitecture? architecture,
         int? javaMajorVersion,
         GameInstance? matchingInstance,
-        string? modpackVersionID)
+        string? modpackVersionID,
+        IDisposable stageReservation)
     {
         DirectoryPath = directory;
+        _stageReservation = stageReservation;
         Kind = kind;
         InstanceManifest = instanceManifest;
         WorldManifest = worldManifest;
@@ -104,7 +107,13 @@ public sealed class StagedRestoreArchive
 
     internal string DirectoryPath { get; }
     internal bool TryBeginOperation() => Interlocked.CompareExchange(ref _operationState, 1, 0) == 0;
-    internal void CompleteOperation() => Volatile.Write(ref _operationState, 2);
+    internal void CompleteOperation()
+    {
+        Volatile.Write(ref _operationState, 2);
+        // The staging folder is consumed or removed, so load-time cleanup may treat it as abandoned from now on.
+        Interlocked.Exchange(ref _stageReservation, null)?.Dispose();
+    }
+
     internal void ReleaseOperation() => Interlocked.CompareExchange(ref _operationState, 0, 1);
 }
 
@@ -150,6 +159,7 @@ public sealed class RestoreArchive
         CancellationToken cancellationToken = default)
     {
         string? stagingDirectory = null;
+        IDisposable? stageReservation = null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -235,6 +245,7 @@ public sealed class RestoreArchive
 
             Directory.CreateDirectory(_store.GameRoot);
             var stageName = StagePrefix + Guid.NewGuid().ToString("N");
+            stageReservation = _store.ReserveTemporaryName(stageName);
             stagingDirectory = InstanceStorage.ContainedPath(stageName, _store.GameRoot, allowBaseReparsePoint: true);
             InstanceStorage.CreateDirectoryExclusiveAt(_store.GameRoot, stageName);
             File.SetAttributes(stagingDirectory, FileAttributes.Directory | FileAttributes.Hidden);
@@ -344,8 +355,10 @@ public sealed class RestoreArchive
             }
 
             var staged = new StagedRestoreArchive(stagingDirectory, kind, instanceManifest, worldManifest,
-                needsJavaInstallation, architecture, javaMajorVersion, matchingInstance, modpackVersionID);
+                needsJavaInstallation, architecture, javaMajorVersion, matchingInstance, modpackVersionID,
+                stageReservation);
             stagingDirectory = null;
+            stageReservation = null;
             return RestorePreparationResult.Success(staged);
         }
         catch (OperationCanceledException)
@@ -387,6 +400,8 @@ public sealed class RestoreArchive
                     System.Diagnostics.Debug.WriteLine($"Could not remove restore staging folder: {exception.GetType().Name}");
                 }
             }
+
+            stageReservation?.Dispose();
         }
     }
 
@@ -715,19 +730,9 @@ public sealed class RestoreArchive
             }
 
             var cleanupWarning = false;
-            if (oldMoved)
+            if (oldMoved && _store.FinishRetiredRestoreDirectory(retired))
             {
-                var cleanupPath = retired;
-                try { cleanupPath = _store.MarkRetiredRestoreDirectory(retired); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Could not mark retired world folder: {exception.GetType().Name}");
-                }
-                try { _store.DeleteRetiredRestoreDirectory(cleanupPath); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    cleanupWarning = true;
-                }
+                cleanupWarning = true;
             }
             try { InstanceStorage.DeleteCreatedDirectory(staged.DirectoryPath); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
