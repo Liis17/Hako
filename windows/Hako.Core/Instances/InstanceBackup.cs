@@ -45,7 +45,7 @@ public sealed record InstanceBackupManifest
         new InstanceParameters(), "bin/javaw.exe", false, null, null);
 }
 
-/// <summary>Creates Swift-compatible .hakobackup files.</summary>
+/// <summary>Creates Swift-compatible .hakobackup files; restoration is handled by <see cref="RestoreArchive"/>.</summary>
 public sealed class InstanceBackup
 {
     private readonly InstanceStore _store;
