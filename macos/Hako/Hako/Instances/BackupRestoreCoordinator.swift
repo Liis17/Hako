@@ -2,6 +2,17 @@ import Foundation
 import Observation
 import SwiftData
 
+struct LauncherPresentationState: Equatable {
+    private(set) var isGuestLauncher = false
+
+    mutating func continueAsGuest() { isGuestLauncher = true }
+    mutating func restoreRequested() { isGuestLauncher = true }
+
+    mutating func accountsChanged(hasAccount: Bool, restoreVisible: Bool) {
+        if !hasAccount { isGuestLauncher = restoreVisible }
+    }
+}
+
 nonisolated enum InstanceRestoreAction: String, Sendable {
     case newInstance
     case replace
@@ -33,13 +44,20 @@ nonisolated enum WorldRestoreAction: String, Sendable {
     private(set) var isCommitting = false
     private(set) var errorMessage: String?
     private(set) var completionMessage: String?
+    private(set) var presentationRequestID: UUID?
     var instanceAction: InstanceRestoreAction = .newInstance
     var instanceTargetID: UUID?
     var instanceName = ""
     var worldTargetID: UUID?
-    var worldAction: WorldRestoreAction = .copy
-    var worldName = ""
-    var worldFolderName = ""
+    var worldAction: WorldRestoreAction = .copy {
+        didSet { if !applyingWorldDefaults { worldActionWasEdited = true } }
+    }
+    var worldName = "" {
+        didSet { if !applyingWorldDefaults { worldNameWasEdited = true } }
+    }
+    var worldFolderName = "" {
+        didSet { if !applyingWorldDefaults { worldFolderWasEdited = true } }
+    }
     var awaitingConfirmation = false
     private(set) var navigation: RestoreNavigation?
 
@@ -50,12 +68,18 @@ nonisolated enum WorldRestoreAction: String, Sendable {
     @ObservationIgnored private var preparationTask: Task<Void, Never>?
     @ObservationIgnored private var windowPresenter: (() -> Void)?
     @ObservationIgnored private var preserveStage = false
+    @ObservationIgnored private var navigationAfterQueue: RestoreNavigation?
+    @ObservationIgnored private var applyingWorldDefaults = false
+    @ObservationIgnored private var worldActionWasEdited = false
+    @ObservationIgnored private var worldNameWasEdited = false
+    @ObservationIgnored private var worldFolderWasEdited = false
 
     init(installations: InstallationCoordinator, content: InstanceContentController, worldMove: ((URL, URL) throws -> Void)? = nil) {
         self.installations = installations
         self.content = content
         self.worldMove = worldMove ?? { try FileManager.default.moveItem(at: $0, to: $1) }
-        RestoreArchive.cleanAbandonedStaging(under: installations.store.storage.root)
+        let root = installations.store.storage.root
+        Task { await RestoreArchive.cleanAbandonedStaging(under: root) }
     }
 
     var isPresented: Bool { currentURL != nil }
@@ -84,8 +108,13 @@ nonisolated enum WorldRestoreAction: String, Sendable {
             identifiers.formUnion(keys)
             queue.append(.init(id: UUID(), url: url, keys: keys))
         }
-        if currentURL != nil || !queue.isEmpty { windowPresenter?() }
+        if currentURL != nil || !queue.isEmpty { requestWindowPresentation() }
         beginNextIfNeeded()
+    }
+
+    private func requestWindowPresentation() {
+        presentationRequestID = UUID()
+        windowPresenter?()
     }
 
     func cancelOrDismiss() {
@@ -113,6 +142,16 @@ nonisolated enum WorldRestoreAction: String, Sendable {
     }
 
     func dismissCompletionMessage() { completionMessage = nil }
+
+    func completeNavigation(_ id: UUID) {
+        guard navigation?.id == id else { return }
+        navigation = nil
+    }
+
+    func cancelNavigation(_ id: UUID) {
+        if navigationAfterQueue?.id == id { navigationAfterQueue = nil }
+        if navigation?.id == id { navigation = nil }
+    }
 
     var confirmationTitle: String {
         switch currentKind {
@@ -149,6 +188,11 @@ nonisolated enum WorldRestoreAction: String, Sendable {
         guard case .instance(let manifest) = staged?.kind else { return nil }
         let instances = (try? installations.store.context.fetch(FetchDescriptor<GameInstance>())) ?? []
         return Self.matchingInstance(for: manifest, among: instances)
+    }
+
+    var isLegacyInstanceMatch: Bool {
+        guard case .instance(let manifest) = staged?.kind else { return false }
+        return manifest.instanceID == nil && matchedInstance != nil
     }
 
     static func matchingInstance(for manifest: InstanceBackupManifest, among instances: [GameInstance]) -> GameInstance? {
@@ -232,20 +276,48 @@ nonisolated enum WorldRestoreAction: String, Sendable {
     }
 
     func selectWorldTarget(_ id: UUID?) {
+        let changed = worldTargetID != id
         worldTargetID = id
         guard let target = id.flatMap({ selectedID in readyWorldTargets.first { $0.id == selectedID } }),
               case .world(let manifest) = staged?.kind else { return }
         let saves = (try? worldSavesFolder(for: target))
         let names = (try? FileManager.default.contentsOfDirectory(atPath: saves?.path ?? "")) ?? []
         let archivedFolder = try? Self.validWorldFolder(manifest.folderName)
-        if let archivedFolder, names.contains(where: { Self.worldFolderKey($0) == Self.worldFolderKey(archivedFolder) }) {
-            worldFolderName = names.first(where: { Self.worldFolderKey($0) == Self.worldFolderKey(archivedFolder) }) ?? archivedFolder
-            worldAction = .replace
-        } else {
-            worldFolderName = Self.uniqueWorldFolder(base: Self.safeWorldFolder(manifest.folderName, fallback: manifest.name), occupied: names)
-            worldAction = .copy
+        let existingArchiveFolder = archivedFolder.flatMap { archived in names.first { Self.worldFolderKey($0) == Self.worldFolderKey(archived) } }
+        if changed && !worldFolderWasEdited {
+            let base = Self.safeWorldFolder(manifest.folderName, fallback: manifest.name)
+            let suggestion = existingArchiveFolder ?? Self.uniqueWorldFolder(base: base, occupied: names)
+            applyWorldDefaults { worldFolderName = suggestion }
         }
-        worldName = manifest.name
+        if changed && !worldActionWasEdited {
+            applyWorldDefaults { worldAction = existingArchiveFolder == nil ? .copy : .replace }
+        }
+        if !worldFolderWasEdited && worldAction == .copy && worldFolderIsOccupied() {
+            let base = Self.safeWorldFolder(manifest.folderName, fallback: manifest.name)
+            applyWorldDefaults { worldFolderName = Self.uniqueWorldFolder(base: base, occupied: names) }
+        }
+        if changed && !worldNameWasEdited { applyWorldDefaults { worldName = manifest.name } }
+    }
+
+    func setWorldAction(_ action: WorldRestoreAction) {
+        guard worldAction != action else { return }
+        worldAction = action
+        guard !worldFolderWasEdited, case .world(let manifest) = staged?.kind,
+              let target = selectedWorldTarget else { return }
+        let base = Self.safeWorldFolder(manifest.folderName, fallback: manifest.name)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: (try? worldSavesFolder(for: target))?.path ?? "")) ?? []
+        if action == .copy && worldFolderIsOccupied() {
+            applyWorldDefaults { worldFolderName = Self.uniqueWorldFolder(base: base, occupied: names) }
+        } else if action == .replace,
+                  let existing = names.first(where: { Self.worldFolderKey($0) == Self.worldFolderKey(base) }) {
+            applyWorldDefaults { worldFolderName = existing }
+        }
+    }
+
+    private func applyWorldDefaults(_ update: () -> Void) {
+        applyingWorldDefaults = true
+        update()
+        applyingWorldDefaults = false
     }
 
     func worldFolderIsOccupied() -> Bool {
@@ -255,15 +327,32 @@ nonisolated enum WorldRestoreAction: String, Sendable {
         return names.contains { Self.worldFolderKey($0) == Self.worldFolderKey(worldFolderName) }
     }
 
+    var worldArchiveFolderIsOccupied: Bool {
+        guard case .world(let manifest) = staged?.kind,
+              let archived = try? Self.validWorldFolder(manifest.folderName),
+              let target = selectedWorldTarget,
+              let saves = try? worldSavesFolder(for: target),
+              let names = try? FileManager.default.contentsOfDirectory(atPath: saves.path) else { return false }
+        return names.contains { Self.worldFolderKey($0) == Self.worldFolderKey(archived) }
+    }
+
     private func beginNextIfNeeded() {
         guard active == nil, currentURL == nil, let next = queue.first else { return }
         queue.removeFirst()
         active = next
         currentURL = next.url
+        worldTargetID = nil
+        applyWorldDefaults {
+            worldAction = .copy
+            worldName = ""
+            worldFolderName = ""
+        }
+        worldActionWasEdited = false
+        worldNameWasEdited = false
+        worldFolderWasEdited = false
         isPreparing = true
         errorMessage = nil
         staged = nil
-        windowPresenter?()
         _ = next.url.startAccessingSecurityScopedResource()
         let id = next.id
         preparationTask = Task { [weak self] in
@@ -324,10 +413,10 @@ nonisolated enum WorldRestoreAction: String, Sendable {
                     throw InstanceFileError.message(String(appLocalized: "Сборка больше не совпадает с этой резервной копией. Создайте новую сборку."))
                 }
                 if let error = instanceNameError, instanceAction == .newInstance { throw InstanceFileError.message(error) }
-                let result = try installations.store.restoreInstance(manifest, stagedDirectory: stage.directory, name: instanceName, replacing: replacing)
+                let result = try await installations.store.restoreInstance(manifest, stagedDirectory: stage.directory, name: instanceName, replacing: replacing)
                 content.invalidateAfterRestore(result.instance)
                 installations.scheduleQueuedInstallations()
-                navigation = .init(id: UUID(), instanceID: result.instance.id, world: nil)
+                navigationAfterQueue = .init(id: UUID(), instanceID: result.instance.id, world: nil)
                 completionMessage = result.cleanupWarning
                 finishCurrent(preserve: false)
             case .world(let manifest):
@@ -341,7 +430,7 @@ nonisolated enum WorldRestoreAction: String, Sendable {
                 try await RestoreArchive.renameWorld(in: stage.directory, to: requestedWorldName)
                 let warning = try await commitWorld(stage: stage, manifest: manifest, target: target,
                                                     folderName: requestedFolderName, action: requestedAction)
-                navigation = .init(id: UUID(), instanceID: target.id, world: requestedFolderName)
+                navigationAfterQueue = .init(id: UUID(), instanceID: target.id, world: requestedFolderName)
                 completionMessage = warning
                 finishCurrent(preserve: false)
             }
@@ -456,7 +545,7 @@ nonisolated enum WorldRestoreAction: String, Sendable {
         }
         content.invalidateAfterRestore(target, world: worldFolderName)
         if oldMoved {
-            do { try FileManager.default.removeItem(at: retired) }
+            do { try await RestoreArchive.removeRetiredDirectory(at: retired) }
             catch { return String(appLocalized: "Мир восстановлен, но прежняя папка осталась в \(retired.path). Удалите её после проверки.") }
         }
         return nil
@@ -563,6 +652,10 @@ nonisolated enum WorldRestoreAction: String, Sendable {
         preserveStage = false
         preparationTask = nil
         beginNextIfNeeded()
+        if currentURL == nil, queue.isEmpty, let navigationAfterQueue {
+            self.navigationAfterQueue = nil
+            navigation = navigationAfterQueue
+        }
     }
 
     private static func identities(of url: URL) -> Set<String> {

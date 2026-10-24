@@ -15,7 +15,7 @@ struct ContentView: View {
     var startsInCharacterEditor = false
     @Query private var accounts: [Account]
     @State private var isSigningIn = false
-    @State private var isGuestLauncher = false
+    @State private var presentation = LauncherPresentationState()
     @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.current.rawValue
     @Environment(MinecraftSessionCoordinator.self) private var sessions
     @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
@@ -38,19 +38,23 @@ struct ContentView: View {
             if isSigningIn {
                 LoginView(onBack: { isSigningIn = false })
                     .transition(.blurReplace)
-            } else if accounts.first != nil || isGuestLauncher {
+            } else if accounts.first != nil || presentation.isGuestLauncher {
                 LauncherView(account: accounts.first, onSignIn: { isSigningIn = true }, startsInCharacterEditor: startsInCharacterEditor)
                     .transition(.blurReplace)
             } else {
-                WelcomeView(onStart: { isSigningIn = true }, onContinueWithoutAccount: { isGuestLauncher = true })
+                WelcomeView(onStart: { isSigningIn = true }, onContinueWithoutAccount: { presentation.continueAsGuest() })
                     .transition(.blurReplace)
             }
         }
         .animation(.smooth, value: isSigningIn)
         .animation(.smooth, value: accounts.isEmpty)
-        .animation(.smooth, value: isGuestLauncher)
-        // После входа и после выхода следующий экран без аккаунта — приветствие.
-        .onChange(of: accounts.isEmpty) { isSigningIn = false; if accounts.isEmpty { sessions.signOut(); isGuestLauncher = false } }
+        .animation(.smooth, value: presentation.isGuestLauncher)
+        // После выхода без активного восстановления экран без аккаунта — приветствие.
+        .onChange(of: accounts.isEmpty) { _, isEmpty in
+            isSigningIn = false
+            if isEmpty { sessions.signOut() }
+            presentation.accountsChanged(hasAccount: !isEmpty, restoreVisible: backupRestore.isPresented || backupRestore.completionMessage != nil)
+        }
         .onChange(of: accounts.first?.persistentModelID) { characterEditor.invalidateForAccountChange() }
         .task(id: accounts.first?.persistentModelID) { if let account = accounts.first { await sessions.monitor(account) } }
         .onAppear {
@@ -60,18 +64,19 @@ struct ContentView: View {
                 else { openWindow(id: "main") }
                 NSApp.activate()
             }
-            let guestLauncher = $isGuestLauncher, signingIn = $isSigningIn
-            let hasAccount = accounts.first != nil
             backupRestore.registerWindowPresenter { [weak renameExit] in
-                signingIn.wrappedValue = false
-                if !hasAccount { guestLauncher.wrappedValue = true }
                 if let window = renameExit?.window { window.makeKeyAndOrderFront(nil) }
                 else { openWindow(id: "main") }
                 NSApp.activate()
             }
         }
         .task(id: quickLaunch.presentation?.id) {
-            if quickLaunch.presentation != nil { isSigningIn = false; isGuestLauncher = true }
+            if quickLaunch.presentation != nil { isSigningIn = false; presentation.restoreRequested() }
+        }
+        .task(id: backupRestore.presentationRequestID) {
+            guard backupRestore.presentationRequestID != nil else { return }
+            isSigningIn = false
+            presentation.restoreRequested()
         }
         .onDisappear { quickLaunch.cancelPresentations() }
         .alert("Не удалось запустить сборку", isPresented: Binding(get: { quickLaunch.error != nil }, set: { if !$0 { quickLaunch.error = nil } })) {

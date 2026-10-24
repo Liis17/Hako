@@ -11,6 +11,22 @@ import Testing
         #expect(condition())
     }
 
+    @Test func finderRestorePresentationTracksSignOutAndColdStart() {
+        var presentation = LauncherPresentationState()
+        presentation.accountsChanged(hasAccount: true, restoreVisible: false)
+        presentation.accountsChanged(hasAccount: false, restoreVisible: false)
+        #expect(!presentation.isGuestLauncher)
+        presentation.restoreRequested()
+        presentation.accountsChanged(hasAccount: false, restoreVisible: true)
+        #expect(presentation.isGuestLauncher)
+        presentation.accountsChanged(hasAccount: false, restoreVisible: false)
+        #expect(!presentation.isGuestLauncher)
+
+        var coldStart = LauncherPresentationState()
+        coldStart.restoreRequested()
+        #expect(coldStart.isGuestLauncher)
+    }
+
     @Test func queriesResolveUuidAfterRenameAndSuggestOnlyReadyInstances() async throws {
         let fixture = try SystemIntegrationFixture()
         defer { fixture.cleanup() }
@@ -181,8 +197,8 @@ import Testing
         try FileManager.default.createDirectory(at: staged, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: staged) }
         try Data("keep".utf8).write(to: root.appendingPathComponent("keep.txt"))
-        #expect(throws: InstanceFileError.self) {
-            try fixture.store.restoreInstance(manifest, stagedDirectory: staged, name: "Ignored", replacing: instance)
+        await #expect(throws: InstanceFileError.self) {
+            try await fixture.store.restoreInstance(manifest, stagedDirectory: staged, name: "Ignored", replacing: instance)
         }
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("keep.txt").path))
         #expect(fixture.store.launchBusy.contains(instance.id))

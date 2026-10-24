@@ -123,6 +123,11 @@ struct BackupRestoreSheet: View {
             if let reason = coordinator.instanceTargetError {
                 Text(reason).font(.caption).foregroundStyle(Color.shu)
             }
+            if coordinator.isLegacyInstanceMatch {
+                Text("В старой копии нет ID сборки. Совпадение найдено по имени папки, версии Minecraft и загрузчику.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text("Будут восстановлены файлы и профиль запуска. Текущие файлы сборки заменятся; имя, папка, дата создания и время игры сохранятся.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -185,8 +190,8 @@ struct BackupRestoreSheet: View {
             if let error = coordinator.worldFolderError {
                 Text(error).font(.caption).foregroundStyle(Color.shu)
             }
-            if coordinator.worldFolderIsOccupied() {
-                Picker("Если папка уже существует", selection: $coordinator.worldAction) {
+            if coordinator.worldFolderIsOccupied() || coordinator.worldArchiveFolderIsOccupied {
+                Picker("Если папка уже существует", selection: Binding(get: { coordinator.worldAction }, set: coordinator.setWorldAction)) {
                     Text("Добавить отдельную копию").tag(WorldRestoreAction.copy)
                     Text("Заменить существующий мир").tag(WorldRestoreAction.replace)
                 }

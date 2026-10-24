@@ -21,6 +21,10 @@ nonisolated enum RestoreArchive {
     private static let maxWorldMetadataBytes = 16 * 1024 * 1024
     private static let ownerMarkerExtension = "owner"
 
+    @concurrent static func removeRetiredDirectory(at url: URL) async throws {
+        try FileManager.default.removeItem(at: url)
+    }
+
     @concurrent static func prepare(
         _ archive: URL,
         under root: URL,
@@ -40,12 +44,12 @@ nonisolated enum RestoreArchive {
             return .init(directory: directory, archive: archive, kind: kind)
         } catch {
             try? FileManager.default.removeItem(at: directory)
-            if markerWritten { try? FileManager.default.removeItem(at: ownershipMarkerURL(for: directory)) }
+            if markerWritten && scratchIsMissing(directory) { try? FileManager.default.removeItem(at: ownershipMarkerURL(for: directory)) }
             throw error
         }
     }
 
-    static func cleanAbandonedStaging(under root: URL) {
+    @concurrent static func cleanAbandonedStaging(under root: URL) async {
         guard let items = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]) else { return }
         for item in items where item.lastPathComponent.hasPrefix(".restore-stage-") {
             if item.lastPathComponent.hasSuffix(".owner") {
@@ -142,19 +146,19 @@ nonisolated enum RestoreArchive {
             throw InstanceFileError.message(String(appLocalized: "Временная папка сборки не принадлежит восстановлению."))
         }
         guard chmod(directory.path, 0o755) == 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
-        try FileManager.default.removeItem(at: ownershipMarkerURL(for: directory))
     }
 
     static func discardStage(_ directory: URL) {
         guard directory.lastPathComponent.hasPrefix(".restore-stage-") else { return }
-        var metadata = stat()
-        guard lstat(directory.path, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFDIR else { return }
-        try? FileManager.default.removeItem(at: directory)
         let marker = ownershipMarkerURL(for: directory)
-        if let token = try? String(contentsOf: marker, encoding: .utf8),
-           token == directory.lastPathComponent.dropFirst(".restore-stage-".count) {
-            try? FileManager.default.removeItem(at: marker)
+        let token = String(directory.lastPathComponent.dropFirst(".restore-stage-".count))
+        guard hasOwnershipMarker(at: marker, token: token) else { return }
+        var metadata = stat()
+        if lstat(directory.path, &metadata) == 0 {
+            guard metadata.st_mode & S_IFMT == S_IFDIR else { return }
+            try? FileManager.default.removeItem(at: directory)
         }
+        if scratchIsMissing(directory) { try? FileManager.default.removeItem(at: marker) }
     }
 
     static func discardWorldStage(_ directory: URL) throws {
@@ -241,7 +245,7 @@ nonisolated enum RestoreArchive {
             return target
         } catch {
             try? manager.removeItem(at: target)
-            if markerWritten { try? manager.removeItem(at: ownershipMarkerURL(for: target)) }
+            if markerWritten && scratchIsMissing(target) { try? manager.removeItem(at: ownershipMarkerURL(for: target)) }
             throw error
         }
     }
@@ -256,7 +260,6 @@ nonisolated enum RestoreArchive {
             throw InstanceFileError.message(String(appLocalized: "Временная папка мира не принадлежит восстановлению."))
         }
         guard chmod(directory.path, 0o755) == 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
-        try FileManager.default.removeItem(at: ownershipMarkerURL(for: directory))
     }
 
     private static func collectWorldCopyEntries(_ source: URL) throws -> [RestoreWorldCopyEntry] {
@@ -389,15 +392,16 @@ nonisolated enum RestoreArchive {
             throw error("Манифест резервной копии мира повреждён или не поддерживается.")
         }
         let paths = manifest.datapacks.map(\.path)
-        let foldedPaths = Set(paths.map { $0.lowercased(with: Locale(identifier: "en_US_POSIX")) })
+        let foldedPaths = Set(paths.map { $0.precomposedStringWithCanonicalMapping.lowercased(with: Locale(identifier: "en_US_POSIX")) })
         guard foldedPaths.count == paths.count,
               manifest.datapacks.allSatisfy({ pack in
                   let path = pack.path
+                  let canonicalPath = path.precomposedStringWithCanonicalMapping
                   let components = path.split(separator: "/", omittingEmptySubsequences: false)
                   return (path.hasPrefix("datapacks/") || path.hasPrefix(".hako-disabled-datapacks/")) &&
-                      path == path.precomposedStringWithCanonicalMapping && !path.contains("\\") && !path.contains(":") && !path.contains("\0") &&
+                      !canonicalPath.contains("\\") && !canonicalPath.contains(":") && !canonicalPath.contains("\0") &&
                       components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) &&
-                      URL(fileURLWithPath: path).lastPathComponent == pack.file && !pack.file.isEmpty
+                      URL(fileURLWithPath: canonicalPath).lastPathComponent == pack.file.precomposedStringWithCanonicalMapping && !pack.file.isEmpty
               }) else {
             throw error("Список датапаков в резервной копии мира повреждён.")
         }
@@ -490,7 +494,7 @@ nonisolated enum RestoreArchive {
                   mod.file.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }), names.insert(folded).inserted else {
                 throw error("Список модов в манифесте резервной копии повреждён.")
             }
-            let archivedName = mod.file + (mod.enabled ? "" : ".disabled")
+            let archivedName = mod.file.precomposedStringWithCanonicalMapping + (mod.enabled ? "" : ".disabled")
             let url = try InstanceStorage.containedURL("minecraft/mods/\(archivedName)", in: root)
             let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             guard values.isRegularFile == true, values.isSymbolicLink != true else {
@@ -523,7 +527,7 @@ nonisolated enum RestoreArchive {
             throw error("Сведения в манифесте мира не совпадают с level.dat.")
         }
         for pack in manifest.datapacks {
-            let item = try InstanceStorage.containedURL("\(manifest.worldPath)/\(pack.path)", in: staging)
+            let item = try InstanceStorage.containedURL("\(manifest.worldPath)/\(pack.path.precomposedStringWithCanonicalMapping)", in: staging)
             let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey])
             guard values.isSymbolicLink != true,
                   pack.isDirectory ? values.isDirectory == true : values.isRegularFile == true else {
@@ -716,8 +720,8 @@ nonisolated private final class ZIPReader {
             let targetData = try entryData(for: entry, limit: 4096)
             guard let target = String(data: targetData, encoding: .utf8) else { throw badArchive() }
             let resolved = try Self.resolveJavaLink(path: entry.path, target: target)
-            let targetKey = resolved.lowercased(with: Locale(identifier: "en_US_POSIX"))
-            guard let targetEntry = entries.first(where: { $0.path.lowercased(with: Locale(identifier: "en_US_POSIX")) == targetKey }), targetEntry.kind != .symlink else { throw badArchive() }
+            let targetKey = resolved.precomposedStringWithCanonicalMapping.lowercased(with: Locale(identifier: "en_US_POSIX"))
+            guard let targetEntry = entries.first(where: { $0.path.precomposedStringWithCanonicalMapping.lowercased(with: Locale(identifier: "en_US_POSIX")) == targetKey }), targetEntry.kind != .symlink else { throw badArchive() }
             guard !entries.contains(where: { $0.path.hasPrefix(entry.path + "/") }) else { throw badArchive() }
         }
     }
@@ -727,13 +731,8 @@ nonisolated private final class ZIPReader {
         guard roots.contains("data.json"), roots.contains("java"), roots.contains("minecraft"),
               entries.contains(where: { $0.path == "java" && $0.kind == .directory }),
               entries.contains(where: { $0.path == "minecraft" && $0.kind == .directory }) else { throw badArchive() }
-        for entry in entries {
-            let allowed = entry.path == "data.json" || entry.path == "java" || entry.path.hasPrefix("java/") ||
-                entry.path == "minecraft" || entry.path.hasPrefix("minecraft/") ||
-                entry.path == ".DS_Store" && entry.kind == .file ||
-                entry.path == "icon.png" && entry.kind == .file
-            guard allowed else { throw badArchive() }
-        }
+        // Instance backups contain the full profile folder. Root-level modpack metadata and
+        // user-added files are part of that contract; tree/path validation above still applies.
     }
 
     func validateWorldEntries() throws {
@@ -858,6 +857,7 @@ nonisolated private final class ZIPReader {
                     stream.avail_in = uInt(input.count)
                     var drain = false
                     repeat {
+                        let inputBeforeInflate = stream.avail_in
                         let status = buffer.withUnsafeMutableBytes { output -> Int32 in
                             stream.next_out = output.bindMemory(to: Bytef.self).baseAddress
                             stream.avail_out = uInt(output.count)
@@ -866,12 +866,20 @@ nonisolated private final class ZIPReader {
                         let written = buffer.count - Int(stream.avail_out)
                         drain = stream.avail_out == 0
                         try buffer.withUnsafeBufferPointer { try emit($0, count: written) }
+                        if status == Z_BUF_ERROR {
+                            // A full output buffer can leave inflate needing more compressed input.
+                            // Retrying with avail_in == 0 makes zlib report Z_BUF_ERROR again.
+                            guard stream.avail_in == 0, written == 0 else { throw badArchive() }
+                            drain = false
+                            break
+                        }
                         guard status == Z_OK || status == Z_STREAM_END else { throw badArchive() }
                         if status == Z_STREAM_END {
                             ended = true
                             guard stream.avail_in == 0, remaining == 0 else { throw badArchive() }
                             break
                         }
+                        guard inputBeforeInflate != stream.avail_in || written > 0 || stream.avail_in == 0 else { throw badArchive() }
                     } while stream.avail_in > 0 || drain
                 }
                 if ended { break }
@@ -906,7 +914,10 @@ nonisolated private final class ZIPReader {
                 }
                 result.append(contentsOf: output.prefix(output.count - Int(stream.avail_out)))
                 guard result.count <= limit else { throw badArchive() }
-                if status == Z_STREAM_END { break }
+                if status == Z_STREAM_END {
+                    guard stream.avail_in == 0 else { throw badArchive() }
+                    break
+                }
                 guard status == Z_OK else { throw badArchive() }
             }
         }
@@ -1012,9 +1023,24 @@ nonisolated private final class ZIPReader {
             let extras = try cursor.data(extraLength)
             try cursor.skip(commentLength)
             guard diskStart16 == 0 else { throw badArchive() }
-            let utf8 = flags & (1 << 11) != 0
-            let encoding = utf8 ? String.Encoding.utf8 : String.Encoding(rawValue: 0x80000400) // CP437, used by ZIP names without the UTF-8 flag.
-            guard let rawPath = String(data: rawName, encoding: encoding), validPath(rawPath) else { throw badArchive() }
+            let fields = try extraFields(extras)
+            let unicodePath = try unicodePath(in: fields, rawName: rawName)
+            let flaggedUTF8 = flags & (1 << 11) != 0
+            let decodedPath: String?
+            if flaggedUTF8 {
+                decodedPath = String(data: rawName, encoding: .utf8)
+                if let unicodePath, let decodedPath {
+                    guard unicodePath == decodedPath else { throw badArchive() }
+                }
+            } else if let unicodePath {
+                decodedPath = unicodePath
+            } else if let utf8Path = String(data: rawName, encoding: .utf8) {
+                // Apple's zip writes UTF-8 filenames without setting general-purpose bit 11.
+                decodedPath = utf8Path
+            } else {
+                decodedPath = String(data: rawName, encoding: String.Encoding(rawValue: 0x80000400)) // CP437 fallback.
+            }
+            guard let rawPath = decodedPath, validPath(rawPath) else { throw badArchive() }
             let allowedFlags: UInt16 = method == 8 ? (1 << 1) | (1 << 2) | (1 << 3) | (1 << 11) : (1 << 3) | (1 << 11)
             guard flags & ~allowedFlags == 0,
                   method == 0 || method == 8 else { throw unsupportedArchive() }
@@ -1029,23 +1055,18 @@ nonisolated private final class ZIPReader {
             guard (kind == .directory) == directoryName || kind == .symlink && !directoryName else { throw badArchive() }
             var compressed = UInt64(compressed32), uncompressed = UInt64(uncompressed32), offset = UInt64(offset32)
             if compressed32 == UInt32.max || uncompressed32 == UInt32.max || offset32 == UInt32.max || diskStart16 == UInt16.max {
-                var extra = BinaryCursor(data: extras)
-                var zip64: BinaryCursor?
-                while extra.remaining >= 4 {
-                    let tag = try extra.u16(), length = Int(try extra.u16())
-                    let bytes = try extra.data(length)
-                    if tag == 1 { zip64 = BinaryCursor(data: bytes); break }
-                }
-                guard var values = zip64 else { throw badArchive() }
+                guard let zip64 = fields.first(where: { $0.tag == 1 }) else { throw badArchive() }
+                var values = BinaryCursor(data: zip64.data)
                 if uncompressed32 == UInt32.max { uncompressed = try values.u64() }
                 if compressed32 == UInt32.max { compressed = try values.u64() }
                 if offset32 == UInt32.max { offset = try values.u64() }
                 if diskStart16 == UInt16.max, try values.u32() != 0 { throw badArchive() }
             }
-            if kind == .directory { guard uncompressed == 0, compressed == 0 else { throw badArchive() } }
+            if kind == .directory { guard uncompressed == 0, compressed == 0, crc == 0 else { throw badArchive() } }
             if kind == .symlink { guard method == 0, uncompressed <= 4096 else { throw unsupportedArchive() } }
             _ = madeBy
-            result.append(.init(path: directoryName ? String(rawPath.dropLast()) : rawPath, rawName: rawName, kind: kind,
+            let canonicalPath = rawPath.precomposedStringWithCanonicalMapping
+            result.append(.init(path: directoryName ? String(canonicalPath.dropLast()) : canonicalPath, rawName: rawName, kind: kind,
                                 method: method, flags: flags, crc: crc, compressedSize: compressed,
                                 uncompressedSize: uncompressed, localOffset: offset, mode: mode))
         }
@@ -1055,11 +1076,47 @@ nonisolated private final class ZIPReader {
 
     private static func validPath(_ path: String) -> Bool {
         guard !path.isEmpty, !path.contains("\0"), !path.contains("\\"), !path.hasPrefix("/"),
-              !path.hasPrefix("~"), !path.contains(":"), path == path.precomposedStringWithCanonicalMapping else { return false }
+              !path.hasPrefix("~"), !path.contains(":") else { return false }
         let body = path.hasSuffix("/") ? path.dropLast() : Substring(path)
         let parts = body.split(separator: "/", omittingEmptySubsequences: false)
         guard !parts.isEmpty else { return false }
         return parts.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
+    }
+
+    private static func extraFields(_ data: Data) throws -> [(tag: UInt16, data: Data)] {
+        var cursor = BinaryCursor(data: data)
+        var fields: [(tag: UInt16, data: Data)] = []
+        var recognized = Set<UInt16>()
+        while cursor.remaining > 0 {
+            guard cursor.remaining >= 4 else { throw badArchive() }
+            let tag = try cursor.u16(), length = Int(try cursor.u16())
+            let value = try cursor.data(length)
+            if tag == 1 || tag == 0x7075 {
+                guard recognized.insert(tag).inserted else { throw badArchive() }
+            }
+            fields.append((tag, value))
+        }
+        return fields
+    }
+
+    private static func unicodePath(in fields: [(tag: UInt16, data: Data)], rawName: Data) throws -> String? {
+        guard let field = fields.first(where: { $0.tag == 0x7075 }) else { return nil }
+        guard field.data.count >= 5 else { throw badArchive() }
+        var cursor = BinaryCursor(data: field.data)
+        guard try cursor.data(1)[0] == 1 else { return nil }
+        guard try cursor.u32() == checksumForData(rawName) else { return nil }
+        let path = try cursor.data(cursor.remaining)
+        guard let decoded = String(data: path, encoding: .utf8) else { return nil }
+        return decoded
+    }
+
+    private static func checksumForData(_ data: Data) -> UInt32 {
+        var value = UInt32.max
+        for byte in data {
+            value ^= UInt32(byte)
+            for _ in 0..<8 { value = (value >> 1) ^ (0xedb8_8320 & (0 &- (value & 1))) }
+        }
+        return ~value
     }
 
     private static func resolveJavaLink(path: String, target: String) throws -> String {

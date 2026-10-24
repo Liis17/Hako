@@ -38,6 +38,7 @@ struct LauncherView: View {
     @State private var isConfirmingCharacterDiscard = false
     @State private var navigationError: String?
     @State private var deleteError: String?
+    @State private var pendingRestoreNavigationID: UUID?
 
     init(account: Account?, onSignIn: @escaping () -> Void = {}, startsInCharacterEditor: Bool = false) {
         self.account = account
@@ -111,9 +112,9 @@ struct LauncherView: View {
             }
         }
         .task(id: backupRestore.navigation?.id) {
-            if let destination = backupRestore.navigation {
-                requestTab(.instance(destination.instanceID))
-            }
+            guard let destination = backupRestore.navigation else { pendingRestoreNavigationID = nil; return }
+            pendingRestoreNavigationID = destination.id
+            requestTab(.instance(destination.instanceID))
         }
         .onChange(of: tab) { completeQuickLaunchNavigation() }
         .sheet(isPresented: $creatingInstance) {
@@ -222,6 +223,7 @@ struct LauncherView: View {
             switch characterNavigation.request(presentationID: presentationID, isSaving: characterEditor.isSaving,
                                                hasUnsavedChanges: characterEditor.hasUnsavedChanges, quickLaunch: quickLaunch) {
             case .blocked:
+                cancelPendingRestoreNavigation()
                 return
             case .confirmDiscard:
                 pendingEditorDestination = destination
@@ -247,6 +249,7 @@ struct LauncherView: View {
     private func cancelCharacterNavigation() {
         characterNavigation.cancel(quickLaunch: quickLaunch)
         pendingEditorDestination = nil
+        cancelPendingRestoreNavigation()
     }
 
     private func discardCharacterDraftAndNavigate() {
@@ -291,6 +294,7 @@ struct LauncherView: View {
         } catch {
             pendingTab = nil
             renameExit.cancelExit()
+            cancelPendingRestoreNavigation()
             if let request = quickLaunch.presentation { quickLaunch.completePresentation(request.id, error: error) }
             else { navigationError = error.localizedDescription }
         }
@@ -319,9 +323,19 @@ struct LauncherView: View {
     private func dismissRenamePrompt() {
         if navigationError != nil {
             navigationError = nil
-        } else if pendingTab != nil || renameExit.exitRequest != nil {
+        } else if pendingTab != nil {
+            pendingTab = nil
+            renameExit.pendingRename = nil
+            cancelPendingRestoreNavigation()
+        } else if renameExit.exitRequest != nil {
             declinePendingRename()
         }
+    }
+
+    private func cancelPendingRestoreNavigation() {
+        guard let id = pendingRestoreNavigationID else { return }
+        backupRestore.cancelNavigation(id)
+        pendingRestoreNavigationID = nil
     }
 
 }

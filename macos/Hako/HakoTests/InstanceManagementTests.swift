@@ -3,6 +3,7 @@ import CryptoKit
 import SwiftData
 import Testing
 import Darwin
+import zlib
 
 @MainActor struct InstanceManagementTests {
     private struct ZIPFixtureEntry {
@@ -12,6 +13,40 @@ import Darwin
         var flags: UInt16 = 0
         var method: UInt16 = 0
         var wrongCRC = false
+        var rawName: Data?
+        var extra = Data()
+        var compressedData: Data?
+    }
+
+    private struct RawDeflateBitWriter {
+        var data = Data()
+        private var byte: UInt8 = 0
+        private var bitCount = 0
+
+        mutating func bits(_ value: UInt32, count: Int) {
+            for index in 0..<count {
+                byte |= UInt8((value >> index) & 1) << bitCount
+                bitCount += 1
+                if bitCount == 8 { data.append(byte); byte = 0; bitCount = 0 }
+            }
+        }
+
+        mutating func huffman(_ code: UInt32, count: Int) {
+            var reversed: UInt32 = 0
+            for index in 0..<count { reversed = (reversed << 1) | ((code >> index) & 1) }
+            bits(reversed, count: count)
+        }
+
+        mutating func storedBlock(_ contents: Data, final: Bool) {
+            precondition(contents.count <= UInt16.max)
+            bits(final ? 1 : 0, count: 1)
+            bits(0, count: 2)
+            while bitCount != 0 { bits(0, count: 1) }
+            let length = UInt16(contents.count)
+            bits(UInt32(length), count: 16)
+            bits(UInt32(length ^ UInt16.max), count: 16)
+            data.append(contents)
+        }
     }
 
     private func container() throws -> ModelContainer {
@@ -61,25 +96,26 @@ import Darwin
         var archive = Data()
         var central = Data()
         for entry in entries {
-            let name = Data(entry.path.utf8)
+            let name = entry.rawName ?? Data(entry.path.utf8)
+            let payload = entry.method == 8 ? (entry.compressedData ?? (try! rawDeflate(entry.data))) : entry.data
             let checksum = crc32(entry.data) ^ (entry.wrongCRC ? 1 : 0)
             let offset = UInt32(archive.count)
             append(UInt32(0x0403_4b50), to: &archive)
             append(UInt16(20), to: &archive); append(entry.flags, to: &archive); append(entry.method, to: &archive)
             append(UInt16(0), to: &archive); append(UInt16(0), to: &archive)
-            append(checksum, to: &archive); append(UInt32(entry.data.count), to: &archive); append(UInt32(entry.data.count), to: &archive)
-            append(UInt16(name.count), to: &archive); append(UInt16(0), to: &archive)
-            archive.append(name); archive.append(entry.data)
+            append(checksum, to: &archive); append(UInt32(payload.count), to: &archive); append(UInt32(entry.data.count), to: &archive)
+            append(UInt16(name.count), to: &archive); append(UInt16(entry.extra.count), to: &archive)
+            archive.append(name); archive.append(entry.extra); archive.append(payload)
 
             append(UInt32(0x0201_4b50), to: &central)
             append(UInt16(0x0314), to: &central); append(UInt16(20), to: &central)
             append(entry.flags, to: &central); append(entry.method, to: &central)
             append(UInt16(0), to: &central); append(UInt16(0), to: &central)
-            append(checksum, to: &central); append(UInt32(entry.data.count), to: &central); append(UInt32(entry.data.count), to: &central)
-            append(UInt16(name.count), to: &central); append(UInt16(0), to: &central); append(UInt16(0), to: &central)
+            append(checksum, to: &central); append(UInt32(payload.count), to: &central); append(UInt32(entry.data.count), to: &central)
+            append(UInt16(name.count), to: &central); append(UInt16(entry.extra.count), to: &central); append(UInt16(0), to: &central)
             append(UInt16(0), to: &central); append(UInt16(0), to: &central)
             append(entry.mode << 16, to: &central); append(offset, to: &central)
-            central.append(name)
+            central.append(name); central.append(entry.extra)
         }
         let centralOffset = UInt32(archive.count)
         archive.append(central)
@@ -88,6 +124,79 @@ import Darwin
         append(UInt16(entries.count), to: &archive); append(UInt16(entries.count), to: &archive)
         append(UInt32(central.count), to: &archive); append(centralOffset, to: &archive); append(UInt16(0), to: &archive)
         return archive
+    }
+
+    private func rawDeflate(_ data: Data) throws -> Data {
+        var stream = z_stream()
+        guard deflateInit2_(&stream, Z_BEST_SPEED, Z_DEFLATED, -MAX_WBITS, 8, Z_DEFAULT_STRATEGY,
+                            ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {
+            throw InstanceFileError.message("Fixture deflate initialization failed")
+        }
+        defer { deflateEnd(&stream) }
+        var compressed = Data()
+        try data.withUnsafeBytes { input in
+            stream.next_in = UnsafeMutablePointer(mutating: input.bindMemory(to: Bytef.self).baseAddress)
+            stream.avail_in = uInt(input.count)
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while true {
+                let status = buffer.withUnsafeMutableBytes { output -> Int32 in
+                    stream.next_out = output.bindMemory(to: Bytef.self).baseAddress
+                    stream.avail_out = uInt(output.count)
+                    return deflate(&stream, Z_FINISH)
+                }
+                compressed.append(contentsOf: buffer.prefix(buffer.count - Int(stream.avail_out)))
+                if status == Z_STREAM_END { break }
+                guard status == Z_OK else { throw InstanceFileError.message("Fixture deflate failed") }
+            }
+        }
+        return compressed
+    }
+
+    private func boundaryDeflate(_ data: Data) -> Data {
+        precondition(data.count > 65_520)
+        var writer = RawDeflateBitWriter()
+        writer.bits(0, count: 1) // non-final fixed-Huffman block
+        writer.bits(1, count: 2)
+        for _ in 0..<3 { writer.huffman(0x30 + 65, count: 8) }
+        writer.huffman(266, count: 7) // length 13
+        writer.bits(0, count: 1)
+        writer.bits(0, count: 5) // distance 1
+        writer.huffman(0, count: 7) // end of fixed block
+        writer.storedBlock(Data(), final: false)
+        writer.storedBlock(data.prefix(65_520), final: false)
+        writer.storedBlock(data.dropFirst(65_520), final: true)
+        return writer.data
+    }
+
+    private func consumesExactChunkBoundary(_ compressed: Data) -> Bool {
+        let chunkSize = 64 * 1024
+        guard compressed.count > chunkSize else { return false }
+        var stream = z_stream()
+        guard inflateInit2_(&stream, -MAX_WBITS, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else { return false }
+        defer { inflateEnd(&stream) }
+        var input = Array(compressed.prefix(chunkSize))
+        var output = [UInt8](repeating: 0, count: chunkSize)
+        let status = input.withUnsafeMutableBufferPointer { inputBuffer in
+            output.withUnsafeMutableBufferPointer { outputBuffer in
+                stream.next_in = inputBuffer.baseAddress
+                stream.avail_in = uInt(inputBuffer.count)
+                stream.next_out = outputBuffer.baseAddress
+                stream.avail_out = uInt(outputBuffer.count)
+                return inflate(&stream, Z_NO_FLUSH)
+            }
+        }
+        return status == Z_OK && stream.avail_in == 0 && stream.avail_out == 0
+    }
+
+    private func unicodePathExtra(rawName: Data, path: String) -> Data {
+        var extra = Data()
+        let pathData = Data(path.utf8)
+        append(UInt16(0x7075), to: &extra)
+        append(UInt16(pathData.count + 5), to: &extra)
+        extra.append(1)
+        append(crc32(rawName), to: &extra)
+        extra.append(pathData)
+        return extra
     }
 
     private func storedZIP64World(_ manifest: WorldBackupManifest, worldData: Data) throws -> Data {
@@ -408,7 +517,7 @@ import Darwin
         container.mainContext.insert(playtime)
         try container.mainContext.save()
         let newStage = try await RestoreArchive.prepare(archive, under: root)
-        let copy = try store.restoreInstance(manifest, stagedDirectory: newStage.directory, name: "Restored Pack", replacing: nil).instance
+        let copy = try await store.restoreInstance(manifest, stagedDirectory: newStage.directory, name: "Restored Pack", replacing: nil).instance
         #expect(copy.id != manifest.instanceID && copy.id != instance.id)
         #expect(copy.name == "Restored Pack" && copy.folderName == "Restored_Pack")
         var restoredRootInfo = stat()
@@ -425,7 +534,7 @@ import Darwin
         instance.state = .paused
         try container.mainContext.save()
         let replacementStage = try await RestoreArchive.prepare(archive, under: root)
-        let replaced = try store.restoreInstance(manifest, stagedDirectory: replacementStage.directory, name: "Ignored", replacing: instance)
+        let replaced = try await store.restoreInstance(manifest, stagedDirectory: replacementStage.directory, name: "Ignored", replacing: instance)
         #expect(replaced.instance.id == instance.id && replaced.instance.name == "Current Pack" && replaced.instance.folderName == "Current_Pack")
         #expect(replaced.instance.createdAt == createdAt && replaced.instance.state == .ready)
         #expect(replaced.instance.metadataURL == manifest.profile.metadataURL && replaced.instance.javaExecutable == "runtime/alias/java")
@@ -456,6 +565,32 @@ import Darwin
         try store.rename(instance, to: "Renamed Restore")
         #expect(BackupRestoreCoordinator.matchingInstance(for: manifest, among: [instance])?.id == manifest.instanceID)
         #expect(BackupRestoreCoordinator.matchingInstance(for: legacy, among: [instance]) == nil)
+    }
+
+    @Test func restoreArchivePreservesCompletedModpackMetadataAndUnicodeFiles() async throws {
+        let (container, root, store, instance, oldArchive, _) = try await validBackupFixture()
+        defer { withExtendedLifetime(container) { try? FileManager.default.removeItem(at: root) } }
+        try FileManager.default.removeItem(at: oldArchive)
+        let source = try store.storage.directory(instance.folderName)
+        let nfdPack = "Cafe\u{301} 🌸"
+        let nfdFile = "Текст é e\u{301}.txt"
+        let rootFile = source.appendingPathComponent("Пользовательские данные/\(nfdFile)")
+        let resourcePackFile = source.appendingPathComponent("minecraft/resourcepacks/\(nfdPack)/assets/demo/\(nfdFile)")
+        try FileManager.default.createDirectory(at: rootFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: resourcePackFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("root file".utf8).write(to: rootFile)
+        try Data("resource pack file".utf8).write(to: resourcePackFile)
+
+        let modpackArchive = try await ModpackTests.archive(in: root, manifest: ModpackTests.manifest())
+        var plan = try ModpackTests.plan(archive: modpackArchive, manifest: ModpackTests.manifest())
+        plan.completed = true
+        try plan.write(in: source)
+        let archive = try await store.backup(instance, content: InstanceContent())
+        let staged = try await RestoreArchive.prepare(archive, under: root)
+        defer { RestoreArchive.discardStage(staged.directory) }
+        #expect(try ModpackPlan.read(in: staged.directory)?.completed == true)
+        #expect(try Data(contentsOf: staged.directory.appendingPathComponent("Пользовательские данные/Текст é é.txt")) == Data("root file".utf8))
+        #expect(try Data(contentsOf: staged.directory.appendingPathComponent("minecraft/resourcepacks/Café 🌸/assets/demo/Текст é é.txt")) == Data("resource pack file".utf8))
     }
 
     @Test func restoreStaticallyRejectsForeignJavaAndNeverExecutesArchivePrograms() async throws {
@@ -552,9 +687,12 @@ import Darwin
             try FileManager.default.moveItem(at: source, to: destination)
         })
         let fileFailStage = try await RestoreArchive.prepare(archive, under: root)
-        #expect(throws: InstanceFileError.self) {
-            try fileFailStore.restoreInstance(manifest, stagedDirectory: fileFailStage.directory, name: "Ignored", replacing: instance)
+        await #expect(throws: InstanceFileError.self) {
+            try await fileFailStore.restoreInstance(manifest, stagedDirectory: fileFailStage.directory, name: "Ignored", replacing: instance)
         }
+        let ownerMarker = root.appendingPathComponent(fileFailStage.directory.lastPathComponent + ".owner")
+        #expect(FileManager.default.fileExists(atPath: ownerMarker.path))
+        #expect(try String(contentsOf: ownerMarker, encoding: .utf8) == String(fileFailStage.directory.lastPathComponent.dropFirst(".restore-stage-".count)))
         #expect(FileManager.default.fileExists(atPath: current.appendingPathComponent("old-only.txt").path))
         #expect(try Data(contentsOf: current.appendingPathComponent("minecraft/versions/1.21.1/1.21.1.jar")) == Data("old installed client".utf8))
         #expect(instance.name == originalName && instance.versionID == originalVersion)
@@ -563,8 +701,8 @@ import Darwin
             throw InstanceFileError.message("Injected model save failure")
         })
         let saveFailStage = try await RestoreArchive.prepare(archive, under: root)
-        #expect(throws: InstanceFileError.self) {
-            try saveFailStore.restoreInstance(manifest, stagedDirectory: saveFailStage.directory, name: "Ignored", replacing: instance)
+        await #expect(throws: InstanceFileError.self) {
+            try await saveFailStore.restoreInstance(manifest, stagedDirectory: saveFailStage.directory, name: "Ignored", replacing: instance)
         }
         #expect(FileManager.default.fileExists(atPath: current.appendingPathComponent("old-only.txt").path))
         #expect(try Data(contentsOf: current.appendingPathComponent("minecraft/versions/1.21.1/1.21.1.jar")) == Data("old installed client".utf8))
@@ -585,7 +723,7 @@ import Darwin
         })
         let stage = try await RestoreArchive.prepare(archive, under: root)
         do {
-            _ = try store.restoreInstance(manifest, stagedDirectory: stage.directory, name: "Ignored", replacing: instance)
+            _ = try await store.restoreInstance(manifest, stagedDirectory: stage.directory, name: "Ignored", replacing: instance)
             Issue.record("Expected an instance rollback failure.")
         } catch let failure as InstanceRestoreCommitFailure {
             #expect(failure.recoveryLocations.count == 1)
@@ -622,12 +760,14 @@ import Darwin
         let attacks: [[ZIPFixtureEntry]] = [
             [.init(path: "../escape", data: Data("escape".utf8))],
             [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java/Item", data: Data()), .init(path: "java/item", data: Data())],
+            [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java/Café", data: Data()), .init(path: "java/Cafe\u{301}", data: Data())],
             [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java", data: Data()), .init(path: "java/file", data: Data())],
             [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java/link", data: Data("target".utf8), mode: symlinkMode), .init(path: "java/link/child", data: Data())],
             [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "java/one", data: Data("two".utf8), mode: symlinkMode), .init(path: "java/two", data: Data("real".utf8), mode: symlinkMode), .init(path: "java/real", data: Data())],
             [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "world/link", data: Data("level.dat".utf8), mode: symlinkMode)],
             [.init(path: "data.json", data: Data("{}".utf8)), .init(path: "data.json", data: Data("{}".utf8))],
             [.init(path: "data.json", data: Data("{}".utf8), flags: 1)],
+            [.init(path: "data.json", data: Data("{}".utf8), flags: 1 << 11, rawName: Data([0xff]))],
             [.init(path: "data.json", data: Data("{}".utf8), method: 12)],
             [.init(path: "data.json", data: Data("{}".utf8), wrongCRC: true)]
         ]
@@ -643,7 +783,76 @@ import Darwin
         #expect(try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil).allSatisfy { !$0.lastPathComponent.hasPrefix(".restore-stage-") })
     }
 
-    @Test func abandonedRestoreCleanupDeletesOnlyOwnedScratchAndPreservesRecoveryFolders() throws {
+    @Test func restoreDeflateExactChunkBoundaryAndUnicodeNames() async throws {
+        let root = try temporary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let nfdPack = "Cafe\u{301} 🌸"
+        let nfdFile = "Данные é e\u{301}.txt"
+        let noise = seededNoise(count: 65_536, seed: 0x5eed_cafe)
+        let expected = Data(repeating: 65, count: 16) + noise
+        let compressed = boundaryDeflate(noise)
+        #expect(consumesExactChunkBoundary(compressed))
+        let source = WorldBackupManifest.SourceInstance(id: UUID(), name: "Source", folderName: "Source",
+                                                        minecraftVersion: "1.21.1", modLoader: "vanilla", loaderVersion: nil)
+        let packPath = "datapacks/\(nfdPack)"
+        let manifest = WorldBackupManifest(backupCreatedAt: Date(), name: "Realm", folderName: "World", saveVersion: "1.21.1",
+                                           gameType: 0, lastPlayed: nil, size: nil, iconPNG: nil, sourceInstance: source,
+                                           datapacks: [.init(file: nfdPack, path: packPath, enabled: true, isDirectory: true, sha512: nil, iconPNG: nil)])
+        let rawDirectoryName = Data("world/datapacks/legacy-pack/".utf8)
+        let rawFileName = Data("world/datapacks/legacy-pack/pack.mcmeta".utf8)
+        let archive = root.appendingPathComponent("unicode.hakoworld")
+        let entries = [
+            ZIPFixtureEntry(path: "data.json", data: try WorldBackupManifest.encoder().encode(manifest)),
+            ZIPFixtureEntry(path: "world/", data: Data(), mode: 0o040755),
+            ZIPFixtureEntry(path: "world/level.dat", data: try WorldTestFixture.level(name: "Realm")),
+            ZIPFixtureEntry(path: "world/datapacks/", data: Data(), mode: 0o040755),
+            ZIPFixtureEntry(path: "world/datapacks/\(nfdPack)/", data: Data(), mode: 0o040755, rawName: rawDirectoryName,
+                            extra: unicodePathExtra(rawName: rawDirectoryName, path: "world/datapacks/\(nfdPack)/")),
+            ZIPFixtureEntry(path: "world/datapacks/\(nfdPack)/pack.mcmeta", data: Data("{}".utf8), rawName: rawFileName,
+                            extra: unicodePathExtra(rawName: rawFileName, path: "world/datapacks/\(nfdPack)/pack.mcmeta")),
+            ZIPFixtureEntry(path: "world/\(nfdFile)", data: Data("unicode filename".utf8)),
+            ZIPFixtureEntry(path: "world/Флаг 🌸.txt", data: Data("flagged UTF-8 filename".utf8), flags: 1 << 11),
+            ZIPFixtureEntry(path: "world/é.txt", data: Data("legacy CP437 filename".utf8),
+                            rawName: Data([0x77, 0x6f, 0x72, 0x6c, 0x64, 0x2f, 0x82, 0x2e, 0x74, 0x78, 0x74])),
+            ZIPFixtureEntry(path: "world/deflate.bin", data: expected, method: 8, compressedData: compressed)
+        ]
+        try storedZIP(entries).write(to: archive)
+
+        let staged = try await RestoreArchive.prepare(archive, under: root)
+        defer { RestoreArchive.discardStage(staged.directory) }
+        #expect(try Data(contentsOf: staged.directory.appendingPathComponent("world/deflate.bin")) == expected)
+        #expect(FileManager.default.fileExists(atPath: staged.directory.appendingPathComponent("world/datapacks/Café 🌸/pack.mcmeta").path))
+        #expect(FileManager.default.fileExists(atPath: staged.directory.appendingPathComponent("world/Данные é é.txt").path))
+        #expect(FileManager.default.fileExists(atPath: staged.directory.appendingPathComponent("world/Флаг 🌸.txt").path))
+        #expect(try Data(contentsOf: staged.directory.appendingPathComponent("world/é.txt")) == Data("legacy CP437 filename".utf8))
+
+        var badChecksum = entries
+        badChecksum[badChecksum.count - 1].wrongCRC = true
+        var truncated = entries
+        truncated[truncated.count - 1].compressedData = Data(compressed.dropLast())
+        var trailing = entries
+        trailing[trailing.count - 1].compressedData = compressed + Data([0xff])
+        var oversized = entries
+        oversized[oversized.count - 1] = ZIPFixtureEntry(path: "world/deflate.bin", data: Data(expected.dropLast()),
+                                                         method: 8, compressedData: compressed)
+        for (index, invalidEntries) in [badChecksum, truncated, trailing, oversized].enumerated() {
+            let invalidArchive = root.appendingPathComponent("invalid-deflate-\(index).hakoworld")
+            try storedZIP(invalidEntries).write(to: invalidArchive)
+            await #expect(throws: InstanceFileError.self) { _ = try await RestoreArchive.prepare(invalidArchive, under: root) }
+        }
+    }
+
+    private func seededNoise(count: Int, seed: UInt32) -> Data {
+        var state = seed
+        var data = Data(); data.reserveCapacity(count)
+        for _ in 0..<count {
+            state = state &* 1_664_525 &+ 1_013_904_223
+            data.append(UInt8(truncatingIfNeeded: state >> 24))
+        }
+        return data
+    }
+
+    @Test func abandonedRestoreCleanupDeletesOnlyOwnedScratchAndPreservesRecoveryFolders() async throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }
         let deadPID = Int32.max
@@ -679,7 +888,7 @@ import Darwin
         let orphanWorldMarker = saves.appendingPathComponent(orphanWorldName + ".owner")
         try Data("\(deadPID)-\(orphanWorldID.uuidString)".utf8).write(to: orphanWorldMarker)
 
-        RestoreArchive.cleanAbandonedStaging(under: root)
+        await RestoreArchive.cleanAbandonedStaging(under: root)
 
         #expect(!FileManager.default.fileExists(atPath: ownedStage.path))
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent(ownedStage.lastPathComponent + ".owner").path))

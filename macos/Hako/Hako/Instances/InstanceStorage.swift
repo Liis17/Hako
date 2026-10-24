@@ -25,8 +25,9 @@ nonisolated struct InstanceStorage: Sendable {
     }
 
     static func containedURL(_ path: String, in root: URL) throws -> URL {
-        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
-        guard !path.isEmpty, !path.contains("\0"), !path.contains("\\"),
+        let canonicalPath = path.precomposedStringWithCanonicalMapping
+        let parts = canonicalPath.split(separator: "/", omittingEmptySubsequences: false)
+        guard !canonicalPath.isEmpty, !canonicalPath.contains("\0"), !canonicalPath.contains("\\"),
               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
             throw InstanceFileError.message(String(appLocalized: "Недопустимый путь к файлу сборки."))
         }
@@ -279,7 +280,7 @@ nonisolated struct InstanceStorage: Sendable {
         }
     }
 
-    func restoreInstance(_ manifest: InstanceBackupManifest, stagedDirectory: URL, name inputName: String, replacing target: GameInstance?) throws -> InstanceRestoreCommitResult {
+    func restoreInstance(_ manifest: InstanceBackupManifest, stagedDirectory: URL, name inputName: String, replacing target: GameInstance?) async throws -> InstanceRestoreCommitResult {
         let manager = FileManager.default
         let isNew = target.map { _ in false } ?? true
         let rootPath = storage.root.standardizedFileURL.path
@@ -391,7 +392,7 @@ nonisolated struct InstanceStorage: Sendable {
 
         var cleanupWarning: String?
         if oldMoved {
-            do { try manager.removeItem(at: retired) }
+            do { try await RestoreArchive.removeRetiredDirectory(at: retired) }
             catch { cleanupWarning = String(appLocalized: "Сборка восстановлена, но старые файлы остались в \(retired.path). Удалите их после проверки." ) }
         }
         return InstanceRestoreCommitResult(instance: instance, cleanupWarning: cleanupWarning)

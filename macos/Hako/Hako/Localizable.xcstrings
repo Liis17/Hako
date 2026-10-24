@@ -11073,6 +11073,22 @@
         }
       }
     },
+    "В старой копии нет ID сборки. Совпадение найдено по имени папки, версии Minecraft и загрузчику." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This older backup has no instance ID. The match uses the folder name, Minecraft version, and loader."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В старой копии нет ID сборки. Совпадение найдено по имени папки, версии Minecraft и загрузчику."
+          }
+        }
+      }
+    },
     "Введите название мира." : {
       "localizations" : {
         "en" : {
