@@ -255,21 +255,10 @@ public sealed class InstanceStorage(HakoPaths paths)
 
     private static bool TryGetAttributes(string path, out FileAttributes attributes)
     {
-        try
-        {
-            attributes = File.GetAttributes(path);
-            return true;
-        }
-        catch (FileNotFoundException)
-        {
-            attributes = default;
-            return false;
-        }
-        catch (DirectoryNotFoundException)
-        {
-            attributes = default;
-            return false;
-        }
+        // On Windows, FileSystemInfo returns -1 for missing paths while preserving other I/O errors.
+        // Installation checks thousands of paths before their parent directories exist.
+        attributes = new FileInfo(path).Attributes;
+        return attributes != (FileAttributes)(-1);
     }
 
     [DllImport("kernel32.dll", EntryPoint = "CreateDirectoryW", CharSet = CharSet.Unicode, SetLastError = true)]
