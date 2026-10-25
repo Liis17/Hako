@@ -598,4 +598,24 @@
   <data name="RestoreFailureRollbackFailed" xml:space="preserve"><value>Не удалось завершить восстановление и полностью вернуть исходное состояние.</value></data>
   <data name="RestoreFailureCancelled" xml:space="preserve"><value>Восстановление отменено.</value></data>
   <data name="RestoreFailureOperationFailed" xml:space="preserve"><value>Не удалось восстановить копию.</value></data>
+  <data name="EditCharacter" xml:space="preserve"><value>Изменить персонажа</value></data>
+  <data name="CharacterSaving" xml:space="preserve"><value>Сохраняем…</value></data>
+  <data name="CharacterSave" xml:space="preserve"><value>Сохранить</value></data>
+  <data name="CharacterSkin" xml:space="preserve"><value>Скин</value></data>
+  <data name="CharacterCape" xml:space="preserve"><value>Плащ</value></data>
+  <data name="CharacterChoosePng" xml:space="preserve"><value>Выбрать PNG</value></data>
+  <data name="CharacterReplacePng" xml:space="preserve"><value>Заменить PNG</value></data>
+  <data name="CharacterClassic" xml:space="preserve"><value>Классическая</value></data>
+  <data name="CharacterSlim" xml:space="preserve"><value>Тонкие руки</value></data>
+  <data name="CharacterLegacy" xml:space="preserve"><value>Для скина 64 × 32 используется классическая модель.</value></data>
+  <data name="CharacterNoCape" xml:space="preserve"><value>Без плаща</value></data>
+  <data name="CharacterNoCapes" xml:space="preserve"><value>У аккаунта пока нет плащей.</value></data>
+  <data name="CharacterInvalidPng" xml:space="preserve"><value>Выберите исправный PNG 64 × 64 или 64 × 32 размером до 4 МиБ.</value></data>
+  <data name="CharacterProfileError" xml:space="preserve"><value>Не удалось загрузить внешний вид персонажа. Повторите загрузку.</value></data>
+  <data name="CharacterPreviewError" xml:space="preserve"><value>Не удалось подготовить предпросмотр. Повторите попытку.</value></data>
+  <data name="CharacterSaveError" xml:space="preserve"><value>Не удалось сохранить все изменения. Подтверждённые изменения уже применены; повторите оставшиеся.</value></data>
+  <data name="CharacterSaveUnconfirmed" xml:space="preserve"><value>Minecraft ещё не подтвердил изменения. Повторите проверку и сохранение.</value></data>
+  <data name="CharacterSessionError" xml:space="preserve"><value>Сессия Minecraft недоступна. Подключите аккаунт повторно.</value></data>
+  <data name="CharacterReconnect" xml:space="preserve"><value>Повторить подключение Minecraft</value></data>
+  <data name="CharacterRetry" xml:space="preserve"><value>Повторить</value></data>
 </root>

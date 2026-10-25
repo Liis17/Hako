@@ -27,10 +27,12 @@ internal enum PreviewPage
     Modpacks,
     ModpackCreate,
     SettingsGame,
-    Playtime
+    Playtime,
+    CharacterEditor
 }
 
-internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? ClientWidth, int? ClientHeight, PreviewPage Page = PreviewPage.Default)
+internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? ClientWidth, int? ClientHeight,
+    PreviewPage Page = PreviewPage.Default, AppLanguage? Language = null)
 {
     public static ProfilePreviewOptions? Parse(string[] args)
     {
@@ -39,6 +41,7 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
         int? width = null;
         int? height = null;
         var page = PreviewPage.Default;
+        AppLanguage? language = null;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -60,6 +63,15 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
                     throw new ArgumentException("Profile preview mode must be account, no-minecraft, guest, fixture, or builds.", nameof(args));
                 }
             }
+            else if (argument == "--preview-language")
+            {
+                language = index + 1 < args.Length ? args[++index] switch
+                {
+                    "ru" => AppLanguage.Russian,
+                    "en" => AppLanguage.English,
+                    _ => throw new ArgumentException("Preview language must be ru or en.", nameof(args))
+                } : throw new ArgumentException("Preview language is missing.", nameof(args));
+            }
             else if (argument == "--preview-page")
             {
                 page = index + 1 < args.Length ? args[++index] switch
@@ -78,7 +90,8 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
                     "modpack-create" => PreviewPage.ModpackCreate,
                     "settings-game" => PreviewPage.SettingsGame,
                     "playtime" => PreviewPage.Playtime,
-                    _ => throw new ArgumentException("Preview page must be builds, create, profile, content, resourcepacks, catalog, worlds, screenshots, datapacks, datapack-catalog, modpacks, modpack-create, settings-game, or playtime.", nameof(args))
+                    "character" => PreviewPage.CharacterEditor,
+                    _ => throw new ArgumentException("Preview page must be builds, create, profile, content, resourcepacks, catalog, worlds, screenshots, datapacks, datapack-catalog, modpacks, modpack-create, settings-game, playtime, or character.", nameof(args))
                 } : throw new ArgumentException("Preview page is missing.", nameof(args));
             }
             else if (argument is "--preview-width" or "--preview-height")
@@ -100,11 +113,19 @@ internal sealed record ProfilePreviewOptions(ProfilePreviewMode Mode, int? Clien
             }
         }
 
-        return enabled ? new(mode, width, height, page) : null;
+        if (page == PreviewPage.CharacterEditor && mode != ProfilePreviewMode.Fixture)
+            throw new ArgumentException("The character editor preview requires fixture mode.", nameof(args));
+        return enabled ? new(mode, width, height, page, language) : null;
     }
 
     public AccountSession? CreateAccount() => Mode switch
     {
+        ProfilePreviewMode.Fixture => CreateFakeAccount("PreviewPlayer") with
+        {
+            MinecraftProfileId = MinecraftCharacterEditorFixture.ProfileId,
+            MinecraftAccessToken = "isolated-preview-token",
+            MinecraftTokenExpiresAt = DateTimeOffset.UtcNow.AddDays(1)
+        },
         ProfilePreviewMode.Guest => null,
         ProfilePreviewMode.NoMinecraft => CreateFakeAccount(minecraftName: null),
         _ => CreateFakeAccount("PreviewPlayer")

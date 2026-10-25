@@ -175,6 +175,18 @@ public sealed class MinecraftCharacterEditorTests
     }
 
     [TestMethod]
+    public async Task Profile_NoActiveSkinUsesBundledDefaultAndAllowsCapeSelection()
+    {
+        var (app, _) = await AppAsync();
+        using var editor = new MinecraftCharacterEditor(app, new FakeApi { NoSkin = true }, new FakeDecoder());
+        await editor.OpenAsync();
+        Assert.IsNotNull(editor.Preview);
+        await editor.SelectCapeAsync("cape");
+        editor.SetPreviewReady(editor.PreviewRevision, true);
+        Assert.IsTrue(await editor.SaveAsync());
+    }
+
+    [TestMethod]
     public async Task Api_UsesMultipartAndCapePutDeleteWithoutTextureAuthorization()
     {
         var requests = new List<string>();
@@ -197,6 +209,40 @@ public sealed class MinecraftCharacterEditorTests
         StringAssert.Contains(requests[1], "\"capeId\": \"cape\"");
         StringAssert.StartsWith(requests[2], "DELETE /minecraft/profile/capes/active");
         await Assert.ThrowsExactlyAsync<InvalidDataException>(() => api.TextureAsync("https://example.com/cape", default));
+    }
+
+    [TestMethod]
+    public async Task Api_ProfileUsesGeneratedJsonContractAndRecognizesActiveAppearance()
+    {
+        using var http = new HttpClient(new CallbackHttpHandler((_, _) => Task.FromResult(TestData.Json(HttpStatusCode.OK,
+            "{\"id\":\"" + ProfileId + "\",\"name\":\"Player\",\"skins\":[{\"id\":\"skin\",\"state\":\"ACTIVE\",\"url\":\"https://textures.minecraft.net/texture/skin\",\"variant\":\"SLIM\"}],\"capes\":[]}"))));
+        var profile = await new MinecraftProfileApi(http).ProfileAsync("test", default);
+        Assert.AreEqual("SLIM", profile.ActiveSkin!.Variant);
+        Assert.IsNull(profile.ActiveCape);
+    }
+
+    [TestMethod]
+    [DataRow(401)]
+    [DataRow(403)]
+    [DataRow(429)]
+    public async Task Api_PropagatesHttpStatusWithoutExposingResponseBody(int status)
+    {
+        using var http = new HttpClient(new CallbackHttpHandler((_, _) => Task.FromResult(
+            TestData.Json((HttpStatusCode)status, "private server response"))));
+        var error = await Assert.ThrowsExactlyAsync<HttpRequestException>(() => new MinecraftProfileApi(http).ProfileAsync("test", default));
+        Assert.AreEqual((HttpStatusCode)status, error.StatusCode);
+        Assert.IsFalse(error.Message.Contains("private server response", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task Api_RequestHonorsHttpClientTimeout()
+    {
+        using var http = new HttpClient(new CallbackHttpHandler(async (_, ct) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            throw new AssertFailedException("The request must be cancelled.");
+        })) { Timeout = TimeSpan.FromMilliseconds(50) };
+        await Assert.ThrowsAsync<OperationCanceledException>(() => new MinecraftProfileApi(http).ProfileAsync("test", default));
     }
 
     private static async Task<(AppCoordinator, RefreshAuthService)> AppAsync()
@@ -235,6 +281,7 @@ public sealed class MinecraftCharacterEditorTests
 
     private sealed class FakeDecoder : IMinecraftAppearanceDecoder
     {
+        public Task<NormalizedMinecraftSkin> DefaultSkinAsync(CancellationToken ct) => DecodeSkinAsync(Png(1), MinecraftSkinVariant.Classic, ct);
         public Task<NormalizedMinecraftSkin> DecodeSkinAsync(byte[] png, MinecraftSkinVariant variant, CancellationToken ct) =>
             Task.FromResult(new NormalizedMinecraftSkin(Enumerable.Repeat(png[32], 64 * 64 * 4).ToArray(), variant));
         public Task<byte[]> DecodeCapeAsync(byte[] png, CancellationToken ct) => Task.FromResult(new byte[64 * 32 * 4]);
@@ -245,7 +292,7 @@ public sealed class MinecraftCharacterEditorTests
         public byte[] Skin = Png(1);
         public string? ActiveCape;
         public string Variant = "CLASSIC";
-        public bool FailCape, LoseUploadResponse, IgnoreUpload, NoCapes;
+        public bool FailCape, LoseUploadResponse, IgnoreUpload, NoCapes, NoSkin;
         public int Uploads, ProfileReads, UnauthorizedReads;
         public TaskCompletionSource? ReadGate;
         public TaskCompletionSource ReadStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -255,7 +302,7 @@ public sealed class MinecraftCharacterEditorTests
             ReadStarted.TrySetResult();
             if (ReadGate is not null) await ReadGate.Task;
             if (UnauthorizedReads-- > 0) throw new HttpRequestException("unauthorized", null, HttpStatusCode.Unauthorized);
-            return new(ProfileId, "Player", [new("skin", "ACTIVE", "skin", Variant)],
+            return new(ProfileId, "Player", NoSkin ? [] : [new("skin", "ACTIVE", "skin", Variant)],
                 NoCapes ? [] : [new("cape", ActiveCape == "cape" ? "ACTIVE" : "INACTIVE", "cape", "Test cape")]);
         }
         public Task UploadSkinAsync(string token, byte[] png, MinecraftSkinVariant variant, CancellationToken ct)

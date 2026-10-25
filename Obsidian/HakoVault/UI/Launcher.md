@@ -573,6 +573,15 @@ Fabric-фасет. Поиск задерживается на 300 мс, резу
 `HakoDialogs.ConfirmPermanentDeleteAsync` — общий шаг для будущих операций корзины: элементы, которые
 `RecycleBin` вернул как `NotRecyclable`, удаляются `RecycleBin.PermanentDelete` только после подтверждения.
 
+### Редактор персонажа
+
+В Windows-профиле кнопка «Изменить персонажа» под 3D-моделью открывает
+`MinecraftCharacterEditorView` внутри настроек. Доступны импорт PNG, Classic/Slim,
+плащи аккаунта и «Без плаща», локальная модель, сохранение и возврат с отбрасыванием
+несохранённого черновика. При узком окне настройки располагаются под моделью; во время
+сохранения возврат и переход между разделами блокируются. Детали состояния, кэша и
+изолированного режима редактора — [[UI/MinecraftSkin]].
+
 ### Предпросмотр
 
 `--profile-preview builds --preview-page builds|create|profile|content|resourcepacks|catalog|worlds|datapacks|datapack-catalog|modpacks|modpack-create|settings-game`

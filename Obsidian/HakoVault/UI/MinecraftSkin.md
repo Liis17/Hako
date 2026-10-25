@@ -153,6 +153,24 @@ WinUI; `MinecraftSkinRenderer` (`Graphics/MinecraftSkinRenderer.cs`) рисуе�
 и необязательный плащ в D3D11 через `CompositionDrawingSurface`. `MinecraftSkinView` владеет
 renderer и передаёт ему нормализованные текстуры из `MinecraftSkinPreviewService`.
 
+Проход внешних слоёв и плаща использует alpha clip 0.5 и запись глубины
+(`Graphics/MinecraftSkinPipeline.cs`): сортировки по центру треугольника недостаточно для
+противоположных граней тонкого наклонённого плаща. WARP-тест `MinecraftCapeRenderTests`
+рендерит реальную геометрию и HLSL с различимыми сторонами и сравнивает пиксели при обратном
+порядке подачи треугольников.
+
+`MinecraftCharacterEditorView` открывается кнопкой под моделью в Windows-профиле и использует
+Core `MinecraftCharacterEditor`. PNG проверяется по IHDR и лимиту 4 МиБ до декодирования;
+при импорте сохраняются исходные байты, legacy 64×32 фиксирует Classic. Локальный preview
+использует тот же `MinecraftSkinView`: готовность рендера привязана к ревизии черновика,
+и сохранение недоступно до готового кадра. Ошибка ввода сохраняет предыдущий черновик.
+Плащ выбирается из Java-профиля аккаунта или снимается через «Без плаща».
+
+Подтверждённый профиль публикуется в `MinecraftSkinPreviewService.ConfirmAppearance` и становится
+авторитетным источником, включая отсутствие плаща. Событие `AppearanceChanged` обновляет
+request scope модели и головы в `SettingsPage`; поздняя загрузка sessionserver не заменяет
+подтверждённый облик. Авторитетный кэш хранится только в памяти, формат сессии не меняется.
+
 Локальная голова `MinecraftSkinHeadComposer` берёт переднюю грань лица и шапки, композитит
 straight-alpha слои в RGBA и увеличивает каждый пиксель 8× ближайшим повтором. При передаче
 в `WriteableBitmap` `MinecraftSkinHeadBitmapConverter` меняет каналы на BGRA и premultiply alpha;
@@ -180,6 +198,10 @@ straight-alpha слои в RGBA и увеличивает каждый пикс�
 «Продолжить без аккаунта» открывает Settings → Profile. `fixture` показывает локальный Steve с тестовым
 плащом; `--preview-width`/`--preview-height` задают размер окна только preview. Режим подходит и для
 unpackaged published output.
+
+`--profile-preview fixture --preview-page character --preview-language ru|en` сразу открывает
+редактор с локальным Steve и тестовым плащом. `MinecraftCharacterEditorFixture` выполняет
+сохранение только в памяти и не использует сеть, DPAPI и пользовательские настройки.
 
 ## Проверка
 

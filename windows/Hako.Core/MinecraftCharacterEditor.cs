@@ -9,6 +9,7 @@ public sealed class MinecraftCharacterEditor : IDisposable
     private readonly IMinecraftProfileApi _api;
     private readonly IMinecraftAppearanceDecoder _decoder;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly CancellationToken _token;
     private readonly long _generation;
     private readonly string? _profileId;
     private MinecraftAppearanceImage? _serverImage;
@@ -19,6 +20,7 @@ public sealed class MinecraftCharacterEditor : IDisposable
 
     public MinecraftCharacterEditor(AppCoordinator app, IMinecraftProfileApi api, IMinecraftAppearanceDecoder decoder)
     {
+        _token = _lifetime.Token;
         _app = app;
         _api = api;
         _decoder = decoder;
@@ -90,9 +92,9 @@ public sealed class MinecraftCharacterEditor : IDisposable
         Notify();
         try
         {
-            var upload = await Task.Run(() => MinecraftSkinUpload.ReadAsync(path, _lifetime.Token), _lifetime.Token);
+            var upload = await Task.Run(() => MinecraftSkinUpload.ReadAsync(path, _token), _token);
             var variant = upload.IsLegacy ? MinecraftSkinVariant.Classic : SelectedVariant;
-            var skin = await _decoder.DecodeSkinAsync(upload.Png, variant, _lifetime.Token);
+            var skin = await _decoder.DecodeSkinAsync(upload.Png, variant, _token);
             CheckCurrent();
             _upload = upload;
             _draftSkin = skin;
@@ -170,7 +172,7 @@ public sealed class MinecraftCharacterEditor : IDisposable
         Notify();
         try
         {
-            await _app.MinecraftSessions.RefreshAsync(_lifetime.Token).WaitAsync(_lifetime.Token);
+            await _app.MinecraftSessions.RefreshAsync(_token).WaitAsync(_token);
             CheckCurrent();
         }
         catch (OperationCanceledException) when (!Current) { }
@@ -249,10 +251,15 @@ public sealed class MinecraftCharacterEditor : IDisposable
 
     private async Task<MinecraftAppearanceImage> ReadImageAsync(MinecraftAppearanceProfile profile)
     {
-        var skin = profile.ActiveSkin ?? throw new InvalidDataException("CharacterProfileError");
-        var bytes = await _api.TextureAsync(skin.Url, _lifetime.Token);
-        var normalized = await _decoder.DecodeSkinAsync(bytes,
-            skin.Variant == "SLIM" ? MinecraftSkinVariant.Slim : MinecraftSkinVariant.Classic, _lifetime.Token);
+        NormalizedMinecraftSkin normalized;
+        if (profile.ActiveSkin is { } skin)
+        {
+            var bytes = await _api.TextureAsync(skin.Url, _token);
+            normalized = await _decoder.DecodeSkinAsync(bytes,
+                string.Equals(skin.Variant, "SLIM", StringComparison.OrdinalIgnoreCase)
+                    ? MinecraftSkinVariant.Slim : MinecraftSkinVariant.Classic, _token);
+        }
+        else normalized = await _decoder.DefaultSkinAsync(_token);
         byte[]? cape = null;
         if (profile.ActiveCape is { } active)
         {
@@ -266,8 +273,8 @@ public sealed class MinecraftCharacterEditor : IDisposable
     private async Task LoadCapeAsync(MinecraftAppearanceCape cape)
     {
         if (_capePixels.ContainsKey(cape.Id)) return;
-        var bytes = await _api.TextureAsync(cape.Url, _lifetime.Token);
-        var pixels = await _decoder.DecodeCapeAsync(bytes, _lifetime.Token);
+        var bytes = await _api.TextureAsync(cape.Url, _token);
+        var pixels = await _decoder.DecodeCapeAsync(bytes, _token);
         CheckCurrent();
         _capeImages[cape.Id] = bytes;
         _capePixels[cape.Id] = pixels;
@@ -276,15 +283,15 @@ public sealed class MinecraftCharacterEditor : IDisposable
     private async Task<T> AuthorizedAsync<T>(Func<string, CancellationToken, Task<T>> operation)
     {
         CheckCurrent();
-        var account = await _app.MinecraftSessions.ConnectForLaunchAsync(_lifetime.Token).WaitAsync(_lifetime.Token);
+        var account = await _app.MinecraftSessions.ConnectForLaunchAsync(_token).WaitAsync(_token);
         CheckCurrent();
-        try { return await operation(account.MinecraftAccessToken!, _lifetime.Token); }
+        try { return await operation(account.MinecraftAccessToken!, _token); }
         catch (HttpRequestException error) when (error.StatusCode == HttpStatusCode.Unauthorized)
         {
             CheckCurrent();
-            account = await _app.MinecraftSessions.RefreshAsync(_lifetime.Token).WaitAsync(_lifetime.Token);
+            account = await _app.MinecraftSessions.RefreshAsync(_token).WaitAsync(_token);
             CheckCurrent();
-            return await operation(account.MinecraftAccessToken!, _lifetime.Token);
+            return await operation(account.MinecraftAccessToken!, _token);
         }
     }
 
@@ -297,16 +304,19 @@ public sealed class MinecraftCharacterEditor : IDisposable
     };
     private void CheckCurrent()
     {
-        if (!Current) throw new OperationCanceledException(_lifetime.Token);
+        if (!Current) throw new OperationCanceledException(_token);
     }
     private void Notify() { if (Current) Changed?.Invoke(this, EventArgs.Empty); }
-    private void AccountChanged(object? sender, EventArgs e) => _lifetime.Cancel();
+    private void AccountChanged(object? sender, EventArgs e)
+    {
+        if (!_disposed) _lifetime.Cancel();
+    }
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _app.AccountGenerationChanged -= AccountChanged;
         _lifetime.Cancel();
-        // In-flight requests may still observe Token; dispose after their cancellation has propagated.
+        _lifetime.Dispose();
     }
 }

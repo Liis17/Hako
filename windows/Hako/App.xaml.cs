@@ -148,6 +148,7 @@ public partial class App : Application
         _window.Activate();
 
         await _coordinator.InitializeAsync();
+        if (_previewOptions?.Language is { } previewLanguage) await _coordinator.SetLanguageAsync(previewLanguage);
         await _playtime!.RecoverPendingTransferAsync(_coordinator.Account?.Xuid);
         if (InstanceStore.LoadError is null)
         {

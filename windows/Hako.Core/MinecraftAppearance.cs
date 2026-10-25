@@ -15,6 +15,7 @@ public sealed record MinecraftAppearanceImage(byte[] SkinRgba, MinecraftSkinVari
 
 public interface IMinecraftAppearanceDecoder
 {
+    Task<NormalizedMinecraftSkin> DefaultSkinAsync(CancellationToken cancellationToken);
     Task<NormalizedMinecraftSkin> DecodeSkinAsync(byte[] png, MinecraftSkinVariant variant, CancellationToken cancellationToken);
     Task<byte[]> DecodeCapeAsync(byte[] png, CancellationToken cancellationToken);
 }
