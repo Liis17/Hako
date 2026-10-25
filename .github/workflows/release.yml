@@ -87,10 +87,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 8.0.x
-
+      # aka.ms redirects .NET downloads to a broken origin (HTTP 409); rely on the
+      # .NET 8 SDK shipped with the runner image instead of setup-dotnet.
       - uses: microsoft/setup-msbuild@v3
         with:
           msbuild-architecture: x64
@@ -135,7 +133,7 @@ jobs:
             Set-Content -LiteralPath $thumbprintPath -Value $thumbprint -NoNewline
 
             $sdkLine = dotnet --list-sdks | Where-Object { $_ -match '^8\.0\.' } | Select-Object -Last 1
-            if (-not $sdkLine) { throw 'The .NET 8 SDK installed by setup-dotnet was not found.' }
+            if (-not $sdkLine) { throw 'No .NET 8 SDK found on the runner image.' }
             $sdkVersion = ($sdkLine -split '\s+', 2)[0]
             $env:MSBuildSDKsPath = Join-Path $env:ProgramFiles "dotnet\sdk\$sdkVersion\Sdks"
             $env:MSBuildEnableWorkloadResolver = 'false'
