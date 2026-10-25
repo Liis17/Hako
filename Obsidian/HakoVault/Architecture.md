@@ -169,18 +169,16 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 
 `xcuserdata/` исключён в `.gitignore`.
 
-CI: `.github/workflows/tests.yml` запускает тесты macOS, Windows и релизных скриптов на pull request в `main`.
-`.github/workflows/release.yml` на каждый push в `main` собирает обе платформы и публикует общий prerelease
-`main-<полный SHA>` с DMG и Windows MSIX-ассетами. Описание prerelease собирает `.github/scripts/prerelease_notes.py`:
-раздельные списки коммитов, изменивших `windows/` и `macos/`, с момента предыдущего тега `main-*`
-(fallback — `github.event.before`, без базы — вся история; пустой раздел помечается «Изменений нет»).
-`.github/scripts/detect_release.py` сравнивает
-`github.event.before` с текущим SHA; при повышении числовой версии изменённой платформы отдельно публикуется
-её стабильный релиз. Стабильные релизы имеют независимые теги `macos-vX.Y.Z` и `windows-vX.Y.Z`; старые релизы
-сохраняются. Платформенные очереди стабильной публикации не отменяют уже запущенные релизы.
+CI: `.github/workflows/tests.yml` запускает тесты macOS, Windows и релизных скриптов, а также гейт версий на pull request в `main`.
+На PR отдельный гейт вызывает `.github/scripts/detect_release.py --require-bump` и требует повысить версию
+каждой изменённой платформы. `.github/workflows/release.yml` на push в `main` запускает только рабочие места
+платформ с повышенной версией: macOS-тесты и сборка выполняются для macOS-релиза, Windows-сборка — для Windows-релиза;
+общий per-push prerelease убран.
+Стабильные релизы имеют независимые теги `macos-vX.Y.Z` и `windows-vX.Y.Z`; старые релизы сохраняются.
+Платформенные очереди стабильной публикации не отменяют уже запущенные релизы.
 
 macOS собирается после тестов на раннере GitHub `xcode-27` (macOS 27 с Xcode 27), с ad-hoc подписью без Developer ID
-и нотаризации. CI сверяет версию и `HakoCommit=$GITHUB_SHA` в собранном `Hako.app`, создаёт `Hako.dmg`
+и нотаризации. CI сверяет версию и `HakoCommit=$GITHUB_SHA` в собранном `Hako.app`, создаёт `Hako-<версия>-macos.dmg`
 и публикует его в релизе `macos-vX.Y.Z` ([[App/Updates]]). Ad-hoc подпись меняется с каждой сборкой, поэтому после
 обновления macOS может снова спросить доступ к записи токенов в Keychain.
 

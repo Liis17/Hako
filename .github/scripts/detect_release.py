@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import json
 import os
 import re
@@ -119,7 +120,34 @@ def changed_paths(repo: Path, before: str | None, after: str) -> set[str]:
     return {path for path in output.split("\0") if path}
 
 
-def detect(repo: Path, before: str, after: str) -> dict[str, str]:
+def platform_state(
+    repo: Path,
+    before: str,
+    after: str,
+    paths: set[str],
+    is_initial_push: bool,
+    directory: str,
+    reader: Callable[[Path, str, str], tuple[tuple[int, int, int], str]],
+    prefix: str,
+) -> tuple[bool, bool, str, str, str]:
+    changed = any(path.startswith(directory) for path in paths)
+    eligible = False
+    version_text = ""
+    tag = ""
+    base_version_text = ""
+    if changed:
+        after_version, version_text = reader(repo, after, "after")
+        if not is_initial_push and has_tree_path(repo, before, directory.rstrip("/")):
+            before_version, _ = reader(repo, before, "before")
+        else:
+            before_version = (0, 0, 0)
+        eligible = after_version > before_version
+        tag = prefix + version_text
+        base_version_text = ".".join(str(number) for number in before_version)
+    return changed, eligible, version_text, tag, base_version_text
+
+
+def platform_states(repo: Path, before: str, after: str) -> dict[str, tuple[bool, bool, str, str, str]]:
     if not re.fullmatch(r"[0-9a-fA-F]{40}", before):
         raise GateError("The push event has no valid `before` SHA; refusing to substitute HEAD^.")
     ensure_commit(repo, after, "after")
@@ -128,27 +156,40 @@ def detect(repo: Path, before: str, after: str) -> dict[str, str]:
         ensure_commit(repo, before, "before")
     paths = changed_paths(repo, None if is_initial_push else before, after)
 
-    result: dict[str, str] = {}
+    result: dict[str, tuple[bool, bool, str, str, str]] = {}
     for name, directory, reader, prefix in (
         ("macos", "macos/", mac_version, "macos-v"),
         ("windows", "windows/", windows_version, "windows-v"),
     ):
-        changed = any(path.startswith(directory) for path in paths)
-        eligible = False
-        version_text = ""
-        tag = ""
-        if changed:
-            after_version, version_text = reader(repo, after, "after")
-            if not is_initial_push and has_tree_path(repo, before, directory.rstrip("/")):
-                before_version, _ = reader(repo, before, "before")
-            else:
-                before_version = (0, 0, 0)
-            eligible = after_version > before_version
-            tag = prefix + version_text
+        result[name] = platform_state(repo, before, after, paths, is_initial_push, directory, reader, prefix)
+    return result
+
+
+def release_outputs(states: dict[str, tuple[bool, bool, str, str, str]]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for name, (_, eligible, version, tag, _) in states.items():
         result[name] = "true" if eligible else "false"
-        result[f"{name}_version"] = version_text
+        result[f"{name}_version"] = version
         result[f"{name}_tag"] = tag
     return result
+
+
+def detect(repo: Path, before: str, after: str) -> dict[str, str]:
+    return release_outputs(platform_states(repo, before, after))
+
+
+def require_bumps(states: dict[str, tuple[bool, bool, str, str, str]]) -> None:
+    version_files = {
+        "macos": ("macOS", MAC_CONFIG, "MARKETING_VERSION"),
+        "windows": ("Windows", WINDOWS_MANIFEST, "Version X.Y.Z.0"),
+    }
+    for name, (changed, eligible, version, _, base) in states.items():
+        if changed and not eligible:
+            platform, path, setting = version_files[name]
+            raise GateError(
+                f"{platform} changes require a version bump; current version is {version}, "
+                f"base version is {base}. Update {setting} in {path}."
+            )
 
 
 def main() -> int:
@@ -156,11 +197,15 @@ def main() -> int:
     parser.add_argument("--before", required=True)
     parser.add_argument("--after", default=os.environ.get("GITHUB_SHA"))
     parser.add_argument("--repository", default=".")
+    parser.add_argument("--require-bump", action="store_true")
     args = parser.parse_args()
     if not args.after:
         parser.error("--after or GITHUB_SHA is required")
     try:
-        outputs = detect(Path(args.repository).resolve(), args.before, args.after)
+        states = platform_states(Path(args.repository).resolve(), args.before, args.after)
+        if args.require_bump:
+            require_bumps(states)
+        outputs = release_outputs(states)
     except GateError as error:
         print(f"release gate: {error}", file=sys.stderr)
         return 1

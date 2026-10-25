@@ -12,11 +12,11 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[1] / "detect_release.py"
 
 
-def run_detector(repository: Path, before: str, after: str) -> subprocess.CompletedProcess[str]:
+def run_detector(repository: Path, before: str, after: str, *extra_args: str) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment.pop("GITHUB_OUTPUT", None)
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--before", before, "--after", after],
+        [sys.executable, str(SCRIPT), "--before", before, "--after", after, *extra_args],
         cwd=repository, text=True, encoding="utf-8",
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment,
     )
@@ -200,6 +200,65 @@ class ReleaseGateTests(unittest.TestCase):
         self.git.windows_version("1.0.0.1")
         malformed_windows = self.git.commit("malformed Windows version")
         self.assertIn("Malformed Windows after version", self.failure_message(malformed, malformed_windows))
+
+    def test_require_bump_rejects_changed_macos_without_a_version_bump(self) -> None:
+        self.git.write("macos/Hako/Sources/App.swift", "let app = false\n")
+        after = self.git.commit("macOS source only")
+
+        result = run_detector(self.repo, self.base, after, "--require-bump")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("macOS", result.stderr)
+        self.assertIn("1.0.0", result.stderr)
+        self.assertIn("macos/Hako/Version.xcconfig", result.stderr)
+
+    def test_require_bump_accepts_changed_macos_with_a_version_bump(self) -> None:
+        self.git.write("macos/Hako/Sources/App.swift", "let app = false\n")
+        self.git.mac_version("1.0.1")
+        after = self.git.commit("macOS patch release")
+
+        result = run_detector(self.repo, self.base, after, "--require-bump")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_require_bump_checks_both_changed_platforms(self) -> None:
+        self.git.write("macos/Hako/Sources/App.swift", "let app = false\n")
+        self.git.mac_version("1.0.1")
+        self.git.write("windows/Hako/Program.cs", "class Program { static int Value => 1; }\n")
+        after = self.git.commit("macOS bump and Windows source change")
+
+        result = run_detector(self.repo, self.base, after, "--require-bump")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Windows", result.stderr)
+        self.assertIn("windows/Hako/Package.appxmanifest", result.stderr)
+
+    def test_require_bump_ignores_docs_only_changes(self) -> None:
+        self.git.write("README.md", "documentation only\n")
+        after = self.git.commit("docs")
+
+        result = run_detector(self.repo, self.base, after, "--require-bump")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_require_bump_rejects_a_lower_version(self) -> None:
+        self.git.write("macos/Hako/Sources/App.swift", "let app = false\n")
+        self.git.mac_version("0.9.9")
+        after = self.git.commit("lower macOS version")
+
+        result = run_detector(self.repo, self.base, after, "--require-bump")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("current version is 0.9.9", result.stderr)
+        self.assertIn("base version is 1.0.0", result.stderr)
+
+    def test_require_bump_accepts_a_new_platform(self) -> None:
+        with tempfile.TemporaryDirectory() as isolated:
+            repo = Path(isolated)
+            git = GitFixture(repo)
+            git.write("README.md", "initial\n")
+            before = git.commit("initial without platforms")
+            git.windows_version("1.0.0.0")
+            git.write("windows/Hako/Program.cs", "class Program {}\n")
+            after = git.commit("add Windows platform")
+
+            result = run_detector(repo, before, after, "--require-bump")
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":
