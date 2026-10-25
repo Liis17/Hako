@@ -62,8 +62,6 @@ nonisolated struct AppRelease: Decodable, Equatable, Sendable {
         private enum CodingKeys: String, CodingKey { case name, url = "browser_download_url", size, digest }
     }
 
-    static let dmgName = "Hako.dmg"
-
     /// CI создаёт релиз на коммите сборки; SHA используется для подтверждения происхождения и установки.
     let commit: String
     let tagName: String
@@ -74,7 +72,10 @@ nonisolated struct AppRelease: Decodable, Equatable, Sendable {
     let prerelease: Bool
     let assets: [Asset]
 
-    var dmg: Asset? { assets.first { $0.name == Self.dmgName } }
+    var dmg: Asset? {
+        guard let version = parsedVersion?.description else { return nil }
+        return assets.first { $0.name == "Hako-\(version)-macos.dmg" }
+    }
     var version: String? { parsedVersion?.description }
     fileprivate var parsedVersion: AppReleaseVersion? { AppReleaseVersion.parseTag(tagName) }
 
@@ -198,7 +199,7 @@ nonisolated struct AppReleaseClient: Sendable {
         guard (200..<300).contains(response.statusCode) else { throw MojangError.http(response.statusCode) }
         try Task.checkCancellation()
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let target = folder.appendingPathComponent(AppRelease.dmgName)
+        let target = folder.appendingPathComponent(asset.name)
         try? FileManager.default.removeItem(at: target)
         try FileManager.default.moveItem(at: temporary, to: target)
         guard try target.resourceValues(forKeys: [.fileSizeKey]).fileSize.map(Int64.init) == asset.size, try Self.hashFile(target) == sha256 else {

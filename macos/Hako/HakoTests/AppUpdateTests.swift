@@ -17,6 +17,7 @@ import Testing
         draft: Bool = false,
         prerelease: Bool = false,
         includesDMG: Bool = true,
+        dmgNames: [String]? = nil,
         digest: String? = nil,
         size: Int? = nil
     ) -> [String: Any] {
@@ -25,10 +26,12 @@ import Testing
             ["name": "notes.txt", "browser_download_url": "https://fixtures.test/notes.txt", "size": 1, "digest": NSNull()]
         ]
         if includesDMG {
-            assets.append([
-                "name": "Hako.dmg", "browser_download_url": "https://fixtures.test/Hako.dmg",
-                "size": size ?? dmg.count, "digest": digest ?? "sha256:\(sha.uppercased())"
-            ])
+            for name in dmgNames ?? ["Hako-\(version)-macos.dmg"] {
+                assets.append([
+                    "name": name, "browser_download_url": "https://fixtures.test/\(name)",
+                    "size": size ?? dmg.count, "digest": digest ?? "sha256:\(sha.uppercased())"
+                ])
+            }
         }
         return [
             "target_commitish": commit,
@@ -87,6 +90,25 @@ import Testing
 
         let release = try #require(try await AppReleaseClient(session: session).latest())
         #expect(release.version == "1.4.0")
+    }
+
+    @Test func releaseRequiresDMGNameToMatchItsTagVersion() throws {
+        let oldName = try AppRelease.decode(Self.json(Self.release(version: "1.0.3", dmgNames: ["Hako.dmg"])))
+        #expect(oldName.dmg == nil)
+        #expect(!oldName.isStableMacOSRelease)
+
+        let otherVersion = try AppRelease.decode(Self.json(Self.release(
+            version: "1.0.3", tagName: "macos-v1.0.3", dmgNames: ["Hako-1.0.2-macos.dmg"]
+        )))
+        #expect(otherVersion.dmg == nil)
+        #expect(!otherVersion.isStableMacOSRelease)
+    }
+
+    @Test func releaseSelectsExactVersionedDMGWhenSeveralAreAttached() throws {
+        let release = try AppRelease.decode(Self.json(Self.release(
+            version: "1.0.3", dmgNames: ["Hako.dmg", "Hako-1.0.2-macos.dmg", "Hako-1.0.3-macos.dmg"]
+        )))
+        #expect(release.dmg?.name == "Hako-1.0.3-macos.dmg")
     }
 
     @Test func updateComparisonUsesNumericVersionsAndNormalizesLegacyBundleVersion() throws {
@@ -187,11 +209,13 @@ import Testing
         let session = AppUpdateTestProtocol.session(); defer { session.invalidateAndCancel() }
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
-        AppUpdateTestProtocol.prepare(["fixtures.test/Hako.dmg": .init(data: Self.dmg)])
+        let assetName = "Hako-1.0.1-macos.dmg"
+        AppUpdateTestProtocol.prepare(["fixtures.test/\(assetName)": .init(data: Self.dmg)])
         let client = AppReleaseClient(session: session)
 
         let good = try AppRelease.decode(Self.json(Self.release()))
         let file = try await client.download(try #require(good.dmg), into: folder) { _ in }
+        #expect(file.lastPathComponent == assetName)
         #expect(try Data(contentsOf: file) == Self.dmg)
 
         for broken in [
@@ -200,7 +224,7 @@ import Testing
         ] {
             let release = try AppRelease.decode(Self.json(broken))
             await #expect(throws: MojangError.self) { try await client.download(release.dmg!, into: folder) { _ in } }
-            #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("Hako.dmg").path))
+            #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent(assetName).path))
         }
         let unsigned = try AppRelease.decode(Self.json(Self.release(digest: "md5:x")))
         await #expect(throws: MojangError.self) { try await client.download(unsigned.dmg!, into: folder) { _ in } }

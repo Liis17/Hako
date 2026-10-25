@@ -30,6 +30,7 @@ jobs:
 
   macos:
     needs: detect
+    if: needs.detect.outputs.macos == 'true'
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
@@ -64,29 +65,30 @@ jobs:
           [[ "$actual_commit" == "$EXPECTED_COMMIT" ]] || { echo "Built app commit $actual_commit does not match $EXPECTED_COMMIT." >&2; exit 1; }
 
       - name: Create DMG
+        env:
+          RELEASE_VERSION: ${{ needs.detect.outputs.macos_version }}
         run: |
           mkdir dmg
           cp -R build/Build/Products/Release/Hako.app dmg/
           ln -s /Applications dmg/Applications
-          hdiutil create -volname Hako -srcfolder dmg -format UDZO -ov Hako.dmg
+          hdiutil create -volname Hako -srcfolder dmg -format UDZO -ov "Hako-$RELEASE_VERSION-macos.dmg"
 
       - name: Upload macOS release asset
         uses: actions/upload-artifact@v4
         with:
           name: macos-release-assets
-          path: Hako.dmg
+          path: Hako-${{ needs.detect.outputs.macos_version }}-macos.dmg
           if-no-files-found: error
 
   windows:
     needs: detect
+    if: needs.detect.outputs.windows == 'true'
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 8.0.x
-
+      # aka.ms redirects .NET downloads to a broken origin (HTTP 409); rely on the
+      # .NET 8 SDK shipped with the runner image instead of setup-dotnet.
       - uses: microsoft/setup-msbuild@v3
         with:
           msbuild-architecture: x64
@@ -131,7 +133,7 @@ jobs:
             Set-Content -LiteralPath $thumbprintPath -Value $thumbprint -NoNewline
 
             $sdkLine = dotnet --list-sdks | Where-Object { $_ -match '^8\.0\.' } | Select-Object -Last 1
-            if (-not $sdkLine) { throw 'The .NET 8 SDK installed by setup-dotnet was not found.' }
+            if (-not $sdkLine) { throw 'No .NET 8 SDK found on the runner image.' }
             $sdkVersion = ($sdkLine -split '\s+', 2)[0]
             $env:MSBuildSDKsPath = Join-Path $env:ProgramFiles "dotnet\sdk\$sdkVersion\Sdks"
             $env:MSBuildEnableWorkloadResolver = 'false'
@@ -318,7 +320,7 @@ jobs:
             Сборка macOS из коммита ${{ github.sha }}.
 
             Приложение подписано ad-hoc, без Developer ID и нотариализации. При первом запуске разрешите его в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть» либо выполните `xattr -dr com.apple.quarantine /Applications/Hako.app`.
-        run: python3 .github/scripts/publish_release.py --tag "$RELEASE_TAG" --title "Hako macOS $RELEASE_VERSION" --notes "$RELEASE_NOTES" --asset release-assets/Hako.dmg
+        run: python3 .github/scripts/publish_release.py --tag "$RELEASE_TAG" --title "Hako macOS $RELEASE_VERSION" --notes "$RELEASE_NOTES" --asset "release-assets/Hako-$RELEASE_VERSION-macos.dmg"
 
   publish-windows:
     needs: [detect, windows]
@@ -364,34 +366,3 @@ jobs:
           foreach ($assetPath in $assetPaths) { $arguments += @('--asset', $assetPath) }
           python .github/scripts/publish_release.py @arguments
           if ($LASTEXITCODE -ne 0) { throw "Windows release publication failed with exit code $LASTEXITCODE." }
-
-  main-prerelease:
-    needs: [macos, windows]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download release assets
-        uses: actions/download-artifact@v4
-        with:
-          path: release-assets
-
-      - name: Publish main prerelease
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
-          PUSH_BEFORE: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          short_sha="${GITHUB_SHA:0:12}"
-          tag="main-${GITHUB_SHA}"
-          notes="$(python3 .github/scripts/prerelease_notes.py --after "$GITHUB_SHA" --before "$PUSH_BEFORE")"
-          mapfile -d '' -t assets < <(find release-assets -type f -print0 | sort -z)
-          arguments=(--tag "$tag" --title "Hako main $short_sha" --notes "$notes" --prerelease)
-          for asset in "${assets[@]}"; do arguments+=(--asset "$asset"); done
-          python3 .github/scripts/publish_release.py "${arguments[@]}"

@@ -28,9 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 8.0.x
+      # aka.ms redirects .NET downloads to a broken origin (HTTP 409); the runner
+      # image already ships a .NET 8 SDK, so verify it instead of downloading one.
+      - name: Verify .NET 8 SDK
+        shell: pwsh
+        run: |
+          $sdk = dotnet --list-sdks | Where-Object { $_ -match '^8\.0\.' } | Select-Object -Last 1
+          if (-not $sdk) { throw 'No .NET 8 SDK found on the runner image.' }
+          Write-Output "Using .NET SDK $($sdk.Split(' ')[0])"
 
       - name: Build Windows app
         run: dotnet build windows/Hako/Hako.csproj -c Debug -p:Platform=x64
@@ -49,3 +54,20 @@ jobs:
 
       - name: Run release script tests
         run: python -m unittest discover -s .github/scripts/tests -p 'test_*.py'
+
+  version-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Require platform version bumps
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          base="$(git merge-base "$BASE_SHA" "$GITHUB_SHA")"
+          python .github/scripts/detect_release.py --before "$base" --after "$GITHUB_SHA" --require-bump
