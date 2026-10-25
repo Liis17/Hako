@@ -18,6 +18,7 @@ use crate::{
 
 const REQUEST_LIFETIME: Duration = Duration::minutes(5);
 const SESSION_LIFETIME: Duration = Duration::days(14);
+const TELEGRAM_SESSION_LIST_LIMIT: i64 = 20;
 
 #[derive(Clone)]
 pub struct AuthService {
@@ -193,6 +194,17 @@ impl AuthService {
         let (token, token_hash) = random_secret(32)?;
         let token_expires_at = now + SESSION_LIFETIME;
         let mut transaction = self.pool.begin().await?;
+        let account_id_hint = sqlx::query_scalar::<_, Option<Uuid>>(
+            "SELECT account_id FROM auth_requests WHERE id = $1 AND exchange_secret_hash = $2",
+        )
+        .bind(request_id)
+        .bind(hash(exchange_secret.as_bytes()))
+        .fetch_optional(&mut *transaction)
+        .await?
+        .flatten();
+        if let Some(account_id) = account_id_hint {
+            lock_account(&mut transaction, account_id).await?;
+        }
         let request = sqlx::query_as::<_, (String, OffsetDateTime, Option<Uuid>)>(
             "SELECT status, expires_at, account_id FROM auth_requests \
              WHERE id = $1 AND exchange_secret_hash = $2 FOR UPDATE",
@@ -408,16 +420,29 @@ impl AuthService {
 
     pub async fn revoke_session(&self, telegram_id: i64, session_id: Uuid) -> AuthResult<bool> {
         let now = self.clock.now();
-        let result = sqlx::query(
-            "UPDATE sessions s SET revoked_at = $3 FROM accounts a \
-             WHERE s.id = $1 AND s.account_id = a.id AND a.telegram_id = $2 \
-             AND s.revoked_at IS NULL",
+        let mut transaction = self.pool.begin().await?;
+        let account_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT s.account_id FROM sessions s JOIN accounts a ON a.id = s.account_id \
+             WHERE s.id = $1 AND a.telegram_id = $2 AND s.revoked_at IS NULL",
         )
         .bind(session_id)
         .bind(telegram_id)
-        .bind(now)
-        .execute(&self.pool)
+        .fetch_optional(&mut *transaction)
         .await?;
+        let Some(account_id) = account_id else {
+            return Ok(false);
+        };
+        lock_account(&mut transaction, account_id).await?;
+        let result = sqlx::query(
+            "UPDATE sessions SET revoked_at = $3 WHERE id = $1 AND account_id = $2 \
+             AND revoked_at IS NULL",
+        )
+        .bind(session_id)
+        .bind(account_id)
+        .bind(now)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
         Ok(result.rows_affected() == 1)
     }
 
@@ -432,6 +457,7 @@ impl AuthService {
         let Some(account_id) = account_id else {
             return Ok(false);
         };
+        lock_account(&mut transaction, account_id).await?;
         sqlx::query(
             "UPDATE sessions SET revoked_at = $2 WHERE account_id = $1 AND revoked_at IS NULL",
         )
@@ -510,7 +536,8 @@ impl AuthService {
 
     pub async fn drain_outbox(&self, bot: &dyn BotClient) -> AuthResult<bool> {
         let row = sqlx::query_as::<_, (i64, Value)>(
-            "SELECT id, payload FROM telegram_outbox WHERE delivered_at IS NULL ORDER BY id LIMIT 1",
+            "SELECT id, payload FROM telegram_outbox \
+             WHERE delivered_at IS NULL AND failed_at IS NULL ORDER BY id LIMIT 1",
         )
         .fetch_optional(&self.pool)
         .await?;
@@ -520,7 +547,7 @@ impl AuthService {
         let effect: BotEffect =
             serde_json::from_value(payload).map_err(|_| AuthError::internal())?;
         let now = self.clock.now();
-        match effect {
+        let delivery_result = match effect {
             BotEffect::SendMessage {
                 chat_id,
                 text,
@@ -540,16 +567,20 @@ impl AuthService {
                     .await?;
                     let pending = matches!(pending, Some(true));
                     if pending {
-                        let sent = bot
-                            .send_message(chat_id, &text, &keyboard)
-                            .await
-                            .map_err(|_| AuthError::internal())?;
-                        save_message_reference(&self.pool, request_id, sent).await?;
+                        match bot.send_message(chat_id, &text, &keyboard).await {
+                            Ok(sent) => {
+                                save_message_reference(&self.pool, request_id, sent).await?;
+                                Ok(())
+                            }
+                            Err(error) => Err(error),
+                        }
+                    } else {
+                        Ok(())
                     }
                 } else {
                     bot.send_message(chat_id, &text, &keyboard)
                         .await
-                        .map_err(|_| AuthError::internal())?;
+                        .map(|_| ())
                 }
             }
             BotEffect::AnswerCallback {
@@ -558,20 +589,35 @@ impl AuthService {
             } => {
                 bot.answer_callback_query(&callback_query_id, text.as_deref())
                     .await
-                    .map_err(|_| AuthError::internal())?;
             }
             BotEffect::EditMessage {
                 chat_id,
                 message_id,
                 text,
-            } => {
-                bot.edit_message_text(chat_id, message_id, &text)
-                    .await
-                    .map_err(|_| AuthError::internal())?;
+            } => bot.edit_message_text(chat_id, message_id, &text).await,
+        };
+        if let Err(error) = delivery_result {
+            if error.is_permanent() {
+                sqlx::query(
+                    "UPDATE telegram_outbox SET failed_at = $2, failure_reason = $3 \
+                     WHERE id = $1 AND delivered_at IS NULL AND failed_at IS NULL",
+                )
+                .bind(outbox_id)
+                .bind(now)
+                .bind("Telegram rejected the request with a client error")
+                .execute(&self.pool)
+                .await?;
+                tracing::error!(
+                    outbox_id,
+                    "permanent Telegram outbox delivery failure; skipped"
+                );
+                return Ok(true);
             }
+            return Err(AuthError::internal());
         }
         sqlx::query(
-            "UPDATE telegram_outbox SET delivered_at = $2 WHERE id = $1 AND delivered_at IS NULL",
+            "UPDATE telegram_outbox SET delivered_at = $2 \
+             WHERE id = $1 AND delivered_at IS NULL AND failed_at IS NULL",
         )
         .bind(outbox_id)
         .bind(now)
@@ -811,35 +857,59 @@ impl AuthService {
         let Some(account_id) = account_id else {
             return enqueue_text(transaction, message.chat.id, "Аккаунт не найден.", now).await;
         };
-        let sessions = sqlx::query_as::<_, (Uuid, String)>(
-            "SELECT id, device_name FROM sessions WHERE account_id = $1 \
-             AND revoked_at IS NULL AND expires_at > $2 ORDER BY created_at DESC",
+        let sessions = sqlx::query_as::<_, (Uuid, String, i64)>(
+            "SELECT id, device_name, count(*) OVER() FROM sessions WHERE account_id = $1 \
+             AND revoked_at IS NULL AND expires_at > $2 \
+             ORDER BY created_at DESC LIMIT $3",
         )
         .bind(account_id)
         .bind(now)
+        .bind(TELEGRAM_SESSION_LIST_LIMIT)
         .fetch_all(&mut **transaction)
         .await?;
-        if sessions.is_empty() {
+        let has_pending_requests = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM auth_requests WHERE account_id = $1 \
+             AND status IN ('pending', 'approved') AND expires_at > $2)",
+        )
+        .bind(account_id)
+        .bind(now)
+        .fetch_one(&mut **transaction)
+        .await?;
+        if sessions.is_empty() && !has_pending_requests {
             return enqueue_text(transaction, message.chat.id, "Активных сессий нет.", now).await;
         }
+        let total_sessions = sessions.first().map_or(0, |(_, _, total)| *total);
         let mut keyboard = Vec::with_capacity(sessions.len() + 1);
         let mut lines = Vec::with_capacity(sessions.len() + 1);
-        for (session_id, device_name) in sessions {
-            lines.push(format!("• {device_name}"));
+        for (session_id, device_name, _) in &sessions {
+            lines.push(format!("• {}", truncate_chars(device_name, 64)));
             keyboard.push(vec![InlineButton {
-                text: format!("Завершить: {device_name}"),
+                text: format!("Завершить: {}", truncate_chars(device_name, 40)),
                 callback_data: format!("session:revoke:{session_id}"),
             }]);
         }
-        keyboard.push(vec![InlineButton {
-            text: "Завершить все сессии".to_owned(),
-            callback_data: "sessions:revoke_all".to_owned(),
-        }]);
+        if total_sessions > sessions.len() as i64 {
+            lines.push(format!(
+                "… и ещё {} сессий.",
+                total_sessions - sessions.len() as i64
+            ));
+        }
+        if total_sessions > 0 || has_pending_requests {
+            keyboard.push(vec![InlineButton {
+                text: "Завершить все сессии".to_owned(),
+                callback_data: "sessions:revoke_all".to_owned(),
+            }]);
+        }
+        let text = if sessions.is_empty() {
+            "Активных сессий нет. Есть незавершённые запросы на вход.".to_owned()
+        } else {
+            format!("Активные сессии:\n{}", lines.join("\n"))
+        };
         enqueue_effect(
             transaction,
             &BotEffect::SendMessage {
                 chat_id: message.chat.id,
-                text: format!("Активные сессии:\n{}", lines.join("\n")),
+                text,
                 keyboard,
                 auth_request_id: None,
             },
@@ -935,15 +1005,27 @@ impl AuthService {
         let Some((session_id, message)) = session_id.zip(message) else {
             return enqueue_callback_answer(transaction, callback, "Сессия недоступна.", now).await;
         };
-        let result = sqlx::query(
-            "UPDATE sessions s SET revoked_at = $3 FROM accounts a \
-             WHERE s.id = $1 AND s.account_id = a.id AND a.telegram_id = $2 \
-             AND a.chat_id = $4 AND s.revoked_at IS NULL",
+        let account_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT s.account_id FROM sessions s JOIN accounts a ON a.id = s.account_id \
+             WHERE s.id = $1 AND a.telegram_id = $2 AND a.chat_id = $3 \
+             AND s.revoked_at IS NULL",
         )
         .bind(session_id)
         .bind(callback.from.id)
-        .bind(now)
         .bind(message.chat.id)
+        .fetch_optional(&mut **transaction)
+        .await?;
+        let Some(account_id) = account_id else {
+            return enqueue_callback_answer(transaction, callback, "Сессия недоступна.", now).await;
+        };
+        lock_account(transaction, account_id).await?;
+        let result = sqlx::query(
+            "UPDATE sessions SET revoked_at = $3 WHERE id = $1 AND account_id = $2 \
+             AND revoked_at IS NULL",
+        )
+        .bind(session_id)
+        .bind(account_id)
+        .bind(now)
         .execute(&mut **transaction)
         .await?;
         if result.rows_affected() != 1 {
@@ -980,6 +1062,7 @@ impl AuthService {
             return enqueue_callback_answer(transaction, callback, "Действие недоступно.", now)
                 .await;
         };
+        lock_account(transaction, account_id).await?;
         sqlx::query(
             "UPDATE sessions SET revoked_at = $2 WHERE account_id = $1 AND revoked_at IS NULL",
         )
@@ -1003,6 +1086,27 @@ impl AuthService {
             now,
         )
         .await
+    }
+}
+
+async fn lock_account(
+    transaction: &mut Transaction<'_, Postgres>,
+    account_id: Uuid,
+) -> AuthResult<()> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))")
+        .bind(account_id)
+        .execute(&mut **transaction)
+        .await?;
+    Ok(())
+}
+
+fn truncate_chars(value: &str, limit: usize) -> String {
+    let mut chars = value.chars();
+    let truncated = chars.by_ref().take(limit).collect::<String>();
+    if chars.next().is_some() {
+        format!("{truncated}…")
+    } else {
+        truncated
     }
 }
 

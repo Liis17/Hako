@@ -51,8 +51,17 @@ pub struct SentMessage {
     pub message_id: i64,
 }
 
-#[derive(Debug)]
-pub struct BotError;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BotError {
+    Transient,
+    Permanent,
+}
+
+impl BotError {
+    pub fn is_permanent(self) -> bool {
+        self == Self::Permanent
+    }
+}
 
 #[async_trait]
 pub trait BotClient: Send + Sync {
@@ -91,7 +100,7 @@ impl ReqwestBotClient {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(45))
             .build()
-            .map_err(|_| BotError)?;
+            .map_err(|_| BotError::Transient)?;
         Ok(Self { token, client })
     }
 
@@ -103,15 +112,31 @@ impl ReqwestBotClient {
             .json(&payload)
             .send()
             .await
-            .map_err(|_| BotError)?;
+            .map_err(|_| BotError::Transient)?;
         if !response.status().is_success() {
-            return Err(BotError);
+            return Err(classify_http_status(response.status()));
         }
-        let result: TelegramResponse<T> = response.json().await.map_err(|_| BotError)?;
+        let result: TelegramResponse<T> = response.json().await.map_err(|_| BotError::Transient)?;
         if !result.ok {
-            return Err(BotError);
+            return Err(classify_api_error_code(result.error_code));
         }
-        result.result.ok_or(BotError)
+        result.result.ok_or(BotError::Transient)
+    }
+}
+
+fn classify_http_status(status: reqwest::StatusCode) -> BotError {
+    if status.is_client_error() {
+        BotError::Permanent
+    } else {
+        BotError::Transient
+    }
+}
+
+fn classify_api_error_code(error_code: Option<u16>) -> BotError {
+    if error_code.is_some_and(|code| (400..500).contains(&code)) {
+        BotError::Permanent
+    } else {
+        BotError::Transient
     }
 }
 
@@ -188,4 +213,27 @@ impl BotClient for ReqwestBotClient {
 struct TelegramResponse<T> {
     ok: bool,
     result: Option<T>,
+    error_code: Option<u16>,
+}
+
+#[cfg(test)]
+mod tests {
+    use reqwest::StatusCode;
+
+    use super::{classify_api_error_code, classify_http_status, BotError};
+
+    #[test]
+    fn telegram_client_errors_are_permanent_and_server_errors_retry() {
+        assert_eq!(
+            classify_http_status(StatusCode::BAD_REQUEST),
+            BotError::Permanent
+        );
+        assert_eq!(
+            classify_http_status(StatusCode::INTERNAL_SERVER_ERROR),
+            BotError::Transient
+        );
+        assert_eq!(classify_api_error_code(Some(400)), BotError::Permanent);
+        assert_eq!(classify_api_error_code(Some(500)), BotError::Transient);
+        assert_eq!(classify_api_error_code(None), BotError::Transient);
+    }
 }

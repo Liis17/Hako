@@ -93,7 +93,9 @@ A valid token returns `account_id`, `username`, `session_id`, and `expires_at`, 
 
 The `token` value must contain 1–256 bytes.
 
-Both listeners serve `GET /healthz`, which returns `200` and `ok`. A healthy HTTP service does not guarantee Telegram is available; bot polling retries in the background.
+The Telegram `/sessions` command lists at most 20 active sessions and shortens long device names in the message and buttons. It shows **Завершить все сессии** when the account has an active session or an unexpired `pending`/`approved` authorization request. That action revokes every active session and expires those requests, including approvals not yet exchanged.
+
+Both listeners serve `GET /healthz`, which returns `200` and `ok`. A healthy HTTP service does not guarantee Telegram is available. Temporary Telegram delivery and polling errors retry with bounded backoff. A permanent Telegram client error (`4xx`) on an outbox item marks that item failed, logs it, and lets the worker continue with later items and `getUpdates`.
 
 ## Errors and limits
 

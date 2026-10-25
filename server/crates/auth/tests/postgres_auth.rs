@@ -14,19 +14,21 @@ use axum::{
 };
 use hako_auth::{
     api::{internal_router, public_router, AppState},
+    bot_worker::run_bot_worker,
     clock::{Clock, SharedClock},
     crypto::hash,
     rate_limit::RateLimiter,
     service::{AuthService, ExchangeResponse, RegisterResponse},
     telegram::{
-        BotClient, InlineButton, SentMessage, TelegramCallbackQuery, TelegramChat, TelegramMessage,
-        TelegramUpdate, TelegramUser,
+        BotClient, BotError, InlineButton, SentMessage, TelegramCallbackQuery, TelegramChat,
+        TelegramMessage, TelegramUpdate, TelegramUser,
     },
 };
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use time::{Duration, OffsetDateTime};
+use tokio::sync::Notify;
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -44,6 +46,8 @@ struct MockBot {
     callbacks: Mutex<Vec<String>>,
     edited: Mutex<Vec<String>>,
     next_message_id: AtomicI64,
+    fail_next_send_permanently: std::sync::atomic::AtomicBool,
+    updates_notified: Notify,
 }
 
 struct FixedClock(RwLock<OffsetDateTime>);
@@ -83,6 +87,7 @@ impl BotClient for MockBot {
         _offset: i64,
         _timeout_seconds: u64,
     ) -> Result<Vec<TelegramUpdate>, hako_auth::telegram::BotError> {
+        self.updates_notified.notify_one();
         Ok(Vec::new())
     }
 
@@ -92,6 +97,12 @@ impl BotClient for MockBot {
         text: &str,
         keyboard: &[Vec<InlineButton>],
     ) -> Result<SentMessage, hako_auth::telegram::BotError> {
+        if self
+            .fail_next_send_permanently
+            .swap(false, Ordering::SeqCst)
+        {
+            return Err(BotError::Permanent);
+        }
         let message_id = self.next_message_id.fetch_add(1, Ordering::Relaxed) + 1;
         let sent = MockSentMessage {
             chat_id,
@@ -668,6 +679,22 @@ async fn postgres_auth_flow_and_telegram_updates() {
         .await
         .expect("create pending login for revoke-all");
     drain_outbox(&auth, &bot).await;
+    for _ in 0..32 {
+        sqlx::query(
+            "INSERT INTO sessions \
+             (id, account_id, token_hash, device_name, created_at, last_used_at, expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $5, $6)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(initial.account.id)
+        .bind(hash(Uuid::new_v4().to_string().as_bytes()))
+        .bind("x".repeat(128))
+        .bind(base)
+        .bind(base + Duration::days(14))
+        .execute(&pool)
+        .await
+        .expect("insert long-name sessions");
+    }
     let sessions_update = message_update(
         &update_ids,
         TelegramUser {
@@ -682,6 +709,9 @@ async fn postgres_auth_flow_and_telegram_updates() {
         .expect("load sessions before revoke-all");
     drain_outbox(&auth, &bot).await;
     let sessions_message = latest_sessions_message(&bot);
+    assert!(sessions_message.text.encode_utf16().count() <= 4096);
+    assert!(sessions_message.text.contains("ещё"));
+    assert!(sessions_message.keyboard.len() <= 21);
     let revoke_all = callback_update(
         &update_ids,
         TelegramUser {
@@ -709,6 +739,275 @@ async fn postgres_auth_flow_and_telegram_updates() {
         .await
         .expect("active sessions after revoke-all")
         .is_empty());
+
+    // An approved authorization remains revocable when no session was exchanged yet.
+    let approved_unexchanged = auth
+        .login(&changed_username, "Approved but not exchanged")
+        .await
+        .expect("create approved unexchanged login");
+    drain_outbox(&auth, &bot).await;
+    let login_message = latest_login_message(&bot);
+    let approve_unexchanged = callback_update(
+        &update_ids,
+        TelegramUser {
+            id: telegram_id,
+            username: Some(changed_username.clone()),
+        },
+        &login_message,
+        &login_message.keyboard[0][0].callback_data,
+        "approve-unexchanged",
+    );
+    auth.process_update(&approve_unexchanged)
+        .await
+        .expect("approve unexchanged login");
+    drain_outbox(&auth, &bot).await;
+    assert_eq!(
+        auth.request_status(
+            approved_unexchanged.request_id,
+            &approved_unexchanged.exchange_secret
+        )
+        .await
+        .expect("approved unexchanged request status")
+        .status,
+        "approved"
+    );
+    let no_session_update = message_update(
+        &update_ids,
+        TelegramUser {
+            id: telegram_id,
+            username: Some(changed_username.clone()),
+        },
+        "/sessions",
+        None,
+    );
+    auth.process_update(&no_session_update)
+        .await
+        .expect("list sessions with pending authorization");
+    drain_outbox(&auth, &bot).await;
+    let no_session_message = latest_sessions_message(&bot);
+    assert!(no_session_message.text.contains("Активных сессий нет"));
+    assert!(no_session_message
+        .keyboard
+        .iter()
+        .flatten()
+        .any(|button| button.callback_data == "sessions:revoke_all"));
+    let revoke_unexchanged = callback_update(
+        &update_ids,
+        TelegramUser {
+            id: telegram_id,
+            username: Some(changed_username.clone()),
+        },
+        &no_session_message,
+        "sessions:revoke_all",
+        "revoke-unexchanged",
+    );
+    auth.process_update(&revoke_unexchanged)
+        .await
+        .expect("revoke unexchanged authorization");
+    drain_outbox(&auth, &bot).await;
+    assert_eq!(
+        auth.request_status(
+            approved_unexchanged.request_id,
+            &approved_unexchanged.exchange_secret
+        )
+        .await
+        .expect("revoked unexchanged request status")
+        .status,
+        "expired"
+    );
+    assert!(auth
+        .exchange(
+            approved_unexchanged.request_id,
+            &approved_unexchanged.exchange_secret
+        )
+        .await
+        .is_err());
+
+    // Exercise the exchange/revoke race while the session insert is held in a trigger.
+    let race_login = auth
+        .login(&changed_username, "Concurrent revoke PC")
+        .await
+        .expect("create concurrent-revoke login");
+    drain_outbox(&auth, &bot).await;
+    let race_message = latest_login_message(&bot);
+    let race_approve = callback_update(
+        &update_ids,
+        TelegramUser {
+            id: telegram_id,
+            username: Some(changed_username.clone()),
+        },
+        &race_message,
+        &race_message.keyboard[0][0].callback_data,
+        "approve-concurrent-revoke",
+    );
+    auth.process_update(&race_approve)
+        .await
+        .expect("approve concurrent-revoke login");
+    drain_outbox(&auth, &bot).await;
+
+    const INSERT_GATE_KEY: i64 = -7_000_000_000_000_001;
+    sqlx::query("DROP TRIGGER IF EXISTS hako_test_hold_session_insert ON sessions")
+        .execute(&pool)
+        .await
+        .expect("remove prior test trigger");
+    sqlx::query("DROP FUNCTION IF EXISTS hako_test_hold_session_insert()")
+        .execute(&pool)
+        .await
+        .expect("remove prior test trigger function");
+    sqlx::query(
+        "CREATE FUNCTION hako_test_hold_session_insert() RETURNS trigger LANGUAGE plpgsql AS $$ \
+         BEGIN PERFORM pg_advisory_xact_lock(-7000000000000001); RETURN NEW; END $$",
+    )
+    .execute(&pool)
+    .await
+    .expect("install session insert gate function");
+    sqlx::query(
+        "CREATE TRIGGER hako_test_hold_session_insert BEFORE INSERT ON sessions \
+         FOR EACH ROW EXECUTE FUNCTION hako_test_hold_session_insert()",
+    )
+    .execute(&pool)
+    .await
+    .expect("install session insert gate");
+    let mut gate_connection = pool.acquire().await.expect("acquire test gate connection");
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(INSERT_GATE_KEY)
+        .execute(&mut *gate_connection)
+        .await
+        .expect("hold test gate lock");
+
+    let exchange_auth = auth.clone();
+    let exchange_id = race_login.request_id;
+    let exchange_secret = race_login.exchange_secret.clone();
+    let exchange_task =
+        tokio::spawn(async move { exchange_auth.exchange(exchange_id, &exchange_secret).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let blocked = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() AND query LIKE '%INSERT INTO sessions%' \
+                 AND wait_event_type = 'Lock' AND wait_event = 'advisory')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe blocked exchange");
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("exchange reached its gated session insert");
+
+    let revoke_auth = auth.clone();
+    let revoke_task = tokio::spawn(async move { revoke_auth.revoke_all(telegram_id).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let active = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() \
+                 AND (query LIKE '%UPDATE sessions SET revoked_at%' \
+                      OR query LIKE '%UPDATE auth_requests SET status%' \
+                      OR query LIKE '%pg_advisory_xact_lock%'))",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe revoke-all transaction");
+            if active {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("revoke-all started while exchange is gated");
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(INSERT_GATE_KEY)
+        .execute(&mut *gate_connection)
+        .await
+        .expect("release test gate lock");
+    drop(gate_connection);
+    let exchange_result = exchange_task.await.expect("join exchange");
+    assert!(revoke_task
+        .await
+        .expect("join revoke-all")
+        .expect("revoke-all succeeds"));
+    if let Ok(response) = exchange_result {
+        assert!(auth.me(&response.token).await.is_err());
+    }
+    let live_race_sessions = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM sessions WHERE account_id = $1 AND revoked_at IS NULL AND expires_at > $2",
+    )
+    .bind(initial.account.id)
+    .bind(base)
+    .fetch_one(&pool)
+    .await
+    .expect("count sessions after concurrent revoke-all");
+    assert_eq!(live_race_sessions, 0);
+    sqlx::query("DROP TRIGGER hako_test_hold_session_insert ON sessions")
+        .execute(&pool)
+        .await
+        .expect("remove session insert test trigger");
+    sqlx::query("DROP FUNCTION hako_test_hold_session_insert()")
+        .execute(&pool)
+        .await
+        .expect("remove session insert test function");
+
+    // A permanent Telegram delivery failure is isolated before polling continues.
+    let rejected_message = format!("reject-{}", Uuid::new_v4());
+    let delivered_message = format!("deliver-{}", Uuid::new_v4());
+    for text in [&rejected_message, &delivered_message] {
+        let payload = json!({
+            "kind": "send_message",
+            "chat_id": telegram_id,
+            "text": text,
+            "keyboard": [],
+            "auth_request_id": null
+        });
+        sqlx::query("INSERT INTO telegram_outbox (payload, created_at) VALUES ($1, $2)")
+            .bind(payload)
+            .bind(base)
+            .execute(&pool)
+            .await
+            .expect("enqueue worker test message");
+    }
+    let worker_bot = Arc::new(MockBot::default());
+    worker_bot
+        .fail_next_send_permanently
+        .store(true, Ordering::SeqCst);
+    let updates_observed = worker_bot.updates_notified.notified();
+    let worker = tokio::spawn(run_bot_worker(
+        auth.clone(),
+        worker_bot.clone(),
+        Arc::new(tokio::sync::RwLock::new(None)),
+    ));
+    tokio::time::timeout(std::time::Duration::from_secs(5), updates_observed)
+        .await
+        .expect("bot worker should resume getUpdates after skipping a rejected message");
+    worker.abort();
+    let _ = worker.await;
+    let rejected_failed = sqlx::query_scalar::<_, bool>(
+        "SELECT failed_at IS NOT NULL FROM telegram_outbox WHERE payload->>'text' = $1",
+    )
+    .bind(&rejected_message)
+    .fetch_one(&pool)
+    .await
+    .expect("read rejected message status");
+    let delivered_at = sqlx::query_scalar::<_, Option<OffsetDateTime>>(
+        "SELECT delivered_at FROM telegram_outbox WHERE payload->>'text' = $1",
+    )
+    .bind(&delivered_message)
+    .fetch_one(&pool)
+    .await
+    .expect("read following message status");
+    assert!(rejected_failed);
+    assert!(delivered_at.is_some());
+    assert!(worker_bot
+        .sent
+        .lock()
+        .expect("worker mock bot lock")
+        .iter()
+        .any(|message| message.text == delivered_message));
 
     pool.close().await;
 }
@@ -875,7 +1174,10 @@ fn latest_sessions_message(bot: &MockBot) -> MockSentMessage {
         .expect("mock bot lock")
         .iter()
         .rev()
-        .find(|message| message.text.starts_with("Активные сессии:"))
+        .find(|message| {
+            message.text.starts_with("Активные сессии:")
+                || message.text.starts_with("Активных сессий нет.")
+        })
         .cloned()
         .expect("sessions list")
 }

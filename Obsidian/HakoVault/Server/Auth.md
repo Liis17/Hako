@@ -11,6 +11,7 @@ Parent: [[Index]]
 - Telegram identity is the numeric `telegram_id`, unique in `accounts`; the mutable username is refreshed and used for login lookup.
 - Registration and login requests expire after five minutes. Auth obtains the bot username through `getMe`; health can remain `200` while Telegram is unavailable, but registration returns `503 bot_unavailable` until the identity is known.
 - Session tokens and exchange secrets are stored as hashes. Successful `/me` and internal token checks renew an active session to 14 days after the request; `/logout` requires an active session and immediately revokes it. Expired and revoked sessions cannot be renewed. Each login makes a separate session.
+- The Telegram `/sessions` command shows at most 20 active sessions with shortened device names. Its revoke-all action is also available when an unexpired `pending` or `approved` request exists, so it can invalidate an approved login before exchange. Exchange and account-level revocation transactions serialize on the same PostgreSQL advisory lock.
 - In-memory sliding-window limits are 5 registrations, 10 logins, and 30 exchanges per IP per minute. Process restart resets these counters. `X-Forwarded-For` only affects the client IP when the socket peer is in `HAKO_AUTH_TRUSTED_PROXIES`.
 
 The rolling 14-day expiry and per-session login behavior are API contracts. The implementation keeps rate-limit counters only in memory, so they reset on restart; no persistent or distributed counter store is present.
@@ -25,4 +26,4 @@ The rolling 14-day expiry and per-session login behavior are API contracts. The 
 
 ## Limits
 
-Telegram polling is a single background worker. It retries transient failures with bounded exponential backoff; readiness of the HTTP listener does not mean the bot token is valid. The service has no external identity provider integration beyond Telegram and no multi-instance rate-limit coordination.
+Telegram polling is a single background worker. Transient delivery and polling failures retry with bounded exponential backoff. A permanent Telegram `4xx` delivery failure is recorded on its outbox row and skipped, allowing later effects and polling to proceed; readiness of the HTTP listener does not mean the bot token is valid. The service has no external identity provider integration beyond Telegram and no multi-instance rate-limit coordination.
