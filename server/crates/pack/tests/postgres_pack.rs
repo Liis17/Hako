@@ -101,8 +101,14 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     .execute(&pool)
     .await
     .expect("install publication failure trigger");
+    let delayed_cleanup_app = test_app(
+        pool.clone(),
+        Arc::new(store.clone()),
+        Arc::new(mock_checker(owner_one, owner_two)),
+        Duration::from_secs(2),
+    );
     let publication_failed = request(
-        &app,
+        &delayed_cleanup_app,
         "POST",
         &format!("/v1/packs/{failed_publication_id}"),
         Some("owner-one"),
@@ -121,8 +127,136 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
         .cleanup_once()
         .await
-        .expect("remove object from unpublished upload intent");
+        .expect("cleanup should respect the delay after publication failure");
+    assert!(store.contains(&pending_cleanup_key));
+    tokio::time::sleep(Duration::from_millis(2_100)).await;
+    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
+        .cleanup_once()
+        .await
+        .expect("remove object after failed publication cleanup delay");
     assert!(!store.contains(&pending_cleanup_key));
+
+    // A cleanup worker must wait for an active upload/publication and recheck its intent.
+    const PACK_UPLOAD_GATE_KEY: i64 = -7_000_000_000_000_004;
+    sqlx::query("DROP TRIGGER IF EXISTS hako_test_hold_pack_publish ON packs")
+        .execute(&pool)
+        .await
+        .expect("remove prior pack publication gate");
+    sqlx::query("DROP FUNCTION IF EXISTS hako_test_hold_pack_publish()")
+        .execute(&pool)
+        .await
+        .expect("remove prior pack publication gate function");
+    sqlx::query(
+        "CREATE FUNCTION hako_test_hold_pack_publish() RETURNS trigger LANGUAGE plpgsql AS $$ \
+         BEGIN IF NEW.name = 'Active upload' THEN PERFORM pg_advisory_xact_lock(-7000000000000004); \
+         END IF; RETURN NEW; END $$",
+    )
+    .execute(&pool)
+    .await
+    .expect("install pack publication gate function");
+    sqlx::query(
+        "CREATE TRIGGER hako_test_hold_pack_publish BEFORE INSERT OR UPDATE ON packs \
+         FOR EACH ROW EXECUTE FUNCTION hako_test_hold_pack_publish()",
+    )
+    .execute(&pool)
+    .await
+    .expect("install pack publication gate");
+    let mut upload_gate_connection = pool
+        .acquire()
+        .await
+        .expect("acquire active upload gate connection");
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(PACK_UPLOAD_GATE_KEY)
+        .execute(&mut *upload_gate_connection)
+        .await
+        .expect("hold active upload publication gate");
+    let active_upload_id = Uuid::new_v4();
+    let upload_app = app.clone();
+    let upload_task = tokio::spawn(async move {
+        request(
+            &upload_app,
+            "POST",
+            &format!("/v1/packs/{active_upload_id}"),
+            Some("owner-one"),
+            &[("content-type", "application/zip"), ("if-none-match", "*")],
+            make_archive("Active upload"),
+        )
+        .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let blocked = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() AND query LIKE '%INSERT INTO packs%' \
+                 AND wait_event_type = 'Lock' AND wait_event = 'advisory')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe upload before publication");
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("upload reached publication while holding its object lock");
+    let active_upload_key =
+        sqlx::query_scalar::<_, String>("SELECT s3_key FROM pack_cleanup WHERE s3_key LIKE $1")
+            .bind(format!("packs/{owner_one}/{active_upload_id}/%"))
+            .fetch_one(&pool)
+            .await
+            .expect("active upload cleanup intent");
+    assert!(store.contains(&active_upload_key));
+    let cleanup_pool = pool.clone();
+    let cleanup_store = store.clone();
+    let cleanup_task = tokio::spawn(async move {
+        PackService::new(cleanup_pool, Arc::new(cleanup_store), Duration::ZERO)
+            .cleanup_once()
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let blocked = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() AND query LIKE '%pg_advisory_xact_lock(hashtextextended%' \
+                 AND wait_event_type = 'Lock' AND wait_event = 'advisory')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe cleanup worker waiting for upload");
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("cleanup worker waited for active upload");
+    assert!(store.contains(&active_upload_key));
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(PACK_UPLOAD_GATE_KEY)
+        .execute(&mut *upload_gate_connection)
+        .await
+        .expect("release active upload publication gate");
+    drop(upload_gate_connection);
+    assert_eq!(
+        upload_task.await.expect("join active upload").status,
+        StatusCode::CREATED
+    );
+    cleanup_task
+        .await
+        .expect("join active upload cleanup")
+        .expect("cleanup completes after publication");
+    assert!(store.contains(&active_upload_key));
+    sqlx::query("DROP TRIGGER hako_test_hold_pack_publish ON packs")
+        .execute(&pool)
+        .await
+        .expect("remove active upload publication gate");
+    sqlx::query("DROP FUNCTION hako_test_hold_pack_publish()")
+        .execute(&pool)
+        .await
+        .expect("remove active upload publication gate function");
 
     let pack_id = Uuid::new_v4();
     let initial_archive = make_archive("First revision");

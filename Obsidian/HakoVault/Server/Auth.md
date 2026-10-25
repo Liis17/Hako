@@ -26,4 +26,4 @@ The rolling 14-day expiry and per-session login behavior are API contracts. The 
 
 ## Limits
 
-Telegram polling is a single background worker. Transient delivery and polling failures retry with bounded exponential backoff. A permanent Telegram `4xx` delivery failure is recorded on its outbox row and skipped, allowing later effects and polling to proceed; readiness of the HTTP listener does not mean the bot token is valid. The service has no external identity provider integration beyond Telegram and no multi-instance rate-limit coordination.
+Telegram polling is a single background worker. Transient delivery and polling failures retry with bounded exponential backoff. Telegram rate limits (`429`) are transient; `parameters.retry_after` delays the retry, capped at five minutes. Other permanent Telegram `4xx` delivery failures are recorded on their outbox rows and skipped, allowing later effects and polling to proceed. Readiness of the HTTP listener does not mean the bot token is valid. The service has no external identity provider integration beyond Telegram and no multi-instance rate-limit coordination.

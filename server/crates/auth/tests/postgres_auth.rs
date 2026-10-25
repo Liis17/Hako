@@ -953,6 +953,222 @@ async fn postgres_auth_flow_and_telegram_updates() {
         .await
         .expect("remove session insert test function");
 
+    // Registration assigns account_id before commit while exchange can still observe NULL.
+    const REGISTRATION_GATE_KEY: i64 = -7_000_000_000_000_002;
+    const REGISTRATION_SESSION_GATE_KEY: i64 = -7_000_000_000_000_003;
+    sqlx::query("DROP TRIGGER IF EXISTS hako_test_hold_registration_approval ON auth_requests")
+        .execute(&pool)
+        .await
+        .expect("remove prior registration test trigger");
+    sqlx::query("DROP FUNCTION IF EXISTS hako_test_hold_registration_approval()")
+        .execute(&pool)
+        .await
+        .expect("remove prior registration test function");
+    sqlx::query("DROP TRIGGER IF EXISTS hako_test_hold_registration_session_insert ON sessions")
+        .execute(&pool)
+        .await
+        .expect("remove prior registration session test trigger");
+    sqlx::query("DROP FUNCTION IF EXISTS hako_test_hold_registration_session_insert()")
+        .execute(&pool)
+        .await
+        .expect("remove prior registration session test function");
+    sqlx::query(
+        "CREATE FUNCTION hako_test_hold_registration_approval() RETURNS trigger LANGUAGE plpgsql AS $$ \
+         BEGIN IF NEW.kind = 'register' AND NEW.status = 'approved' THEN \
+         PERFORM pg_advisory_xact_lock(-7000000000000002); END IF; RETURN NEW; END $$",
+    )
+    .execute(&pool)
+    .await
+    .expect("install registration approval gate function");
+    sqlx::query(
+        "CREATE TRIGGER hako_test_hold_registration_approval BEFORE UPDATE OF status ON auth_requests \
+         FOR EACH ROW EXECUTE FUNCTION hako_test_hold_registration_approval()",
+    )
+    .execute(&pool)
+    .await
+    .expect("install registration approval gate");
+    sqlx::query(
+        "CREATE FUNCTION hako_test_hold_registration_session_insert() RETURNS trigger LANGUAGE plpgsql AS $$ \
+         BEGIN PERFORM pg_advisory_xact_lock(-7000000000000003); RETURN NEW; END $$",
+    )
+    .execute(&pool)
+    .await
+    .expect("install registration session gate function");
+    sqlx::query(
+        "CREATE TRIGGER hako_test_hold_registration_session_insert BEFORE INSERT ON sessions \
+         FOR EACH ROW EXECUTE FUNCTION hako_test_hold_registration_session_insert()",
+    )
+    .execute(&pool)
+    .await
+    .expect("install registration session gate");
+    let registration = auth
+        .register("Concurrent registration PC", "hako_test_bot")
+        .await
+        .expect("create concurrent registration request");
+    let registration_telegram_id = 900_000_000_000_123;
+    let mut registration_gate_connection = pool
+        .acquire()
+        .await
+        .expect("acquire registration gate connection");
+    for gate_key in [REGISTRATION_GATE_KEY, REGISTRATION_SESSION_GATE_KEY] {
+        sqlx::query("SELECT pg_advisory_lock($1)")
+            .bind(gate_key)
+            .execute(&mut *registration_gate_connection)
+            .await
+            .expect("hold registration test gate lock");
+    }
+    let registration_auth = auth.clone();
+    let registration_update = message_update(
+        &update_ids,
+        TelegramUser {
+            id: registration_telegram_id,
+            username: Some("concurrent-registration".to_owned()),
+        },
+        "/start",
+        Some(&deep_link_code(&registration)),
+    );
+    let registration_task =
+        tokio::spawn(async move { registration_auth.process_update(&registration_update).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let blocked = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() AND query LIKE '%UPDATE auth_requests SET status%' \
+                 AND wait_event_type = 'Lock' AND wait_event = 'advisory')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe held registration transaction");
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("registration approval reached its gate");
+
+    let exchange_auth = auth.clone();
+    let exchange_id = registration.request_id;
+    let exchange_secret = registration.exchange_secret.clone();
+    let registration_exchange_task =
+        tokio::spawn(async move { exchange_auth.exchange(exchange_id, &exchange_secret).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let blocked = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() AND query LIKE '%FOR UPDATE%' \
+                 AND wait_event_type = 'Lock')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe exchange waiting on registration row");
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("exchange read the uncommitted registration row");
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(REGISTRATION_GATE_KEY)
+        .execute(&mut *registration_gate_connection)
+        .await
+        .expect("release registration approval gate");
+    registration_task
+        .await
+        .expect("join registration approval")
+        .expect("approve registration");
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let blocked = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() AND query LIKE '%INSERT INTO sessions%' \
+                 AND wait_event_type = 'Lock' AND wait_event = 'advisory')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe registration exchange at session insert");
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("registration exchange reached its session gate");
+
+    let revoke_auth = auth.clone();
+    let registration_revoke_task =
+        tokio::spawn(async move { revoke_auth.revoke_all(registration_telegram_id).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let blocked = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
+                 AND pid <> pg_backend_pid() AND query LIKE '%pg_advisory_xact_lock%' \
+                 AND wait_event_type = 'Lock' AND wait_event = 'advisory')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("observe revoke-all waiting for exchange lock");
+            if blocked {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("revoke-all started during registration exchange");
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(REGISTRATION_SESSION_GATE_KEY)
+        .execute(&mut *registration_gate_connection)
+        .await
+        .expect("release registration session gate");
+    drop(registration_gate_connection);
+    let registration_exchange = registration_exchange_task
+        .await
+        .expect("join registration exchange");
+    assert!(registration_revoke_task
+        .await
+        .expect("join registration revoke-all")
+        .expect("revoke-all succeeds"));
+    if let Ok(response) = registration_exchange {
+        assert!(auth.me(&response.token).await.is_err());
+    }
+    let registration_account_id =
+        sqlx::query_scalar::<_, Uuid>("SELECT id FROM accounts WHERE telegram_id = $1")
+            .bind(registration_telegram_id)
+            .fetch_one(&pool)
+            .await
+            .expect("find newly registered account");
+    let live_registration_sessions = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM sessions WHERE account_id = $1 AND revoked_at IS NULL AND expires_at > $2",
+    )
+    .bind(registration_account_id)
+    .bind(base)
+    .fetch_one(&pool)
+    .await
+    .expect("count registration sessions after revoke-all");
+    assert_eq!(live_registration_sessions, 0);
+    sqlx::query("DROP TRIGGER hako_test_hold_registration_approval ON auth_requests")
+        .execute(&pool)
+        .await
+        .expect("remove registration approval test trigger");
+    sqlx::query("DROP FUNCTION hako_test_hold_registration_approval()")
+        .execute(&pool)
+        .await
+        .expect("remove registration approval test function");
+    sqlx::query("DROP TRIGGER hako_test_hold_registration_session_insert ON sessions")
+        .execute(&pool)
+        .await
+        .expect("remove registration session test trigger");
+    sqlx::query("DROP FUNCTION hako_test_hold_registration_session_insert()")
+        .execute(&pool)
+        .await
+        .expect("remove registration session test function");
+    drain_outbox(&auth, &bot).await;
+
     // A permanent Telegram delivery failure is isolated before polling continues.
     let rejected_message = format!("reject-{}", Uuid::new_v4());
     let delivered_message = format!("deliver-{}", Uuid::new_v4());

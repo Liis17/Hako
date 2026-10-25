@@ -2,6 +2,9 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::time::Duration;
+
+const MAX_TELEGRAM_RETRY_AFTER: Duration = Duration::from_secs(300);
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct TelegramUser {
@@ -114,10 +117,30 @@ impl ReqwestBotClient {
             .await
             .map_err(|_| BotError::Transient)?;
         if !response.status().is_success() {
-            return Err(classify_http_status(response.status()));
+            let status = response.status();
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                let parameters = response
+                    .json::<TelegramErrorResponse>()
+                    .await
+                    .ok()
+                    .and_then(|error| error.parameters);
+                wait_for_retry_after(parameters.and_then(|parameters| parameters.retry_after))
+                    .await;
+                return Err(BotError::Transient);
+            }
+            return Err(classify_http_status(status));
         }
         let result: TelegramResponse<T> = response.json().await.map_err(|_| BotError::Transient)?;
         if !result.ok {
+            if result.error_code == Some(429) {
+                wait_for_retry_after(
+                    result
+                        .parameters
+                        .and_then(|parameters| parameters.retry_after),
+                )
+                .await;
+                return Err(BotError::Transient);
+            }
             return Err(classify_api_error_code(result.error_code));
         }
         result.result.ok_or(BotError::Transient)
@@ -125,7 +148,7 @@ impl ReqwestBotClient {
 }
 
 fn classify_http_status(status: reqwest::StatusCode) -> BotError {
-    if status.is_client_error() {
+    if status.is_client_error() && status != reqwest::StatusCode::TOO_MANY_REQUESTS {
         BotError::Permanent
     } else {
         BotError::Transient
@@ -133,10 +156,22 @@ fn classify_http_status(status: reqwest::StatusCode) -> BotError {
 }
 
 fn classify_api_error_code(error_code: Option<u16>) -> BotError {
-    if error_code.is_some_and(|code| (400..500).contains(&code)) {
+    if error_code.is_some_and(|code| (400..500).contains(&code) && code != 429) {
         BotError::Permanent
     } else {
         BotError::Transient
+    }
+}
+
+fn retry_after_delay(retry_after: Option<u64>) -> Option<Duration> {
+    retry_after
+        .filter(|seconds| *seconds > 0)
+        .map(|seconds| Duration::from_secs(seconds).min(MAX_TELEGRAM_RETRY_AFTER))
+}
+
+async fn wait_for_retry_after(retry_after: Option<u64>) {
+    if let Some(delay) = retry_after_delay(retry_after) {
+        tokio::time::sleep(delay).await;
     }
 }
 
@@ -214,13 +249,29 @@ struct TelegramResponse<T> {
     ok: bool,
     result: Option<T>,
     error_code: Option<u16>,
+    parameters: Option<TelegramParameters>,
+}
+
+#[derive(Deserialize)]
+struct TelegramErrorResponse {
+    parameters: Option<TelegramParameters>,
+}
+
+#[derive(Deserialize)]
+struct TelegramParameters {
+    retry_after: Option<u64>,
 }
 
 #[cfg(test)]
 mod tests {
     use reqwest::StatusCode;
 
-    use super::{classify_api_error_code, classify_http_status, BotError};
+    use std::time::Duration;
+
+    use super::{
+        classify_api_error_code, classify_http_status, retry_after_delay, BotError,
+        MAX_TELEGRAM_RETRY_AFTER,
+    };
 
     #[test]
     fn telegram_client_errors_are_permanent_and_server_errors_retry() {
@@ -232,8 +283,23 @@ mod tests {
             classify_http_status(StatusCode::INTERNAL_SERVER_ERROR),
             BotError::Transient
         );
+        assert_eq!(
+            classify_http_status(StatusCode::TOO_MANY_REQUESTS),
+            BotError::Transient
+        );
         assert_eq!(classify_api_error_code(Some(400)), BotError::Permanent);
+        assert_eq!(classify_api_error_code(Some(429)), BotError::Transient);
         assert_eq!(classify_api_error_code(Some(500)), BotError::Transient);
         assert_eq!(classify_api_error_code(None), BotError::Transient);
+    }
+
+    #[test]
+    fn telegram_retry_after_is_respected_and_capped() {
+        assert_eq!(retry_after_delay(Some(7)), Some(Duration::from_secs(7)));
+        assert_eq!(retry_after_delay(Some(0)), None);
+        assert_eq!(
+            retry_after_delay(Some(u64::MAX)),
+            Some(MAX_TELEGRAM_RETRY_AFTER)
+        );
     }
 }

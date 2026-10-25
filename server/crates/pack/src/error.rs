@@ -1,5 +1,5 @@
 use axum::{
-    http::StatusCode,
+    http::{header, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -11,6 +11,7 @@ pub struct PackError {
     status: StatusCode,
     code: &'static str,
     message: &'static str,
+    retry_after: Option<&'static str>,
 }
 
 impl PackError {
@@ -19,6 +20,7 @@ impl PackError {
             status,
             code,
             message,
+            retry_after: None,
         }
     }
 
@@ -98,6 +100,15 @@ impl PackError {
         )
     }
 
+    pub const fn validation_busy() -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            code: "validation_busy",
+            message: "Archive validation capacity is temporarily unavailable.",
+            retry_after: Some("1"),
+        }
+    }
+
     pub const fn internal() -> Self {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -117,7 +128,7 @@ impl std::error::Error for PackError {}
 
 impl IntoResponse for PackError {
     fn into_response(self) -> Response {
-        (
+        let mut response = (
             self.status,
             Json(json!({
                 "error": {
@@ -126,7 +137,13 @@ impl IntoResponse for PackError {
                 }
             })),
         )
-            .into_response()
+            .into_response();
+        if let Some(retry_after) = self.retry_after {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, HeaderValue::from_static(retry_after));
+        }
+        response
     }
 }
 

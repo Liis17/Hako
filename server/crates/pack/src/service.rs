@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::Serialize;
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -159,6 +159,8 @@ impl PackService {
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
         let now = OffsetDateTime::now_utc();
+        let mut upload_lock = self.pool.begin().await?;
+        lock_object_key(&mut upload_lock, &s3_key).await?;
         enqueue_upload_cleanup(
             &self.pool,
             &s3_key,
@@ -200,6 +202,7 @@ impl PackService {
         };
         remove_cleanup(&mut transaction, &s3_key).await?;
         transaction.commit().await?;
+        upload_lock.commit().await?;
         metadata_from_row(row)
     }
 
@@ -255,6 +258,8 @@ impl PackService {
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
         let now = OffsetDateTime::now_utc();
+        let mut upload_lock = self.pool.begin().await?;
+        lock_object_key(&mut upload_lock, &s3_key).await?;
         enqueue_upload_cleanup(
             &self.pool,
             &s3_key,
@@ -321,6 +326,7 @@ impl PackService {
         )
         .await?;
         transaction.commit().await?;
+        upload_lock.commit().await?;
         metadata_from_row(row)
     }
 
@@ -364,21 +370,32 @@ impl PackService {
     pub async fn cleanup_once(&self) -> PackResult<()> {
         loop {
             let now = OffsetDateTime::now_utc();
-            let mut transaction = self.pool.begin().await?;
-            let candidate = sqlx::query_as::<_, (i64, String, i32)>(
-                "SELECT id, s3_key, attempts FROM pack_cleanup WHERE eligible_at <= $1 \
-                 ORDER BY eligible_at, id LIMIT 1 FOR UPDATE SKIP LOCKED",
+            let candidate = sqlx::query_as::<_, (i64, String)>(
+                "SELECT id, s3_key FROM pack_cleanup WHERE eligible_at <= $1 \
+                 ORDER BY eligible_at, id LIMIT 1",
             )
             .bind(now)
+            .fetch_optional(&self.pool)
+            .await?;
+            let Some((id, key)) = candidate else {
+                return Ok(());
+            };
+            let mut transaction = self.pool.begin().await?;
+            lock_object_key(&mut transaction, &key).await?;
+            let current_attempts = sqlx::query_scalar::<_, i32>(
+                "SELECT attempts FROM pack_cleanup WHERE id = $1 AND eligible_at <= $2 FOR UPDATE",
+            )
+            .bind(id)
+            .bind(OffsetDateTime::now_utc())
             .fetch_optional(&mut *transaction)
             .await?;
-            let Some((id, key, attempts)) = candidate else {
+            let Some(attempts) = current_attempts else {
                 transaction.commit().await?;
-                return Ok(());
+                continue;
             };
             sqlx::query("UPDATE pack_cleanup SET eligible_at = $2 WHERE id = $1")
                 .bind(id)
-                .bind(now + CLEANUP_LEASE)
+                .bind(OffsetDateTime::now_utc() + CLEANUP_LEASE)
                 .execute(&mut *transaction)
                 .await?;
             transaction.commit().await?;
@@ -413,6 +430,17 @@ impl PackService {
             }
         }
     }
+}
+
+async fn lock_object_key(
+    transaction: &mut Transaction<'_, Postgres>,
+    s3_key: &str,
+) -> PackResult<()> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+        .bind(s3_key)
+        .execute(&mut **transaction)
+        .await?;
+    Ok(())
 }
 
 pub fn object_key(owner_id: Uuid, pack_id: Uuid, revision: i64, etag: &str) -> String {

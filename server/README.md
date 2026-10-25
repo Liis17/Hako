@@ -62,11 +62,13 @@ Compose reads `.env` from the repository root. Required values have no default; 
 | `HAKO_PACK_MAX_UNCOMPRESSED_BYTES` | Pack | `4294967296` | Maximum aggregate uncompressed ZIP entry size (4 GiB) |
 | `HAKO_PACK_MAX_ENTRIES` | Pack | `10000` | Maximum ZIP entries, including directories |
 | `HAKO_PACK_MAX_MANIFEST_BYTES` | Pack | `1048576` | Maximum uncompressed `manifest.json` size (1 MiB) |
+| `HAKO_PACK_VALIDATION_CONCURRENCY` | Pack | `2` | Maximum simultaneous archive validations; requests wait up to one second, then receive `503` with `Retry-After: 1` |
+| `HAKO_PACK_VALIDATION_TIMEOUT_SECS` | Pack | `900` seconds | Maximum time spent decompressing and validating one archive |
 | `HAKO_PACK_CLEANUP_DELAY` | Pack | `86400` seconds | Delay before deleting replaced/deleted objects; must be greater than 3600 and at most 86400 seconds |
 | `RUST_LOG` | Auth and Pack | `info` | `tracing` filter passed to each service |
 | `HAKO_TEST_DATABASE_URL` | Auth and Pack integration tests | Unset; PostgreSQL tests skip | Connection URL for one isolated test database; set it separately for each service's integration suite |
 
-All size limits must be positive integers. `HAKO_PACK_CLEANUP_DELAY` must exceed the one-hour maximum download duration and cannot exceed one day. To disable S3-backed operations, leave the five required S3 settings empty; a partial group is a configuration error.
+All size limits, validation concurrency, and validation timeout must be positive integers. Archive validation runs in a bounded blocking pool; requests that cannot enter within one second receive `503 validation_busy` with `Retry-After: 1`, and validation that exceeds its time budget is rejected as `invalid_archive`. `HAKO_PACK_CLEANUP_DELAY` must exceed the one-hour maximum download duration and cannot exceed one day. To disable S3-backed operations, leave the five required S3 settings empty; a partial group is a configuration error.
 
 ## Create a Telegram bot
 

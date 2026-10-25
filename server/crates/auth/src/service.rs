@@ -193,141 +193,154 @@ impl AuthService {
         let now = self.clock.now();
         let (token, token_hash) = random_secret(32)?;
         let token_expires_at = now + SESSION_LIFETIME;
-        let mut transaction = self.pool.begin().await?;
-        let account_id_hint = sqlx::query_scalar::<_, Option<Uuid>>(
-            "SELECT account_id FROM auth_requests WHERE id = $1 AND exchange_secret_hash = $2",
-        )
-        .bind(request_id)
-        .bind(hash(exchange_secret.as_bytes()))
-        .fetch_optional(&mut *transaction)
-        .await?
-        .flatten();
-        if let Some(account_id) = account_id_hint {
-            lock_account(&mut transaction, account_id).await?;
-        }
-        let request = sqlx::query_as::<_, (String, OffsetDateTime, Option<Uuid>)>(
-            "SELECT status, expires_at, account_id FROM auth_requests \
-             WHERE id = $1 AND exchange_secret_hash = $2 FOR UPDATE",
-        )
-        .bind(request_id)
-        .bind(hash(exchange_secret.as_bytes()))
-        .fetch_optional(&mut *transaction)
-        .await?;
-        let Some((status, expires_at, account_id)) = request else {
-            return Err(AuthError::unauthorized());
-        };
-
-        if expires_at <= now && (status == "pending" || status == "approved") {
-            sqlx::query(
-                "UPDATE auth_requests SET status = 'expired', completed_at = $2 \
-                 WHERE id = $1 AND status IN ('pending', 'approved')",
+        for _ in 0..3 {
+            let mut transaction = self.pool.begin().await?;
+            let account_id_hint = sqlx::query_scalar::<_, Option<Uuid>>(
+                "SELECT account_id FROM auth_requests WHERE id = $1 AND exchange_secret_hash = $2",
             )
             .bind(request_id)
-            .bind(now)
-            .execute(&mut *transaction)
+            .bind(hash(exchange_secret.as_bytes()))
+            .fetch_optional(&mut *transaction)
+            .await?
+            .flatten();
+            if let Some(account_id) = account_id_hint {
+                lock_account(&mut transaction, account_id).await?;
+            }
+            let request = sqlx::query_as::<_, (String, OffsetDateTime, Option<Uuid>)>(
+                "SELECT status, expires_at, account_id FROM auth_requests \
+                 WHERE id = $1 AND exchange_secret_hash = $2 FOR UPDATE",
+            )
+            .bind(request_id)
+            .bind(hash(exchange_secret.as_bytes()))
+            .fetch_optional(&mut *transaction)
             .await?;
-            transaction.commit().await?;
-            return Err(AuthError::new(
-                axum::http::StatusCode::GONE,
-                "request_expired",
-                "Authorization request expired.",
-            ));
-        }
+            let Some((status, expires_at, account_id)) = request else {
+                return Err(AuthError::unauthorized());
+            };
+            if account_id != account_id_hint {
+                transaction.rollback().await?;
+                continue;
+            }
 
-        match status.as_str() {
-            "pending" => {
-                return Err(AuthError::new(
-                    axum::http::StatusCode::CONFLICT,
-                    "request_pending",
-                    "Authorization request is still pending.",
-                ));
-            }
-            "denied" => {
-                return Err(AuthError::new(
-                    axum::http::StatusCode::FORBIDDEN,
-                    "request_denied",
-                    "Authorization request was denied.",
-                ));
-            }
-            "expired" => {
+            if expires_at <= now && (status == "pending" || status == "approved") {
+                sqlx::query(
+                    "UPDATE auth_requests SET status = 'expired', completed_at = $2 \
+                     WHERE id = $1 AND status IN ('pending', 'approved')",
+                )
+                .bind(request_id)
+                .bind(now)
+                .execute(&mut *transaction)
+                .await?;
+                transaction.commit().await?;
                 return Err(AuthError::new(
                     axum::http::StatusCode::GONE,
                     "request_expired",
                     "Authorization request expired.",
                 ));
             }
-            "account_exists" => {
-                return Err(AuthError::new(
-                    axum::http::StatusCode::CONFLICT,
-                    "account_exists",
-                    "A Telegram account already exists. Use login.",
-                ));
+
+            match status.as_str() {
+                "pending" => {
+                    return Err(AuthError::new(
+                        axum::http::StatusCode::CONFLICT,
+                        "request_pending",
+                        "Authorization request is still pending.",
+                    ));
+                }
+                "denied" => {
+                    return Err(AuthError::new(
+                        axum::http::StatusCode::FORBIDDEN,
+                        "request_denied",
+                        "Authorization request was denied.",
+                    ));
+                }
+                "expired" => {
+                    return Err(AuthError::new(
+                        axum::http::StatusCode::GONE,
+                        "request_expired",
+                        "Authorization request expired.",
+                    ));
+                }
+                "account_exists" => {
+                    return Err(AuthError::new(
+                        axum::http::StatusCode::CONFLICT,
+                        "account_exists",
+                        "A Telegram account already exists. Use login.",
+                    ));
+                }
+                "consumed" => {
+                    return Err(AuthError::new(
+                        axum::http::StatusCode::CONFLICT,
+                        "request_consumed",
+                        "Authorization request was already exchanged.",
+                    ));
+                }
+                "approved" => {}
+                _ => return Err(AuthError::internal()),
             }
-            "consumed" => {
+
+            let account_id = account_id.ok_or_else(AuthError::internal)?;
+            let account = sqlx::query_as::<_, (String, OffsetDateTime)>(
+                "SELECT username, created_at FROM accounts WHERE id = $1",
+            )
+            .bind(account_id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            .ok_or_else(AuthError::internal)?;
+            let session_id = Uuid::new_v4();
+            let device_name = sqlx::query_scalar::<_, String>(
+                "SELECT device_name FROM auth_requests WHERE id = $1",
+            )
+            .bind(request_id)
+            .fetch_one(&mut *transaction)
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO sessions \
+                 (id, account_id, token_hash, device_name, created_at, last_used_at, expires_at) \
+                 VALUES ($1, $2, $3, $4, $5, $5, $6)",
+            )
+            .bind(session_id)
+            .bind(account_id)
+            .bind(token_hash)
+            .bind(device_name)
+            .bind(now)
+            .bind(token_expires_at)
+            .execute(&mut *transaction)
+            .await?;
+            let consumed = sqlx::query(
+                "UPDATE auth_requests SET status = 'consumed', completed_at = $2 \
+                 WHERE id = $1 AND status = 'approved' AND expires_at > $2",
+            )
+            .bind(request_id)
+            .bind(now)
+            .execute(&mut *transaction)
+            .await?;
+            if consumed.rows_affected() != 1 {
                 return Err(AuthError::new(
                     axum::http::StatusCode::CONFLICT,
                     "request_consumed",
                     "Authorization request was already exchanged.",
                 ));
             }
-            "approved" => {}
-            _ => return Err(AuthError::internal()),
+            transaction.commit().await?;
+
+            return Ok(ExchangeResponse {
+                token,
+                token_expires_at: format_timestamp(token_expires_at)?,
+                account: AccountResponse {
+                    id: account_id,
+                    username: account.0,
+                    created_at: format_timestamp(account.1)?,
+                },
+            });
         }
 
-        let account_id = account_id.ok_or_else(AuthError::internal)?;
-        let account = sqlx::query_as::<_, (String, OffsetDateTime)>(
-            "SELECT username, created_at FROM accounts WHERE id = $1",
-        )
-        .bind(account_id)
-        .fetch_optional(&mut *transaction)
-        .await?
-        .ok_or_else(AuthError::internal)?;
-        let session_id = Uuid::new_v4();
-        let device_name =
-            sqlx::query_scalar::<_, String>("SELECT device_name FROM auth_requests WHERE id = $1")
-                .bind(request_id)
-                .fetch_one(&mut *transaction)
-                .await?;
-
-        sqlx::query(
-            "INSERT INTO sessions \
-             (id, account_id, token_hash, device_name, created_at, last_used_at, expires_at) \
-             VALUES ($1, $2, $3, $4, $5, $5, $6)",
-        )
-        .bind(session_id)
-        .bind(account_id)
-        .bind(token_hash)
-        .bind(device_name)
-        .bind(now)
-        .bind(token_expires_at)
-        .execute(&mut *transaction)
-        .await?;
-        let consumed = sqlx::query(
-            "UPDATE auth_requests SET status = 'consumed', completed_at = $2 \
-             WHERE id = $1 AND status = 'approved' AND expires_at > $2",
-        )
-        .bind(request_id)
-        .bind(now)
-        .execute(&mut *transaction)
-        .await?;
-        if consumed.rows_affected() != 1 {
-            return Err(AuthError::new(
-                axum::http::StatusCode::CONFLICT,
-                "request_consumed",
-                "Authorization request was already exchanged.",
-            ));
-        }
-        transaction.commit().await?;
-
-        Ok(ExchangeResponse {
-            token,
-            token_expires_at: format_timestamp(token_expires_at)?,
-            account: AccountResponse {
-                id: account_id,
-                username: account.0,
-                created_at: format_timestamp(account.1)?,
-            },
-        })
+        Err(AuthError::new(
+            axum::http::StatusCode::CONFLICT,
+            "request_changed",
+            "Authorization request changed while being exchanged.",
+        ))
     }
 
     pub async fn me(&self, token: &str) -> AuthResult<MeResponse> {

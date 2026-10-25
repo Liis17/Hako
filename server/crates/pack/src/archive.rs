@@ -4,6 +4,10 @@ use std::{
     fs::File,
     io::{self, ErrorKind, Read, Seek, SeekFrom},
     path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -13,6 +17,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Semaphore;
 use zip::ZipArchive;
 
 use crate::error::{PackError, PackResult};
@@ -22,6 +27,9 @@ const DEFAULT_MAX_ARCHIVE_BYTES: u64 = 1_073_741_824;
 const DEFAULT_MAX_UNCOMPRESSED_BYTES: u64 = 4_294_967_296;
 const DEFAULT_MAX_ENTRIES: usize = 10_000;
 const DEFAULT_MAX_MANIFEST_BYTES: u64 = 1_048_576;
+const DEFAULT_VALIDATION_CONCURRENCY: usize = 2;
+const DEFAULT_VALIDATION_TIMEOUT: Duration = Duration::from_secs(900);
+const VALIDATION_QUEUE_TIMEOUT: Duration = Duration::from_secs(1);
 const MANIFEST_SCHEMA: &str = include_str!("../../../docs/hakopack-manifest.schema.json");
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 
@@ -31,6 +39,8 @@ pub struct PackLimits {
     pub max_uncompressed_bytes: u64,
     pub max_entries: usize,
     pub max_manifest_bytes: u64,
+    validation_semaphore: Arc<Semaphore>,
+    validation_timeout: Duration,
 }
 
 impl Default for PackLimits {
@@ -40,6 +50,8 @@ impl Default for PackLimits {
             max_uncompressed_bytes: DEFAULT_MAX_UNCOMPRESSED_BYTES,
             max_entries: DEFAULT_MAX_ENTRIES,
             max_manifest_bytes: DEFAULT_MAX_MANIFEST_BYTES,
+            validation_semaphore: Arc::new(Semaphore::new(DEFAULT_VALIDATION_CONCURRENCY)),
+            validation_timeout: DEFAULT_VALIDATION_TIMEOUT,
         }
     }
 }
@@ -47,6 +59,16 @@ impl Default for PackLimits {
 impl PackLimits {
     pub fn from_env() -> Result<Self, io::Error> {
         let defaults = Self::default();
+        let validation_concurrency = limit_usize(
+            "HAKO_PACK_VALIDATION_CONCURRENCY",
+            DEFAULT_VALIDATION_CONCURRENCY,
+        )?;
+        if validation_concurrency > Semaphore::MAX_PERMITS {
+            return Err(io::Error::new(
+                ErrorKind::InvalidInput,
+                "HAKO_PACK_VALIDATION_CONCURRENCY exceeds the supported maximum",
+            ));
+        }
         Ok(Self {
             max_archive_bytes: limit_u64(
                 "HAKO_PACK_MAX_ARCHIVE_BYTES",
@@ -61,6 +83,11 @@ impl PackLimits {
                 "HAKO_PACK_MAX_MANIFEST_BYTES",
                 defaults.max_manifest_bytes,
             )?,
+            validation_semaphore: Arc::new(Semaphore::new(validation_concurrency)),
+            validation_timeout: Duration::from_secs(limit_u64(
+                "HAKO_PACK_VALIDATION_TIMEOUT_SECS",
+                DEFAULT_VALIDATION_TIMEOUT.as_secs(),
+            )?),
         })
     }
 }
@@ -83,6 +110,16 @@ pub struct StagedArchive {
 enum ArchiveError {
     Invalid,
     TooLarge,
+    TimedOut,
+    Cancelled,
+}
+
+struct ValidationCancellationGuard(Arc<AtomicBool>);
+
+impl Drop for ValidationCancellationGuard {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
 }
 
 pub async fn receive_archive(
@@ -116,16 +153,31 @@ pub async fn receive_archive(
     file.flush().await.map_err(|_| PackError::internal())?;
     drop(file);
 
-    let archive_path = temp.path().to_path_buf();
+    let permit = tokio::time::timeout(
+        VALIDATION_QUEUE_TIMEOUT,
+        Arc::clone(&limits.validation_semaphore).acquire_owned(),
+    )
+    .await
+    .map_err(|_| PackError::validation_busy())?
+    .map_err(|_| PackError::validation_busy())?;
+    let cancellation = Arc::new(AtomicBool::new(false));
+    let cancellation_guard = ValidationCancellationGuard(Arc::clone(&cancellation));
     let validation_limits = limits.clone();
-    let manifest =
-        tokio::task::spawn_blocking(move || validate_archive(&archive_path, &validation_limits))
-            .await
-            .map_err(|_| PackError::internal())?
-            .map_err(|error| match error {
-                ArchiveError::TooLarge => PackError::payload_too_large(),
-                ArchiveError::Invalid => PackError::invalid_archive(),
-            })?;
+    let validation_result = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let manifest = validate_archive(temp.path(), &validation_limits, &cancellation)?;
+        Ok::<_, ArchiveError>((temp, manifest))
+    })
+    .await;
+    drop(cancellation_guard);
+    let (temp, manifest) = validation_result
+        .map_err(|_| PackError::internal())?
+        .map_err(|error| match error {
+            ArchiveError::TooLarge => PackError::payload_too_large(),
+            ArchiveError::Invalid | ArchiveError::TimedOut | ArchiveError::Cancelled => {
+                PackError::invalid_archive()
+            }
+        })?;
 
     Ok(StagedArchive {
         file: temp,
@@ -145,12 +197,19 @@ fn hex_digest(bytes: &[u8]) -> String {
     result
 }
 
-fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata, ArchiveError> {
+fn validate_archive(
+    path: &Path,
+    limits: &PackLimits,
+    cancelled: &AtomicBool,
+) -> Result<ManifestMetadata, ArchiveError> {
+    let validation_started = std::time::Instant::now();
+    check_validation_budget(validation_started, limits.validation_timeout, cancelled)?;
     let mut file = File::open(path).map_err(|_| ArchiveError::Invalid)?;
     if declared_entry_count(&mut file)? > limits.max_entries {
         return Err(ArchiveError::TooLarge);
     }
     let mut archive = ZipArchive::new(file).map_err(|_| ArchiveError::Invalid)?;
+    check_validation_budget(validation_started, limits.validation_timeout, cancelled)?;
     let mut header_reader = File::open(path).map_err(|_| ArchiveError::Invalid)?;
     if archive.len() > limits.max_entries {
         return Err(ArchiveError::TooLarge);
@@ -162,6 +221,7 @@ fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata
     let mut icon_is_png = None;
 
     for index in 0..archive.len() {
+        check_validation_budget(validation_started, limits.validation_timeout, cancelled)?;
         let mut entry = archive.by_index(index).map_err(|_| ArchiveError::Invalid)?;
         let name = entry.name().to_owned();
         let local_header = entry.header_start();
@@ -207,6 +267,7 @@ fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata
         let mut icon_signature_len = 0usize;
         let mut buffer = [0u8; 8192];
         loop {
+            check_validation_budget(validation_started, limits.validation_timeout, cancelled)?;
             let remaining = limits
                 .max_uncompressed_bytes
                 .saturating_sub(uncompressed_bytes);
@@ -255,6 +316,7 @@ fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata
         }
     }
 
+    check_validation_budget(validation_started, limits.validation_timeout, cancelled)?;
     let bytes = manifest_bytes.ok_or(ArchiveError::Invalid)?;
     let manifest_value: Value =
         serde_json::from_slice(&bytes).map_err(|_| ArchiveError::Invalid)?;
@@ -266,6 +328,7 @@ fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata
     if manifest_value.get("format_version").and_then(Value::as_u64) != Some(1) {
         return Err(ArchiveError::Invalid);
     }
+    check_validation_budget(validation_started, limits.validation_timeout, cancelled)?;
     let read_string = |field: &str| {
         manifest_value
             .get(field)
@@ -430,14 +493,29 @@ fn validate_path(name: &str) -> Result<(), ()> {
 
 fn is_reserved_windows_name(segment: &str) -> bool {
     let base = segment.split('.').next().unwrap_or(segment);
-    let bytes = base.as_bytes();
     ["CON", "PRN", "AUX", "NUL"]
         .iter()
         .any(|reserved| base.eq_ignore_ascii_case(reserved))
-        || (bytes.len() == 4
-            && (bytes[..3].eq_ignore_ascii_case(b"COM") || bytes[..3].eq_ignore_ascii_case(b"LPT"))
-            && bytes[3].is_ascii_digit()
-            && bytes[3] != b'0')
+        || (base.get(..3).is_some_and(|prefix| {
+            prefix.eq_ignore_ascii_case("COM") || prefix.eq_ignore_ascii_case("LPT")
+        }) && matches!(
+            base.get(3..),
+            Some("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³")
+        ))
+}
+
+fn check_validation_budget(
+    started: std::time::Instant,
+    timeout: Duration,
+    cancelled: &AtomicBool,
+) -> Result<(), ArchiveError> {
+    if cancelled.load(Ordering::Relaxed) {
+        Err(ArchiveError::Cancelled)
+    } else if started.elapsed() >= timeout {
+        Err(ArchiveError::TimedOut)
+    } else {
+        Ok(())
+    }
 }
 
 fn collision_key(name: &str, is_dir: bool) -> String {
@@ -486,9 +564,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Cursor, Write};
+    use std::{
+        io::{Cursor, Write},
+        sync::atomic::AtomicBool,
+        sync::Arc,
+        time::Duration,
+    };
 
     use serde_json::{json, Value};
+    use tokio::sync::Semaphore;
     use zip::{read::ZipArchive, write::FileOptions, ZipWriter};
 
     use super::{validate_archive, ArchiveError, PackLimits, MANIFEST_SCHEMA, PNG_SIGNATURE};
@@ -614,7 +698,7 @@ mod tests {
     fn validate_bytes(bytes: &[u8], limits: &PackLimits) -> Result<(), ArchiveError> {
         let mut file = tempfile::NamedTempFile::new().expect("create temp archive");
         file.write_all(bytes).expect("write temp archive");
-        validate_archive(file.path(), limits).map(|_| ())
+        validate_archive(file.path(), limits, &AtomicBool::new(false)).map(|_| ())
     }
 
     #[test]
@@ -694,6 +778,9 @@ mod tests {
             "overrides/COM7.jar",
             "overrides/COM8.jar",
             "overrides/COM9.jar",
+            "overrides/COM¹.txt",
+            "overrides/LPT²",
+            "overrides/nested/com³",
             "overrides/LPT1.txt",
             "overrides/lpt2.txt",
             "overrides/LPT3.txt",
@@ -795,6 +882,37 @@ mod tests {
     }
 
     #[test]
+    fn rejects_archive_when_validation_budget_is_exhausted() {
+        let archive = archive_with(manifest(), &[("overrides/options.txt", b"ok", None)]);
+        let limits = PackLimits {
+            validation_timeout: Duration::ZERO,
+            ..PackLimits::default()
+        };
+
+        assert_eq!(
+            validate_bytes(&archive, &limits),
+            Err(ArchiveError::TimedOut)
+        );
+    }
+
+    #[tokio::test]
+    async fn validation_budget_exhaustion_returns_invalid_archive() {
+        use axum::{body::Body, http::StatusCode, response::IntoResponse};
+
+        let archive = archive_with(manifest(), &[("overrides/options.txt", b"ok", None)]);
+        let limits = PackLimits {
+            validation_timeout: Duration::ZERO,
+            ..PackLimits::default()
+        };
+        let error = match super::receive_archive(Body::from(archive), None, &limits).await {
+            Err(error) => error,
+            Ok(_) => panic!("validation past its budget should reject the archive"),
+        };
+
+        assert_eq!(error.into_response().status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
     fn checks_actual_expansion_when_central_size_is_forged_small() {
         let payload = vec![b'x'; 8192];
         let mut archive = archive_with(
@@ -865,5 +983,33 @@ mod tests {
             error.into_response().status(),
             StatusCode::PAYLOAD_TOO_LARGE
         );
+    }
+
+    #[tokio::test]
+    async fn rejects_archive_when_validation_capacity_is_full() {
+        use axum::{body::Body, http::StatusCode, response::IntoResponse};
+
+        let limits = PackLimits {
+            validation_semaphore: Arc::new(Semaphore::new(1)),
+            ..PackLimits::default()
+        };
+        let _active_validation = Arc::clone(&limits.validation_semaphore)
+            .acquire_owned()
+            .await
+            .expect("hold validation capacity for active request");
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            super::receive_archive(Body::empty(), None, &limits),
+        )
+        .await
+        .expect("queued request must return instead of waiting indefinitely");
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("request should be rejected while validation is full"),
+        };
+        let response = error.into_response();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers().get("retry-after").unwrap(), "1");
     }
 }
