@@ -58,7 +58,13 @@ public sealed class MinecraftSessionCoordinator : INotifyPropertyChanged
 
     public string? CurrentAccountXuid => _app.CaptureAccountState().Account?.Xuid;
 
-    public Task<AccountSession> ConnectForLaunchAsync(CancellationToken cancellationToken = default)
+    public Task<AccountSession> ConnectForLaunchAsync(CancellationToken cancellationToken = default) =>
+        ConnectAsync(false, cancellationToken);
+
+    public Task<AccountSession> RefreshAsync(CancellationToken cancellationToken = default) =>
+        ConnectAsync(true, cancellationToken);
+
+    private Task<AccountSession> ConnectAsync(bool force, CancellationToken cancellationToken)
     {
         var snapshot = _app.CaptureAccountState();
         Task<AccountSession> sharedTask;
@@ -71,7 +77,7 @@ public sealed class MinecraftSessionCoordinator : INotifyPropertyChanged
             {
                 sharedTask = active.Task;
             }
-            else if (snapshot.Account is { MinecraftAccessToken.Length: > 0, MinecraftTokenExpiresAt: { } expiresAt,
+            else if (!force && snapshot.Account is { MinecraftAccessToken.Length: > 0, MinecraftTokenExpiresAt: { } expiresAt,
                          MinecraftProfileId.Length: > 0, MinecraftName.Length: > 0 } account
                      && expiresAt > _timeProvider.GetUtcNow().AddMinutes(1))
             {
