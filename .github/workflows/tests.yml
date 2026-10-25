@@ -43,6 +43,37 @@ jobs:
       - name: Run tests
         run: dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Check formatting
+        run: cargo fmt --check
+        working-directory: server
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+        working-directory: server
+
+      - name: Run tests
+        run: cargo test --workspace --locked
+        working-directory: server
+
   release-scripts:
     runs-on: ubuntu-latest
     steps:

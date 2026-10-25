@@ -425,3 +425,6 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+# Hako server local files
+/.env
+/server/target/

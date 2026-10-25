@@ -1,0 +1,1 @@
+-- Initial migration. Pack schema is introduced in a later implementation stage.

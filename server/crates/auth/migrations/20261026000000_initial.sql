@@ -1,0 +1,1 @@
+-- Initial migration. Auth schema is introduced in a later implementation stage.

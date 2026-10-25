@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      HAKO_AUTH_DB_PASSWORD: ${HAKO_AUTH_DB_PASSWORD}
+      HAKO_PACK_DB_PASSWORD: ${HAKO_PACK_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/init-db.sh:/docker-entrypoint-initdb.d/10-create-app-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  auth:
+    image: hako-auth:local
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        SERVICE_PACKAGE: hako-auth
+        HEALTHCHECK_PORT: "8081"
+    environment:
+      HAKO_AUTH_PUBLIC_ADDR: ${HAKO_AUTH_PUBLIC_ADDR:-0.0.0.0:8081}
+      HAKO_AUTH_INTERNAL_ADDR: ${HAKO_AUTH_INTERNAL_ADDR:-0.0.0.0:8091}
+      HAKO_AUTH_DATABASE_URL: ${HAKO_AUTH_DATABASE_URL}
+      HAKO_TELEGRAM_BOT_TOKEN: ${HAKO_TELEGRAM_BOT_TOKEN}
+      HAKO_AUTH_SERVICE_SECRET: ${HAKO_AUTH_SERVICE_SECRET}
+      HAKO_AUTH_TRUSTED_PROXIES: ${HAKO_AUTH_TRUSTED_PROXIES:-}
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  pack:
+    image: hako-pack:local
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        SERVICE_PACKAGE: hako-pack
+        HEALTHCHECK_PORT: "8082"
+    environment:
+      HAKO_PACK_ADDR: ${HAKO_PACK_ADDR:-0.0.0.0:8082}
+      HAKO_PACK_DATABASE_URL: ${HAKO_PACK_DATABASE_URL}
+      HAKO_PACK_AUTH_INTERNAL_URL: ${HAKO_PACK_AUTH_INTERNAL_URL:-http://auth:8091}
+      HAKO_PACK_SERVICE_SECRET: ${HAKO_PACK_SERVICE_SECRET}
+      HAKO_S3_ENDPOINT: ${HAKO_S3_ENDPOINT}
+      HAKO_S3_BUCKET: ${HAKO_S3_BUCKET}
+      HAKO_S3_REGION: ${HAKO_S3_REGION}
+      HAKO_S3_ACCESS_KEY_ID: ${HAKO_S3_ACCESS_KEY_ID}
+      HAKO_S3_SECRET_ACCESS_KEY: ${HAKO_S3_SECRET_ACCESS_KEY}
+      HAKO_S3_SESSION_TOKEN: ${HAKO_S3_SESSION_TOKEN:-}
+      HAKO_S3_PATH_STYLE: ${HAKO_S3_PATH_STYLE}
+    ports:
+      - "127.0.0.1:8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
