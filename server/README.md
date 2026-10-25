@@ -1,67 +1,158 @@
 # Hako server
 
-The Rust workspace contains two independent services. `hako-auth` implements Telegram account registration, login approvals, rolling sessions, and public/internal Auth APIs. `hako-pack` validates and stores personal `.hakopack` archives, exposes conditional CRUD and streaming downloads, and resumes delayed S3 cleanup from PostgreSQL.
+The Rust workspace contains two independent services backed by PostgreSQL and, for pack archives, an external S3-compatible object store.
 
-## Structure
+| Component | Purpose | Listener |
+| --- | --- | --- |
+| `hako-auth` (`crates/auth/`) | Telegram registration and login approval, session API, and internal token checks | Public `8081`, internal `8091` |
+| `hako-pack` (`crates/pack/`) | Private `.hakopack` metadata and archive API | `8082` |
+| PostgreSQL | Auth and Pack use separate databases and roles; migrations run when each service starts | Compose network only |
+| S3-compatible storage | Stores archive bytes; Pack metadata and delayed deletion queue stay in PostgreSQL | External, optional at startup |
 
-| Path | Purpose |
-| --- | --- |
-| `crates/auth/` | `hako-auth` binary, public and internal listeners, Auth migrations |
-| `crates/pack/` | `hako-pack` binary, Pack listener, Pack migrations |
-| `Dockerfile` | Shared multi-stage build for either service |
-| `init-db.sh` | Creates isolated PostgreSQL roles and databases on first startup |
-| `docs/auth-api.md` | Public and internal Auth API reference |
-| `docs/pack-api.md` | Pack API, archive format, limits, and environment reference |
-| `docs/hakopack-manifest.schema.json` | Draft 2020-12 schema for `.hakopack` v1 manifests |
-| `docs/hakopack-example.json` | Example `.hakopack` v1 manifest |
+Auth discovers the bot username using Telegram `getMe`; it does not need a separate username setting. Pack calls Auth's internal token endpoint with the shared service secret. The services are not yet integrated with the macOS or Windows clients.
 
-## Run with Docker Compose
+## Docker Compose
 
-Copy `.env.example` to `.env`, then run from the repository root:
+From the repository root, copy `.env.example` to `.env`, replace every `replace_me_...` value, then start the stack:
 
 ```sh
-docker compose up --build -d
+cp .env.example .env
+# Edit .env and set a real Telegram bot token and matching service secrets.
+docker compose up -d
 docker compose ps
 curl http://127.0.0.1:8081/healthz
 curl http://127.0.0.1:8082/healthz
 ```
 
-Only Auth public port `8081` and Pack port `8082` are published on loopback. Auth internal port `8091` is available to other Compose services and is not published to the host. PostgreSQL data lives in the `pgdata` volume. `docker compose down -v` removes the stack and its database volume.
+On PowerShell, use `Copy-Item .env.example .env`. Compose builds either service image when needed. To force a fresh build, run `docker compose build` before `docker compose up -d`.
 
-For public deployment, terminate HTTPS at an external reverse proxy and forward requests to the Auth public listener. Reverse-proxy configuration and deployment details are part of stage 4.
+Compose publishes only Auth `8081` and Pack `8082`, each bound to `127.0.0.1`. Auth's `8091` listener is internal to the Compose network and is never published. PostgreSQL has no host port. Its data persists in the `pgdata` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The database roles and databases from `server/init-db.sh` are created only when PostgreSQL initializes an empty data directory.
+
+Pack can start without S3 configuration and still reports healthy; archive create, replacement, and download requests then return `503 storage_unavailable`. Metadata and delete operations use PostgreSQL; deletions queue object cleanup, which retries while S3 is unavailable. If any required S3 setting is provided, all five required settings must be present or Pack exits on startup. A missing or invalid Telegram token does not prevent Auth health checks, but registration returns `503 bot_unavailable` until `getMe` supplies the bot username.
 
 ## Environment variables
 
-Values marked **required** must be set before the service starts. Secrets are validated but are not written to logs or error responses. Compose reads the root `.env` file.
+Compose reads `.env` from the repository root. Required values have no default; sample values beginning with `replace_me_` are placeholders, not usable credentials. Empty S3 values are treated as unset.
 
-| Variable | Service | Requirement / default | Purpose |
+| Variable | Used by | Default / requirement | Purpose |
 | --- | --- | --- | --- |
-| `POSTGRES_PASSWORD` | Compose | Required | Local PostgreSQL superuser password |
-| `HAKO_AUTH_DB_PASSWORD` | Compose | Required | Password for the Auth database role |
-| `HAKO_PACK_DB_PASSWORD` | Compose | Required | Password for the Pack database role |
-| `HAKO_AUTH_PUBLIC_ADDR` | Auth | `0.0.0.0:8081` | Public listener address |
-| `HAKO_AUTH_INTERNAL_ADDR` | Auth | `0.0.0.0:8091` | Internal listener address |
+| `POSTGRES_USER` | Compose/PostgreSQL | Fixed: `postgres` | Bootstrap administrator role inside the database container |
+| `POSTGRES_DB` | Compose/PostgreSQL | Fixed: `postgres` | Bootstrap database used by the initialization script |
+| `POSTGRES_PASSWORD` | Compose/PostgreSQL | Required | Bootstrap administrator password |
+| `HAKO_AUTH_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_auth` role created by `init-db.sh` |
+| `HAKO_PACK_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_pack` role created by `init-db.sh` |
+| `HAKO_AUTH_PUBLIC_ADDR` | Auth | `0.0.0.0:8081` | Public HTTP listener; use the default with the fixed Compose port mapping |
+| `HAKO_AUTH_INTERNAL_ADDR` | Auth | `0.0.0.0:8091` | Internal listener for health and service-to-service token checks; changing its port also requires updating Pack's URL |
 | `HAKO_AUTH_DATABASE_URL` | Auth | Required | Auth PostgreSQL connection URL |
-| `HAKO_TELEGRAM_BOT_TOKEN` | Auth | Required | Telegram bot credential |
-| `HAKO_AUTH_SERVICE_SECRET` | Auth | Required | Shared secret for internal service calls |
-| `HAKO_AUTH_TRUSTED_PROXIES` | Auth | Optional | Trusted proxy addresses |
-| `HAKO_PACK_ADDR` | Pack | `0.0.0.0:8082` | Pack listener address |
+| `HAKO_TELEGRAM_BOT_TOKEN` | Auth | Required | BotFather token used by `getMe`, polling, and Telegram messages |
+| `HAKO_AUTH_SERVICE_SECRET` | Auth | Required | Secret required by `/internal/v1/tokens/check` |
+| `HAKO_AUTH_TRUSTED_PROXIES` | Auth | Empty | Comma-separated CIDR values for trusted proxies; only these peers may supply the client address through `X-Forwarded-For` |
+| `HAKO_PACK_ADDR` | Pack | `0.0.0.0:8082` | Pack HTTP listener; use the default with the fixed Compose port mapping |
 | `HAKO_PACK_DATABASE_URL` | Pack | Required | Pack PostgreSQL connection URL |
-| `HAKO_PACK_AUTH_INTERNAL_URL` | Pack | `http://auth:8091` | Auth internal API base URL |
-| `HAKO_PACK_SERVICE_SECRET` | Pack | Required; same value as `HAKO_AUTH_SERVICE_SECRET` | Shared secret for internal Auth token checks |
-| `HAKO_S3_ENDPOINT` | Pack | Optional as a group | S3-compatible endpoint; all required S3 fields must be set to enable storage |
-| `HAKO_S3_BUCKET` | Pack | Optional as a group | Bucket for personal packs |
-| `HAKO_S3_REGION` | Pack | Optional as a group | S3 region |
-| `HAKO_S3_ACCESS_KEY_ID` | Pack | Optional as a group | S3 access key ID |
-| `HAKO_S3_SECRET_ACCESS_KEY` | Pack | Optional as a group | S3 secret access key |
-| `HAKO_S3_SESSION_TOKEN` | Pack | Optional | Temporary S3 session token |
-| `HAKO_S3_PATH_STYLE` | Pack | `true` | Use path-style S3 requests, recommended for custom endpoints |
-| `HAKO_PACK_MAX_ARCHIVE_BYTES` | Pack | `1073741824` | Maximum streamed ZIP size |
-| `HAKO_PACK_MAX_UNCOMPRESSED_BYTES` | Pack | `4294967296` | Maximum total uncompressed ZIP size from entry metadata |
-| `HAKO_PACK_MAX_ENTRIES` | Pack | `10000` | Maximum ZIP entry count |
-| `HAKO_PACK_MAX_MANIFEST_BYTES` | Pack | `1048576` | Maximum `manifest.json` size |
-| `HAKO_PACK_CLEANUP_DELAY` | Pack | `86400` seconds | Delayed S3 deletion; must exceed the one-hour download limit and be no more than one day |
+| `HAKO_PACK_AUTH_INTERNAL_URL` | Pack | `http://auth:8091` | Base URL for Auth's internal API |
+| `HAKO_PACK_SERVICE_SECRET` | Pack | Required; must equal `HAKO_AUTH_SERVICE_SECRET` | Value sent in `X-Service-Secret` to Auth |
+| `HAKO_S3_ENDPOINT` | Pack | Optional group | S3-compatible endpoint URL |
+| `HAKO_S3_BUCKET` | Pack | Optional group | Bucket for private archives |
+| `HAKO_S3_REGION` | Pack | Optional group | Signing region |
+| `HAKO_S3_ACCESS_KEY_ID` | Pack | Optional group | S3 access key |
+| `HAKO_S3_SECRET_ACCESS_KEY` | Pack | Optional group | S3 secret key |
+| `HAKO_S3_SESSION_TOKEN` | Pack | Empty | Optional temporary credential token |
+| `HAKO_S3_PATH_STYLE` | Pack | `true` | Enables path-style bucket addressing, useful with custom S3 endpoints |
+| `HAKO_PACK_MAX_ARCHIVE_BYTES` | Pack | `1073741824` | Maximum streamed ZIP upload size (1 GiB) |
+| `HAKO_PACK_MAX_UNCOMPRESSED_BYTES` | Pack | `4294967296` | Maximum aggregate uncompressed ZIP entry size (4 GiB) |
+| `HAKO_PACK_MAX_ENTRIES` | Pack | `10000` | Maximum ZIP entries, including directories |
+| `HAKO_PACK_MAX_MANIFEST_BYTES` | Pack | `1048576` | Maximum uncompressed `manifest.json` size (1 MiB) |
+| `HAKO_PACK_CLEANUP_DELAY` | Pack | `86400` seconds | Delay before deleting replaced/deleted objects; must be greater than 3600 and at most 86400 seconds |
+| `RUST_LOG` | Auth and Pack | `info` | `tracing` filter passed to each service |
+| `HAKO_TEST_DATABASE_URL` | Auth and Pack integration tests | Unset; PostgreSQL tests skip | Connection URL for one isolated test database; set it separately for each service's integration suite |
 
-Telegram polling starts in the background. An unavailable or invalid bot token is logged without exposing the token; polling retries with backoff while the HTTP health endpoints remain available. Without the S3 configuration group, Pack still starts and reports healthy; Pack operations that need object storage return `503 storage_unavailable`. The APIs are documented in [`docs/auth-api.md`](docs/auth-api.md) and [`docs/pack-api.md`](docs/pack-api.md).
+All size limits must be positive integers. `HAKO_PACK_CLEANUP_DELAY` must exceed the one-hour maximum download duration and cannot exceed one day. To disable S3-backed operations, leave the five required S3 settings empty; a partial group is a configuration error.
 
-For server tests, set `HAKO_TEST_DATABASE_URL` to an isolated, empty PostgreSQL database. CI creates `hako_auth_test` and `hako_pack_test` for this purpose.
+## Create a Telegram bot
+
+1. In Telegram, open [@BotFather](https://t.me/BotFather), send `/newbot`, and follow its prompts.
+2. Copy the token BotFather returns into `HAKO_TELEGRAM_BOT_TOKEN` in `.env`.
+3. Restart Auth with `docker compose up -d auth` and check `docker compose logs auth` for `Telegram bot identity is ready`.
+
+Auth calls `getMe` to discover the bot username automatically. No `HAKO_TELEGRAM_BOT_USERNAME` setting exists. Registration produces `https://t.me/<bot_username>?start=<code>`; with an invalid placeholder token, health stays available but registration returns `503 bot_unavailable` until the bot identity is ready.
+
+## Public HTTPS
+
+Run a reverse proxy on the Docker host. Terminate TLS there and proxy the two public services to `127.0.0.1:8081` (Auth) and `127.0.0.1:8082` (Pack). These ports are loopback-only. Do not publish Auth's internal `8091` listener or PostgreSQL.
+
+Example Caddyfile (replace the hostnames with names whose DNS points to this host; see the [Caddy `reverse_proxy` reference](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)):
+
+```caddyfile
+auth.example.com {
+	reverse_proxy 127.0.0.1:8081 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
+packs.example.com {
+	reverse_proxy 127.0.0.1:8082 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+```
+
+Example nginx server blocks (configure certificate paths for the host; see the [nginx proxy module reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name auth.example.com;
+    ssl_certificate /etc/letsencrypt/live/auth.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/auth.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name packs.example.com;
+    client_max_body_size 1g;
+    ssl_certificate /etc/letsencrypt/live/packs.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/packs.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8082;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Set `HAKO_AUTH_TRUSTED_PROXIES` to the proxy address as Auth sees it, written as a CIDR (`/32` for one IPv4 address or `/128` for one IPv6 address). When the proxy runs on the Docker host, the peer address observed by the container can be the Docker bridge gateway; confirm the actual address for this deployment before setting the CIDR. Leave the value empty if Auth should ignore forwarded client addresses.
+
+For example, if Auth observes the proxy at `172.20.0.1`, set `HAKO_AUTH_TRUSTED_PROXIES=172.20.0.1/32` in `.env`. Replace this illustrative value with the actual address or subnet observed by the Auth container. The proxy examples overwrite `X-Forwarded-For` with the connecting client address; if another proxy or CDN sits in front, configure that trust chain deliberately before forwarding headers.
+
+## Local development and tests
+
+Install Rust/Cargo and run commands from `server/`:
+
+```sh
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --locked
+```
+
+Without `HAKO_TEST_DATABASE_URL`, PostgreSQL integration tests print a skip message; unit tests still run. For integration coverage, use an isolated PostgreSQL instance with empty databases named `hako_auth_test` and `hako_pack_test`, then run each suite against its own database.
+
+PowerShell:
+
+```powershell
+$env:HAKO_TEST_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/hako_auth_test'
+cargo test --locked --package hako-auth --test postgres_auth
+$env:HAKO_TEST_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/hako_pack_test'
+cargo test --locked --package hako-pack --test postgres_pack
+Remove-Item Env:HAKO_TEST_DATABASE_URL -ErrorAction SilentlyContinue
+```
+
+CI runs the server checks in `.github/workflows/tests.yml` with a PostgreSQL service and separate test databases. See [`docs/auth-api.md`](docs/auth-api.md), [`docs/pack-api.md`](docs/pack-api.md), [`docs/hakopack-manifest.schema.json`](docs/hakopack-manifest.schema.json), and [`docs/hakopack-example.json`](docs/hakopack-example.json) for API and archive details.

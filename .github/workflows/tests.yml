@@ -45,8 +45,6 @@ jobs:
 
   server:
     runs-on: ubuntu-latest
-    env:
-      HAKO_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hako_auth_test
     services:
       postgres:
         image: postgres:17-alpine
@@ -80,6 +78,13 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace --locked
+        working-directory: server
+
+      # Auth and Pack have the same migration version sequence but different migration checksums.
+      - name: Run Auth PostgreSQL integration tests
+        env:
+          HAKO_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hako_auth_test
+        run: cargo test --locked --package hako-auth --test postgres_auth
         working-directory: server
 
       - name: Run Pack PostgreSQL integration tests

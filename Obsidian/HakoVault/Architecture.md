@@ -376,3 +376,9 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
   (причина из плана пользователя).
 - Один экземпляр приложения, сохранение аккаунта между запусками, вход без аккаунта
   (`ContinueWithoutAccount`, не сохраняется между запусками) и профиль внутри раздела «Настройки» — решения пользователя.
+
+## Серверная часть
+
+`server/` — отдельный Rust workspace с пакетами `hako-auth` и `hako-pack`. Общий `server/Dockerfile` собирает каждый пакет в отдельный образ; корневой `compose.yaml` запускает Auth, Pack и PostgreSQL с отдельными базами и ролями. Pack хранит байты `.hakopack` во внешнем S3-совместимом хранилище. Подробности контрактов и размещения — [[Server/Auth]], [[Server/Pack]] и [[Server/Deployment]].
+
+CI job `server` в `.github/workflows/tests.yml` проверяет форматирование, Clippy, Rust-тесты и интеграционные тесты с PostgreSQL. Серверные сервисы пока не интегрированы с macOS- или Windows-клиентом; их сборки, версии и релизы независимы.

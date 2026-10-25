@@ -10,9 +10,9 @@ All API errors use the Auth JSON shape:
 
 ## Archive format v1
 
-A `.hakopack` is a ZIP containing exactly one root `manifest.json`, optionally a root `icon.png`, and user files under `overrides/`. The `overrides/` check is a path prefix check. The manifest follows [`hakopack-manifest.schema.json`](hakopack-manifest.schema.json); [`hakopack-example.json`](hakopack-example.json) shows a valid example. `profile` must be a JSON object and is validated without filtering the original archive, so arbitrary client profile fields remain intact. Fabric API is represented as a normal item in `modrinth_files`.
+A `.hakopack` is a ZIP containing exactly one root `manifest.json`, an optional root `icon.png`, and any user files under `overrides/`. The `overrides/` check is a path prefix check. The manifest follows [`hakopack-manifest.schema.json`](hakopack-manifest.schema.json); [`hakopack-example.json`](hakopack-example.json) is a manifest example, not a complete ZIP archive. `profile` must be a JSON object and is validated without filtering the original archive, so arbitrary client profile fields remain intact. Fabric API is represented as a normal item in `modrinth_files`.
 
-If `icon` is present, it must be `"icon.png"`; that ZIP entry must begin with the PNG signature bytes `89 50 4E 47 0D 0A 1A 0A`. The server rejects encrypted entries, symlinks, absolute paths, `..` path segments, duplicate paths (case-insensitive), and collisions between `X` and `X.disabled`. Backslashes and ambiguous empty or `.` path segments are also rejected. The server reads ZIP metadata and the bounded manifest/icon data without extracting archive entries.
+If the manifest has an `icon` field, it must be `"icon.png"`, and the archive must contain that root entry beginning with PNG signature bytes `89 50 4E 47 0D 0A 1A 0A`. An unreferenced root `icon.png` is not used as the pack icon. The server rejects encrypted entries, symlinks, absolute paths, `..` path segments, duplicate paths (case-insensitive), and collisions between `X` and `X.disabled`. Backslashes and ambiguous empty or `.` path segments are also rejected. The server reads ZIP metadata and the bounded manifest/icon data without extracting archive entries.
 
 Default limits are:
 
@@ -26,6 +26,23 @@ Default limits are:
 Configured limits must be positive integers. ZIP entries are not extracted. The aggregate uncompressed limit is checked against the central-directory sizes.
 
 ## Endpoints
+
+Create, metadata, and replacement responses return a `PackMetadata` JSON object and a strong `ETag` header. The object's `etag` field is unquoted; the HTTP header wraps the same opaque revision value in quotes. `sha256` is the lowercase SHA-256 of the full ZIP archive and is separate from the ETag.
+
+```json
+{
+  "pack_id": "<uuid>",
+  "revision": 1,
+  "etag": "<opaque-revision-value>",
+  "size_bytes": 123456,
+  "sha256": "<64 lowercase hexadecimal characters>",
+  "name": "My pack",
+  "minecraft_version": "1.21.4",
+  "loader": "fabric",
+  "created_at": "<RFC3339 timestamp>",
+  "updated_at": "<RFC3339 timestamp>"
+}
+```
 
 ### `GET /v1/packs?limit=&cursor=`
 
@@ -57,7 +74,7 @@ Pack IDs are unique per owner, so two accounts can independently use the same UU
 
 ## Cleanup and storage
 
-S3 keys have the form `packs/{owner_id}/{pack_id}/r{revision}-{etag}.zip`. The S3 implementation uses the AWS SDK for Rust and honors endpoint, region, static credentials, optional session token, and path-style configuration. If all required S3 variables are unset, Pack still starts and `/healthz` returns `200`; storage operations return `503 storage_unavailable`.
+S3 keys have the form `packs/{owner_id}/{pack_id}/r{revision}-{etag}.zip`. The S3 implementation uses the AWS SDK for Rust and honors endpoint, region, static credentials, optional session token, and path-style configuration. If all required S3 variables are unset, Pack still starts and `/healthz` returns `200`; create, replace, and archive download return `503 storage_unavailable`. Metadata and delete operations use PostgreSQL; deletes queue object cleanup for later retry. If only some required S3 variables are set, Pack fails configuration validation at startup.
 
 Replaced and deleted objects are queued in `pack_cleanup` with `eligible_at`, attempts, and last error. The worker checks every 30 seconds, claims work with a 60-second lease, and resumes queued work after restart. Failed deletes are logged and retried with exponential backoff from one minute up to one hour.
 
@@ -90,7 +107,7 @@ Set all five required S3 variables to enable storage. A partial S3 configuration
 
 | Status | Typical codes | Meaning |
 | ---: | --- | --- |
-| `400` | `invalid_request`, `invalid_archive` | Invalid UUID, cursor, conditional header syntax, or ZIP/manifest |
+| `400` | `invalid_request`, `invalid_archive` | Invalid pack UUID, pagination query/cursor, content length, unreadable conditional header, or ZIP/manifest |
 | `401` | `unauthorized` | Missing/invalid bearer token or Auth rejected it |
 | `404` | `not_found` | Pack does not exist for this owner |
 | `405` | `method_not_allowed` | Method is not supported on this route |
