@@ -38,11 +38,13 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     private DispatcherQueueTimer? _gameSaveTimer;
     private bool _loadingGame;
     private bool _pickingJava;
+    private bool _editingCharacter;
 
     public SettingsPage()
     {
         InitializeComponent();
         SkinView.HeadImageReady += SkinView_HeadImageReady;
+        CharacterEditor.StateChanged += (_, _) => SettingsSections.IsEnabled = !CharacterEditor.IsSaving;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -51,6 +53,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         var context = (SettingsPageContext)e.Parameter;
         _coordinator = context.Coordinator;
         _skinPreviewService = context.SkinPreviewService;
+        _skinPreviewService.AppearanceChanged += SkinAppearanceChanged;
         _previewOptions = context.PreviewOptions;
         _settings = context.Settings;
         _playtime = context.Playtime;
@@ -62,11 +65,15 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         RefreshStrings();
         SelectSection(_coordinator.SelectedSettingsSection);
         RefreshProfile();
+        if (_previewOptions?.Page == PreviewPage.CharacterEditor)
+            DispatcherQueue.TryEnqueue(() => EditCharacter_Click(this, new RoutedEventArgs()));
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         UnsubscribeLanguageChanges();
+        CharacterEditor.Close();
+        if (_skinPreviewService is not null) _skinPreviewService.AppearanceChanged -= SkinAppearanceChanged;
         _screenVisible = false;
         SkinView.SetEligible(false);
         SkinView.HeadImageReady -= SkinView_HeadImageReady;
@@ -102,6 +109,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         }
 
         _screenVisible = visible;
+        if (!visible && _editingCharacter) CloseCharacterEditor();
         if (visible)
         {
             SubscribeLanguageChanges();
@@ -118,6 +126,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
 
     public void SelectSection(SettingsSection section)
     {
+        if (_editingCharacter) CloseCharacterEditor();
         var enteringProfile = section == SettingsSection.Profile && _selectedSection != SettingsSection.Profile;
         _selectedSection = section;
         if (enteringProfile)
@@ -137,6 +146,8 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     public void RefreshProfile()
     {
         var account = _coordinator?.Account;
+        if (_editingCharacter && (_modelAccountId != account?.Xuid || _modelProfileId != account?.MinecraftProfileId))
+            CloseCharacterEditor();
         var isGuest = account is null && _coordinator?.IsGuest == true;
         var hasAccount = account is not null;
 
@@ -224,7 +235,12 @@ public sealed partial class SettingsPage : Page, INavigationGuard
             && _selectedSection == SettingsSection.Profile
             && account is not null;
 
-        SkinView.Visibility = showModel ? Visibility.Visible : Visibility.Collapsed;
+        CharacterPanel.Visibility = showModel ? Visibility.Visible : Visibility.Collapsed;
+        CharacterEditor.SetWindowState(showModel && _editingCharacter, _windowActive);
+        EditCharacterButton.Content = HakoStrings.Get("EditCharacter");
+        EditCharacterButton.Visibility = account is { MinecraftProfileId.Length: > 0, MinecraftName.Length: > 0,
+            MinecraftAccessToken.Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+        showModel &= !_editingCharacter;
         if (!showModel || _skinPreviewService is null)
         {
             SkinView.SetEligible(false);
@@ -270,8 +286,8 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         Grid.SetColumnSpan(ProfileTitle, wide ? 2 : 1);
         Grid.SetColumn(ProfileCards, 0);
         Grid.SetRow(ProfileCards, 1);
-        Grid.SetColumn(SkinView, wide ? 1 : 0);
-        Grid.SetRow(SkinView, wide ? 1 : 2);
+        Grid.SetColumn(CharacterPanel, wide ? 1 : 0);
+        Grid.SetRow(CharacterPanel, wide ? 1 : 2);
         Grid.SetColumnSpan(GuestProfilePanel, wide ? 2 : 1);
         Grid.SetRow(GuestProfilePanel, 1);
         Grid.SetColumnSpan(SignedOutProfilePanel, wide ? 2 : 1);
@@ -438,10 +454,43 @@ public sealed partial class SettingsPage : Page, INavigationGuard
 
     public async Task<bool> ConfirmLeaveAsync()
     {
+        if (CharacterEditor.IsSaving) return false;
         await SaveGameSettingsAsync();
         return _settings is null
             || (GameLaunchDefaults.WindowDimension(GlobalWidthBox.Text) is not null && GameLaunchDefaults.WindowDimension(GlobalHeightBox.Text) is not null)
             || await HakoDialogs.ConfirmLeaveInvalidDraftAsync();
+    }
+
+    private void SkinAppearanceChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _profileRequestScope = Guid.NewGuid();
+            UpdateSkinVisibility();
+        });
+    }
+
+    private async void EditCharacter_Click(object sender, RoutedEventArgs e)
+    {
+        if (_coordinator is null || _skinPreviewService is null || _editingCharacter) return;
+        _editingCharacter = true;
+        ProfilePanel.Visibility = Visibility.Collapsed;
+        CharacterEditor.Visibility = Visibility.Visible;
+        UpdateSkinVisibility();
+        await CharacterEditor.OpenAsync(_coordinator, _skinPreviewService, _previewOptions?.Mode == ProfilePreviewMode.Fixture);
+        UpdateSkinVisibility();
+    }
+
+    private void CharacterEditor_BackRequested(object? sender, EventArgs e) => CloseCharacterEditor();
+
+    private void CloseCharacterEditor()
+    {
+        CharacterEditor.Close();
+        CharacterEditor.Visibility = Visibility.Collapsed;
+        _editingCharacter = false;
+        ProfilePanel.Visibility = _selectedSection == SettingsSection.Profile ? Visibility.Visible : Visibility.Collapsed;
+        _profileRequestScope = Guid.NewGuid();
+        UpdateSkinVisibility();
     }
 
     private void LoadGameSettings()

@@ -129,7 +129,10 @@
                                 <Button x:Name="SignOutButton" HorizontalAlignment="Left" Click="SignOutButton_Click" />
                             </StackPanel>
 
-                            <local:MinecraftSkinView x:Name="SkinView" Grid.Row="1" Grid.Column="1" MinHeight="400" />
+                            <StackPanel x:Name="CharacterPanel" Grid.Row="1" Grid.Column="1" Spacing="16">
+                                <local:MinecraftSkinView x:Name="SkinView" MinHeight="400" />
+                                <Button x:Name="EditCharacterButton" HorizontalAlignment="Stretch" Click="EditCharacter_Click" Visibility="Collapsed" />
+                            </StackPanel>
 
                             <StackPanel x:Name="GuestProfilePanel" Grid.Row="1" Grid.ColumnSpan="2" Visibility="Collapsed" Spacing="16">
                                 <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
@@ -156,6 +159,7 @@
                             </StackPanel>
                         </Grid>
                     </Grid>
+                    <local:MinecraftCharacterEditorView x:Name="CharacterEditor" Visibility="Collapsed" BackRequested="CharacterEditor_BackRequested" />
                 </Grid>
             </ScrollViewer>
         </Grid>

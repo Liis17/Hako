@@ -23,6 +23,8 @@ public sealed partial class MinecraftSkinView : UserControl
     private string? _profileId;
     private Guid _requestScope;
     private bool _fixture;
+    private bool _localPreview;
+    private int _previewRevision;
     private bool _sourceConfigured;
     private bool _requestedEligible;
     private bool _isLoaded;
@@ -52,6 +54,16 @@ public sealed partial class MinecraftSkinView : UserControl
     }
 
     public event Action<object?, byte[]>? HeadImageReady;
+    internal event Action<int, bool>? PreviewReadinessChanged;
+
+    internal void SetLocalPreview(MinecraftSkinPreviewData skin, int revision)
+    {
+        _localPreview = true;
+        _sourceConfigured = true;
+        _previewRevision = revision;
+        StopActivity(disposeRenderer: false);
+        DisplaySkin(skin);
+    }
 
     internal void SetProfile(
         MinecraftSkinPreviewService previewService,
@@ -64,6 +76,7 @@ public sealed partial class MinecraftSkinView : UserControl
         var profileChanged = identityChanged || _fixture != useFixture;
         var requestChanged = _requestScope != requestScope;
         _previewService = previewService;
+        _localPreview = false;
         _sourceConfigured = true;
         _profileId = profileId;
         _fixture = useFixture;
@@ -131,7 +144,7 @@ public sealed partial class MinecraftSkinView : UserControl
         UnsubscribeLanguageChanges();
     }
 
-    private bool IsEligible => _requestedEligible && _isLoaded && _sourceConfigured && _previewService is not null;
+    private bool IsEligible => _requestedEligible && _isLoaded && _sourceConfigured && (_localPreview || _previewService is not null);
 
     private bool IsWalking => IsEligible && _windowActive && _skinData is not null && _animationsEnabled;
 
@@ -321,7 +334,7 @@ public sealed partial class MinecraftSkinView : UserControl
 
     private void StartSourceLoad()
     {
-        if (!IsEligible || _previewService is null)
+        if (!IsEligible || _localPreview || _previewService is null)
         {
             return;
         }
@@ -342,7 +355,7 @@ public sealed partial class MinecraftSkinView : UserControl
             if (_skinData is null)
             {
                 var fallback = _fixture
-                    ? await previewService.LoadFixtureAsync(cancellationToken)
+                    ? await previewService.LoadFixtureAsync(_profileId, cancellationToken)
                     : await previewService.LoadAsync(null, _requestScope, cancellationToken);
                 if (!IsCurrentLoad(revision, cancellationToken))
                 {
@@ -358,7 +371,7 @@ public sealed partial class MinecraftSkinView : UserControl
 
             if (_fixture)
             {
-                var fixture = await previewService.LoadFixtureAsync(cancellationToken);
+                var fixture = await previewService.LoadFixtureAsync(_profileId, cancellationToken);
                 if (IsCurrentLoad(revision, cancellationToken))
                 {
                     DisplaySkin(fixture);
@@ -418,6 +431,7 @@ public sealed partial class MinecraftSkinView : UserControl
             UnavailablePanel.Visibility = Visibility.Collapsed;
             RenderPose(IsWalking);
             UpdateFrameSubscription();
+            ReportPreviewReadiness();
         }
         catch (MinecraftSkinRendererException exception)
         {
@@ -463,6 +477,7 @@ public sealed partial class MinecraftSkinView : UserControl
 
     private void HandleRendererFailure(MinecraftSkinRendererException? exception)
     {
+        if (_localPreview) PreviewReadinessChanged?.Invoke(_previewRevision, false);
         StopRenderingFrames();
         DisposeRenderer();
         if (exception?.Failure == MinecraftSkinRendererFailure.DeviceLost && _skinData is not null && IsEligible)
@@ -485,6 +500,12 @@ public sealed partial class MinecraftSkinView : UserControl
         UnavailablePanel.Visibility = Visibility.Visible;
     }
 
+    private void ReportPreviewReadiness()
+    {
+        if (_localPreview && _renderer is not null && RendererSurface.ActualWidth > 0 && RendererSurface.ActualHeight > 0)
+            PreviewReadinessChanged?.Invoke(_previewRevision, true);
+    }
+
     private void RendererSurface_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (!IsEligible || _renderer is null)
@@ -496,6 +517,7 @@ public sealed partial class MinecraftSkinView : UserControl
         {
             _renderer.Resize(e.NewSize.Width, e.NewSize.Height, XamlRoot?.RasterizationScale ?? 1);
             RenderPose(IsWalking);
+            ReportPreviewReadiness();
         }
         catch (MinecraftSkinRendererException exception)
         {

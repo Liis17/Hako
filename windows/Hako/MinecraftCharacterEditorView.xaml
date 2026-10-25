@@ -1,0 +1,44 @@
+<UserControl
+    x:Class="Hako.MinecraftCharacterEditorView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Hako"
+    SizeChanged="Editor_SizeChanged">
+    <Grid RowDefinitions="Auto,*" RowSpacing="20">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Button x:Name="BackButton" Click="Back_Click" />
+            <TextBlock x:Name="EditorTitle" Grid.Column="1" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <Button x:Name="SaveButton" Grid.Column="2" Click="Save_Click" Style="{ThemeResource AccentButtonStyle}" />
+        </Grid>
+        <Grid x:Name="EditorLayout" Grid.Row="1" ColumnDefinitions="*,360" RowDefinitions="Auto,Auto" ColumnSpacing="24" RowSpacing="20">
+            <local:MinecraftSkinView x:Name="PreviewView" Height="480" MinWidth="180" />
+            <StackPanel x:Name="EditorControls" Grid.Column="1" Spacing="16">
+                <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock x:Name="SkinTitle" FontSize="18" FontWeight="SemiBold" />
+                        <Button x:Name="ImportButton" Click="Import_Click" HorizontalAlignment="Stretch" />
+                        <ComboBox x:Name="VariantBox" HorizontalAlignment="Stretch" SelectionChanged="Variant_SelectionChanged">
+                            <ComboBoxItem x:Name="ClassicItem" />
+                            <ComboBoxItem x:Name="SlimItem" />
+                        </ComboBox>
+                        <TextBlock x:Name="LegacyCaption" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+                <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock x:Name="CapeTitle" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock x:Name="NoCapesCaption" TextWrapping="Wrap" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <GridView x:Name="CapeList" SelectionMode="Single" IsItemClickEnabled="True" ItemClick="Cape_ItemClick" HorizontalAlignment="Stretch">
+                            <GridView.ItemsPanel>
+                                <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" ItemWidth="132" ItemHeight="112" /></ItemsPanelTemplate>
+                            </GridView.ItemsPanel>
+                        </GridView>
+                    </StackPanel>
+                </Border>
+                <ProgressBar x:Name="BusyProgress" IsIndeterminate="True" Visibility="Collapsed" />
+                <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                <Button x:Name="RetryButton" Click="Retry_Click" Visibility="Collapsed" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -529,7 +529,7 @@ public sealed class MinecraftSkinRenderer : IDisposable
         });
         _rasterizerState = _device.CreateRasterizerState(RasterizerDescription.CullNone);
         _opaqueDepthState = _device.CreateDepthStencilState(DepthStencilDescription.Default);
-        _translucentDepthState = _device.CreateDepthStencilState(DepthStencilDescription.DepthRead);
+        _translucentDepthState = _device.CreateDepthStencilState(MinecraftSkinPipeline.LayerDepth);
         _translucentBlendState = _device.CreateBlendState(new BlendDescription(Blend.One, Blend.InverseSourceAlpha));
         _sampler = _device.CreateSamplerState(SamplerDescription.PointClamp);
     }

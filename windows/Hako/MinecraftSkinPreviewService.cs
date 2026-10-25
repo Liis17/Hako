@@ -15,12 +15,27 @@ internal sealed class MinecraftSkinPreviewService : IDisposable
     private readonly MinecraftSkinLoader _loader;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly Dictionary<string, CachedSkin> _skins = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, MinecraftSkinPreviewData> _appearances = new(StringComparer.Ordinal);
     private MinecraftSkinPreviewData? _steve;
     private bool _disposed;
+    public event EventHandler? AppearanceChanged;
 
-    public MinecraftSkinPreviewService()
+    public void ConfirmAppearance(string uuid, MinecraftAppearanceImage image)
     {
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        ThrowIfDisposed();
+        var key = Guid.Parse(uuid).ToString("N");
+        _appearances[key] = CreatePreviewData(image.SkinRgba, image.Variant, image.CapeRgba);
+        AppearanceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public IMinecraftProfileApi CreateProfileApi() => new MinecraftProfileApi(_httpClient);
+
+    public MinecraftSkinPreviewService() : this(new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        { Timeout = TimeSpan.FromSeconds(15) }) { }
+
+    internal MinecraftSkinPreviewService(HttpClient httpClient)
+    {
+        _httpClient = httpClient;
         _loader = new MinecraftSkinLoader(_httpClient);
     }
 
@@ -42,11 +57,13 @@ internal sealed class MinecraftSkinPreviewService : IDisposable
         }
 
         var cacheKey = parsedUuid.ToString("N");
+        if (_appearances.TryGetValue(cacheKey, out var authoritative)) return authoritative;
         await _loadGate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
+            if (_appearances.TryGetValue(cacheKey, out authoritative)) return authoritative;
             if (_skins.TryGetValue(cacheKey, out var cached))
             {
                 if (!cached.CapeExpected || cached.Data.CapeRgba is not null || cached.LastCapeAttemptScope == requestScope)
@@ -54,7 +71,8 @@ internal sealed class MinecraftSkinPreviewService : IDisposable
                     return cached.Data;
                 }
 
-                return await RetryCapeAsync(cacheKey, cached, requestScope, cancellationToken);
+                var retried = await RetryCapeAsync(cacheKey, cached, requestScope, cancellationToken);
+                return _appearances.GetValueOrDefault(cacheKey) ?? retried;
             }
 
             var skin = await _loader.LoadAsync(cacheKey, cancellationToken);
@@ -71,7 +89,7 @@ internal sealed class MinecraftSkinPreviewService : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             var data = CreatePreviewData(normalized.Rgba, normalized.Variant, cape);
             _skins.Add(cacheKey, new(data, skin.HasCape, skin.HasCape && cape is null ? requestScope : null));
-            return data;
+            return _appearances.GetValueOrDefault(cacheKey) ?? data;
         }
         finally
         {
@@ -79,9 +97,10 @@ internal sealed class MinecraftSkinPreviewService : IDisposable
         }
     }
 
-    public async Task<MinecraftSkinPreviewData> LoadFixtureAsync(CancellationToken cancellationToken = default)
+    public async Task<MinecraftSkinPreviewData> LoadFixtureAsync(string? uuid, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (Guid.TryParse(uuid, out var id) && _appearances.TryGetValue(id.ToString("N"), out var image)) return image;
         var steve = await LoadSteveAsync(cancellationToken);
         return steve with { CapeRgba = CreateFixtureCape() };
     }
@@ -96,6 +115,7 @@ internal sealed class MinecraftSkinPreviewService : IDisposable
         _disposed = true;
         _httpClient.Dispose();
         _skins.Clear();
+        _appearances.Clear();
         _steve = null;
     }
 

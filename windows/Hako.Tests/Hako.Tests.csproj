@@ -5,12 +5,15 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.10.4" />
     <PackageReference Include="MSTest.TestFramework" Version="3.10.4" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,9 +26,11 @@
 
   <ItemGroup>
     <Compile Include="..\Hako\MinecraftSkinImageDecoder.cs" Link="MinecraftSkinImageDecoder.cs" />
+    <Compile Include="..\Hako\MinecraftSkinPreviewService.cs" Link="MinecraftSkinPreviewService.cs" />
     <Compile Include="..\Hako\MinecraftSkinHeadComposer.cs" Link="MinecraftSkinHeadComposer.cs" />
     <Compile Include="..\Hako\MinecraftSkinHeadBitmapConverter.cs" Link="MinecraftSkinHeadBitmapConverter.cs" />
     <Compile Include="..\Hako\Graphics\MinecraftSkinGeometry.cs" Link="MinecraftSkinGeometry.cs" />
+    <Compile Include="..\Hako\Graphics\MinecraftSkinPipeline.cs" Link="MinecraftSkinPipeline.cs" />
     <Compile Include="..\Hako\InstanceIconGlyphs.cs" Link="InstanceIconGlyphs.cs" />
     <Compile Include="..\Hako\InstanceIconImage.cs" Link="InstanceIconImage.cs" />
     <Compile Include="..\Hako\NameValidation.cs" Link="NameValidation.cs" />
@@ -37,6 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\Hako\Graphics\MinecraftSkin.hlsl" Link="Fixtures\MinecraftSkin.hlsl" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Hako\InstanceProfilePage.xaml.cs" Link="Fixtures\InstanceProfilePage.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Hako\Strings\**\Resources.resw" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\Hako\Assets\Steve.png" Link="Fixtures\WindowsSteve.png" CopyToOutputDirectory="PreserveNewest" />

@@ -33,6 +33,8 @@ namespace Hako.Core;
 [JsonSerializable(typeof(Dictionary<string, ModrinthVersionHashMatch>), TypeInfoPropertyName = "ModrinthVersionHashMatchDictionary")]
 [JsonSerializable(typeof(Dictionary<string, ModrinthVersion>), TypeInfoPropertyName = "ModrinthVersionDictionary")]
 [JsonSerializable(typeof(AccountSession))]
+[JsonSerializable(typeof(MinecraftAppearanceProfile))]
+[JsonSerializable(typeof(MinecraftCapeSelection))]
 [JsonSerializable(typeof(GameProcessRecord))]
 [JsonSerializable(typeof(PlaytimeLedger))]
 [JsonSerializable(typeof(PlaytimeOwnerRecord))]
