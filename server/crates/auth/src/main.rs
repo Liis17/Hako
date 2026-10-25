@@ -3,17 +3,26 @@ use std::{
     error::Error,
     io::{self, ErrorKind},
     process,
+    sync::Arc,
 };
 
-use axum::{routing::get, Router};
+use hako_auth::{
+    api::{internal_router, public_router, AppState},
+    bot_worker::run_bot_worker,
+    telegram::{BotClient, ReqwestBotClient},
+};
+use ipnet::IpNet;
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::RwLock};
 use tracing_subscriber::EnvFilter;
 
 struct Config {
     public_addr: String,
     internal_addr: String,
     database_url: String,
+    telegram_bot_token: String,
+    service_secret: String,
+    trusted_proxies: Vec<IpNet>,
 }
 
 impl Config {
@@ -21,15 +30,30 @@ impl Config {
         let public_addr = value_or_default("HAKO_AUTH_PUBLIC_ADDR", "0.0.0.0:8081")?;
         let internal_addr = value_or_default("HAKO_AUTH_INTERNAL_ADDR", "0.0.0.0:8091")?;
         let database_url = required("HAKO_AUTH_DATABASE_URL")?;
-
-        required("HAKO_TELEGRAM_BOT_TOKEN")?;
-        required("HAKO_AUTH_SERVICE_SECRET")?;
-        let _trusted_proxies = optional("HAKO_AUTH_TRUSTED_PROXIES")?;
+        let telegram_bot_token = required("HAKO_TELEGRAM_BOT_TOKEN")?;
+        let service_secret = required("HAKO_AUTH_SERVICE_SECRET")?;
+        let trusted_proxies = optional("HAKO_AUTH_TRUSTED_PROXIES")?
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| {
+                value.parse::<IpNet>().map_err(|_| {
+                    io::Error::new(
+                        ErrorKind::InvalidInput,
+                        "HAKO_AUTH_TRUSTED_PROXIES must contain comma-separated CIDR values",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             public_addr,
             internal_addr,
             database_url,
+            telegram_bot_token,
+            service_secret,
+            trusted_proxies,
         })
     }
 }
@@ -49,26 +73,38 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     let pool = connect_database(&config.database_url).await?;
     apply_migrations(&pool).await?;
 
+    let bot: Arc<dyn BotClient> = Arc::new(
+        ReqwestBotClient::new(config.telegram_bot_token)
+            .map_err(|_| io::Error::other("failed to initialize Telegram HTTP client"))?,
+    );
+    let bot_username = Arc::new(RwLock::new(None));
+    let state = AppState::new(
+        pool.clone(),
+        config.service_secret,
+        config.trusted_proxies,
+        bot_username.clone(),
+    );
+    let bot_task = tokio::spawn(run_bot_worker(state.auth.clone(), bot, bot_username));
+
     let public_listener = TcpListener::bind(&config.public_addr).await?;
     let internal_listener = TcpListener::bind(&config.internal_addr).await?;
     tracing::info!(address = %config.public_addr, "auth public listener ready");
     tracing::info!(address = %config.internal_addr, "auth internal listener ready");
 
-    let public_server =
-        axum::serve(public_listener, router()).with_graceful_shutdown(shutdown_signal());
-    let internal_server =
-        axum::serve(internal_listener, router()).with_graceful_shutdown(shutdown_signal());
+    let public_server = axum::serve(
+        public_listener,
+        public_router(state.clone()).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal());
+    let internal_server = axum::serve(
+        internal_listener,
+        internal_router(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal());
 
     tokio::try_join!(public_server, internal_server)?;
+    bot_task.abort();
     Ok(())
-}
-
-fn router() -> Router {
-    Router::new().route("/healthz", get(healthz))
-}
-
-async fn healthz() -> &'static str {
-    "ok"
 }
 
 async fn connect_database(database_url: &str) -> Result<PgPool, io::Error> {

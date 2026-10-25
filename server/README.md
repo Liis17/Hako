@@ -1,6 +1,6 @@
 # Hako server
 
-The Rust workspace contains two independent services. `hako-auth` owns the public and internal Auth listeners, and `hako-pack` owns the Pack API. This stage provides startup configuration, database migrations, health endpoints, graceful shutdown, and container infrastructure; it does not implement Auth or Pack business logic.
+The Rust workspace contains two independent services. `hako-auth` implements Telegram account registration, login approvals, rolling sessions, and public/internal Auth APIs. `hako-pack` owns the Pack API; its business logic is implemented separately.
 
 ## Structure
 
@@ -10,6 +10,7 @@ The Rust workspace contains two independent services. `hako-auth` owns the publi
 | `crates/pack/` | `hako-pack` binary, Pack listener, Pack migrations |
 | `Dockerfile` | Shared multi-stage build for either service |
 | `init-db.sh` | Creates isolated PostgreSQL roles and databases on first startup |
+| `docs/auth-api.md` | Public and internal Auth API reference |
 
 ## Run with Docker Compose
 
@@ -53,4 +54,6 @@ Values marked **required** must be set before the service starts. Secrets are va
 | `HAKO_S3_SESSION_TOKEN` | Pack | Optional | Temporary S3 session token |
 | `HAKO_S3_PATH_STYLE` | Pack | Required (`true` or `false`) | Use path-style S3 requests |
 
-The S3 and Telegram values are validated at startup in this skeleton; their integrations are implemented in later stages.
+Telegram polling starts in the background. An unavailable or invalid bot token is logged without exposing the token; polling retries with backoff while the HTTP health endpoints remain available. The public Auth API is documented in [`docs/auth-api.md`](docs/auth-api.md).
+
+For server tests, set `HAKO_TEST_DATABASE_URL` to an isolated, empty PostgreSQL database. CI creates `hako_auth_test` and `hako_pack_test` for this purpose.
