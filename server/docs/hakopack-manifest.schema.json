@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hako.example/schemas/hakopack-manifest-v1.json",
   "title": "Hako Pack manifest v1",
+  "description": "The containing ZIP is also checked for portable entry paths: no colons, trailing dots or spaces, Windows reserved device-name components, case-insensitive duplicates, or X/X.disabled collisions. See pack-api.md for the complete archive rules.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -157,7 +157,7 @@ fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata
     }
 
     let mut paths = HashSet::with_capacity(archive.len());
-    let mut uncompressed_bytes = 0u128;
+    let mut uncompressed_bytes = 0u64;
     let mut manifest_bytes = None;
     let mut icon_is_png = None;
 
@@ -166,6 +166,12 @@ fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata
         let name = entry.name().to_owned();
         let local_header = entry.header_start();
         let central_header = entry.central_header_start();
+        validate_entry_headers(
+            &mut header_reader,
+            local_header,
+            central_header,
+            entry.name_raw(),
+        )?;
         if encrypted_flag(&mut header_reader, local_header.saturating_add(6))?
             || encrypted_flag(&mut header_reader, central_header.saturating_add(8))?
         {
@@ -183,32 +189,69 @@ fn validate_archive(path: &Path, limits: &PackLimits) -> Result<ManifestMetadata
             return Err(ArchiveError::Invalid);
         }
 
-        uncompressed_bytes = uncompressed_bytes
-            .checked_add(u128::from(entry.size()))
-            .ok_or(ArchiveError::TooLarge)?;
-        if uncompressed_bytes > u128::from(limits.max_uncompressed_bytes) {
-            return Err(ArchiveError::TooLarge);
+        let is_directory = entry.is_dir();
+        if name != "manifest.json" && name != "icon.png" && !name.starts_with("overrides/") {
+            return Err(ArchiveError::Invalid);
+        }
+        if is_directory {
+            continue;
         }
 
-        if name == "manifest.json" && !entry.is_dir() {
-            if entry.size() > limits.max_manifest_bytes {
-                return Err(ArchiveError::TooLarge);
-            }
-            let mut bytes = Vec::with_capacity(entry.size() as usize);
-            entry
-                .take(limits.max_manifest_bytes.saturating_add(1))
-                .read_to_end(&mut bytes)
+        let declared_size = entry.size();
+        if name == "manifest.json" && declared_size > limits.max_manifest_bytes {
+            return Err(ArchiveError::TooLarge);
+        }
+        let mut actual_size = 0u64;
+        let mut manifest = (name == "manifest.json").then(Vec::new);
+        let mut icon_signature = [0u8; 8];
+        let mut icon_signature_len = 0usize;
+        let mut buffer = [0u8; 8192];
+        loop {
+            let remaining = limits
+                .max_uncompressed_bytes
+                .saturating_sub(uncompressed_bytes);
+            let read_capacity = usize::try_from(remaining.min((buffer.len() - 1) as u64))
+                .map_err(|_| ArchiveError::TooLarge)?
+                + 1;
+            let read = entry
+                .read(&mut buffer[..read_capacity])
                 .map_err(|_| ArchiveError::Invalid)?;
-            if bytes.len() as u64 > limits.max_manifest_bytes {
+            if read == 0 {
+                break;
+            }
+            let read = u64::try_from(read).map_err(|_| ArchiveError::TooLarge)?;
+            actual_size = actual_size
+                .checked_add(read)
+                .ok_or(ArchiveError::TooLarge)?;
+            uncompressed_bytes = uncompressed_bytes
+                .checked_add(read)
+                .ok_or(ArchiveError::TooLarge)?;
+            if uncompressed_bytes > limits.max_uncompressed_bytes {
                 return Err(ArchiveError::TooLarge);
             }
-            manifest_bytes = Some(bytes);
-        } else if name == "icon.png" && !entry.is_dir() {
-            let mut signature = [0u8; 8];
-            let is_png = entry.read_exact(&mut signature).is_ok() && &signature == PNG_SIGNATURE;
-            icon_is_png = Some(is_png);
-        } else if !name.starts_with("overrides/") {
+            if name == "manifest.json" && actual_size > limits.max_manifest_bytes {
+                return Err(ArchiveError::TooLarge);
+            }
+
+            if let Some(manifest) = &mut manifest {
+                manifest.extend_from_slice(&buffer[..read as usize]);
+            }
+            if name == "icon.png" && icon_signature_len < icon_signature.len() {
+                let copy_len = (icon_signature.len() - icon_signature_len).min(read as usize);
+                icon_signature[icon_signature_len..icon_signature_len + copy_len]
+                    .copy_from_slice(&buffer[..copy_len]);
+                icon_signature_len += copy_len;
+            }
+        }
+        if actual_size != declared_size {
             return Err(ArchiveError::Invalid);
+        }
+        if let Some(bytes) = manifest {
+            manifest_bytes = Some(bytes);
+        }
+        if name == "icon.png" {
+            icon_is_png =
+                Some(icon_signature_len == PNG_SIGNATURE.len() && &icon_signature == PNG_SIGNATURE);
         }
     }
 
@@ -322,23 +365,79 @@ fn encrypted_flag(file: &mut File, offset: u64) -> Result<bool, ArchiveError> {
     Ok(u16::from_le_bytes(flags) & 1 != 0)
 }
 
-fn validate_path(name: &str) -> Result<(), ()> {
-    if name.is_empty()
-        || name.contains(['\\', '\0'])
-        || name.starts_with('/')
-        || name.as_bytes().get(1) == Some(&b':')
+fn validate_entry_headers(
+    file: &mut File,
+    local_offset: u64,
+    central_offset: u64,
+    central_name: &[u8],
+) -> Result<(), ArchiveError> {
+    const LOCAL_SIGNATURE: [u8; 4] = [0x50, 0x4b, 0x03, 0x04];
+    const CENTRAL_SIGNATURE: [u8; 4] = [0x50, 0x4b, 0x01, 0x02];
+
+    file.seek(SeekFrom::Start(local_offset))
+        .map_err(|_| ArchiveError::Invalid)?;
+    let mut local = [0u8; 30];
+    file.read_exact(&mut local)
+        .map_err(|_| ArchiveError::Invalid)?;
+    if local[..4] != LOCAL_SIGNATURE {
+        return Err(ArchiveError::Invalid);
+    }
+    let local_name_len = usize::from(u16::from_le_bytes([local[26], local[27]]));
+    let mut local_name = vec![0; local_name_len];
+    file.read_exact(&mut local_name)
+        .map_err(|_| ArchiveError::Invalid)?;
+
+    file.seek(SeekFrom::Start(central_offset))
+        .map_err(|_| ArchiveError::Invalid)?;
+    let mut central = [0u8; 46];
+    file.read_exact(&mut central)
+        .map_err(|_| ArchiveError::Invalid)?;
+    if central[..4] != CENTRAL_SIGNATURE
+        || local[8..10] != central[10..12]
+        || local_name_len != usize::from(u16::from_le_bytes([central[28], central[29]]))
+        || local_name != central_name
     {
+        return Err(ArchiveError::Invalid);
+    }
+    let mut central_name_bytes =
+        vec![0; usize::from(u16::from_le_bytes([central[28], central[29]]))];
+    file.read_exact(&mut central_name_bytes)
+        .map_err(|_| ArchiveError::Invalid)?;
+    if local_name != central_name_bytes {
+        return Err(ArchiveError::Invalid);
+    }
+    Ok(())
+}
+
+fn validate_path(name: &str) -> Result<(), ()> {
+    if name.is_empty() || name.contains(['\\', '\0', ':']) || name.starts_with('/') {
         return Err(());
     }
     let path = name.strip_suffix('/').unwrap_or(name);
     if path.is_empty()
-        || path
-            .split('/')
-            .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+        || path.split('/').any(|segment| {
+            segment.is_empty()
+                || segment == "."
+                || segment == ".."
+                || segment.ends_with(['.', ' '])
+                || is_reserved_windows_name(segment)
+        })
     {
         return Err(());
     }
     Ok(())
+}
+
+fn is_reserved_windows_name(segment: &str) -> bool {
+    let base = segment.split('.').next().unwrap_or(segment);
+    let bytes = base.as_bytes();
+    ["CON", "PRN", "AUX", "NUL"]
+        .iter()
+        .any(|reserved| base.eq_ignore_ascii_case(reserved))
+        || (bytes.len() == 4
+            && (bytes[..3].eq_ignore_ascii_case(b"COM") || bytes[..3].eq_ignore_ascii_case(b"LPT"))
+            && bytes[3].is_ascii_digit()
+            && bytes[3] != b'0')
 }
 
 fn collision_key(name: &str, is_dir: bool) -> String {
@@ -470,6 +569,48 @@ mod tests {
         bytes
     }
 
+    fn replace_local_name(bytes: &mut [u8], original: &[u8], replacement: &[u8]) {
+        assert_eq!(original.len(), replacement.len());
+        for index in 0..bytes.len().saturating_sub(30) {
+            if bytes[index..index + 4] == [0x50, 0x4b, 0x03, 0x04] {
+                let name_len = u16::from_le_bytes([bytes[index + 26], bytes[index + 27]]) as usize;
+                if name_len == original.len()
+                    && &bytes[index + 30..index + 30 + name_len] == original
+                {
+                    bytes[index + 30..index + 30 + name_len].copy_from_slice(replacement);
+                    return;
+                }
+            }
+        }
+        panic!("local entry name {original:?} not found");
+    }
+
+    fn replace_local_method(bytes: &mut [u8], name: &[u8], method: u16) {
+        for index in 0..bytes.len().saturating_sub(30) {
+            if bytes[index..index + 4] == [0x50, 0x4b, 0x03, 0x04] {
+                let name_len = u16::from_le_bytes([bytes[index + 26], bytes[index + 27]]) as usize;
+                if name_len == name.len() && &bytes[index + 30..index + 30 + name_len] == name {
+                    bytes[index + 8..index + 10].copy_from_slice(&method.to_le_bytes());
+                    return;
+                }
+            }
+        }
+        panic!("local entry name {name:?} not found");
+    }
+
+    fn forge_central_uncompressed_size(bytes: &mut [u8], name: &[u8], size: u32) {
+        for index in 0..bytes.len().saturating_sub(46) {
+            if bytes[index..index + 4] == [0x50, 0x4b, 0x01, 0x02] {
+                let name_len = u16::from_le_bytes([bytes[index + 28], bytes[index + 29]]) as usize;
+                if name_len == name.len() && &bytes[index + 46..index + 46 + name_len] == name {
+                    bytes[index + 24..index + 28].copy_from_slice(&size.to_le_bytes());
+                    return;
+                }
+            }
+        }
+        panic!("central entry name {name:?} not found");
+    }
+
     fn validate_bytes(bytes: &[u8], limits: &PackLimits) -> Result<(), ArchiveError> {
         let mut file = tempfile::NamedTempFile::new().expect("create temp archive");
         file.write_all(bytes).expect("write temp archive");
@@ -536,6 +677,32 @@ mod tests {
             "../outside.txt",
             "overrides/../outside.txt",
             "outside/",
+            "overrides/options.txt:payload",
+            "overrides/trailing.",
+            "overrides/trailing ",
+            "overrides/CON",
+            "overrides/con.txt",
+            "overrides/PRN.log",
+            "overrides/AUX.png",
+            "overrides/nul",
+            "overrides/COM1.jar",
+            "overrides/com2.jar",
+            "overrides/COM3.jar",
+            "overrides/COM4.jar",
+            "overrides/COM5.jar",
+            "overrides/COM6.jar",
+            "overrides/COM7.jar",
+            "overrides/COM8.jar",
+            "overrides/COM9.jar",
+            "overrides/LPT1.txt",
+            "overrides/lpt2.txt",
+            "overrides/LPT3.txt",
+            "overrides/LPT4.txt",
+            "overrides/LPT5.txt",
+            "overrides/LPT6.txt",
+            "overrides/LPT7.txt",
+            "overrides/LPT8.txt",
+            "overrides/LPT9.txt",
         ] {
             let archive = archive_with(manifest(), &[(path, b"x", None)]);
             assert_eq!(
@@ -624,6 +791,48 @@ mod tests {
                 }
             ),
             Err(ArchiveError::TooLarge)
+        );
+    }
+
+    #[test]
+    fn checks_actual_expansion_when_central_size_is_forged_small() {
+        let payload = vec![b'x'; 8192];
+        let mut archive = archive_with(
+            manifest(),
+            &[("overrides/payload", payload.as_slice(), None)],
+        );
+        forge_central_uncompressed_size(&mut archive, b"overrides/payload", 1);
+
+        assert_eq!(
+            validate_bytes(
+                &archive,
+                &PackLimits {
+                    max_uncompressed_bytes: 1024,
+                    ..PackLimits::default()
+                }
+            ),
+            Err(ArchiveError::TooLarge)
+        );
+        assert_eq!(
+            validate_bytes(&archive, &PackLimits::default()),
+            Err(ArchiveError::Invalid)
+        );
+    }
+
+    #[test]
+    fn rejects_local_header_name_and_method_mismatches() {
+        let mut renamed = archive_with(manifest(), &[("overrides/x", b"ok", None)]);
+        replace_local_name(&mut renamed, b"overrides/x", b"../evil.txt");
+        assert_eq!(
+            validate_bytes(&renamed, &PackLimits::default()),
+            Err(ArchiveError::Invalid)
+        );
+
+        let mut method_changed = archive_with(manifest(), &[("overrides/x", b"ok", None)]);
+        replace_local_method(&mut method_changed, b"overrides/x", 99);
+        assert_eq!(
+            validate_bytes(&method_changed, &PackLimits::default()),
+            Err(ArchiveError::Invalid)
         );
     }
 

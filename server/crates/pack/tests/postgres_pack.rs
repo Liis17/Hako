@@ -76,6 +76,54 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
         Arc::new(checker),
         Duration::ZERO,
     );
+
+    let failed_publication_id = Uuid::new_v4();
+    sqlx::query("DROP TRIGGER IF EXISTS hako_test_fail_pack_publish ON packs")
+        .execute(&pool)
+        .await
+        .expect("remove prior publication test trigger");
+    sqlx::query("DROP FUNCTION IF EXISTS hako_test_fail_pack_publish()")
+        .execute(&pool)
+        .await
+        .expect("remove prior publication test function");
+    sqlx::query(
+        "CREATE FUNCTION hako_test_fail_pack_publish() RETURNS trigger LANGUAGE plpgsql AS $$ \
+         BEGIN IF NEW.name IN ('Failure after object upload', 'Failure after replacement upload') THEN \
+         RAISE EXCEPTION 'test publication failure'; END IF; RETURN NEW; END $$",
+    )
+    .execute(&pool)
+    .await
+    .expect("install publication failure function");
+    sqlx::query(
+        "CREATE TRIGGER hako_test_fail_pack_publish BEFORE INSERT OR UPDATE ON packs \
+         FOR EACH ROW EXECUTE FUNCTION hako_test_fail_pack_publish()",
+    )
+    .execute(&pool)
+    .await
+    .expect("install publication failure trigger");
+    let publication_failed = request(
+        &app,
+        "POST",
+        &format!("/v1/packs/{failed_publication_id}"),
+        Some("owner-one"),
+        &[("content-type", "application/zip"), ("if-none-match", "*")],
+        make_archive("Failure after object upload"),
+    )
+    .await;
+    assert_eq!(publication_failed.status, StatusCode::INTERNAL_SERVER_ERROR);
+    let pending_cleanup_key =
+        sqlx::query_scalar::<_, String>("SELECT s3_key FROM pack_cleanup WHERE s3_key LIKE $1")
+            .bind(format!("packs/{owner_one}/{failed_publication_id}/%"))
+            .fetch_one(&pool)
+            .await
+            .expect("durable upload cleanup intent");
+    assert!(store.contains(&pending_cleanup_key));
+    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
+        .cleanup_once()
+        .await
+        .expect("remove object from unpublished upload intent");
+    assert!(!store.contains(&pending_cleanup_key));
+
     let pack_id = Uuid::new_v4();
     let initial_archive = make_archive("First revision");
 
@@ -118,6 +166,57 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     )
     .await;
     assert_eq!(duplicate.status, StatusCode::PRECONDITION_FAILED);
+
+    let failed_replacement = request(
+        &app,
+        "PUT",
+        &format!("/v1/packs/{pack_id}/archive"),
+        Some("owner-one"),
+        &[
+            ("content-type", "application/zip"),
+            (
+                "if-match",
+                &format!("\"{}\"", initial["etag"].as_str().unwrap()),
+            ),
+        ],
+        make_archive("Failure after replacement upload"),
+    )
+    .await;
+    assert_eq!(failed_replacement.status, StatusCode::INTERNAL_SERVER_ERROR);
+    let replacement_cleanup_key =
+        sqlx::query_scalar::<_, String>("SELECT s3_key FROM pack_cleanup WHERE s3_key LIKE $1")
+            .bind(format!("packs/{owner_one}/{pack_id}/r2-%"))
+            .fetch_one(&pool)
+            .await
+            .expect("durable replacement cleanup intent");
+    assert!(store.contains(&replacement_cleanup_key));
+    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
+        .cleanup_once()
+        .await
+        .expect("remove object from unpublished replacement intent");
+    assert!(!store.contains(&replacement_cleanup_key));
+    let current_after_failed_replacement = request(
+        &app,
+        "GET",
+        &format!("/v1/packs/{pack_id}"),
+        Some("owner-one"),
+        &[],
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(current_after_failed_replacement.status, StatusCode::OK);
+    assert_eq!(
+        current_after_failed_replacement.metadata()["etag"],
+        initial["etag"]
+    );
+    sqlx::query("DROP TRIGGER hako_test_fail_pack_publish ON packs")
+        .execute(&pool)
+        .await
+        .expect("remove publication failure trigger");
+    sqlx::query("DROP FUNCTION hako_test_fail_pack_publish()")
+        .execute(&pool)
+        .await
+        .expect("remove publication failure function");
 
     let metadata = request(
         &app,

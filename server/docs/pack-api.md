@@ -12,18 +12,20 @@ All API errors use the Auth JSON shape:
 
 A `.hakopack` is a ZIP containing exactly one root `manifest.json`, an optional root `icon.png`, and any user files under `overrides/`. The `overrides/` check is a path prefix check. The manifest follows [`hakopack-manifest.schema.json`](hakopack-manifest.schema.json); [`hakopack-example.json`](hakopack-example.json) is a manifest example, not a complete ZIP archive. `profile` must be a JSON object and is validated without filtering the original archive, so arbitrary client profile fields remain intact. Fabric API is represented as a normal item in `modrinth_files`.
 
-If the manifest has an `icon` field, it must be `"icon.png"`, and the archive must contain that root entry beginning with PNG signature bytes `89 50 4E 47 0D 0A 1A 0A`. An unreferenced root `icon.png` is not used as the pack icon. The server rejects encrypted entries, symlinks, absolute paths, `..` path segments, duplicate paths (case-insensitive), and collisions between `X` and `X.disabled`. Backslashes and ambiguous empty or `.` path segments are also rejected. The server reads ZIP metadata and the bounded manifest/icon data without extracting archive entries.
+If the manifest has an `icon` field, it must be `"icon.png"`, and the archive must contain that root entry beginning with PNG signature bytes `89 50 4E 47 0D 0A 1A 0A`. An unreferenced root `icon.png` is not used as the pack icon. The server rejects encrypted entries, symlinks, absolute paths, `..` path segments, duplicate paths (case-insensitive), and collisions between `X` and `X.disabled`. Backslashes, colons, empty or `.` path segments, components ending in a dot or space, and Windows device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, and `LPT1`–`LPT9`, including extensions and any letter case) are also rejected.
+
+For each non-directory entry, the server checks that the local ZIP header name and compression method match the central directory, then streams the full decompressed content through a fixed-size buffer. It counts actual expanded bytes, checks that each actual size matches its declared size, and reads to EOF so the ZIP library can verify CRC. Only the size-limited manifest is collected for JSON validation; the icon is checked by its first eight bytes. No entries are extracted to disk.
 
 Default limits are:
 
 | Environment variable | Default | Meaning |
 | --- | ---: | --- |
 | `HAKO_PACK_MAX_ARCHIVE_BYTES` | `1073741824` | Maximum incoming ZIP bytes; upload is streamed to a temp file and stopped with `413` when exceeded |
-| `HAKO_PACK_MAX_UNCOMPRESSED_BYTES` | `4294967296` | Maximum sum of uncompressed sizes declared by ZIP entries |
+| `HAKO_PACK_MAX_UNCOMPRESSED_BYTES` | `4294967296` | Maximum actual decompressed bytes across non-directory entries |
 | `HAKO_PACK_MAX_ENTRIES` | `10000` | Maximum ZIP entry count, including directories |
 | `HAKO_PACK_MAX_MANIFEST_BYTES` | `1048576` | Maximum uncompressed manifest size |
 
-Configured limits must be positive integers. ZIP entries are not extracted. The aggregate uncompressed limit is checked against the central-directory sizes.
+Configured limits must be positive integers. Archive validation runs in `spawn_blocking`; entry data is streamed with bounded memory, and the aggregate uncompressed limit uses bytes actually read rather than central-directory claims.
 
 ## Endpoints
 
@@ -76,7 +78,7 @@ Pack IDs are unique per owner, so two accounts can independently use the same UU
 
 S3 keys have the form `packs/{owner_id}/{pack_id}/r{revision}-{etag}.zip`. The S3 implementation uses the AWS SDK for Rust and honors endpoint, region, static credentials, optional session token, and path-style configuration. If all required S3 variables are unset, Pack still starts and `/healthz` returns `200`; create, replace, and archive download return `503 storage_unavailable`. Metadata and delete operations use PostgreSQL; deletes queue object cleanup for later retry. If only some required S3 variables are set, Pack fails configuration validation at startup.
 
-Replaced and deleted objects are queued in `pack_cleanup` with `eligible_at`, attempts, and last error. The worker checks every 30 seconds, claims work with a 60-second lease, and resumes queued work after restart. Failed deletes are logged and retried with exponential backoff from one minute up to one hour.
+Before uploading a new S3 object, Pack commits a `pack_cleanup` intent for its key. A successful metadata publication removes that intent in the same transaction; if upload or publication fails or the process stops, the cleanup worker eventually removes the unpublished object. Replaced and deleted objects are also queued in `pack_cleanup` with `eligible_at`, attempts, and last error. The worker checks every 30 seconds, claims work with a 60-second lease, and resumes queued work after restart. Failed deletes are logged and retried with exponential backoff from one minute up to one hour.
 
 `HAKO_PACK_CLEANUP_DELAY` is an integer number of seconds. It defaults to `86400` (one day), must exceed the one-hour maximum download duration, and cannot exceed one day. Cleanup queue state is stored in the Pack database.
 

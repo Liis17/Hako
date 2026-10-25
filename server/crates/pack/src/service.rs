@@ -158,12 +158,19 @@ impl PackService {
         let s3_key = object_key(owner_id, pack_id, revision, &etag);
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
+        let now = OffsetDateTime::now_utc();
+        enqueue_upload_cleanup(
+            &self.pool,
+            &s3_key,
+            now + to_time_duration(self.cleanup_delay),
+            now,
+        )
+        .await?;
         self.store
             .put_file(&s3_key, archive.file.path(), archive.size_bytes)
             .await
             .map_err(|_| PackError::storage_unavailable())?;
 
-        let now = OffsetDateTime::now_utc();
         let mut transaction = self.pool.begin().await?;
         let row = sqlx::query_as::<_, PackRow>(
             "INSERT INTO packs (owner_id, pack_id, revision, etag, s3_key, size_bytes, \
@@ -188,16 +195,10 @@ impl PackService {
         .await?;
 
         let Some(row) = row else {
-            enqueue_cleanup(
-                &mut transaction,
-                &s3_key,
-                now + to_time_duration(self.cleanup_delay),
-                now,
-            )
-            .await?;
             transaction.commit().await?;
             return Err(PackError::precondition_failed());
         };
+        remove_cleanup(&mut transaction, &s3_key).await?;
         transaction.commit().await?;
         metadata_from_row(row)
     }
@@ -253,12 +254,19 @@ impl PackService {
         let s3_key = object_key(owner_id, pack_id, revision, &etag);
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
+        let now = OffsetDateTime::now_utc();
+        enqueue_upload_cleanup(
+            &self.pool,
+            &s3_key,
+            now + to_time_duration(self.cleanup_delay),
+            now,
+        )
+        .await?;
         self.store
             .put_file(&s3_key, archive.file.path(), archive.size_bytes)
             .await
             .map_err(|_| PackError::storage_unavailable())?;
 
-        let now = OffsetDateTime::now_utc();
         let mut transaction = self.pool.begin().await?;
         let current = sqlx::query_as::<_, PackRow>(
             "SELECT owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
@@ -270,24 +278,10 @@ impl PackService {
         .fetch_optional(&mut *transaction)
         .await?;
         let Some(current) = current else {
-            enqueue_cleanup(
-                &mut transaction,
-                &s3_key,
-                now + to_time_duration(self.cleanup_delay),
-                now,
-            )
-            .await?;
             transaction.commit().await?;
             return Err(PackError::not_found());
         };
         if current.revision != snapshot.revision || current.etag != expected_etag {
-            enqueue_cleanup(
-                &mut transaction,
-                &s3_key,
-                now + to_time_duration(self.cleanup_delay),
-                now,
-            )
-            .await?;
             transaction.commit().await?;
             return Err(PackError::precondition_failed());
         }
@@ -315,16 +309,10 @@ impl PackService {
         .fetch_optional(&mut *transaction)
         .await?;
         let Some(row) = row else {
-            enqueue_cleanup(
-                &mut transaction,
-                &s3_key,
-                now + to_time_duration(self.cleanup_delay),
-                now,
-            )
-            .await?;
             transaction.commit().await?;
             return Err(PackError::precondition_failed());
         };
+        remove_cleanup(&mut transaction, &s3_key).await?;
         enqueue_cleanup(
             &mut transaction,
             &current.s3_key,
@@ -450,6 +438,29 @@ async fn enqueue_cleanup(
     .bind(created_at)
     .execute(&mut **transaction)
     .await?;
+    Ok(())
+}
+
+async fn enqueue_upload_cleanup(
+    pool: &PgPool,
+    key: &str,
+    eligible_at: OffsetDateTime,
+    created_at: OffsetDateTime,
+) -> PackResult<()> {
+    let mut transaction = pool.begin().await?;
+    enqueue_cleanup(&mut transaction, key, eligible_at, created_at).await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
+async fn remove_cleanup(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    key: &str,
+) -> PackResult<()> {
+    sqlx::query("DELETE FROM pack_cleanup WHERE s3_key = $1")
+        .bind(key)
+        .execute(&mut **transaction)
+        .await?;
     Ok(())
 }
 
