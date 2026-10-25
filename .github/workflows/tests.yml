@@ -82,6 +82,12 @@ jobs:
         run: cargo test --workspace --locked
         working-directory: server
 
+      - name: Run Pack PostgreSQL integration tests
+        env:
+          HAKO_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/hako_pack_test
+        run: cargo test --locked --package hako-pack --test postgres_pack
+        working-directory: server
+
   release-scripts:
     runs-on: ubuntu-latest
     steps:

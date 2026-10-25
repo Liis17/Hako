@@ -3,6 +3,7 @@ FROM rust:1.97-bookworm AS builder
 WORKDIR /workspace
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
+COPY docs ./docs
 
 ARG SERVICE_PACKAGE
 RUN cargo build --release --locked --package "${SERVICE_PACKAGE}" \

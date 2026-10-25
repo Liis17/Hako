@@ -1,6 +1,6 @@
 # Hako server
 
-The Rust workspace contains two independent services. `hako-auth` implements Telegram account registration, login approvals, rolling sessions, and public/internal Auth APIs. `hako-pack` owns the Pack API; its business logic is implemented separately.
+The Rust workspace contains two independent services. `hako-auth` implements Telegram account registration, login approvals, rolling sessions, and public/internal Auth APIs. `hako-pack` validates and stores personal `.hakopack` archives, exposes conditional CRUD and streaming downloads, and resumes delayed S3 cleanup from PostgreSQL.
 
 ## Structure
 
@@ -11,6 +11,9 @@ The Rust workspace contains two independent services. `hako-auth` implements Tel
 | `Dockerfile` | Shared multi-stage build for either service |
 | `init-db.sh` | Creates isolated PostgreSQL roles and databases on first startup |
 | `docs/auth-api.md` | Public and internal Auth API reference |
+| `docs/pack-api.md` | Pack API, archive format, limits, and environment reference |
+| `docs/hakopack-manifest.schema.json` | Draft 2020-12 schema for `.hakopack` v1 manifests |
+| `docs/hakopack-example.json` | Example `.hakopack` v1 manifest |
 
 ## Run with Docker Compose
 
@@ -45,15 +48,20 @@ Values marked **required** must be set before the service starts. Secrets are va
 | `HAKO_PACK_ADDR` | Pack | `0.0.0.0:8082` | Pack listener address |
 | `HAKO_PACK_DATABASE_URL` | Pack | Required | Pack PostgreSQL connection URL |
 | `HAKO_PACK_AUTH_INTERNAL_URL` | Pack | `http://auth:8091` | Auth internal API base URL |
-| `HAKO_PACK_SERVICE_SECRET` | Pack | Required | Shared secret for internal service calls |
-| `HAKO_S3_ENDPOINT` | Pack | Required | S3-compatible endpoint |
-| `HAKO_S3_BUCKET` | Pack | Required | Bucket for personal packs |
-| `HAKO_S3_REGION` | Pack | Required | S3 region |
-| `HAKO_S3_ACCESS_KEY_ID` | Pack | Required | S3 access key ID |
-| `HAKO_S3_SECRET_ACCESS_KEY` | Pack | Required | S3 secret access key |
+| `HAKO_PACK_SERVICE_SECRET` | Pack | Required; same value as `HAKO_AUTH_SERVICE_SECRET` | Shared secret for internal Auth token checks |
+| `HAKO_S3_ENDPOINT` | Pack | Optional as a group | S3-compatible endpoint; all required S3 fields must be set to enable storage |
+| `HAKO_S3_BUCKET` | Pack | Optional as a group | Bucket for personal packs |
+| `HAKO_S3_REGION` | Pack | Optional as a group | S3 region |
+| `HAKO_S3_ACCESS_KEY_ID` | Pack | Optional as a group | S3 access key ID |
+| `HAKO_S3_SECRET_ACCESS_KEY` | Pack | Optional as a group | S3 secret access key |
 | `HAKO_S3_SESSION_TOKEN` | Pack | Optional | Temporary S3 session token |
-| `HAKO_S3_PATH_STYLE` | Pack | Required (`true` or `false`) | Use path-style S3 requests |
+| `HAKO_S3_PATH_STYLE` | Pack | `true` | Use path-style S3 requests, recommended for custom endpoints |
+| `HAKO_PACK_MAX_ARCHIVE_BYTES` | Pack | `1073741824` | Maximum streamed ZIP size |
+| `HAKO_PACK_MAX_UNCOMPRESSED_BYTES` | Pack | `4294967296` | Maximum total uncompressed ZIP size from entry metadata |
+| `HAKO_PACK_MAX_ENTRIES` | Pack | `10000` | Maximum ZIP entry count |
+| `HAKO_PACK_MAX_MANIFEST_BYTES` | Pack | `1048576` | Maximum `manifest.json` size |
+| `HAKO_PACK_CLEANUP_DELAY` | Pack | `86400` seconds | Delayed S3 deletion; must exceed the one-hour download limit and be no more than one day |
 
-Telegram polling starts in the background. An unavailable or invalid bot token is logged without exposing the token; polling retries with backoff while the HTTP health endpoints remain available. The public Auth API is documented in [`docs/auth-api.md`](docs/auth-api.md).
+Telegram polling starts in the background. An unavailable or invalid bot token is logged without exposing the token; polling retries with backoff while the HTTP health endpoints remain available. Without the S3 configuration group, Pack still starts and reports healthy; Pack operations that need object storage return `503 storage_unavailable`. The APIs are documented in [`docs/auth-api.md`](docs/auth-api.md) and [`docs/pack-api.md`](docs/pack-api.md).
 
 For server tests, set `HAKO_TEST_DATABASE_URL` to an isolated, empty PostgreSQL database. CI creates `hako_auth_test` and `hako_pack_test` for this purpose.

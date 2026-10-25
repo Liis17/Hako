@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "name": "Моя сборка",
+  "minecraft_version": "1.21.4",
+  "loader": "fabric",
+  "profile": {
+    "uses_global_parameters": false,
+    "jvm_arguments": ["-Xmx4G"],
+    "game_arguments": [],
+    "window": { "width": 1280, "height": 720 },
+    "custom_client_field": { "retained": true }
+  },
+  "modrinth_files": [],
+  "icon": "icon.png"
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hako.example/schemas/hakopack-manifest-v1.json",
+  "title": "Hako Pack manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format_version",
+    "name",
+    "minecraft_version",
+    "loader",
+    "profile",
+    "modrinth_files"
+  ],
+  "properties": {
+    "format_version": { "const": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "minecraft_version": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "loader": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "profile": {
+      "type": "object",
+      "description": "Complete client profile snapshot. The server preserves the original manifest and does not filter profile fields."
+    },
+    "modrinth_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id", "version_id", "path", "size", "sha512", "enabled"],
+        "properties": {
+          "project_id": { "type": "string", "minLength": 1 },
+          "version_id": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "size": { "type": "integer", "minimum": 0 },
+          "sha512": { "type": "string", "pattern": "^[A-Fa-f0-9]{128}$" },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+    "icon": { "const": "icon.png" }
+  }
+}
