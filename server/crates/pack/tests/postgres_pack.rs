@@ -124,6 +124,13 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
             .await
             .expect("durable upload cleanup intent");
     assert!(store.contains(&pending_cleanup_key));
+    sqlx::query(
+        "UPDATE pack_cleanup SET eligible_at = now() + interval '2 seconds' WHERE s3_key = $1",
+    )
+    .bind(&pending_cleanup_key)
+    .execute(&pool)
+    .await
+    .expect("keep the failed-upload intent in its configured cleanup delay");
     PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
         .cleanup_once()
         .await
@@ -136,8 +143,46 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
         .expect("remove object after failed publication cleanup delay");
     assert!(!store.contains(&pending_cleanup_key));
 
-    // A cleanup worker must wait for an active upload/publication and recheck its intent.
+    // A locked first cleanup candidate must not block later eligible objects.
     const PACK_UPLOAD_GATE_KEY: i64 = -7_000_000_000_000_004;
+    let queued_pack_id = Uuid::new_v4();
+    let queued_pack = request(
+        &app,
+        "POST",
+        &format!("/v1/packs/{queued_pack_id}"),
+        Some("owner-one"),
+        &[("content-type", "application/zip"), ("if-none-match", "*")],
+        make_archive("Queued before active upload"),
+    )
+    .await;
+    assert_eq!(queued_pack.status, StatusCode::CREATED);
+    let queued_etag = queued_pack
+        .headers
+        .get("etag")
+        .expect("created pack ETag")
+        .to_str()
+        .expect("valid ETag header")
+        .to_owned();
+    let queued_pack_key = sqlx::query_scalar::<_, String>(
+        "SELECT s3_key FROM packs WHERE owner_id = $1 AND pack_id = $2",
+    )
+    .bind(owner_one)
+    .bind(queued_pack_id)
+    .fetch_one(&pool)
+    .await
+    .expect("queued pack object key");
+    let queued_delete = request(
+        &app,
+        "DELETE",
+        &format!("/v1/packs/{queued_pack_id}"),
+        Some("owner-one"),
+        &[("if-match", &queued_etag)],
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(queued_delete.status, StatusCode::NO_CONTENT);
+    assert!(store.contains(&queued_pack_key));
+
     sqlx::query("DROP TRIGGER IF EXISTS hako_test_hold_pack_publish ON packs")
         .execute(&pool)
         .await
@@ -148,7 +193,9 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
         .expect("remove prior pack publication gate function");
     sqlx::query(
         "CREATE FUNCTION hako_test_hold_pack_publish() RETURNS trigger LANGUAGE plpgsql AS $$ \
-         BEGIN IF NEW.name = 'Active upload' THEN PERFORM pg_advisory_xact_lock(-7000000000000004); \
+         BEGIN IF NEW.name = 'Active upload cleanup' THEN \
+         PERFORM pg_advisory_xact_lock(-7000000000000004); \
+         RAISE EXCEPTION 'test upload publication failure'; \
          END IF; RETURN NEW; END $$",
     )
     .execute(&pool)
@@ -179,7 +226,7 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
             &format!("/v1/packs/{active_upload_id}"),
             Some("owner-one"),
             &[("content-type", "application/zip"), ("if-none-match", "*")],
-            make_archive("Active upload"),
+            make_archive("Active upload cleanup"),
         )
         .await
     });
@@ -208,32 +255,48 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
             .await
             .expect("active upload cleanup intent");
     assert!(store.contains(&active_upload_key));
+    sqlx::query(
+        "UPDATE pack_cleanup SET eligible_at = now() - interval '10 seconds' WHERE s3_key = $1",
+    )
+    .bind(&active_upload_key)
+    .execute(&pool)
+    .await
+    .expect("make active upload intent the first eligible cleanup item");
     let cleanup_pool = pool.clone();
     let cleanup_store = store.clone();
-    let cleanup_task = tokio::spawn(async move {
+    let mut cleanup_task = tokio::spawn(async move {
         PackService::new(cleanup_pool, Arc::new(cleanup_store), Duration::ZERO)
             .cleanup_once()
             .await
     });
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let blocked = sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database() \
-                 AND pid <> pg_backend_pid() AND query LIKE '%pg_advisory_xact_lock(hashtextextended%' \
-                 AND wait_event_type = 'Lock' AND wait_event = 'advisory')",
-            )
-            .fetch_one(&pool)
+    let cleanup_result = tokio::time::timeout(Duration::from_secs(5), &mut cleanup_task).await;
+    if cleanup_result.is_err() {
+        cleanup_task.abort();
+        let _ = cleanup_task.await;
+        sqlx::query("SELECT pg_advisory_unlock($1)")
+            .bind(PACK_UPLOAD_GATE_KEY)
+            .execute(&mut *upload_gate_connection)
             .await
-            .expect("observe cleanup worker waiting for upload");
-            if blocked {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("cleanup worker waited for active upload");
+            .expect("release active upload publication gate after cleanup timeout");
+        let _ = upload_task.await;
+        panic!("cleanup must skip the locked first item and continue to the next item");
+    }
+    cleanup_result
+        .expect("cleanup returns before active upload finishes")
+        .expect("cleanup task joins")
+        .expect("cleanup pass completes");
     assert!(store.contains(&active_upload_key));
+    assert!(!store.contains(&queued_pack_key));
+    assert!(
+        !sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM pack_cleanup WHERE s3_key = $1)"
+        )
+        .bind(&queued_pack_key)
+        .fetch_one(&pool)
+        .await
+        .expect("queued object cleanup state"),
+        "the later eligible object should be cleaned while the first lock is held"
+    );
     sqlx::query("SELECT pg_advisory_unlock($1)")
         .bind(PACK_UPLOAD_GATE_KEY)
         .execute(&mut *upload_gate_connection)
@@ -242,13 +305,13 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     drop(upload_gate_connection);
     assert_eq!(
         upload_task.await.expect("join active upload").status,
-        StatusCode::CREATED
+        StatusCode::INTERNAL_SERVER_ERROR
     );
-    cleanup_task
+    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
+        .cleanup_once()
         .await
-        .expect("join active upload cleanup")
-        .expect("cleanup completes after publication");
-    assert!(store.contains(&active_upload_key));
+        .expect("clean the formerly locked upload intent after its session ends");
+    assert!(!store.contains(&active_upload_key));
     sqlx::query("DROP TRIGGER hako_test_hold_pack_publish ON packs")
         .execute(&pool)
         .await

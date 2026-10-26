@@ -2,7 +2,11 @@ use std::{sync::Arc, time::Duration};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::Serialize;
-use sqlx::{FromRow, PgPool, Postgres, Transaction};
+use sqlx::{
+    pool::PoolConnection,
+    postgres::{PgAdvisoryLock, PgAdvisoryLockGuard, PgAdvisoryLockKey},
+    Connection, FromRow, PgConnection, PgPool, Postgres, Transaction,
+};
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 use uuid::Uuid;
 
@@ -159,51 +163,54 @@ impl PackService {
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
         let now = OffsetDateTime::now_utc();
-        let mut upload_lock = self.pool.begin().await?;
-        lock_object_key(&mut upload_lock, &s3_key).await?;
-        enqueue_upload_cleanup(
-            &self.pool,
-            &s3_key,
-            now + to_time_duration(self.cleanup_delay),
-            now,
-        )
-        .await?;
-        self.store
-            .put_file(&s3_key, archive.file.path(), archive.size_bytes)
-            .await
-            .map_err(|_| PackError::storage_unavailable())?;
+        let mut upload_lock = lock_upload_object_key(&self.pool, &s3_key).await?;
+        let result = async {
+            enqueue_upload_cleanup(
+                &mut upload_lock,
+                &s3_key,
+                now + to_time_duration(self.cleanup_delay),
+                now,
+            )
+            .await?;
+            self.store
+                .put_file(&s3_key, archive.file.path(), archive.size_bytes)
+                .await
+                .map_err(|_| PackError::storage_unavailable())?;
 
-        let mut transaction = self.pool.begin().await?;
-        let row = sqlx::query_as::<_, PackRow>(
-            "INSERT INTO packs (owner_id, pack_id, revision, etag, s3_key, size_bytes, \
-             sha256, name, minecraft_version, loader, created_at, updated_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11) \
-             ON CONFLICT (owner_id, pack_id) DO NOTHING \
-             RETURNING owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
-             minecraft_version, loader, created_at, updated_at",
-        )
-        .bind(owner_id)
-        .bind(pack_id)
-        .bind(revision)
-        .bind(&etag)
-        .bind(&s3_key)
-        .bind(size_bytes)
-        .bind(&archive.sha256)
-        .bind(&archive.manifest.name)
-        .bind(&archive.manifest.minecraft_version)
-        .bind(&archive.manifest.loader)
-        .bind(now)
-        .fetch_optional(&mut *transaction)
-        .await?;
+            let mut transaction = (*upload_lock).begin().await?;
+            let row = sqlx::query_as::<_, PackRow>(
+                "INSERT INTO packs (owner_id, pack_id, revision, etag, s3_key, size_bytes, \
+                 sha256, name, minecraft_version, loader, created_at, updated_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11) \
+                 ON CONFLICT (owner_id, pack_id) DO NOTHING \
+                 RETURNING owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
+                 minecraft_version, loader, created_at, updated_at",
+            )
+            .bind(owner_id)
+            .bind(pack_id)
+            .bind(revision)
+            .bind(&etag)
+            .bind(&s3_key)
+            .bind(size_bytes)
+            .bind(&archive.sha256)
+            .bind(&archive.manifest.name)
+            .bind(&archive.manifest.minecraft_version)
+            .bind(&archive.manifest.loader)
+            .bind(now)
+            .fetch_optional(&mut *transaction)
+            .await?;
 
-        let Some(row) = row else {
-            transaction.commit().await?;
-            return Err(PackError::precondition_failed());
-        };
-        remove_cleanup(&mut transaction, &s3_key).await?;
-        transaction.commit().await?;
-        upload_lock.commit().await?;
-        metadata_from_row(row)
+            if let Some(row) = row {
+                remove_cleanup(&mut transaction, &s3_key).await?;
+                transaction.commit().await?;
+                Ok(row)
+            } else {
+                transaction.commit().await?;
+                Err(PackError::precondition_failed())
+            }
+        }
+        .await;
+        metadata_from_row(finish_upload(upload_lock, result).await?)
     }
 
     pub async fn archive(
@@ -258,76 +265,82 @@ impl PackService {
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
         let now = OffsetDateTime::now_utc();
-        let mut upload_lock = self.pool.begin().await?;
-        lock_object_key(&mut upload_lock, &s3_key).await?;
-        enqueue_upload_cleanup(
-            &self.pool,
-            &s3_key,
-            now + to_time_duration(self.cleanup_delay),
-            now,
-        )
-        .await?;
-        self.store
-            .put_file(&s3_key, archive.file.path(), archive.size_bytes)
-            .await
-            .map_err(|_| PackError::storage_unavailable())?;
+        let mut upload_lock = lock_upload_object_key(&self.pool, &s3_key).await?;
+        let result = async {
+            enqueue_upload_cleanup(
+                &mut upload_lock,
+                &s3_key,
+                now + to_time_duration(self.cleanup_delay),
+                now,
+            )
+            .await?;
+            self.store
+                .put_file(&s3_key, archive.file.path(), archive.size_bytes)
+                .await
+                .map_err(|_| PackError::storage_unavailable())?;
 
-        let mut transaction = self.pool.begin().await?;
-        let current = sqlx::query_as::<_, PackRow>(
-            "SELECT owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
-             minecraft_version, loader, created_at, updated_at FROM packs \
-             WHERE owner_id = $1 AND pack_id = $2 FOR UPDATE",
-        )
-        .bind(owner_id)
-        .bind(pack_id)
-        .fetch_optional(&mut *transaction)
-        .await?;
-        let Some(current) = current else {
-            transaction.commit().await?;
-            return Err(PackError::not_found());
-        };
-        if current.revision != snapshot.revision || current.etag != expected_etag {
-            transaction.commit().await?;
-            return Err(PackError::precondition_failed());
+            let mut transaction = (*upload_lock).begin().await?;
+            let current = sqlx::query_as::<_, PackRow>(
+                "SELECT owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
+                 minecraft_version, loader, created_at, updated_at FROM packs \
+                 WHERE owner_id = $1 AND pack_id = $2 FOR UPDATE",
+            )
+            .bind(owner_id)
+            .bind(pack_id)
+            .fetch_optional(&mut *transaction)
+            .await?;
+
+            if let Some(current) = current {
+                if current.revision != snapshot.revision || current.etag != expected_etag {
+                    transaction.commit().await?;
+                    return Err(PackError::precondition_failed());
+                }
+
+                let row = sqlx::query_as::<_, PackRow>(
+                    "UPDATE packs SET revision = $3, etag = $4, s3_key = $5, size_bytes = $6, \
+                     sha256 = $7, name = $8, minecraft_version = $9, loader = $10, updated_at = $11 \
+                     WHERE owner_id = $1 AND pack_id = $2 AND revision = $12 AND etag = $13 \
+                     RETURNING owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
+                     minecraft_version, loader, created_at, updated_at",
+                )
+                .bind(owner_id)
+                .bind(pack_id)
+                .bind(revision)
+                .bind(&etag)
+                .bind(&s3_key)
+                .bind(size_bytes)
+                .bind(&archive.sha256)
+                .bind(&archive.manifest.name)
+                .bind(&archive.manifest.minecraft_version)
+                .bind(&archive.manifest.loader)
+                .bind(now)
+                .bind(snapshot.revision)
+                .bind(expected_etag)
+                .fetch_optional(&mut *transaction)
+                .await?;
+
+                if let Some(row) = row {
+                    remove_cleanup(&mut transaction, &s3_key).await?;
+                    enqueue_cleanup(
+                        &mut transaction,
+                        &current.s3_key,
+                        now + to_time_duration(self.cleanup_delay),
+                        now,
+                    )
+                    .await?;
+                    transaction.commit().await?;
+                    Ok(row)
+                } else {
+                    transaction.commit().await?;
+                    Err(PackError::precondition_failed())
+                }
+            } else {
+                transaction.commit().await?;
+                Err(PackError::not_found())
+            }
         }
-
-        let row = sqlx::query_as::<_, PackRow>(
-            "UPDATE packs SET revision = $3, etag = $4, s3_key = $5, size_bytes = $6, \
-             sha256 = $7, name = $8, minecraft_version = $9, loader = $10, updated_at = $11 \
-             WHERE owner_id = $1 AND pack_id = $2 AND revision = $12 AND etag = $13 \
-             RETURNING owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
-             minecraft_version, loader, created_at, updated_at",
-        )
-        .bind(owner_id)
-        .bind(pack_id)
-        .bind(revision)
-        .bind(&etag)
-        .bind(&s3_key)
-        .bind(size_bytes)
-        .bind(&archive.sha256)
-        .bind(&archive.manifest.name)
-        .bind(&archive.manifest.minecraft_version)
-        .bind(&archive.manifest.loader)
-        .bind(now)
-        .bind(snapshot.revision)
-        .bind(expected_etag)
-        .fetch_optional(&mut *transaction)
-        .await?;
-        let Some(row) = row else {
-            transaction.commit().await?;
-            return Err(PackError::precondition_failed());
-        };
-        remove_cleanup(&mut transaction, &s3_key).await?;
-        enqueue_cleanup(
-            &mut transaction,
-            &current.s3_key,
-            now + to_time_duration(self.cleanup_delay),
-            now,
-        )
-        .await?;
-        transaction.commit().await?;
-        upload_lock.commit().await?;
-        metadata_from_row(row)
+        .await;
+        metadata_from_row(finish_upload(upload_lock, result).await?)
     }
 
     pub async fn delete(
@@ -368,20 +381,27 @@ impl PackService {
     }
 
     pub async fn cleanup_once(&self) -> PackResult<()> {
+        let mut skipped_locked_ids = Vec::new();
         loop {
             let now = OffsetDateTime::now_utc();
             let candidate = sqlx::query_as::<_, (i64, String)>(
                 "SELECT id, s3_key FROM pack_cleanup WHERE eligible_at <= $1 \
+                 AND id != ALL($2) \
                  ORDER BY eligible_at, id LIMIT 1",
             )
             .bind(now)
+            .bind(&skipped_locked_ids)
             .fetch_optional(&self.pool)
             .await?;
             let Some((id, key)) = candidate else {
                 return Ok(());
             };
             let mut transaction = self.pool.begin().await?;
-            lock_object_key(&mut transaction, &key).await?;
+            if !try_lock_cleanup_object_key(&mut transaction, &key).await? {
+                transaction.rollback().await?;
+                skipped_locked_ids.push(id);
+                continue;
+            }
             let current_attempts = sqlx::query_scalar::<_, i32>(
                 "SELECT attempts FROM pack_cleanup WHERE id = $1 AND eligible_at <= $2 FOR UPDATE",
             )
@@ -432,15 +452,45 @@ impl PackService {
     }
 }
 
-async fn lock_object_key(
+async fn lock_upload_object_key(
+    pool: &PgPool,
+    s3_key: &str,
+) -> PackResult<PgAdvisoryLockGuard<PoolConnection<Postgres>>> {
+    let mut connection = pool.acquire().await?;
+    let lock_key = sqlx::query_scalar::<_, i64>("SELECT hashtextextended($1, 0)")
+        .bind(s3_key)
+        .fetch_one(&mut *connection)
+        .await?;
+    Ok(
+        PgAdvisoryLock::with_key(PgAdvisoryLockKey::BigInt(lock_key))
+            .acquire(connection)
+            .await?,
+    )
+}
+
+async fn finish_upload<T>(
+    upload_lock: PgAdvisoryLockGuard<PoolConnection<Postgres>>,
+    result: PackResult<T>,
+) -> PackResult<T> {
+    let unlock_result = upload_lock.release_now().await.map(|_| ());
+    match result {
+        Err(error) => Err(error),
+        Ok(value) => {
+            unlock_result?;
+            Ok(value)
+        }
+    }
+}
+
+async fn try_lock_cleanup_object_key(
     transaction: &mut Transaction<'_, Postgres>,
     s3_key: &str,
-) -> PackResult<()> {
-    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+) -> PackResult<bool> {
+    sqlx::query_scalar::<_, bool>("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))")
         .bind(s3_key)
-        .execute(&mut **transaction)
-        .await?;
-    Ok(())
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(Into::into)
 }
 
 pub fn object_key(owner_id: Uuid, pack_id: Uuid, revision: i64, etag: &str) -> String {
@@ -470,12 +520,12 @@ async fn enqueue_cleanup(
 }
 
 async fn enqueue_upload_cleanup(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     key: &str,
     eligible_at: OffsetDateTime,
     created_at: OffsetDateTime,
 ) -> PackResult<()> {
-    let mut transaction = pool.begin().await?;
+    let mut transaction = connection.begin().await?;
     enqueue_cleanup(&mut transaction, key, eligible_at, created_at).await?;
     transaction.commit().await?;
     Ok(())
@@ -551,9 +601,164 @@ fn to_time_duration(duration: Duration) -> TimeDuration {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        env, fs,
+        path::Path,
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+        time::Duration,
+    };
+
+    use async_trait::async_trait;
+    use sqlx::postgres::PgPoolOptions;
+    use tokio::sync::{Notify, Semaphore};
     use uuid::Uuid;
 
-    use super::{new_etag, object_key};
+    use crate::{
+        archive::{ManifestMetadata, StagedArchive},
+        store::{ObjectStore, ObjectStream, StoreError},
+    };
+
+    use super::{new_etag, object_key, PackService};
+
+    struct GatedObjectStore {
+        started: AtomicUsize,
+        two_uploads_started: Notify,
+        release: Semaphore,
+    }
+
+    impl GatedObjectStore {
+        fn new() -> Self {
+            Self {
+                started: AtomicUsize::new(0),
+                two_uploads_started: Notify::new(),
+                release: Semaphore::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ObjectStore for GatedObjectStore {
+        async fn put_file(
+            &self,
+            _key: &str,
+            _path: &Path,
+            _size_bytes: u64,
+        ) -> Result<(), StoreError> {
+            let index = self.started.fetch_add(1, Ordering::SeqCst);
+            if index < 2 {
+                if index == 1 {
+                    self.two_uploads_started.notify_one();
+                }
+                self.release
+                    .acquire()
+                    .await
+                    .map_err(|_| StoreError)?
+                    .forget();
+            }
+            Ok(())
+        }
+
+        async fn get(&self, _key: &str) -> Result<ObjectStream, StoreError> {
+            Err(StoreError)
+        }
+
+        async fn delete(&self, _key: &str) -> Result<(), StoreError> {
+            Ok(())
+        }
+    }
+
+    fn staged_archive(name: &str) -> StagedArchive {
+        let file = tempfile::NamedTempFile::new().expect("create staged archive");
+        fs::write(file.path(), b"test archive").expect("write staged archive");
+        StagedArchive {
+            file,
+            size_bytes: 12,
+            sha256: "test-digest".to_owned(),
+            manifest: ManifestMetadata {
+                name: name.to_owned(),
+                minecraft_version: "1.21.4".to_owned(),
+                loader: "fabric".to_owned(),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_uploads_use_one_pool_connection_and_allow_metadata_queries() {
+        let Ok(database_url) = env::var("HAKO_TEST_DATABASE_URL") else {
+            println!(
+                "SKIP: HAKO_TEST_DATABASE_URL is unset; Pack PostgreSQL pool coverage was not run."
+            );
+            return;
+        };
+
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .acquire_timeout(Duration::from_secs(5))
+            .connect(&database_url)
+            .await
+            .expect("connect Pack pool test database");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("apply Pack migrations to the isolated test database");
+
+        let owner_id = Uuid::new_v4();
+        let gated_store = Arc::new(GatedObjectStore::new());
+        let service = PackService::new(pool.clone(), gated_store.clone(), Duration::ZERO);
+        let mut uploads = tokio::task::JoinSet::new();
+        for index in 0..4 {
+            let service = service.clone();
+            uploads.spawn(async move {
+                service
+                    .create(
+                        owner_id,
+                        Uuid::new_v4(),
+                        staged_archive(&format!("Concurrent pack {index}")),
+                    )
+                    .await
+            });
+        }
+
+        if tokio::time::timeout(
+            Duration::from_secs(5),
+            gated_store.two_uploads_started.notified(),
+        )
+        .await
+        .is_err()
+        {
+            if let Some(result) = uploads.try_join_next() {
+                panic!("an upload ended before the object store gate opened: {result:?}");
+            }
+            gated_store.release.add_permits(2);
+            uploads.abort_all();
+            while uploads.join_next().await.is_some() {}
+            pool.close().await;
+            panic!("two uploads should reach object storage with a two-connection pool");
+        }
+
+        let metadata_service = service.clone();
+        let metadata_query =
+            tokio::spawn(async move { metadata_service.list(owner_id, 50, None).await });
+        tokio::task::yield_now().await;
+        gated_store.release.add_permits(2);
+
+        while let Some(result) = tokio::time::timeout(Duration::from_secs(5), uploads.join_next())
+            .await
+            .expect("parallel uploads should publish without nested pool acquisition")
+        {
+            result
+                .expect("join concurrent upload")
+                .expect("publish concurrent upload");
+        }
+        metadata_query
+            .await
+            .expect("join parallel metadata query")
+            .expect("metadata query succeeds");
+        pool.close().await;
+    }
 
     #[test]
     fn object_keys_are_scoped_by_owner_pack_revision_and_etag() {

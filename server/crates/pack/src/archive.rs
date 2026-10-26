@@ -1012,4 +1012,54 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(response.headers().get("retry-after").unwrap(), "1");
     }
+
+    #[tokio::test]
+    async fn releases_validation_slot_after_active_request_is_cancelled() {
+        use axum::body::Body;
+
+        let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+        writer
+            .start_file("manifest.json", FileOptions::default())
+            .expect("start manifest");
+        writer
+            .write_all(&serde_json::to_vec(&manifest()).expect("serialize manifest"))
+            .expect("write manifest");
+        for index in 0..9_999 {
+            writer
+                .start_file(format!("overrides/{index}.txt"), FileOptions::default())
+                .expect("start archive entry");
+        }
+        let bytes = writer.finish().expect("finish archive").into_inner();
+        let limits = PackLimits {
+            validation_semaphore: Arc::new(Semaphore::new(1)),
+            ..PackLimits::default()
+        };
+        let semaphore = Arc::clone(&limits.validation_semaphore);
+        let validation_limits = limits.clone();
+        let validation = tokio::spawn(async move {
+            super::receive_archive(Body::from(bytes), None, &validation_limits).await
+        });
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while semaphore.available_permits() != 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("request should acquire a slot and enter archive validation");
+        assert!(
+            !validation.is_finished(),
+            "validation should still be active"
+        );
+        validation.abort();
+        let _ = validation.await;
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while semaphore.available_permits() != 1 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("cancelled validation should observe cancellation and release its slot");
+    }
 }
