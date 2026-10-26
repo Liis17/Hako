@@ -3,7 +3,6 @@ use std::{sync::Arc, time::Duration};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::Serialize;
 use sqlx::{
-    pool::PoolConnection,
     postgres::{PgAdvisoryLock, PgAdvisoryLockGuard, PgAdvisoryLockKey},
     Connection, FromRow, PgConnection, PgPool, Postgres, Transaction,
 };
@@ -41,6 +40,7 @@ pub struct ListPacks {
 #[derive(Clone)]
 pub struct PackService {
     pool: PgPool,
+    database_url: Arc<str>,
     store: Arc<dyn ObjectStore>,
     cleanup_delay: Duration,
 }
@@ -68,9 +68,15 @@ struct Cursor {
 }
 
 impl PackService {
-    pub fn new(pool: PgPool, store: Arc<dyn ObjectStore>, cleanup_delay: Duration) -> Self {
+    pub fn new(
+        pool: PgPool,
+        database_url: String,
+        store: Arc<dyn ObjectStore>,
+        cleanup_delay: Duration,
+    ) -> Self {
         Self {
             pool,
+            database_url: Arc::from(database_url),
             store,
             cleanup_delay,
         }
@@ -163,10 +169,10 @@ impl PackService {
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
         let now = OffsetDateTime::now_utc();
-        let mut upload_lock = lock_upload_object_key(&self.pool, &s3_key).await?;
+        let mut upload_lock = lock_upload_object_key(self.database_url.as_ref(), &s3_key).await?;
         let result = async {
             enqueue_upload_cleanup(
-                &mut upload_lock,
+                upload_lock.as_mut(),
                 &s3_key,
                 now + to_time_duration(self.cleanup_delay),
                 now,
@@ -177,7 +183,7 @@ impl PackService {
                 .await
                 .map_err(|_| PackError::storage_unavailable())?;
 
-            let mut transaction = (*upload_lock).begin().await?;
+            let mut transaction = upload_lock.as_mut().begin().await?;
             let row = sqlx::query_as::<_, PackRow>(
                 "INSERT INTO packs (owner_id, pack_id, revision, etag, s3_key, size_bytes, \
                  sha256, name, minecraft_version, loader, created_at, updated_at) \
@@ -265,10 +271,10 @@ impl PackService {
         let size_bytes =
             i64::try_from(archive.size_bytes).map_err(|_| PackError::payload_too_large())?;
         let now = OffsetDateTime::now_utc();
-        let mut upload_lock = lock_upload_object_key(&self.pool, &s3_key).await?;
+        let mut upload_lock = lock_upload_object_key(self.database_url.as_ref(), &s3_key).await?;
         let result = async {
             enqueue_upload_cleanup(
-                &mut upload_lock,
+                upload_lock.as_mut(),
                 &s3_key,
                 now + to_time_duration(self.cleanup_delay),
                 now,
@@ -279,7 +285,7 @@ impl PackService {
                 .await
                 .map_err(|_| PackError::storage_unavailable())?;
 
-            let mut transaction = (*upload_lock).begin().await?;
+            let mut transaction = upload_lock.as_mut().begin().await?;
             let current = sqlx::query_as::<_, PackRow>(
                 "SELECT owner_id, pack_id, revision, etag, s3_key, size_bytes, sha256, name, \
                  minecraft_version, loader, created_at, updated_at FROM packs \
@@ -453,13 +459,13 @@ impl PackService {
 }
 
 async fn lock_upload_object_key(
-    pool: &PgPool,
+    database_url: &str,
     s3_key: &str,
-) -> PackResult<PgAdvisoryLockGuard<PoolConnection<Postgres>>> {
-    let mut connection = pool.acquire().await?;
+) -> PackResult<PgAdvisoryLockGuard<PgConnection>> {
+    let mut connection = PgConnection::connect(database_url).await?;
     let lock_key = sqlx::query_scalar::<_, i64>("SELECT hashtextextended($1, 0)")
         .bind(s3_key)
-        .fetch_one(&mut *connection)
+        .fetch_one(&mut connection)
         .await?;
     Ok(
         PgAdvisoryLock::with_key(PgAdvisoryLockKey::BigInt(lock_key))
@@ -469,7 +475,7 @@ async fn lock_upload_object_key(
 }
 
 async fn finish_upload<T>(
-    upload_lock: PgAdvisoryLockGuard<PoolConnection<Postgres>>,
+    upload_lock: PgAdvisoryLockGuard<PgConnection>,
     result: PackResult<T>,
 ) -> PackResult<T> {
     let unlock_result = upload_lock.release_now().await.map(|_| ());
@@ -612,7 +618,7 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use sqlx::postgres::PgPoolOptions;
+    use sqlx::{postgres::PgPoolOptions, Connection, PgConnection};
     use tokio::sync::{Notify, Semaphore};
     use uuid::Uuid;
 
@@ -625,6 +631,7 @@ mod tests {
 
     struct GatedObjectStore {
         started: AtomicUsize,
+        upload_started: Notify,
         two_uploads_started: Notify,
         release: Semaphore,
     }
@@ -633,6 +640,7 @@ mod tests {
         fn new() -> Self {
             Self {
                 started: AtomicUsize::new(0),
+                upload_started: Notify::new(),
                 two_uploads_started: Notify::new(),
                 release: Semaphore::new(0),
             }
@@ -648,6 +656,7 @@ mod tests {
             _size_bytes: u64,
         ) -> Result<(), StoreError> {
             let index = self.started.fetch_add(1, Ordering::SeqCst);
+            self.upload_started.notify_one();
             if index < 2 {
                 if index == 1 {
                     self.two_uploads_started.notify_one();
@@ -686,7 +695,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn concurrent_uploads_use_one_pool_connection_and_allow_metadata_queries() {
+    async fn concurrent_uploads_keep_metadata_queries_available_from_the_pool() {
         let Ok(database_url) = env::var("HAKO_TEST_DATABASE_URL") else {
             println!(
                 "SKIP: HAKO_TEST_DATABASE_URL is unset; Pack PostgreSQL pool coverage was not run."
@@ -707,7 +716,12 @@ mod tests {
 
         let owner_id = Uuid::new_v4();
         let gated_store = Arc::new(GatedObjectStore::new());
-        let service = PackService::new(pool.clone(), gated_store.clone(), Duration::ZERO);
+        let service = PackService::new(
+            pool.clone(),
+            database_url.clone(),
+            gated_store.clone(),
+            Duration::ZERO,
+        );
         let mut uploads = tokio::task::JoinSet::new();
         for index in 0..4 {
             let service = service.clone();
@@ -739,10 +753,15 @@ mod tests {
             panic!("two uploads should reach object storage with a two-connection pool");
         }
 
-        let metadata_service = service.clone();
         let metadata_query =
-            tokio::spawn(async move { metadata_service.list(owner_id, 50, None).await });
-        tokio::task::yield_now().await;
+            tokio::time::timeout(Duration::from_secs(5), service.list(owner_id, 50, None)).await;
+        if !matches!(metadata_query, Ok(Ok(_))) {
+            gated_store.release.add_permits(4);
+            uploads.abort_all();
+            while uploads.join_next().await.is_some() {}
+            pool.close().await;
+            panic!("metadata queries should use the pool while uploads hold dedicated connections");
+        }
         gated_store.release.add_permits(2);
 
         while let Some(result) = tokio::time::timeout(Duration::from_secs(5), uploads.join_next())
@@ -753,10 +772,104 @@ mod tests {
                 .expect("join concurrent upload")
                 .expect("publish concurrent upload");
         }
-        metadata_query
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn cancelling_upload_closes_its_session_and_releases_the_advisory_lock() {
+        let Ok(database_url) = env::var("HAKO_TEST_DATABASE_URL") else {
+            println!("SKIP: HAKO_TEST_DATABASE_URL is unset; Pack PostgreSQL cancellation coverage was not run.");
+            return;
+        };
+
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .acquire_timeout(Duration::from_secs(5))
+            .connect(&database_url)
             .await
-            .expect("join parallel metadata query")
-            .expect("metadata query succeeds");
+            .expect("connect Pack cancellation test database");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("apply Pack migrations to the isolated test database");
+
+        let owner_id = Uuid::new_v4();
+        let pack_id = Uuid::new_v4();
+        let gated_store = Arc::new(GatedObjectStore::new());
+        let service = PackService::new(
+            pool.clone(),
+            database_url.clone(),
+            gated_store.clone(),
+            Duration::ZERO,
+        );
+        let upload_service = service.clone();
+        let upload = tokio::spawn(async move {
+            upload_service
+                .create(owner_id, pack_id, staged_archive("Cancelled upload"))
+                .await
+        });
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            gated_store.upload_started.notified(),
+        )
+        .await
+        .expect("upload should reach object storage while holding its advisory lock");
+        let cleanup_key =
+            sqlx::query_scalar::<_, String>("SELECT s3_key FROM pack_cleanup WHERE s3_key LIKE $1")
+                .bind(format!("packs/{owner_id}/{pack_id}/%"))
+                .fetch_one(&pool)
+                .await
+                .expect("cancelled upload cleanup intent");
+
+        upload.abort();
+        assert!(upload
+            .await
+            .expect_err("upload task should be cancelled")
+            .is_cancelled());
+
+        let mut probe = PgConnection::connect(&database_url)
+            .await
+            .expect("open an independent session to probe the upload lock");
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let acquired = sqlx::query_scalar::<_, bool>(
+                    "SELECT pg_try_advisory_lock(hashtextextended($1, 0))",
+                )
+                .bind(&cleanup_key)
+                .fetch_one(&mut probe)
+                .await
+                .expect("probe upload advisory lock");
+                if acquired {
+                    let unlocked = sqlx::query_scalar::<_, bool>(
+                        "SELECT pg_advisory_unlock(hashtextextended($1, 0))",
+                    )
+                    .bind(&cleanup_key)
+                    .fetch_one(&mut probe)
+                    .await
+                    .expect("release probed upload advisory lock");
+                    assert!(unlocked);
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("cancelled upload session should release its lock promptly");
+
+        service
+            .cleanup_once()
+            .await
+            .expect("cleanup worker should claim the cancelled upload intent");
+        let intent_remains = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM pack_cleanup WHERE s3_key = $1)",
+        )
+        .bind(&cleanup_key)
+        .fetch_one(&pool)
+        .await
+        .expect("read cancelled upload cleanup state");
+        assert!(!intent_remains);
+
+        drop(probe);
         pool.close().await;
     }
 

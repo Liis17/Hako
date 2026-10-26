@@ -34,7 +34,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
         HttpTokenChecker::new(config.auth_internal_url, config.service_secret)
             .map_err(|_| io::Error::other("failed to initialize Auth HTTP client"))?,
     );
-    let service = PackService::new(pool, store, config.cleanup_delay);
+    let service = PackService::new(pool, config.database_url, store, config.cleanup_delay);
     let cleanup_service = service.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(30));

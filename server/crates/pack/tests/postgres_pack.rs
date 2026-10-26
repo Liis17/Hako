@@ -72,6 +72,7 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     let store = InMemoryObjectStore::default();
     let app = test_app(
         pool.clone(),
+        database_url.clone(),
         Arc::new(store.clone()),
         Arc::new(checker),
         Duration::ZERO,
@@ -103,6 +104,7 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     .expect("install publication failure trigger");
     let delayed_cleanup_app = test_app(
         pool.clone(),
+        database_url.clone(),
         Arc::new(store.clone()),
         Arc::new(mock_checker(owner_one, owner_two)),
         Duration::from_secs(2),
@@ -131,16 +133,26 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     .execute(&pool)
     .await
     .expect("keep the failed-upload intent in its configured cleanup delay");
-    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
-        .cleanup_once()
-        .await
-        .expect("cleanup should respect the delay after publication failure");
+    PackService::new(
+        pool.clone(),
+        database_url.clone(),
+        Arc::new(store.clone()),
+        Duration::ZERO,
+    )
+    .cleanup_once()
+    .await
+    .expect("cleanup should respect the delay after publication failure");
     assert!(store.contains(&pending_cleanup_key));
     tokio::time::sleep(Duration::from_millis(2_100)).await;
-    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
-        .cleanup_once()
-        .await
-        .expect("remove object after failed publication cleanup delay");
+    PackService::new(
+        pool.clone(),
+        database_url.clone(),
+        Arc::new(store.clone()),
+        Duration::ZERO,
+    )
+    .cleanup_once()
+    .await
+    .expect("remove object after failed publication cleanup delay");
     assert!(!store.contains(&pending_cleanup_key));
 
     // A locked first cleanup candidate must not block later eligible objects.
@@ -263,11 +275,17 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     .await
     .expect("make active upload intent the first eligible cleanup item");
     let cleanup_pool = pool.clone();
+    let cleanup_database_url = database_url.clone();
     let cleanup_store = store.clone();
     let mut cleanup_task = tokio::spawn(async move {
-        PackService::new(cleanup_pool, Arc::new(cleanup_store), Duration::ZERO)
-            .cleanup_once()
-            .await
+        PackService::new(
+            cleanup_pool,
+            cleanup_database_url,
+            Arc::new(cleanup_store),
+            Duration::ZERO,
+        )
+        .cleanup_once()
+        .await
     });
     let cleanup_result = tokio::time::timeout(Duration::from_secs(5), &mut cleanup_task).await;
     if cleanup_result.is_err() {
@@ -307,10 +325,15 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
         upload_task.await.expect("join active upload").status,
         StatusCode::INTERNAL_SERVER_ERROR
     );
-    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
-        .cleanup_once()
-        .await
-        .expect("clean the formerly locked upload intent after its session ends");
+    PackService::new(
+        pool.clone(),
+        database_url.clone(),
+        Arc::new(store.clone()),
+        Duration::ZERO,
+    )
+    .cleanup_once()
+    .await
+    .expect("clean the formerly locked upload intent after its session ends");
     assert!(!store.contains(&active_upload_key));
     sqlx::query("DROP TRIGGER hako_test_hold_pack_publish ON packs")
         .execute(&pool)
@@ -387,10 +410,15 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
             .await
             .expect("durable replacement cleanup intent");
     assert!(store.contains(&replacement_cleanup_key));
-    PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO)
-        .cleanup_once()
-        .await
-        .expect("remove object from unpublished replacement intent");
+    PackService::new(
+        pool.clone(),
+        database_url.clone(),
+        Arc::new(store.clone()),
+        Duration::ZERO,
+    )
+    .cleanup_once()
+    .await
+    .expect("remove object from unpublished replacement intent");
     assert!(!store.contains(&replacement_cleanup_key));
     let current_after_failed_replacement = request(
         &app,
@@ -672,7 +700,12 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
     .await;
     assert_eq!(not_found.status, StatusCode::NOT_FOUND);
 
-    let restarted_service = PackService::new(pool.clone(), Arc::new(store.clone()), Duration::ZERO);
+    let restarted_service = PackService::new(
+        pool.clone(),
+        database_url.clone(),
+        Arc::new(store.clone()),
+        Duration::ZERO,
+    );
     restarted_service
         .cleanup_once()
         .await
@@ -687,6 +720,7 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
 
     let no_store_app = test_app(
         pool.clone(),
+        database_url.clone(),
         Arc::new(UnavailableObjectStore),
         Arc::new(mock_checker(owner_one, owner_two)),
         Duration::ZERO,
@@ -709,12 +743,13 @@ async fn postgres_pack_api_full_lifecycle_and_isolation() {
 
 fn test_app(
     pool: PgPool,
+    database_url: String,
     store: Arc<dyn ObjectStore>,
     checker: Arc<dyn TokenChecker>,
     cleanup_delay: Duration,
 ) -> Router {
     router(AppState::new(
-        PackService::new(pool, store, cleanup_delay),
+        PackService::new(pool, database_url, store, cleanup_delay),
         checker,
         PackLimits::default(),
     ))
