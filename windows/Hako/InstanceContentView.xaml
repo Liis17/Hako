@@ -31,7 +31,7 @@
             <TextBlock x:Name="ContentDiagnosticText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
             <TextBlock x:Name="ContentUpdateMessageText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="Collapsed" />
             <TextBlock x:Name="ContentActionFeedbackText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
-            <Border x:Name="DropTarget" Padding="14" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" AllowDrop="True" DragOver="DropTarget_DragOver" Drop="DropTarget_Drop">
+            <Border x:Name="DropTarget" Padding="14" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Visibility="Collapsed">
                 <TextBlock x:Name="DropHintText" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </Border>
             <ItemsRepeater x:Name="ContentItems" Margin="0,0,0,20">
@@ -66,6 +66,8 @@
                                     <Button Grid.Column="1" Content="⋯" Tag="{x:Bind Item}">
                                         <Button.Flyout>
                                             <MenuFlyout Opened="ItemMenu_Opened">
+                                                <MenuFlyoutItem Text="{x:Bind OpenModrinthText}" Tag="{x:Bind PageUrl}" Click="ContentSource_Click"
+                                                                Visibility="{x:Bind ModrinthVisibility}" />
                                                 <MenuFlyoutItem Text="{x:Bind RevealText}" Tag="{x:Bind Item}" Click="RevealItem_Click" />
                                                 <MenuFlyoutItem Text="{x:Bind DeleteText}" Tag="{x:Bind Item}" Click="DeleteItem_Click" ToolTipService.ToolTip="{x:Bind BlockReason}"
                                                                 IsEnabled="{x:Bind CanToggle}" Visibility="{x:Bind DeleteVisibility}" />

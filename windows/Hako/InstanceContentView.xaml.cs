@@ -77,6 +77,7 @@ public sealed partial class InstanceContentView : UserControl
         CatalogPane.Configure(services, instance, target, targetName);
         if (changed)
         {
+            HideDropHint();
             _state = services.ContentController.GetState(instance.Id, target);
             _appliedRevision = _state.Revision;
             RefreshState();
@@ -117,6 +118,7 @@ public sealed partial class InstanceContentView : UserControl
         }
         else
         {
+            HideDropHint();
             _itemMenu?.Hide();
             if (_services is { } services) services.ContentController.StateChanged -= ContentController_StateChanged;
             if (_services is { } inactiveServices) inactiveServices.Store.BusyStateChanged -= Store_BusyStateChanged;
@@ -164,6 +166,7 @@ public sealed partial class InstanceContentView : UserControl
 
     public void OpenCatalog()
     {
+        HideDropHint();
         _catalogVisible = true;
         CancelRead();
         LocalContentPane.Visibility = Visibility.Collapsed;
@@ -213,12 +216,13 @@ public sealed partial class InstanceContentView : UserControl
         _pendingOpenCheck = false;
         CancelRead();
         _readCancellation = new CancellationTokenSource();
-        _ = ReadAndCheckAsync(services, instance.Id, _target, _readCancellation.Token);
+        _ = ReadAndCheckAsync(services, instance, _target, _readCancellation.Token);
     }
 
-    private async Task ReadAndCheckAsync(LauncherServices services, Guid instanceId,
+    private async Task ReadAndCheckAsync(LauncherServices services, GameInstance instance,
         InstanceContentTarget target, CancellationToken cancellationToken)
     {
+        var instanceId = instance.Id;
         try
         {
             if (services.Store.IsContentBusy(instanceId) || services.ContentController.GetState(instanceId, target).IsBusy)
@@ -235,7 +239,8 @@ public sealed partial class InstanceContentView : UserControl
                 return;
             }
 
-            await services.ContentController.CheckUpdatesAsync(instanceId, target, cancellationToken);
+            if (services.Store.ManagementBlockedError(instance) != InstanceStorageError.BuildRunning)
+                await services.ContentController.CheckUpdatesAsync(instanceId, target, cancellationToken);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
@@ -260,9 +265,11 @@ public sealed partial class InstanceContentView : UserControl
     {
         if (_services is not { } services || _instance is not { } instance) return;
         var blocked = BlockReason(services, instance, _target, _state);
+        var running = services.Store.ManagementBlockedError(instance) == InstanceStorageError.BuildRunning;
         BlockReasonText.Text = blocked ?? "";
-        BlockReasonText.Visibility = blocked is null ? Visibility.Collapsed : Visibility.Visible;
+        BlockReasonText.Visibility = blocked is null || running ? Visibility.Collapsed : Visibility.Visible;
         var canMutate = blocked is null && !_state.IsBusy && !_state.IsCheckingUpdates && !_importing;
+        if (!canMutate) HideDropHint();
         if (!canMutate) _itemMenu?.Hide();
         ImportFilesButton.IsEnabled = canMutate;
         ImportFolderButton.IsEnabled = canMutate;
@@ -288,7 +295,9 @@ public sealed partial class InstanceContentView : UserControl
             _state.Items.Count(item => item.Enabled), _state.Items.Count);
         ContentEmptyText.Visibility = _state.Items.Count == 0 && !_state.IsLoading && !_state.IsBusy
             ? Visibility.Visible : Visibility.Collapsed;
-        ContentUpdateMessageText.Visibility = _state.UpdateMessage is null ? Visibility.Collapsed : Visibility.Visible;
+        ContentUpdateMessageText.Visibility = _state.UpdateMessage is null
+            || (running && _state.UpdateMessage.Code == ContentFailureCode.BuildBusy)
+            ? Visibility.Collapsed : Visibility.Visible;
         ContentUpdateMessageText.Text = _state.UpdateMessage is { } message ? FormatFailure(message) : "";
         ContentErrorText.Visibility = _state.Error is null ? Visibility.Collapsed : Visibility.Visible;
         ContentErrorText.Text = _state.Error is { } error ? FormatFailure(error) : "";
@@ -442,10 +451,16 @@ public sealed partial class InstanceContentView : UserControl
         return (supported, failureKey);
     }
 
-    private void DropTarget_DragOver(object sender, DragEventArgs e)
+    internal void HideDropHint() => DropTarget.Visibility = Visibility.Collapsed;
+
+    internal void HandleDragOver(DragEventArgs e)
     {
-        e.AcceptedOperation = e.DataView.Contains(StandardDataFormats.StorageItems) && CanMutate()
-            ? DataPackageOperation.Copy : DataPackageOperation.None;
+        var canImport = _active && !_catalogVisible
+            && e.DataView.Contains(StandardDataFormats.StorageItems) && CanMutate();
+        DropTarget.Visibility = canImport ? Visibility.Visible : Visibility.Collapsed;
+        e.AcceptedOperation = canImport ? DataPackageOperation.Copy : DataPackageOperation.None;
+        e.Handled = true;
+        if (!canImport) return;
         e.DragUIOverride.Caption = HakoStrings.Get(_kind switch
         {
             ModrinthContentKind.Mod => "ContentDropHint",
@@ -454,10 +469,14 @@ public sealed partial class InstanceContentView : UserControl
         });
     }
 
-    private async void DropTarget_Drop(object sender, DragEventArgs e)
+    internal async Task HandleDropAsync(DragEventArgs e)
     {
-        if (!CanMutate() || _instance is not { } instance) return;
+        HideDropHint();
+        e.Handled = true;
+        if (!_active || _catalogVisible || !CanMutate() || _instance is not { } instance
+            || !e.DataView.Contains(StandardDataFormats.StorageItems)) return;
         var target = _target;
+        var deferral = e.GetDeferral();
         try
         {
             var items = await e.DataView.GetStorageItemsAsync();
@@ -474,6 +493,7 @@ public sealed partial class InstanceContentView : UserControl
         {
             ShowActionFailure(ContentFailureCode.ContentOperationFailed, exception.Message);
         }
+        finally { deferral.Complete(); }
     }
 
     private void CatalogButton_Click(object sender, RoutedEventArgs e)
@@ -671,6 +691,9 @@ public sealed class InstanceContentRow
             : "";
         PageUrl = item.Origin?.PageURL;
         HasPageUrl = PageUrl is { IsAbsoluteUri: true, Scheme: "https" };
+        ModrinthVisibility = item.Origin?.Source == ModSource.Modrinth && HasPageUrl
+            ? Visibility.Visible : Visibility.Collapsed;
+        OpenModrinthText = HakoStrings.Get("ContentOpenOnModrinth");
         Enabled = item.Enabled;
         EnabledOnText = HakoStrings.Get("ContentEnabledOn");
         EnabledOffText = HakoStrings.Get("ContentEnabledOff");
@@ -696,6 +719,8 @@ public sealed class InstanceContentRow
     public string VersionText { get; }
     public Uri? PageUrl { get; }
     public bool HasPageUrl { get; }
+    public Visibility ModrinthVisibility { get; }
+    public string OpenModrinthText { get; }
     public bool Enabled { get; }
     public bool CanToggle { get; }
     public string EnabledOnText { get; }

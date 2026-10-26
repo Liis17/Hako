@@ -33,6 +33,9 @@ public sealed partial class InstanceWorldsView : UserControl
     private string? _loadError;
     private string? _feedback;
 
+    internal InstanceContentView? ActiveImportView => _active
+        ? _rows.FirstOrDefault(row => row.IsExpanded)?.ContentView : null;
+
     public InstanceWorldsView()
     {
         InitializeComponent();
@@ -147,7 +150,9 @@ public sealed partial class InstanceWorldsView : UserControl
     {
         var reason = BlockReason();
         WorldBlockReasonText.Text = reason ?? "";
-        WorldBlockReasonText.Visibility = reason is null ? Visibility.Collapsed : Visibility.Visible;
+        var running = _instance is { } instance
+            && _services?.Store.ManagementBlockedError(instance) == InstanceStorageError.BuildRunning;
+        WorldBlockReasonText.Visibility = reason is null || running ? Visibility.Collapsed : Visibility.Visible;
         RefreshButton.IsEnabled = _active && !_loading;
         OpenSavesButton.IsEnabled = _instance?.State == InstanceInstallationState.Ready;
         WorldLoadingPanel.Visibility = _loading ? Visibility.Visible : Visibility.Collapsed;

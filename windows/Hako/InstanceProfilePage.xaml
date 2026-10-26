@@ -3,7 +3,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Hako">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer x:Name="ProfileScrollViewer" Background="Transparent" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  AllowDrop="True" DragOver="Profile_DragOver" DragLeave="Profile_DragLeave" Drop="Profile_Drop">
         <StackPanel MaxWidth="900" HorizontalAlignment="Left" Padding="32" Spacing="24">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
                 <local:InstanceIconView x:Name="HeaderIcon" Width="76" Height="76" VerticalAlignment="Top" />
@@ -38,6 +39,11 @@
                         <FontIcon Glyph="&#xE712;" FontSize="16" />
                         <Button.Flyout>
                             <MenuFlyout x:Name="ActionsMenu" Placement="BottomEdgeAlignedRight" Opening="ActionsMenu_Opening">
+                                <MenuFlyoutItem x:Name="OpenMinecraftFolderMenuItem" Click="OpenMinecraftFolderMenuItem_Click">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE8B7;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
                                 <MenuFlyoutItem x:Name="DuplicateMenuItem" Click="DuplicateMenuItem_Click">
                                     <MenuFlyoutItem.Icon>
                                         <FontIcon Glyph="&#xE8C8;" />
@@ -77,13 +83,17 @@
                 </StackPanel>
             </Border>
 
-            <RadioButtons x:Name="SectionTabs" MaxColumns="5" SelectionChanged="SectionTabs_SelectionChanged">
-                <RadioButton x:Name="ModsSectionButton" Tag="Mods" />
-                <RadioButton x:Name="ResourcePacksSectionButton" Tag="ResourcePacks" />
-                <RadioButton x:Name="WorldsSectionButton" Tag="Worlds" />
-                <RadioButton x:Name="ScreenshotsSectionButton" Tag="Screenshots" />
-                <RadioButton x:Name="SettingsSectionButton" Tag="Settings" />
-            </RadioButtons>
+            <NavigationView x:Name="SectionTabs" PaneDisplayMode="Top" IsSettingsVisible="False"
+                            IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False"
+                            IsTabStop="False" SelectionChanged="SectionTabs_SelectionChanged">
+                <NavigationView.MenuItems>
+                    <NavigationViewItem x:Name="ModsSectionButton" Tag="Mods" />
+                    <NavigationViewItem x:Name="ResourcePacksSectionButton" Tag="ResourcePacks" />
+                    <NavigationViewItem x:Name="WorldsSectionButton" Tag="Worlds" />
+                    <NavigationViewItem x:Name="ScreenshotsSectionButton" Tag="Screenshots" />
+                    <NavigationViewItem x:Name="SettingsSectionButton" Tag="Settings" />
+                </NavigationView.MenuItems>
+            </NavigationView>
 
             <local:InstanceContentView x:Name="ContentSection" Visibility="Collapsed" />
             <local:InstanceWorldsView x:Name="WorldsSection" Visibility="Collapsed" />
