@@ -34,6 +34,9 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 | `Obsidian/HakoVault/Minecraft/Worlds.md` | Локальные миры: чтение gzip/NBT, сведения, размер, миниатюры, управление мирами и датапаками |
 | `Obsidian/HakoVault/Minecraft/Modrinth.md` | Каталог Modrinth: поиск, выбор версии, зависимости, проверка загрузок и Loader/Java |
 | `Obsidian/HakoVault/Auth/MicrosoftAuth.md` | Вход через Microsoft device code flow и Minecraft |
+| `Obsidian/HakoVault/Server/Auth.md` | Сервер Auth: Telegram identity, публичный и внутренний API, сессии и rate limits |
+| `Obsidian/HakoVault/Server/Pack.md` | Сервер Pack: API, формат `.hakopack`, S3, лимиты и отложенная очистка |
+| `Obsidian/HakoVault/Server/Deployment.md` | Docker Compose, env, HTTPS reverse proxy, CI и ограничения серверного домена |
 | `Obsidian/HakoVault/UI/ContentView.md` | Корень окна, настройки окна, выбор экрана |
 | `Obsidian/HakoVault/UI/Screens.md` | Экраны и общий стиль |
 | `Obsidian/HakoVault/UI/Launcher.md` | Главная страница: рейл, создание и профили сборок, удаление, дублирование и копии, текстурпаки, скриншоты, каталог Modrinth, настройки и аккаунт |

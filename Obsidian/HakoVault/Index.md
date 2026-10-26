@@ -50,6 +50,14 @@ CurseForge и самообновление Windows ещё не реализов�
 |---------|------------|
 | [[Auth/MicrosoftAuth]] | Вход через Microsoft device code flow, цепочка Xbox Live → Minecraft, ошибки; Windows: `MicrosoftDeviceAuth` и `AppCoordinator` |
 
+## Server
+
+| Заметка | Назначение |
+|---------|------------|
+| [[Server/Auth]] | Сервер Auth: Telegram identity, публичный и внутренний API, сессии, rate limits |
+| [[Server/Pack]] | Сервер Pack: API, формат `.hakopack`, S3, лимиты и отложенная очистка |
+| [[Server/Deployment]] | Docker Compose, переменные окружения, HTTPS reverse proxy, CI и ограничения |
+
 ## UI
 
 | Заметка | Назначение |
