@@ -24,7 +24,7 @@ Parent: [[Index]]
 | `windows/Hako.Core/MinecraftSkinLoader.cs` | `MinecraftSkinLoader.LoadAsync(uuid, cancellationToken)` | Публичный профиль Mojang без токенов, безопасные HTTPS текстуры, кэш успешных метаданных в экземпляре |
 | `windows/Hako.Core/MinecraftSkinNormalizer.cs` | `MinecraftSkinNormalizer.NormalizeRgba` | Чистая нормализация RGBA и восстановление legacy 64×32; PNG-декодирование выполняется Windows UI-слоем |
 | `windows/Hako/Assets/Steve.png` | Резервная текстура Windows | Байтовая копия ресурса macOS; тестовый проект сравнивает оба файла и SHA-256 |
-| `windows/Hako/MinecraftSkinImageDecoder.cs` | `MinecraftSkinImageDecoder` | PNG container/dimensions, straight RGBA и вызов Core normalizer вне UI-потока |
+| `windows/Hako/MinecraftSkinImageDecoder.cs` | `MinecraftSkinImageDecoder` | PNG container/dimensions, straight RGBA, нормализация и crop миниатюры плаща |
 | `windows/Hako/MinecraftSkinPreviewService.cs` | `MinecraftSkinPreviewService` | App-lifetime HTTP loader, нормализованный UUID cache, Steve и cape retry policy |
 | `windows/Hako/MinecraftSkinHeadComposer.cs` | `MinecraftSkinHeadComposer` | Пиксельная голова из front-face и hat UV областей |
 | `windows/Hako/MinecraftSkinHeadBitmapConverter.cs` | `MinecraftSkinHeadBitmapConverter` | Преобразование straight RGBA в premultiplied BGRA для XAML bitmap |
@@ -164,7 +164,9 @@ Core `MinecraftCharacterEditor`. PNG проверяется по IHDR и лим�
 при импорте сохраняются исходные байты, legacy 64×32 фиксирует Classic. Локальный preview
 использует тот же `MinecraftSkinView`: готовность рендера привязана к ревизии черновика,
 и сохранение недоступно до готового кадра. Ошибка ввода сохраняет предыдущий черновик.
-Плащ выбирается из Java-профиля аккаунта или снимается через «Без плаща».
+Плащ выбирается из Java-профиля аккаунта или снимается через «Без плаща». Миниатюра в слоте 80×44 показывает
+только лицевую область плаща 10×16 начиная с (1,1), сохраняя ориентацию и альфу; для XAML straight RGBA
+преобразуется в premultiplied BGRA и масштабируется через Uniform. Выбор и сохранение используют полный PNG плаща.
 
 Подтверждённый профиль публикуется в `MinecraftSkinPreviewService.ConfirmAppearance` и становится
 авторитетным источником, включая отсутствие плаща. Событие `AppearanceChanged` обновляет

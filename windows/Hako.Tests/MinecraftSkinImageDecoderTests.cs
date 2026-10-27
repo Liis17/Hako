@@ -89,6 +89,54 @@ public sealed class MinecraftSkinImageDecoderTests
     }
 
     [TestMethod]
+    public async Task DecodeCapeThumbnailAsync_ExtractsUprightFrontFaceAndPreservesAlpha()
+    {
+        var rgba = new byte[64 * 32 * 4];
+        for (var y = 0; y < 32; y++)
+        for (var x = 0; x < 64; x++)
+            SetPixel(rgba, x, y, (byte)(x * 4), (byte)(y * 8), (byte)(x * 13 + y * 7), (byte)(x * 11 + y * 17));
+        var png = CreatePng(64, 32, rgba);
+
+        var result = await MinecraftSkinImageDecoder.DecodeCapeThumbnailAsync(png);
+
+        Assert.AreEqual(10 * 16 * 4, result.Length);
+        for (var y = 0; y < 16; y++)
+        for (var x = 0; x < 10; x++)
+        {
+            var expected = rgba.AsSpan(((y + 1) * 64 + x + 1) * 4, 4).ToArray();
+            var actual = result.AsSpan((y * 10 + x) * 4, 4).ToArray();
+            CollectionAssert.AreEqual(expected, actual, $"Unexpected crop pixel at ({x}, {y}).");
+        }
+    }
+
+    [TestMethod]
+    public async Task DecodeCapeThumbnailAsync_RejectsWrongPngDimensions()
+    {
+        var png = CreatePng(64, 64, new byte[64 * 64 * 4]);
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            () => MinecraftSkinImageDecoder.DecodeCapeThumbnailAsync(png));
+    }
+
+    [TestMethod]
+    public async Task DecodeCapeThumbnailAsync_RejectsCorruptPngContainer()
+    {
+        byte[] png = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82];
+        var rejected = false;
+
+        try
+        {
+            await MinecraftSkinImageDecoder.DecodeCapeThumbnailAsync(png);
+        }
+        catch (Exception)
+        {
+            rejected = true;
+        }
+
+        Assert.IsTrue(rejected, "A truncated PNG container must be rejected.");
+    }
+
+    [TestMethod]
     public void HeadComposer_ExpandsNativePixelsAndCompositesHatWithStraightAlpha()
     {
         var rgba = new byte[64 * 64 * 4];
