@@ -212,7 +212,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
 
         IsGuest = false;
         Screen = HasProviderSession ? LauncherScreen.Builds : LauncherScreen.Welcome;
-        _ = _hakoAccount.VerifyIfNeededAsync();
+        _ = _hakoAccount.VerifyOnStartupAsync();
     }
 
     public async Task SetLanguageAsync(AppLanguage language, CancellationToken cancellationToken = default)
@@ -389,7 +389,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         Screen = LauncherScreen.Settings;
         if (section == SettingsSection.Profile)
         {
-            _ = _hakoAccount.VerifyIfNeededAsync();
+            _ = _hakoAccount.VerifyOnProfileEntryAsync();
         }
     }
 

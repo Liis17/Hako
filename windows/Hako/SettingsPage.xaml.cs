@@ -477,7 +477,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     {
         if (_coordinator is { } coordinator)
         {
-            _ = coordinator.Hako.VerifyIfNeededAsync(manual: true);
+            _ = coordinator.Hako.VerifyManuallyAsync();
         }
     }
 

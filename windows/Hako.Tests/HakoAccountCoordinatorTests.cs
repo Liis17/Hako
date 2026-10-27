@@ -1,4 +1,5 @@
 using Hako.Core;
+using System.Net;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -84,6 +85,61 @@ public sealed class HakoAccountCoordinatorTests
     }
 
     [TestMethod]
+    public async Task TimedOutExchangeBodyRequiresFreshLoginWithoutPersistingSession()
+    {
+        var time = new ManualTimeProvider();
+        var exchangeBody = new StallingReadStream();
+        var exchangeCalls = 0;
+        using var http = new HttpClient(new CallbackHttpHandler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/v1/auth/register")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = new StringContent(
+                        "{\"request_id\":\"8aabf9c0-a4b4-4b4d-a0fc-a9e8e753bdf1\",\"bot_link\":\"https://t.me/hako_bot?start=abc\",\"exchange_secret\":\"exchange-secret\",\"expires_at\":\"2025-01-01T00:05:00Z\"}",
+                        System.Text.Encoding.UTF8,
+                        "application/json")
+                });
+            }
+
+            if (request.Method == HttpMethod.Get)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        "{\"status\":\"approved\",\"expires_at\":\"2025-01-01T00:05:00Z\"}",
+                        System.Text.Encoding.UTF8,
+                        "application/json")
+                });
+            }
+
+            exchangeCalls++;
+            var content = new StreamContent(exchangeBody);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }))
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        var auth = new HakoAuthApiClient(http, new Uri("https://hako.liis17.com/"), TimeSpan.FromMilliseconds(50));
+        var store = new MemoryHakoSessionStore();
+        using var coordinator = new HakoAccountCoordinator(auth, store, time);
+
+        var attempt = coordinator.BeginRegistrationAsync();
+        Assert.AreEqual(HakoAttemptPhase.Pending, coordinator.AttemptPhase);
+        time.Advance(TimeSpan.FromSeconds(2));
+        await exchangeBody.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await attempt.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.AreEqual(1, exchangeCalls);
+        Assert.AreEqual(HakoAuthErrorKind.Timeout, coordinator.AttemptError);
+        Assert.IsTrue(coordinator.RequiresFreshLogin);
+        Assert.IsNull(coordinator.Session);
+        Assert.IsNull(store.SavedSession);
+    }
+
+    [TestMethod]
     public async Task ExpiredExchangeTokenIsRevokedAndNeverPersisted()
     {
         var time = new ManualTimeProvider();
@@ -160,8 +216,8 @@ public sealed class HakoAccountCoordinatorTests
         using var coordinator = new HakoAccountCoordinator(auth, store, time);
         await coordinator.InitializeAsync();
 
-        var first = coordinator.VerifyIfNeededAsync(manual: true);
-        var second = coordinator.VerifyIfNeededAsync(manual: true);
+        var first = coordinator.VerifyManuallyAsync();
+        var second = coordinator.VerifyManuallyAsync();
         Assert.AreSame(first, second);
         Assert.AreEqual(1, auth.MeCount);
         verification.SetException(new HakoAuthException(HakoAuthErrorKind.RateLimited));
@@ -171,7 +227,7 @@ public sealed class HakoAccountCoordinatorTests
         Assert.AreSame(session, store.SavedSession);
         Assert.AreEqual(HakoSessionStatus.Unverified, coordinator.SessionStatus);
         Assert.AreEqual(HakoAuthErrorKind.RateLimited, coordinator.VerificationError);
-        await coordinator.VerifyIfNeededAsync();
+        await coordinator.VerifyOnProfileEntryAsync();
         Assert.AreEqual(1, auth.MeCount);
     }
 
@@ -187,7 +243,7 @@ public sealed class HakoAccountCoordinatorTests
         using var coordinator = new HakoAccountCoordinator(auth, store, time);
         await coordinator.InitializeAsync();
 
-        var verification = coordinator.VerifyIfNeededAsync(manual: true);
+        var verification = coordinator.VerifyManuallyAsync();
         Assert.AreEqual(1, auth.MeCount);
         Assert.AreEqual(HakoSessionStatus.Verifying, coordinator.SessionStatus);
 
@@ -198,6 +254,128 @@ public sealed class HakoAccountCoordinatorTests
         Assert.IsNull(coordinator.Session);
         Assert.IsNull(store.SavedSession);
         Assert.AreEqual(HakoSessionStatus.SignedOut, coordinator.SessionStatus);
+    }
+
+    [TestMethod]
+    public async Task VerificationCannotRestartWhileRemoteLogoutIsInProgress()
+    {
+        var time = new ManualTimeProvider();
+        var session = CreateSession(time.GetUtcNow());
+        var store = new MemoryHakoSessionStore(session);
+        var auth = new FakeHakoAuth(time);
+        var finishLogout = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        auth.Logout = (_, _) => finishLogout.Task;
+        using var coordinator = new HakoAccountCoordinator(auth, store, time);
+        await coordinator.InitializeAsync();
+
+        var logout = coordinator.LogoutAsync();
+        await auth.LogoutReached.Task;
+        await coordinator.VerifyManuallyAsync();
+        await coordinator.VerifyOnProfileEntryAsync();
+
+        Assert.AreEqual(0, auth.MeCount);
+        Assert.AreSame(session, coordinator.Session);
+        Assert.AreSame(session, store.SavedSession);
+
+        finishLogout.TrySetResult();
+        Assert.AreEqual(HakoLogoutResult.SignedOut, await logout);
+        Assert.IsNull(coordinator.Session);
+        Assert.IsNull(store.SavedSession);
+    }
+
+    [TestMethod]
+    public async Task StartupAlwaysVerifiesRecentSavedSessionAndProfileEntryUsesOneMinuteThrottle()
+    {
+        var time = new ManualTimeProvider();
+        var session = CreateSession(time.GetUtcNow()) with { VerifiedAt = time.GetUtcNow().AddMinutes(-5) };
+        var auth = new FakeHakoAuth(time);
+        using var hako = new HakoAccountCoordinator(auth, new MemoryHakoSessionStore(session), time);
+        var app = new AppCoordinator(new MemorySettingsStore(), new MemoryAccountStore(), new SequenceAuthService(), hakoAccount: hako);
+
+        await app.InitializeAsync();
+        Assert.AreEqual(1, auth.MeCount);
+
+        app.OpenSettings(SettingsSection.Profile);
+        Assert.AreEqual(1, auth.MeCount);
+        time.Advance(TimeSpan.FromSeconds(59));
+        app.OpenSettings(SettingsSection.Profile);
+        Assert.AreEqual(1, auth.MeCount);
+        time.Advance(TimeSpan.FromSeconds(1));
+        app.OpenSettings(SettingsSection.Profile);
+        Assert.AreEqual(2, auth.MeCount);
+    }
+
+    [TestMethod]
+    public async Task PeriodicVerificationUsesFakeClockAndStopsWhenCoordinatorIsDisposed()
+    {
+        var time = new ManualTimeProvider();
+        var auth = new FakeHakoAuth(time);
+        var coordinator = new HakoAccountCoordinator(auth, new MemoryHakoSessionStore(CreateSession(time.GetUtcNow())), time);
+        await coordinator.InitializeAsync();
+        await coordinator.VerifyOnStartupAsync();
+
+        Assert.AreEqual(1, auth.MeCount);
+        Assert.AreEqual(1, time.PendingTimerCount);
+        time.Advance(TimeSpan.FromHours(24));
+        Assert.AreEqual(2, auth.MeCount);
+
+        coordinator.Dispose();
+        Assert.AreEqual(0, time.PendingTimerCount);
+        time.Advance(TimeSpan.FromHours(48));
+        Assert.AreEqual(2, auth.MeCount);
+    }
+
+    [TestMethod]
+    public async Task LogoutErrorBodyTimeoutCanRecoverWithLocalOnlyClear()
+    {
+        var time = new ManualTimeProvider();
+        var errorBody = new StallingReadStream();
+        using var http = new HttpClient(new CallbackHttpHandler((_, _) =>
+        {
+            var content = new StreamContent(errorBody);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = content });
+        }))
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        var auth = new HakoAuthApiClient(http, new Uri("https://hako.liis17.com/"), TimeSpan.FromMilliseconds(50));
+        var session = CreateSession(time.GetUtcNow());
+        var store = new MemoryHakoSessionStore(session);
+        using var coordinator = new HakoAccountCoordinator(auth, store, time);
+        await coordinator.InitializeAsync();
+
+        var logout = coordinator.LogoutAsync();
+        await errorBody.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.AreEqual(HakoLogoutResult.RemoteLogoutFailed, await logout.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.AreEqual(HakoAuthErrorKind.Timeout, coordinator.VerificationError);
+        Assert.AreSame(session, store.SavedSession);
+
+        Assert.IsTrue(await coordinator.ClearLocalSessionAsync());
+        Assert.IsNull(coordinator.Session);
+        Assert.IsNull(store.SavedSession);
+    }
+
+    [TestMethod]
+    public async Task StalledBestEffortRevokeCannotHoldCancelledAttemptOpen()
+    {
+        var time = new ManualTimeProvider();
+        var store = new MemoryHakoSessionStore { PauseSave = true };
+        var auth = new FakeHakoAuth(time) { Status = HakoRequestStatus.Approved };
+        auth.Logout = (_, _) => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        using var coordinator = new HakoAccountCoordinator(auth, store, time);
+
+        var attempt = coordinator.BeginRegistrationAsync();
+        time.Advance(TimeSpan.FromSeconds(2));
+        await store.SaveReached.Task;
+        coordinator.CancelAttempt();
+        await auth.LogoutReached.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        time.Advance(TimeSpan.FromSeconds(5));
+        await attempt.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.AreEqual(1, auth.LogoutCount);
+        Assert.IsNull(coordinator.Session);
+        Assert.IsNull(store.SavedSession);
     }
 
     [TestMethod]
@@ -215,7 +393,7 @@ public sealed class HakoAccountCoordinatorTests
         using var coordinator = new HakoAccountCoordinator(auth, store, time);
         await coordinator.InitializeAsync();
 
-        await coordinator.VerifyIfNeededAsync(manual: true);
+        await coordinator.VerifyManuallyAsync();
 
         Assert.AreEqual("Updated_123", coordinator.Session?.Account.Username);
         Assert.AreEqual("Gaming PC", store.SavedSession?.DeviceName);
@@ -240,7 +418,7 @@ public sealed class HakoAccountCoordinatorTests
         using var coordinator = new HakoAccountCoordinator(auth, store, time);
         await coordinator.InitializeAsync();
 
-        await coordinator.VerifyIfNeededAsync(manual: true);
+        await coordinator.VerifyManuallyAsync();
 
         Assert.AreSame(session, coordinator.Session);
         Assert.AreSame(session, store.SavedSession);
@@ -260,7 +438,7 @@ public sealed class HakoAccountCoordinatorTests
         using var coordinator = new HakoAccountCoordinator(auth, store, time);
         await coordinator.InitializeAsync();
 
-        await coordinator.VerifyIfNeededAsync(manual: true);
+        await coordinator.VerifyManuallyAsync();
 
         Assert.IsNull(coordinator.Session);
         Assert.IsNull(store.SavedSession);
@@ -387,6 +565,7 @@ public sealed class HakoAccountCoordinatorTests
         public int ExchangeCount { get; private set; }
         public int MeCount { get; private set; }
         public int LogoutCount { get; private set; }
+        public TaskCompletionSource LogoutReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? LastUsername { get; private set; }
         public Func<int, CancellationToken, Task<HakoAuthRequestStatus>>? Poll { get; set; }
         public Func<HakoPendingAuthRequest, CancellationToken, Task<HakoExchangeResult>>? Exchange { get; set; }
@@ -429,6 +608,7 @@ public sealed class HakoAccountCoordinatorTests
         public Task LogoutAsync(string token, CancellationToken cancellationToken)
         {
             LogoutCount++;
+            LogoutReached.TrySetResult();
             return Logout?.Invoke(token, cancellationToken) ?? Task.CompletedTask;
         }
     }

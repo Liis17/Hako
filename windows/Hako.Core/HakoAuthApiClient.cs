@@ -12,36 +12,49 @@ public sealed class HakoAuthApiClient : IHakoAuthService, IDisposable
     public static readonly Uri ServiceBaseAddress = new("https://hako.liis17.com:443/");
 
     private const int MaximumResponseBytes = 64 * 1024;
+    private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(20);
     private readonly HttpClient _httpClient;
     private readonly Uri _baseAddress;
+    private readonly TimeSpan _requestTimeout;
     private readonly bool _ownsClient;
 
     public HakoAuthApiClient()
-        : this(CreateDefaultHttpClient(), ServiceBaseAddress, ownsClient: true)
+        : this(CreateDefaultHttpClient(), ServiceBaseAddress, ownsClient: true, requestTimeout: DefaultRequestTimeout)
     {
     }
 
     public HakoAuthApiClient(HttpClient httpClient, Uri? baseAddress = null)
-        : this(httpClient, baseAddress ?? ServiceBaseAddress, ownsClient: false)
+        : this(httpClient, baseAddress ?? ServiceBaseAddress, ownsClient: false, requestTimeout: DefaultRequestTimeout)
     {
     }
 
-    private HakoAuthApiClient(HttpClient httpClient, Uri baseAddress, bool ownsClient)
+    internal HakoAuthApiClient(HttpClient httpClient, Uri? baseAddress, TimeSpan requestTimeout)
+        : this(httpClient, baseAddress ?? ServiceBaseAddress, ownsClient: false, requestTimeout: requestTimeout)
+    {
+    }
+
+    private HakoAuthApiClient(HttpClient httpClient, Uri baseAddress, bool ownsClient, TimeSpan requestTimeout)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        if (requestTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout));
+        }
+
         if (!baseAddress.IsAbsoluteUri || baseAddress.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(baseAddress.UserInfo))
         {
             throw new ArgumentException("The Hako Auth API requires an absolute HTTPS address.", nameof(baseAddress));
         }
 
         _baseAddress = baseAddress;
+        _requestTimeout = requestTimeout;
         _ownsClient = ownsClient;
     }
 
     public static HttpClient CreateDefaultHttpClient()
     {
         var handler = CreateDefaultHandler();
-        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
+        return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
     internal static HttpClientHandler CreateDefaultHandler() => new() { AllowAutoRedirect = false };
@@ -131,37 +144,67 @@ public sealed class HakoAuthApiClient : IHakoAuthService, IDisposable
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_baseAddress, "v1/auth/logout"));
         SetBearer(request, token);
-        using var response = await SendAsync(request, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NoContent)
+        await ExecuteWithTimeoutAsync(cancellationToken, async operationToken =>
         {
-            return;
-        }
+            using var response = await SendAsync(request, operationToken);
+            if (response.StatusCode == HttpStatusCode.NoContent)
+            {
+                return true;
+            }
 
-        throw await ReadErrorAsync(response, cancellationToken);
+            throw await ReadErrorAsync(response, operationToken);
+        });
     }
 
     private async Task<T> SendJsonAsync<T>(HttpRequestMessage request, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
     {
-        using var response = await SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        return await ExecuteWithTimeoutAsync(cancellationToken, async operationToken =>
         {
-            throw await ReadErrorAsync(response, cancellationToken);
-        }
+            using var response = await SendAsync(request, operationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await ReadErrorAsync(response, operationToken);
+            }
 
-        if (!IsJson(response.Content.Headers.ContentType?.MediaType))
-        {
-            throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse, (int)response.StatusCode, isKnownServerError: false);
-        }
+            if (!IsJson(response.Content.Headers.ContentType?.MediaType))
+            {
+                throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse, (int)response.StatusCode, isKnownServerError: false);
+            }
 
-        var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
+            var bytes = await ReadBoundedAsync(response.Content, operationToken);
+            try
+            {
+                return JsonSerializer.Deserialize(bytes, typeInfo)
+                    ?? throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse, (int)response.StatusCode);
+            }
+            catch (JsonException exception)
+            {
+                throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse, (int)response.StatusCode, innerException: exception);
+            }
+        });
+    }
+
+    private async Task<T> ExecuteWithTimeoutAsync<T>(
+        CancellationToken callerToken,
+        Func<CancellationToken, Task<T>> operation)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+        timeout.CancelAfter(_requestTimeout);
         try
         {
-            return JsonSerializer.Deserialize(bytes, typeInfo)
-                ?? throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse, (int)response.StatusCode);
+            return await operation(timeout.Token);
         }
-        catch (JsonException exception)
+        catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
         {
-            throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse, (int)response.StatusCode, innerException: exception);
+            throw;
+        }
+        catch (OperationCanceledException exception)
+        {
+            throw new HakoAuthException(HakoAuthErrorKind.Timeout, innerException: exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new HakoAuthException(HakoAuthErrorKind.Network, innerException: exception);
         }
     }
 

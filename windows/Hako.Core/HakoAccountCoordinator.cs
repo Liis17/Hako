@@ -8,6 +8,7 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan VerificationThrottle = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan VerificationInterval = TimeSpan.FromHours(24);
+    private static readonly TimeSpan BestEffortRevokeTimeout = TimeSpan.FromSeconds(5);
 
     private readonly IHakoAuthService? _authService;
     private readonly IHakoSessionStore? _sessionStore;
@@ -29,7 +30,9 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
     private CancellationTokenSource? _activeAttempt;
     private CancellationTokenSource? _activeVerification;
     private Task? _verificationTask;
+    private ITimer? _periodicVerificationTimer;
     private DateTimeOffset? _lastVerificationAttemptAt;
+    private bool _logoutInProgress;
 
     public HakoAccountCoordinator(
         IHakoAuthService? authService = null,
@@ -311,7 +314,16 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public Task VerifyIfNeededAsync(bool manual = false, CancellationToken cancellationToken = default)
+    public Task VerifyOnStartupAsync(CancellationToken cancellationToken = default) =>
+        VerifyAsync(respectProfileThrottle: false, cancellationToken: cancellationToken);
+
+    public Task VerifyOnProfileEntryAsync(CancellationToken cancellationToken = default) =>
+        VerifyAsync(respectProfileThrottle: true, cancellationToken: cancellationToken);
+
+    public Task VerifyManuallyAsync(CancellationToken cancellationToken = default) =>
+        VerifyAsync(respectProfileThrottle: false, cancellationToken: cancellationToken);
+
+    private Task VerifyAsync(bool respectProfileThrottle, CancellationToken cancellationToken)
     {
         TaskCompletionSource completion;
         HakoSession session;
@@ -320,7 +332,7 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
         CancellationTokenSource verification;
         lock (_sync)
         {
-            if (_disposed || _session is null || _authService is null || _sessionStore is null)
+            if (_disposed || _logoutInProgress || _session is null || _authService is null || _sessionStore is null)
             {
                 return Task.CompletedTask;
             }
@@ -331,15 +343,9 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
             }
 
             var now = _timeProvider.GetUtcNow();
-            if (!manual)
+            if (respectProfileThrottle)
             {
                 if (_lastVerificationAttemptAt is { } lastAttempt && now - lastAttempt < VerificationThrottle)
-                {
-                    return Task.CompletedTask;
-                }
-
-                if (_session.ExpiresAt > now && _session.VerifiedAt is { } verifiedAt
-                    && now - verifiedAt < VerificationInterval)
                 {
                     return Task.CompletedTask;
                 }
@@ -361,6 +367,26 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
 
         _ = RunVerificationAsync(session, sessionGeneration, verificationGeneration, verification, completion);
         return completion.Task;
+    }
+
+    private void OnPeriodicVerificationTimerElapsed() => _ = RunPeriodicVerificationAsync();
+
+    private async Task RunPeriodicVerificationAsync()
+    {
+        try
+        {
+            await VerifyAsync(respectProfileThrottle: false, cancellationToken: CancellationToken.None);
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                if (!_disposed && !_logoutInProgress && _session is not null)
+                {
+                    SchedulePeriodicVerificationLocked(VerificationInterval);
+                }
+            }
+        }
     }
 
     private async Task RunVerificationAsync(
@@ -484,11 +510,6 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
 
     public async Task<HakoLogoutResult> LogoutAsync(CancellationToken cancellationToken = default)
     {
-        if (_session is null)
-        {
-            return HakoLogoutResult.SignedOut;
-        }
-
         HakoSession expected;
         long sessionGeneration;
         lock (_sync)
@@ -498,6 +519,12 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
                 return HakoLogoutResult.SignedOut;
             }
 
+            if (_logoutInProgress)
+            {
+                return HakoLogoutResult.RemoteLogoutFailed;
+            }
+
+            _logoutInProgress = true;
             expected = _session;
             sessionGeneration = _sessionGeneration;
             InvalidateAttemptLocked();
@@ -509,34 +536,48 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
 
         try
         {
-            await _authService!.LogoutAsync(expected.Token, cancellationToken);
+            try
+            {
+                await _authService!.LogoutAsync(expected.Token, cancellationToken);
+            }
+            catch (HakoAuthException exception) when (exception.Kind == HakoAuthErrorKind.Unauthorized)
+            {
+                // A revoked or expired server token is already logged out.
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception) when (exception is HakoAuthException or HttpRequestException or TaskCanceledException)
+            {
+                lock (_sync)
+                {
+                    if (ReferenceEquals(_session, expected) && _sessionGeneration == sessionGeneration)
+                    {
+                        SetSessionStatusLocked(HakoSessionStatus.LogoutFailed);
+                        SetVerificationErrorLocked(exception is HakoAuthException auth ? auth.Kind :
+                            exception is TaskCanceledException ? HakoAuthErrorKind.Timeout : HakoAuthErrorKind.Network);
+                    }
+                }
+
+                return HakoLogoutResult.RemoteLogoutFailed;
+            }
+
+            return await ClearLocalSessionAsync(expected, sessionGeneration, cancellationToken)
+                ? HakoLogoutResult.SignedOut
+                : HakoLogoutResult.LocalClearFailed;
         }
-        catch (HakoAuthException exception) when (exception.Kind == HakoAuthErrorKind.Unauthorized)
-        {
-            // A revoked or expired server token is already logged out.
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception) when (exception is HakoAuthException or HttpRequestException or TaskCanceledException)
+        finally
         {
             lock (_sync)
             {
-                if (ReferenceEquals(_session, expected) && _sessionGeneration == sessionGeneration)
+                _logoutInProgress = false;
+                if (_session is not null)
                 {
-                    SetSessionStatusLocked(HakoSessionStatus.LogoutFailed);
-                    SetVerificationErrorLocked(exception is HakoAuthException auth ? auth.Kind :
-                        exception is TaskCanceledException ? HakoAuthErrorKind.Timeout : HakoAuthErrorKind.Network);
+                    SchedulePeriodicVerificationLocked(VerificationInterval);
                 }
             }
-
-            return HakoLogoutResult.RemoteLogoutFailed;
         }
-
-        return await ClearLocalSessionAsync(expected, sessionGeneration, cancellationToken)
-            ? HakoLogoutResult.SignedOut
-            : HakoLogoutResult.LocalClearFailed;
     }
 
     public async Task<bool> ClearLocalSessionAsync(CancellationToken cancellationToken = default)
@@ -545,18 +586,38 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
         long sessionGeneration;
         lock (_sync)
         {
+            if (_logoutInProgress)
+            {
+                return false;
+            }
+
             expected = _session;
             if (expected is null)
             {
                 return true;
             }
 
+            _logoutInProgress = true;
             sessionGeneration = _sessionGeneration;
             InvalidateAttemptLocked();
             CancelVerificationLocked();
         }
 
-        return await ClearLocalSessionAsync(expected, sessionGeneration, cancellationToken);
+        try
+        {
+            return await ClearLocalSessionAsync(expected, sessionGeneration, cancellationToken);
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _logoutInProgress = false;
+                if (_session is not null)
+                {
+                    SchedulePeriodicVerificationLocked(VerificationInterval);
+                }
+            }
+        }
     }
 
     private async Task<bool> ClearLocalSessionAsync(
@@ -676,12 +737,31 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        using var timeout = new CancellationTokenSource(BestEffortRevokeTimeout, _timeProvider);
+        Task? revoke = null;
         try
         {
-            await _authService.LogoutAsync(token, CancellationToken.None);
+            revoke = _authService.LogoutAsync(token, timeout.Token);
+            await revoke.WaitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            ObserveAbandonedTask(revoke);
         }
         catch (Exception)
         {
+        }
+    }
+
+    private static void ObserveAbandonedTask(Task? task)
+    {
+        if (task is { IsCompleted: false })
+        {
+            _ = task.ContinueWith(
+                static completed => _ = completed.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 
@@ -727,6 +807,23 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
         _session = value;
         _sessionGeneration++;
         NotifyLocked(nameof(Session));
+        SchedulePeriodicVerificationLocked(value is null ? Timeout.InfiniteTimeSpan : VerificationInterval);
+    }
+
+    private void SchedulePeriodicVerificationLocked(TimeSpan dueTime)
+    {
+        if (_disposed || _session is null || _authService is null || _sessionStore is null)
+        {
+            _periodicVerificationTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        _periodicVerificationTimer ??= _timeProvider.CreateTimer(
+            static state => ((HakoAccountCoordinator)state!).OnPeriodicVerificationTimerElapsed(),
+            this,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
+        _periodicVerificationTimer.Change(dueTime, Timeout.InfiniteTimeSpan);
     }
 
     private void SetSessionStatusLocked(HakoSessionStatus value) => SetPropertyLocked(ref _sessionStatus, value);
@@ -789,6 +886,8 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
             }
 
             _disposed = true;
+            _periodicVerificationTimer?.Dispose();
+            _periodicVerificationTimer = null;
             InvalidateAttemptLocked();
             CancelVerificationLocked();
         }

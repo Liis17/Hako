@@ -232,6 +232,50 @@ public sealed class HakoAuthApiTests
     }
 
     [TestMethod]
+    public async Task OperationDeadlineCoversResponseBodyAndCallerCancellationIsPreserved()
+    {
+        var timeoutStream = new StallingReadStream();
+        using var timeoutHttp = new HttpClient(new CallbackHttpHandler((_, _) => Task.FromResult(
+            StallingResponse(HttpStatusCode.Created, timeoutStream))))
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        var timeoutClient = new HakoAuthApiClient(
+            timeoutHttp,
+            new Uri("https://hako.liis17.com/"),
+            TimeSpan.FromMilliseconds(50));
+
+        var timedRequest = timeoutClient.RegisterAsync("Gaming PC", CancellationToken.None);
+        await timeoutStream.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var timeoutError = await Assert.ThrowsExactlyAsync<HakoAuthException>(() => timedRequest);
+        Assert.AreEqual(HakoAuthErrorKind.Timeout, timeoutError.Kind);
+
+        var cancelledStream = new StallingReadStream();
+        using var cancelledHttp = new HttpClient(new CallbackHttpHandler((_, _) => Task.FromResult(
+            StallingResponse(HttpStatusCode.Created, cancelledStream))))
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        var cancelledClient = new HakoAuthApiClient(
+            cancelledHttp,
+            new Uri("https://hako.liis17.com/"),
+            TimeSpan.FromSeconds(5));
+        using var callerCancellation = new CancellationTokenSource();
+        var cancelledRequest = cancelledClient.RegisterAsync("Gaming PC", callerCancellation.Token);
+        await cancelledStream.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        callerCancellation.Cancel();
+        try
+        {
+            await cancelledRequest;
+            Assert.Fail("Caller cancellation should stop the response body read.");
+        }
+        catch (OperationCanceledException exception)
+        {
+            Assert.IsNotInstanceOfType(exception, typeof(HakoAuthException));
+        }
+    }
+
+    [TestMethod]
     public void TelegramUsernameAcceptsOptionalAtButRequiresAsciiProtocolLength()
     {
         Assert.IsTrue(HakoUsername.TryNormalize(" @Player_123 ", out var normalized));
@@ -245,4 +289,11 @@ public sealed class HakoAuthApiTests
     {
         Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")
     };
+
+    private static HttpResponseMessage StallingResponse(HttpStatusCode status, Stream stream)
+    {
+        var content = new StreamContent(stream);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+        return new HttpResponseMessage(status) { Content = content };
+    }
 }
