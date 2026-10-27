@@ -255,6 +255,11 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 — [[UI/Launcher#Windows-клиент]] и [[Data/Backups]]. Также Windows учитывает игровое время по аккаунту/гостю и сборке.
 Фоновый помощник продолжает измерение после закрытия лаунчера, а двухфазный перенос сохраняет границу гостевой сессии.
 Сервисы сборок живут всё время работы приложения и создаются в `App.OnLaunched` (`LauncherServices`).
+`WindowsAppSdkBootstrap` пропускает SDK для `--playtime-helper`. В framework-dependent запуске
+сначала вызывает bootstrapper SDK с версией из NuGet (для MSIX — no-op), затем только при наличии
+package identity выполняет `DeploymentManager.Initialize`. Unpackaged-запуск использует runtime,
+подключённый bootstrapper; self-contained MSIX не требует этих вызовов. Общий автоинициализатор SDK
+отключён в `Hako.csproj`, чтобы не загружать WinUI/runtime в фоновом помощнике.
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
 Экраны — [[UI/Screens#Windows-клиент]], вход — [[Auth/MicrosoftAuth#Windows-клиент]],

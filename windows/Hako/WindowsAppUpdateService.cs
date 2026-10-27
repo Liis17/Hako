@@ -17,6 +17,7 @@ internal sealed class WindowsAppUpdateService : IDisposable
     private readonly HttpClient _http = new() { Timeout = Timeout.InfiniteTimeSpan };
     private readonly DispatcherQueue _dispatcher;
     private readonly LauncherServices _services;
+    private readonly string _cacheRoot;
     private readonly DispatcherQueueTimer _timer;
     private bool _started;
     public AppUpdateCoordinator Coordinator { get; }
@@ -38,8 +39,13 @@ internal sealed class WindowsAppUpdateService : IDisposable
                 && services.PreviewOptions is null && App.LaunchPaths is { Isolated: false };
         }
         catch (Exception exception) when (exception is InvalidOperationException or COMException) { }
+        // Deployment runs outside this package's file virtualization. Give it the physical cache
+        // path, not LocalAppData paths that only Hako can resolve to redirected files.
+        _cacheRoot = supported
+            ? Path.Combine(ApplicationData.Current.LocalCacheFolder.Path, "Hako", "Cache")
+            : App.LaunchPaths!.CacheRoot;
         Coordinator = new AppUpdateCoordinator(new AppReleaseClient(_http),
-            new AppUpdateDownload(_http, App.LaunchPaths!.CacheRoot, identity), identity, supported, GetBlockReasonAsync, InstallAsync);
+            new AppUpdateDownload(_http, _cacheRoot, identity), identity, supported, GetBlockReasonAsync, InstallAsync);
         _timer = dispatcher.CreateTimer();
         _timer.Interval = TimeSpan.FromHours(6);
         _timer.Tick += (_, _) => { if (AutomaticChecks) _ = Coordinator.CheckAsync(automatic: true); };
@@ -61,7 +67,7 @@ internal sealed class WindowsAppUpdateService : IDisposable
     {
         _started = true;
         if (!Coordinator.Supported) return;
-        _ = Task.Run(() => AppUpdateDownload.CleanupStaleDownloads(App.LaunchPaths!.CacheRoot));
+        _ = Task.Run(() => AppUpdateDownload.CleanupStaleDownloads(_cacheRoot));
         _timer.Start();
         if (AutomaticChecks) _ = Coordinator.CheckAsync(automatic: true);
     }
