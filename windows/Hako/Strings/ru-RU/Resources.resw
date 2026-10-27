@@ -618,4 +618,6 @@
   <data name="CharacterSessionError" xml:space="preserve"><value>Сессия Minecraft недоступна. Подключите аккаунт повторно.</value></data>
   <data name="CharacterReconnect" xml:space="preserve"><value>Повторить подключение Minecraft</value></data>
   <data name="CharacterRetry" xml:space="preserve"><value>Повторить</value></data>
+  <data name="InstanceOpenMinecraftFolder" xml:space="preserve"><value>Открыть папку Minecraft</value></data>
+  <data name="ContentOpenOnModrinth" xml:space="preserve"><value>Открыть на Modrinth</value></data>
 </root>

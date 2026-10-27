@@ -145,6 +145,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         ToolTipService.SetToolTip(ActionsButton, HakoStrings.Get("InstanceActions"));
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ActionsButton, HakoStrings.Get("InstanceActions"));
         DuplicateMenuItem.Text = HakoStrings.Get("InstanceDuplicate");
+        OpenMinecraftFolderMenuItem.Text = HakoStrings.Get("InstanceOpenMinecraftFolder");
         BackupMenuItem.Text = HakoStrings.Get("InstanceBackup");
         DeleteMenuItem.Text = HakoStrings.Get("DeleteBuildMenu");
         SettingsTitle.Text = HakoStrings.Get("SettingsTitle");
@@ -247,7 +248,9 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         var settingsEditable = !installing && !services.Store.IsContentBusy(instance.Id);
         ParametersEditor.SetEditable(settingsEditable);
         IconPicker.SetEditable(settingsEditable);
-        SettingsBlockedText.Visibility = settingsEditable ? Visibility.Collapsed : Visibility.Visible;
+        SettingsBlockedText.Visibility = !settingsEditable
+            && services.Store.ManagementBlockedError(instance) != InstanceStorageError.BuildRunning
+            ? Visibility.Visible : Visibility.Collapsed;
         var run = services.Games.GetState(instance.Id)?.Phase;
         NextLaunchText.Visibility = run is GameRunPhase.Running or GameRunPhase.Preparing ? Visibility.Visible : Visibility.Collapsed;
         ManifestMissingText.Visibility = ParametersEditor.Draft.ArgumentSource == LaunchArgumentSource.Mojang
@@ -283,7 +286,8 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         SectionTabs.Visibility = Visibility.Visible;
 
         _updatingSectionTabs = true;
-        SectionTabs.SelectedIndex = (int)_selectedSection;
+        SectionTabs.SelectedItem = SectionTabs.MenuItems.OfType<NavigationViewItem>()
+            .First(item => (string)item.Tag == _selectedSection.ToString());
         _updatingSectionTabs = false;
         if (showContent)
         {
@@ -307,10 +311,34 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         RefreshSections(services, instance);
     }
 
-    private void SectionTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void SectionTabs_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs e)
     {
-        if (_updatingSectionTabs || SectionTabs.SelectedItem is not RadioButton { Tag: string tag }) return;
+        if (_updatingSectionTabs || e.SelectedItem is not NavigationViewItem { Tag: string tag }) return;
         if (Enum.TryParse<InstanceProfileSection>(tag, out var section)) SelectSection(section);
+    }
+
+    private InstanceContentView? ActiveImportView => _selectedSection switch
+    {
+        InstanceProfileSection.Mods or InstanceProfileSection.ResourcePacks => ContentSection,
+        InstanceProfileSection.Worlds => WorldsSection.ActiveImportView,
+        _ => null
+    };
+
+    private void Profile_DragOver(object sender, DragEventArgs e) => ActiveImportView?.HandleDragOver(e);
+
+    private void Profile_DragLeave(object sender, DragEventArgs e)
+    {
+        // DragLeave also bubbles from children; only reset after leaving the page itself.
+        var position = e.GetPosition(ProfileScrollViewer);
+        if (ReferenceEquals(e.OriginalSource, ProfileScrollViewer)
+            || position.X <= 0 || position.Y <= 0 || position.X >= ProfileScrollViewer.ActualWidth
+            || position.Y >= ProfileScrollViewer.ActualHeight)
+            ActiveImportView?.HideDropHint();
+    }
+
+    private async void Profile_Drop(object sender, DragEventArgs e)
+    {
+        if (ActiveImportView is { } content) await content.HandleDropAsync(e);
     }
 
     internal void WindowReturned()
@@ -751,12 +779,25 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
             ? services.Store.ManagementBlockedError(instance)
             : null;
         var ready = _instance?.State == InstanceInstallationState.Ready;
+        OpenMinecraftFolderMenuItem.IsEnabled = ready;
         DuplicateMenuItem.IsEnabled = ready && blocked is null && !_busyOperation;
         BackupMenuItem.IsEnabled = ready && blocked is null && !_busyOperation;
         ToolTipService.SetToolTip(DuplicateMenuItem, blocked is { } duplicateError ? HakoStrings.Get(duplicateError.ResourceKey()) : null);
         ToolTipService.SetToolTip(BackupMenuItem, blocked is { } backupError ? HakoStrings.Get(backupError.ResourceKey()) : null);
         DeleteMenuItem.IsEnabled = blocked is null && !_busyOperation;
         ToolTipService.SetToolTip(DeleteMenuItem, blocked is { } error ? HakoStrings.Get(error.ResourceKey()) : null);
+    }
+
+    private async void OpenMinecraftFolderMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_services is not { } services || Current() is not { } instance) return;
+        try
+        {
+            var folder = await Task.Run(() => InstanceStorage.ContainedPath("minecraft",
+                services.Store.GetInstanceDirectory(instance.Id), allowBaseReparsePoint: true));
+            await InstanceContentView.OpenLocationAsync(folder);
+        }
+        catch (Exception) { await HakoDialogs.ShowErrorAsync(HakoStrings.Get("ContentOpenFailed")); }
     }
 
     private async void DuplicateMenuItem_Click(object sender, RoutedEventArgs e)

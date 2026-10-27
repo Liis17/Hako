@@ -138,7 +138,9 @@ public sealed partial class InstanceScreenshotsView : UserControl
     {
         var reason = BlockReason();
         ScreenshotsBlockReason.Text = reason ?? "";
-        ScreenshotsBlockReason.Visibility = reason is null ? Visibility.Collapsed : Visibility.Visible;
+        var running = _instance is { } instance
+            && _services?.Store.ManagementBlockedError(instance) == InstanceStorageError.BuildRunning;
+        ScreenshotsBlockReason.Visibility = reason is null || running ? Visibility.Collapsed : Visibility.Visible;
         LoadingPanel.Visibility = _loading ? Visibility.Visible : Visibility.Collapsed;
         OperationPanel.Visibility = _operationBusy ? Visibility.Visible : Visibility.Collapsed;
         if (LoadingPanel.Children.FirstOrDefault() is ProgressRing ring) ring.IsActive = _loading;
@@ -310,6 +312,7 @@ public sealed partial class InstanceScreenshotsView : UserControl
 
     private async void ScreenshotTile_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
+        e.Handled = true;
         if ((sender as FrameworkElement)?.Tag is ScreenshotRow row) await OpenScreenshotAsync(row);
     }
 
@@ -399,23 +402,26 @@ public sealed partial class InstanceScreenshotsView : UserControl
         }
     }
 
-    private async void ScreenshotTile_DragStarting(UIElement sender, DragStartingEventArgs args)
+    private void ScreenshotItems_DragStarting(UIElement sender, DragStartingEventArgs args) =>
+        args.AllowedOperations = DataPackageOperation.Copy;
+
+    private void ScreenshotItems_DragItemsStarting(object sender, DragItemsStartingEventArgs args)
     {
-        if ((sender as FrameworkElement)?.Tag is not ScreenshotRow row) return;
-        var rows = ScreenshotItems.SelectedItems.Contains(row)
-            ? ScreenshotItems.SelectedItems.OfType<ScreenshotRow>().ToArray() : [row];
-        var deferral = args.GetDeferral();
-        try
+        var rows = args.Items.OfType<ScreenshotRow>().ToArray();
+        args.Data.RequestedOperation = DataPackageOperation.Copy;
+        args.Data.SetDataProvider(StandardDataFormats.StorageItems, async request =>
         {
-            var files = new List<IStorageItem>(rows.Length);
-            foreach (var selected in rows)
-                files.Add(await StorageFile.GetFileFromPathAsync(selected.Path));
-            args.Data.SetStorageItems(files, readOnly: true);
-            args.Data.RequestedOperation = DataPackageOperation.Copy;
-            args.AllowedOperations = DataPackageOperation.Copy;
-        }
-        catch (Exception) { args.Cancel = true; }
-        finally { deferral.Complete(); }
+            var deferral = request.GetDeferral();
+            try
+            {
+                var files = new List<IStorageItem>(rows.Length);
+                foreach (var selected in rows)
+                    files.Add(await StorageFile.GetFileFromPathAsync(selected.Path));
+                request.SetData(files);
+            }
+            catch (Exception) { request.SetData(Array.Empty<IStorageItem>()); }
+            finally { deferral.Complete(); }
+        });
     }
 
     private void ScreenshotItems_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)

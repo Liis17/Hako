@@ -29,6 +29,8 @@
             <TextBlock x:Name="FeedbackText" TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
             <GridView x:Name="ScreenshotItems" ItemsSource="{x:Bind _rows, Mode=OneWay}"
                       SelectionMode="Multiple" SelectionChanged="ScreenshotItems_SelectionChanged"
+                      IsMultiSelectCheckBoxEnabled="True" CanDragItems="True" DragItemsStarting="ScreenshotItems_DragItemsStarting"
+                      DragStarting="ScreenshotItems_DragStarting"
                       KeyDown="ScreenshotItems_KeyDown" IsItemClickEnabled="False" Margin="0,0,0,12">
                 <GridView.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -40,11 +42,10 @@
                         <Border Width="210" Height="160" Padding="8" CornerRadius="10"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                CanDrag="True" DragStarting="ScreenshotTile_DragStarting"
                                 Loaded="ScreenshotTile_Loaded" Unloaded="ScreenshotTile_Unloaded"
-                                DoubleTapped="ScreenshotTile_DoubleTapped" Tag="{x:Bind}">
+                                Tag="{x:Bind}">
                             <Grid RowDefinitions="*,Auto">
-                                <Grid>
+                                <Grid Background="Transparent" DoubleTapped="ScreenshotTile_DoubleTapped" Tag="{x:Bind}">
                                     <FontIcon Glyph="&#xE7C3;" FontSize="30" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                               Visibility="{x:Bind PlaceholderVisibility, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill"

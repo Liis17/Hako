@@ -618,4 +618,6 @@ Hako</value></data>
   <data name="CharacterSessionError" xml:space="preserve"><value>The Minecraft session is unavailable. Reconnect your account.</value></data>
   <data name="CharacterReconnect" xml:space="preserve"><value>Reconnect Minecraft</value></data>
   <data name="CharacterRetry" xml:space="preserve"><value>Retry</value></data>
+  <data name="InstanceOpenMinecraftFolder" xml:space="preserve"><value>Open Minecraft folder</value></data>
+  <data name="ContentOpenOnModrinth" xml:space="preserve"><value>Open on Modrinth</value></data>
 </root>
