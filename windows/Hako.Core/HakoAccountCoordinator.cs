@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 
 namespace Hako.Core;
 
@@ -826,12 +825,12 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
         _periodicVerificationTimer.Change(dueTime, Timeout.InfiniteTimeSpan);
     }
 
-    private void SetSessionStatusLocked(HakoSessionStatus value) => SetPropertyLocked(ref _sessionStatus, value);
-    private void SetAttemptPhaseLocked(HakoAttemptPhase value) => SetPropertyLocked(ref _attemptPhase, value);
-    private void SetAttemptErrorLocked(HakoAuthErrorKind? value) => SetPropertyLocked(ref _attemptError, value);
-    private void SetVerificationErrorLocked(HakoAuthErrorKind? value) => SetPropertyLocked(ref _verificationError, value);
-    private void SetBotLinkLocked(Uri? value) => SetPropertyLocked(ref _botLink, value);
-    private void SetPendingExpiresAtLocked(DateTimeOffset? value) => SetPropertyLocked(ref _pendingExpiresAt, value);
+    private void SetSessionStatusLocked(HakoSessionStatus value) => SetPropertyLocked(ref _sessionStatus, value, nameof(SessionStatus));
+    private void SetAttemptPhaseLocked(HakoAttemptPhase value) => SetPropertyLocked(ref _attemptPhase, value, nameof(AttemptPhase));
+    private void SetAttemptErrorLocked(HakoAuthErrorKind? value) => SetPropertyLocked(ref _attemptError, value, nameof(AttemptError));
+    private void SetVerificationErrorLocked(HakoAuthErrorKind? value) => SetPropertyLocked(ref _verificationError, value, nameof(VerificationError));
+    private void SetBotLinkLocked(Uri? value) => SetPropertyLocked(ref _botLink, value, nameof(BotLink));
+    private void SetPendingExpiresAtLocked(DateTimeOffset? value) => SetPropertyLocked(ref _pendingExpiresAt, value, nameof(PendingExpiresAt));
 
     private void ClearPendingRequestLocked(bool clearFreshLogin = true)
     {
@@ -843,7 +842,7 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void SetPropertyLocked<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private void SetPropertyLocked<T>(ref T field, T value, string propertyName)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
@@ -851,7 +850,7 @@ public sealed class HakoAccountCoordinator : INotifyPropertyChanged, IDisposable
         }
 
         field = value;
-        NotifyLocked(propertyName!);
+        NotifyLocked(propertyName);
     }
 
     private void NotifyLocked(string propertyName)
