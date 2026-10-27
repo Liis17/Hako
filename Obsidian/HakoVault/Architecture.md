@@ -247,7 +247,7 @@ Windows собирается на `windows-2025` с .NET 8/MSBuild для x64 и
 
 ## Windows-клиент
 
-Клиент для Windows в каталоге `windows/` реализует приветствие, вход в Microsoft по коду, главную с рейлом
+Клиент для Windows в каталоге `windows/` реализует приветствие, независимый вход Hako через Telegram и вход в Microsoft по коду, главную с рейлом
 сборок и «Настройками», русский/английский язык, профиль с 3D-превью скина и выход. Vanilla- и Fabric-сборки
 создаются и устанавливаются фоновой очередью (пауза, продолжение, повтор), настраиваются, удаляются и запускаются
 онлайн или в offline-mode. Есть локальные моды и ресурспаки, миры и датапаки, каталог Modrinth и импорт готовых
@@ -262,7 +262,7 @@ package identity выполняет `DeploymentManager.Initialize`. Unpackaged-�
 отключён в `Hako.csproj`, чтобы не загружать WinUI/runtime в фоновом помощнике.
 `MainWindow` использует Mica под WinUI `TitleBar`; начальная клиентская область 1280×720 эффективных
 пикселей задаётся с масштабированием по DPI окна.
-Экраны — [[UI/Screens#Windows-клиент]], вход — [[Auth/MicrosoftAuth#Windows-клиент]],
+Экраны — [[UI/Screens#Windows-клиент]], вход Microsoft — [[Auth/MicrosoftAuth#Windows-клиент]], вход Hako — [[Auth/HakoAuth]],
 хранение — [[Data/Persistence#Windows-клиент]], строки — [[UI/Localization#Windows-клиент]].
 
 ### Стек
@@ -283,14 +283,14 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
 
 - `windows/Hako/` — WinUI-приложение: `Program.cs` (точка входа и ключи единственного экземпляра), `App.xaml.cs`
   (создаёт `AppCoordinator`, app-lifetime `LauncherServices`, скриншоты и сервисы архивов), `MainWindow` (окно с `NavigationView`,
-  `Frame` и forwarding состояния окна), страницы `LoadingPage`, `WelcomePage`, `LoginPage`, `BuildsPage`, `SettingsPage`,
+  `Frame` и forwarding состояния окна), страницы `LoadingPage`, `WelcomePage`, `LoginPage`, `HakoLoginPage`, `BuildsPage`, `SettingsPage`,
   профиль и его `InstanceScreenshotsView`, `ScreenshotThumbnails`, `MinecraftSkinView`, `MinecraftSkinImageDecoder`, `MinecraftSkinPreviewService`, `MinecraftSkinHeadComposer`,
   `Graphics/MinecraftSkinRenderer` и `Graphics/MinecraftSkinGeometry`, `HakoStrings`, `AppDataDirectory`,
   `Strings/ru-RU` и `Strings/en-US` (`Resources.resw`), `Package.appxmanifest`, `app.manifest`,
   `Properties/launchSettings.json`, решение `Hako.slnx`.
-- `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (фазы входа, экраны, выход), `Playtime/` (ledger, сессии,
-  helper и coordinator), `MicrosoftDeviceAuth`,
-  `AuthContracts`, `AccountSessionStore`, `UserSettingsService`, `HakoPaths`, `HakoRootLock`, `Instances/`
+- `windows/Hako.Core/` — логика без WinUI: `AppCoordinator` (экраны и независимые состояния провайдеров), `Playtime/` (ledger, сессии,
+  helper и coordinator), `MicrosoftDeviceAuth`, `HakoAuthApiClient`, `HakoAccountCoordinator`,
+  `AuthContracts`, `AccountSessionStore`, `HakoSessionStore`, `UserSettingsService`, `HakoPaths`, `HakoRootLock`, `Instances/`
   (`GameInstance`, `InstanceStorage`, `InstanceStore`, `InstanceScreenshots`, `InstanceFileTree`, `InstanceBackup`,
   `WorldBackup`, `InstallationCoordinator`, `ModpackCatalog`), `Minecraft/`
   (`ModrinthClient`, `ModpackManifest`, `ModpackArchive`, `ModpackInstaller`, Mojang/Fabric install and launch logic),
@@ -328,7 +328,7 @@ Windows — 10 1809 (`TargetPlatformMinVersion` 10.0.17763.0); `app.manifest` о
    optional-поля глобальных параметров игры, а `UserSettingsService` пишет единый снимок для обоих видов настроек.
    Skin preview service использует отдельный `HttpClient` с 15-секундным timeout для публичных Mojang texture API,
    без токенов; он не меняет `AccountSession` или формат persistence.
-3. `OnLaunched` показывает `MainWindow`, затем `AppCoordinator.InitializeAsync()` загружает настройки и аккаунт.
+3. `OnLaunched` показывает `MainWindow`, затем `AppCoordinator.InitializeAsync()` загружает настройки и независимо читает Microsoft `session.dat` и Hako `hako-session.dat`. При наличии Hako-сессии `/me` запускается асинхронно после показа сборок; отсутствие сети сохраняет кэшированный аккаунт как непроверенный.
    `PlaytimeCoordinator` сверяет ожидающий перенос с текущим XUID; `GameLaunchCoordinator.RestoreRunningGamesAsync`
    восстанавливает существующие session IDs до reconcile, чтобы живая игра не считалась потерянной. После запуска
    сервисов приложение сверяет журналы при старте и каждые 10 секунд; закрытие окна отменяет app polling, но не detached helper.
@@ -364,6 +364,8 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 ```
 
 - Windows-релизные CI-сборки x64 и ARM64 с подписью MSIX описаны в разделе CI выше.
+
+Для изолированной разработки Windows-клиента `-p:HakoDev=true` генерирует MSIX manifest под `obj/` с identity `productionName-dev` и display/window name `Hako-dev`. Dev manifest не содержит file association; `HakoPaths.CreateDevelopment` использует `%LOCALAPPDATA%\Hako-dev\{Game,Data,Cache}` и отдельный instance lock. Изолированный path отключает автообновление стабильной версии. По умолчанию dev не читает и не копирует production data; пара `--hako-root`/`--data-root` остаётся рабочим override.
 
 ### Ограничения Windows-клиента
 

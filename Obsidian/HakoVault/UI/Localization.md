@@ -93,7 +93,8 @@ Parent: [[Index]]
 | `windows/Hako.Core/AppLanguage.cs` | `AppLanguage`, `AppLanguages`, `ToTag` | Язык, разбор значения из `settings.json`, системный язык по умолчанию |
 | `windows/Hako/HakoStrings.cs` | `HakoStrings.Get`, `SetLanguage`, `LanguageChanged` | Чтение строк и смена языка |
 | `windows/Hako.Core/AuthContracts.cs` | `AuthErrorKindExtensions.ResourceKey` | Ключи ошибок входа |
-| `windows/Hako.Core/AppCoordinator.cs` | `StartupNoticeExtensions.ResourceKey`, `SetLanguageAsync` | Ключи уведомлений запуска и смена языка |
+| `windows/Hako.Core/HakoAuthContracts.cs` | `HakoAuthErrorKindExtensions.ResourceKey`, `HakoSessionStatusExtensions.ResourceKey` | Hako auth, проверки сессии и статусы профиля |
+| `windows/Hako.Core/AppCoordinator.cs` | `StartupNoticeExtensions.ResourceKey`, `SetLanguageAsync` | Ключи уведомлений запуска и смена языка, включая загрузку Hako-сессии |
 | `windows/Hako.Core/Instances/InstallationCoordinator.cs` | `InstallationResourceKeys` | Ключи состояний и стадий установки, кодов ошибок установки, `ModpackException`, `InstanceStorageError.ResourceKey()`, `MojangError.ResourceKey()` и `ErrorResourceKey(Exception)` для ошибок UI |
 | `windows/Hako/ContentResourceKeys.cs` | `ContentResourceKeys` | Ключи подтверждений, пояснений и ошибок `InstanceContentController` |
 | `windows/Hako/WorldResourceKeys.cs` | `WorldResourceKeys` | Ключи ошибок миров и метаданных, типов игры, неизвестных значений и аргументированных строк |
@@ -101,7 +102,7 @@ Parent: [[Index]]
 | `windows/Hako.Core/Playtime/PlaytimeFormatter.cs` | `PlaytimeFormatter` | Локализованное форматирование дней, часов и минут для русского и английского языков |
 | `windows/Hako/BuildsPage.xaml.cs`, `InstanceProfilePage.xaml.cs`, `SettingsPage.xaml.cs` | `RefreshStrings` | Строки учёта времени и локализованная диагностика helper/storage |
 | `windows/Hako/InstanceScreenshotsView.xaml.cs` | `InstanceScreenshotsView.RefreshStrings` | Подписи галереи скриншотов и обновление открытого раздела при смене языка |
-| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ошибок, уведомлений, контента, миров, скриншотов, архивов и строк учёта времени |
+| `windows/Hako.Tests/LocalizationResourcesTests.cs` | — | Совпадение ключей ru/en и покрытие ошибок Microsoft/Hako, уведомлений, контента, миров, скриншотов, архивов и строк учёта времени |
 
 ### Публичные контракты
 
@@ -112,14 +113,16 @@ Parent: [[Index]]
 | `AppLanguage.ToTag()` | Значение, которое пишется в `settings.json`: `ru` или `en` |
 | `HakoStrings.Get(key)` | Строка из текущего `ResourceContext` |
 | `HakoStrings.SetLanguage(language, force)` | Меняет контекст и вызывает `LanguageChanged`; без `force` при том же языке ничего не делает |
-| `AuthErrorKind.ResourceKey()` | Ключ ошибки входа; `Persistence` → `AccountSaveFailed` |
-| `StartupNotice.ResourceKey()` | `PreferencesUnavailable` → `StartupPreferencesWarning`, `AccountUnavailable` → `StartupAccountWarning` |
+| `AuthErrorKind.ResourceKey()` | Ключ ошибки входа Microsoft; `Persistence` → `AccountSaveFailed` |
+| `HakoAuthErrorKind.ResourceKey()` | Локализованные ошибки Hako: сеть, таймаут, 429, terminal status и сохранение |
+| `HakoSessionStatus.ResourceKey()` | Статусы Hako-сессии в профиле, включая непроверенную, истёкшую и проблемную при выходе |
+| `StartupNotice.ResourceKey()` | `PreferencesUnavailable` → `StartupPreferencesWarning`, `AccountUnavailable` → `StartupAccountWarning`, `HakoAccountUnavailable` → `StartupHakoAccountWarning` |
 
 ### Смена языка без перезапуска
 
 1. `AppCoordinator.SetLanguageAsync` меняет `Language` и сохраняет `settings.json`; сохранения сериализованы и пишут текущий язык, поэтому побеждает последний выбор.
 2. `MainWindow.Coordinator_PropertyChanged` при изменении `Language` вызывает `HakoStrings.SetLanguage`.
-3. `HakoStrings` поднимает `LanguageChanged`. Страницы, которые сейчас открыты (`WelcomePage`, `LoginPage`,
+3. `HakoStrings` поднимает `LanguageChanged`. Страницы, которые сейчас открыты (`WelcomePage`, `LoginPage`, `HakoLoginPage`,
    `SettingsPage`, `BuildsPage`, `InstanceCreationPage`, `ModpackCatalogPage`, `ModpackCreationPage`, `InstanceProfilePage`) подписываются на событие в `OnNavigatedTo` и перечитывают строки;
    в `OnNavigatedFrom` подписка снимается. `InstanceContentView` и `ModrinthCatalogView` подписываются при `Loaded`
    и снимаются при `Unloaded`, поэтому видимые списки, действия и ожидающие диалоги обновляют текст без перезапуска.
