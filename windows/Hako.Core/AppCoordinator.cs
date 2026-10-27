@@ -22,8 +22,9 @@ public enum LauncherScreen
 public enum SettingsSection
 {
     General,
-    Profile,
-    Game
+    Game,
+    Storage,
+    Profile
 }
 
 public enum StartupNotice

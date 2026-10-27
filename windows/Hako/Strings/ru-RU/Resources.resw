@@ -40,7 +40,29 @@
   <data name="BuildsEmptyBody" xml:space="preserve"><value>В этом этапе Hako настраивает ваш лаунчер. Управление сборками появится позже.</value></data>
   <data name="SettingsTitle" xml:space="preserve"><value>Настройки</value></data>
   <data name="GeneralSection" xml:space="preserve"><value>Основные</value></data>
+  <data name="StorageSection" xml:space="preserve"><value>Хранилище</value></data>
   <data name="ProfileTitle" xml:space="preserve"><value>Профиль</value></data>
+  <data name="DiskSpaceTitle" xml:space="preserve"><value>Место на диске</value></data>
+  <data name="StorageUsedLabel" xml:space="preserve"><value>Занято</value></data>
+  <data name="StorageFreeLabel" xml:space="preserve"><value>Свободно</value></data>
+  <data name="StorageTotalLabel" xml:space="preserve"><value>Всего</value></data>
+  <data name="StorageMinecraftBuilds" xml:space="preserve"><value>Сборки Minecraft</value></data>
+  <data name="StorageOccupyLabel" xml:space="preserve"><value>Занимают на диске</value></data>
+  <data name="StorageBuildsShareFormat" xml:space="preserve"><value>{0} · {1}% диска</value></data>
+  <data name="StorageCategoryWorlds" xml:space="preserve"><value>Миры</value></data>
+  <data name="StorageCategoryMinecraft" xml:space="preserve"><value>Файлы Minecraft</value></data>
+  <data name="StorageCategoryScreenshots" xml:space="preserve"><value>Скриншоты</value></data>
+  <data name="StorageCategoryJava" xml:space="preserve"><value>Java</value></data>
+  <data name="StorageCategoryMods" xml:space="preserve"><value>Моды</value></data>
+  <data name="StorageCategoryDatapacks" xml:space="preserve"><value>Датапаки</value></data>
+  <data name="StorageCategoryResourcePacks" xml:space="preserve"><value>Ресурспаки</value></data>
+  <data name="StorageCategoryBuildBackups" xml:space="preserve"><value>Резервные копии сборок</value></data>
+  <data name="StorageCategoryWorldBackups" xml:space="preserve"><value>Резервные копии миров</value></data>
+  <data name="StorageDiskFallbackName" xml:space="preserve"><value>Диск с данными Hako</value></data>
+  <data name="StorageLoadError" xml:space="preserve"><value>Не удалось получить данные</value></data>
+  <data name="StorageLoading" xml:space="preserve"><value>Получаем информацию о диске…</value></data>
+  <data name="StorageSizeError" xml:space="preserve"><value>Не удалось получить размер сборок.</value></data>
+  <data name="StorageBuildsFooterFormat" xml:space="preserve"><value>{0} сборок · {1}</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Язык интерфейса</value></data>
   <data name="GuestProfileTitle" xml:space="preserve"><value>Вы продолжили без аккаунта</value></data>
   <data name="GuestProfileDetails" xml:space="preserve"><value>Войдите в Microsoft, чтобы сохранить аккаунт в Hako.</value></data>

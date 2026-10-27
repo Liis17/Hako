@@ -39,6 +39,103 @@ public sealed class InstanceStorage(HakoPaths paths)
 
     public string Root { get; } = Path.GetFullPath(paths.GameRoot);
 
+    /// <summary>Counts logical file lengths instead of allocated file size.</summary>
+    public InstanceStorageUsage Usage() => Usage(CancellationToken.None);
+
+    public InstanceStorageUsage Usage(CancellationToken cancellationToken)
+    {
+        var result = new InstanceStorageUsage();
+        var walkRoot = Root;
+        try
+        {
+            walkRoot = System.IO.Directory.ResolveLinkTarget(Root, returnFinalTarget: true)?.FullName ?? Root;
+        }
+        catch (Exception)
+        {
+            // A non-link or unresolved junction uses the configured Hako path.
+        }
+
+        if (!TryGetAttributes(walkRoot, out var rootAttributes)) return result;
+        if ((rootAttributes & FileAttributes.Directory) == 0)
+        {
+            throw new IOException("The Hako game root is not a directory.");
+        }
+
+        var directories = new Stack<string>();
+        directories.Push(walkRoot);
+        while (directories.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var directory = directories.Pop();
+            foreach (var entry in System.IO.Directory.EnumerateFileSystemEntries(directory))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!TryGetAttributes(entry, out var attributes) || (attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    continue;
+                }
+
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    directories.Push(entry);
+                    continue;
+                }
+
+                var relativePath = Path.GetRelativePath(walkRoot, entry);
+                var segments = relativePath.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                    StringSplitOptions.RemoveEmptyEntries);
+                result.Add(InstanceStorageUsage.Classify(segments), new FileInfo(entry).Length);
+            }
+        }
+
+        return result;
+    }
+
+    public DiskSpaceInfo GetDiskSpaceInfo()
+    {
+        var volumePath = Root;
+        try
+        {
+            volumePath = System.IO.Directory.ResolveLinkTarget(Root, returnFinalTarget: true)?.FullName ?? Root;
+        }
+        catch (Exception)
+        {
+            // A non-link or unresolved junction uses the configured Hako path.
+        }
+
+        var driveRoot = Path.GetPathRoot(volumePath);
+        if (string.IsNullOrWhiteSpace(driveRoot) || driveRoot.StartsWith("\\\\", StringComparison.Ordinal))
+        {
+            throw new IOException("The Hako game root is not on a supported local drive.");
+        }
+
+        var drive = new DriveInfo(driveRoot);
+        if (!drive.IsReady)
+        {
+            throw new IOException("The drive containing the Hako game root is unavailable.");
+        }
+
+        var total = drive.TotalSize;
+        if (total <= 0) throw new IOException("The drive size is unavailable.");
+        var available = drive.AvailableFreeSpace;
+        if (available < 0) throw new IOException("The free space on the drive is unavailable.");
+        var free = Math.Min(available, total);
+        string? label;
+        try
+        {
+            label = drive.VolumeLabel;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            label = null;
+        }
+
+        var volumeName = string.IsNullOrWhiteSpace(label)
+            ? null
+            : $"{label} ({drive.Name.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)})";
+        return new DiskSpaceInfo(volumeName, total, free);
+    }
+
     public string Directory(string folderName)
     {
         if (!IsSinglePathSegment(folderName))
