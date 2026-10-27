@@ -20,8 +20,8 @@ cp .env.example .env
 # Edit .env and set a real Telegram bot token and matching service secrets.
 docker compose up -d
 docker compose ps
-curl http://127.0.0.1:8081/healthz
-curl http://127.0.0.1:8082/healthz
+docker compose exec auth curl -fsS http://127.0.0.1:8081/healthz
+docker compose exec pack curl -fsS http://127.0.0.1:8082/healthz
 ```
 
 On PowerShell, use `Copy-Item .env.example .env`.
@@ -36,7 +36,7 @@ docker compose up -d
 
 To build the images locally instead, for example for development without registry access, run `docker compose up -d --build`; Compose tags the built images with the configured image names. Override the image reference through `HAKO_AUTH_IMAGE` or `HAKO_PACK_IMAGE`, for example to pin a published `sha-<commit>` tag.
 
-Compose publishes only Auth `8081` and Pack `8082`, each bound to `127.0.0.1`. Auth's `8091` listener is internal to the Compose network and is never published. PostgreSQL has no host port. Its data persists in the `pgdata` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The database roles and databases from `server/init-db.sh` are created only when PostgreSQL initializes an empty data directory.
+No service port is published to the host: Auth `8081`, Auth's internal `8091`, Pack `8082`, and PostgreSQL are reachable only inside the Compose network, which is explicitly named `hako` so that an external reverse-proxy container can join it. PostgreSQL data persists in the `pgdata` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The database roles and databases from `server/init-db.sh` are created only when PostgreSQL initializes an empty data directory.
 
 Pack can start without S3 configuration and still reports healthy; archive create, replacement, and download requests then return `503 storage_unavailable`. Metadata and delete operations use PostgreSQL; deletions queue object cleanup, which retries while S3 is unavailable. If any required S3 setting is provided, all five required settings must be present or Pack exits on startup. A missing or invalid Telegram token does not prevent Auth health checks, but registration returns `503 bot_unavailable` until `getMe` supplies the bot username.
 
@@ -96,60 +96,70 @@ Auth calls `getMe` to discover the bot username automatically. No `HAKO_TELEGRAM
 
 ## Public HTTPS
 
-Run a reverse proxy on the Docker host. Terminate TLS there and proxy the two public services to `127.0.0.1:8081` (Auth) and `127.0.0.1:8082` (Pack). These ports are loopback-only. Do not publish Auth's internal `8091` listener or PostgreSQL.
+No service port is published to the host. Run the reverse proxy as a container, attach it to the Compose network, and forward to the services by name; Auth's internal `8091` listener and PostgreSQL stay private to the network:
 
-Example Caddyfile (replace the hostnames with names whose DNS points to this host; see the [Caddy `reverse_proxy` reference](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)):
-
-```caddyfile
-auth.example.com {
-	reverse_proxy 127.0.0.1:8081 {
-		header_up X-Forwarded-For {remote_host}
-	}
-}
-
-packs.example.com {
-	reverse_proxy 127.0.0.1:8082 {
-		header_up X-Forwarded-For {remote_host}
-	}
-}
+```sh
+docker network connect hako <proxy-container>
 ```
 
-Example nginx server blocks (configure certificate paths for the host; see the [nginx proxy module reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)):
+Both public services can share one domain: route `/v1/packs` to Pack and everything else — the Auth API `/v1/auth/...` and `/healthz` — to Auth. The proxy must resolve `auth` and `pack` through Docker DNS at request time (nginx: `resolver 127.0.0.11` with a variable `proxy_pass`), because Compose assigns new container addresses whenever it recreates services.
+
+Example nginx server block for `hako.example.com` behind Cloudflare (TLS terminates at Cloudflare, the origin certificate is a Cloudflare Origin CA certificate, and the Cloudflare SSL mode must be Full (strict); see the [nginx proxy module reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)):
 
 ```nginx
 server {
-    listen 443 ssl;
-    server_name auth.example.com;
-    ssl_certificate /etc/letsencrypt/live/auth.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/auth.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+    listen 80;
+    server_name hako.example.com;
+    return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl;
-    server_name packs.example.com;
-    client_max_body_size 1g;
-    ssl_certificate /etc/letsencrypt/live/packs.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/packs.example.com/privkey.pem;
+    listen 443 ssl http2;
+    server_name hako.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/hako.example.com.pem;
+    ssl_certificate_key /etc/nginx/ssl/hako.example.com.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    location /v1/packs {
+        set $pack_upstream http://pack:8082;
+        proxy_pass $pack_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
+        proxy_set_header X-Forwarded-Proto https;
+        client_max_body_size 1g;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location = /healthz/pack {
+        set $pack_health_upstream http://pack:8082/healthz;
+        proxy_pass $pack_health_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
+        proxy_set_header X-Forwarded-Proto https;
+    }
 
     location / {
-        proxy_pass http://127.0.0.1:8082;
+        set $auth_upstream http://auth:8081;
+        proxy_pass $auth_upstream;
+        proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
+        proxy_set_header X-Forwarded-Proto https;
     }
 }
 ```
 
-Set `HAKO_AUTH_TRUSTED_PROXIES` to the proxy address as Auth sees it, written as a CIDR (`/32` for one IPv4 address or `/128` for one IPv6 address). When the proxy runs on the Docker host, the peer address observed by the container can be the Docker bridge gateway; confirm the actual address for this deployment before setting the CIDR. Leave the value empty if Auth should ignore forwarded client addresses.
+Set `HAKO_AUTH_TRUSTED_PROXIES` to the proxy's source range as Auth sees it, written as a CIDR. Find the network subnet with `docker network inspect hako` and use it, for example `HAKO_AUTH_TRUSTED_PROXIES=172.18.0.0/16`; an untrusted or absent `X-Forwarded-For` is ignored and Auth falls back to the proxy address. Behind Cloudflare, forward `CF-Connecting-IP` in `X-Forwarded-For` as in the example; to also reject direct connections that bypass Cloudflare, allow only the [published Cloudflare ranges](https://www.cloudflare.com/ips/) and deny everything else.
 
-For example, if Auth observes the proxy at `172.20.0.1`, set `HAKO_AUTH_TRUSTED_PROXIES=172.20.0.1/32` in `.env`. Replace this illustrative value with the actual address or subnet observed by the Auth container. The proxy examples overwrite `X-Forwarded-For` with the connecting client address; if another proxy or CDN sits in front, configure that trust chain deliberately before forwarding headers.
+Cloudflare limits proxied request bodies (100 MB on the Free and Pro plans), so larger archive uploads fail at the Cloudflare edge before reaching Pack; downloads are not limited.
 
 ## Local development and tests
 

@@ -6,9 +6,9 @@ The root `compose.yaml` runs `hako-auth`, `hako-pack`, and PostgreSQL. `server/D
 
 ## Network and environment
 
-- Compose publishes only Auth `8081` and Pack `8082`, bound to host loopback. Auth's internal `8091` and PostgreSQL have no published host ports.
+- No service port is published to the host: Auth `8081`, internal `8091`, Pack `8082`, and PostgreSQL are reachable only inside the Compose network, explicitly named `hako` so that an external reverse-proxy container can join it with `docker network connect`.
 - Root `.env.example` documents Compose and service variables. Deployment starts by copying it to `.env`, replacing every placeholder, then on the host `docker login docker.barkfluff.com`, `docker compose pull`, `docker compose up -d`; local development builds instead via `docker compose up -d --build`. `HAKO_AUTH_IMAGE` and `HAKO_PACK_IMAGE` override the image references, for example to pin a `sha-<commit>` tag. The two service secrets must match. Empty S3 values disable storage; a partial required S3 group is invalid.
-- For public HTTPS, an external reverse proxy on the Docker host terminates TLS and forwards to `127.0.0.1:8081` or `127.0.0.1:8082`. `HAKO_AUTH_TRUSTED_PROXIES` must contain the proxy's source address as seen by the Auth container, expressed as CIDR. Untrusted `X-Forwarded-For` is ignored.
+- For public HTTPS, a reverse-proxy container attached to the `hako` network terminates TLS and routes one domain by path: `/v1/packs` to Pack `8082`, everything else (Auth `/v1/auth/...` and `/healthz`) to Auth `8081`; the proxy resolves service names through Docker DNS at request time (nginx `resolver 127.0.0.11` plus variable `proxy_pass`). `HAKO_AUTH_TRUSTED_PROXIES` must contain the proxy's source range as seen by Auth — the network subnet CIDR from `docker network inspect hako`. Untrusted `X-Forwarded-For` is ignored. Behind Cloudflare, `X-Forwarded-For` carries `CF-Connecting-IP`, and Cloudflare's proxied request-body limit (100 MB on Free/Pro plans) caps pack uploads.
 - A valid Telegram token is needed for registration: Auth discovers the username with `getMe`. Invalid tokens do not prevent HTTP health checks but registration returns `503` until the bot is ready.
 
 Operational examples and the complete variable table live in [`server/README.md`](../../../server/README.md).
