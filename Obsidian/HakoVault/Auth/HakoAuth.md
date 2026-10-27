@@ -15,6 +15,8 @@ The Windows launcher has an independent Hako account provider authenticated thro
 3. Approval calls `POST /v1/auth/exchange` once. Exchange secret is held in memory and sent as the Bearer credential. Session token and exchange secret are omitted from record diagnostics.
 4. The resulting session is committed to `hako-session.dat` only if the attempt generation is still current. If cancellation makes a returned token stale, or local persistence fails, the client attempts to revoke that token with a five-second bound.
 
+`HakoAccountCoordinator.PropertyChanged` identifies the public state properties. `AppCoordinator` forwards these notifications to the WinUI login and profile pages so request progress, Telegram links, errors, and session verification are displayed as they change.
+
 Exchange is one-use. If its response is lost after the server consumed the request, the UI requires a fresh login even when registration initiated the attempt; it never retries the old exchange or registration indefinitely. The user is told the prior server session may remain active in Telegram. Registration provides no username before successful exchange, so the fresh-login form asks for the existing Telegram username.
 
 Terminal statuses and HTTP failures map through `HakoAuthErrorKind.ResourceKey()` to Russian/English resources. `429`, timeouts, invalid/non-JSON Cloudflare responses, redirects, and `5xx` are classified without showing response bodies or server diagnostics.

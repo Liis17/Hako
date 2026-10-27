@@ -10,6 +10,69 @@ namespace Hako.Tests;
 public sealed class HakoAccountCoordinatorTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task SignInPageReceivesPendingAndFailureNotifications(bool registration)
+    {
+        var time = new ManualTimeProvider();
+        var auth = new FakeHakoAuth(time) { Status = HakoRequestStatus.Denied };
+        using var hako = new HakoAccountCoordinator(auth, new MemoryHakoSessionStore(), time);
+        var coordinator = new AppCoordinator(new MemorySettingsStore(), new MemoryAccountStore(),
+            new SequenceAuthService(), hakoAccount: hako);
+        await coordinator.InitializeAsync();
+        coordinator.OpenHakoSignIn();
+        var phases = new List<HakoAttemptPhase>();
+        var properties = new List<string>();
+        coordinator.PropertyChanged += (_, e) =>
+        {
+            properties.Add(e.PropertyName!);
+            if (e.PropertyName == nameof(AppCoordinator.HakoAttemptPhase))
+                phases.Add(coordinator.HakoAttemptPhase);
+        };
+
+        var attempt = registration
+            ? coordinator.BeginHakoRegistration()
+            : coordinator.BeginHakoSignIn("Player_123");
+        time.Advance(TimeSpan.FromSeconds(2));
+        await attempt;
+
+        CollectionAssert.AreEqual(new[] { HakoAttemptPhase.Requesting, HakoAttemptPhase.Pending,
+            HakoAttemptPhase.Failed }, phases);
+        CollectionAssert.Contains(properties, nameof(AppCoordinator.HakoAttemptError));
+        CollectionAssert.Contains(properties, nameof(AppCoordinator.HakoPendingExpiresAt));
+        if (registration)
+            CollectionAssert.Contains(properties, nameof(AppCoordinator.HakoBotLink));
+        Assert.AreEqual(HakoAuthErrorKind.AuthorizationDenied, coordinator.HakoAttemptError);
+    }
+
+    [TestMethod]
+    public async Task CachedAccountVerificationNotifiesProfileStatusAndError()
+    {
+        var time = new ManualTimeProvider();
+        var auth = new FakeHakoAuth(time)
+        {
+            Me = (_, _) => Task.FromException<HakoMeResult>(new HakoAuthException(HakoAuthErrorKind.Network))
+        };
+        using var coordinator = new HakoAccountCoordinator(auth,
+            new MemoryHakoSessionStore(CreateSession(time.GetUtcNow())), time);
+        await coordinator.InitializeAsync();
+        var statuses = new List<HakoSessionStatus>();
+        var properties = new List<string>();
+        coordinator.PropertyChanged += (_, e) =>
+        {
+            properties.Add(e.PropertyName!);
+            if (e.PropertyName == nameof(HakoAccountCoordinator.SessionStatus))
+                statuses.Add(coordinator.SessionStatus);
+        };
+
+        await coordinator.VerifyOnStartupAsync();
+
+        CollectionAssert.AreEqual(new[] { HakoSessionStatus.Verifying, HakoSessionStatus.Unverified }, statuses);
+        CollectionAssert.Contains(properties, nameof(HakoAccountCoordinator.VerificationError));
+        Assert.AreEqual(HakoAuthErrorKind.Network, coordinator.VerificationError);
+    }
+
+    [TestMethod]
     public async Task ApprovalIsPolledEveryTwoSecondsThenStoredAsAnIndependentSession()
     {
         var time = new ManualTimeProvider();

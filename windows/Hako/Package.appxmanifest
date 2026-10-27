@@ -11,7 +11,7 @@
   <Identity
     Name="759bfb6e-0f86-4cd4-a5a8-3209347ae31f"
     Publisher="CN=daske"
-    Version="1.4.1.0" />
+    Version="1.4.2.0" />
 
   <mp:PhoneIdentity PhoneProductId="759bfb6e-0f86-4cd4-a5a8-3209347ae31f" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
