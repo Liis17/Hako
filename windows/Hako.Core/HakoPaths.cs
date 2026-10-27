@@ -35,6 +35,17 @@ public sealed class HakoPaths
     public static HakoPaths CreateIsolated(string gameRoot, string dataRoot) =>
         new(gameRoot, dataRoot, Path.Combine(Normalize(dataRoot, nameof(dataRoot)), "Cache"), isolated: true);
 
+    public static HakoPaths CreateDevelopment(string localAppDataRoot)
+    {
+        var localRoot = Normalize(localAppDataRoot, nameof(localAppDataRoot));
+        var root = Path.Combine(localRoot, "Hako-dev");
+        return new HakoPaths(
+            Path.Combine(root, "Game"),
+            Path.Combine(root, "Data"),
+            Path.Combine(root, "Cache"),
+            isolated: true);
+    }
+
     public static HakoPaths CreatePreview(string temporaryRoot)
     {
         var root = Normalize(temporaryRoot, nameof(temporaryRoot));
