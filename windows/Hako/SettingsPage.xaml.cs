@@ -1,13 +1,20 @@
 using Hako.Core;
+using Hako.Core.Instances;
 using Hako.Core.Minecraft;
 using Hako.Core.Playtime;
 using Hako.Core.Updates;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading;
+using Windows.UI;
 
 namespace Hako;
 
@@ -17,7 +24,8 @@ internal sealed record SettingsPageContext(
     ProfilePreviewOptions? PreviewOptions,
     UserSettingsService Settings,
     PlaytimeCoordinator Playtime,
-    WindowsAppUpdateService Updates);
+    WindowsAppUpdateService Updates,
+    InstanceStore Store);
 
 public sealed partial class SettingsPage : Page, INavigationGuard
 {
@@ -37,6 +45,15 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     private bool? _isWideProfileLayout;
     private UserSettingsService? _settings;
     private PlaytimeCoordinator? _playtime;
+    private InstanceStore? _store;
+    private InstanceStorageUsage? _storageUsage;
+    private DiskSpaceInfo? _diskSpaceInfo;
+    private CancellationTokenSource? _storageCancellation;
+    private long _storageLoadGeneration;
+    private bool _diskLoading;
+    private bool _diskFailed;
+    private bool _storageUsageLoading;
+    private bool _storageUsageFailed;
     private DispatcherQueueTimer? _gameSaveTimer;
     private bool _loadingGame;
     private bool _pickingJava;
@@ -68,6 +85,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         _appUpdateRefresh.Interval = TimeSpan.FromSeconds(2);
         _appUpdateRefresh.Tick += (_, _) => { if (_updates?.Coordinator.Phase == AppUpdatePhase.Ready) _ = RefreshAppUpdatesAsync(); };
         _appUpdateRefresh.Start();
+        _store = context.Store;
         _playtime.PropertyChanged += Playtime_PropertyChanged;
         LoadGameSettings();
         _profileRequestScope = Guid.NewGuid();
@@ -75,6 +93,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         SubscribeLanguageChanges();
         RefreshStrings();
         SelectSection(_coordinator.SelectedSettingsSection);
+        if (_selectedSection == SettingsSection.Storage && _storageCancellation is null) StartStorageLoad();
         RefreshProfile();
         if (_previewOptions?.Page == PreviewPage.CharacterEditor)
             DispatcherQueue.TryEnqueue(() => EditCharacter_Click(this, new RoutedEventArgs()));
@@ -82,6 +101,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
+        CancelStorageLoad();
         UnsubscribeLanguageChanges();
         CharacterEditor.Close();
         if (_skinPreviewService is not null) _skinPreviewService.AppearanceChanged -= SkinAppearanceChanged;
@@ -99,6 +119,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         _coordinator = null;
         _skinPreviewService = null;
         _playtime = null;
+        _store = null;
         base.OnNavigatedFrom(e);
     }
 
@@ -129,9 +150,11 @@ public sealed partial class SettingsPage : Page, INavigationGuard
             SubscribeLanguageChanges();
             RefreshStrings();
             RefreshProfile();
+            if (_selectedSection == SettingsSection.Storage) StartStorageLoad();
         }
         else
         {
+            CancelStorageLoad();
             UnsubscribeLanguageChanges();
         }
 
@@ -142,6 +165,8 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     {
         if (_editingCharacter) CloseCharacterEditor();
         var enteringProfile = section == SettingsSection.Profile && _selectedSection != SettingsSection.Profile;
+        var sectionChanged = _selectedSection != section;
+        if (sectionChanged && _selectedSection == SettingsSection.Storage) CancelStorageLoad();
         _selectedSection = section;
         if (enteringProfile)
         {
@@ -149,11 +174,19 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         }
 
         _updatingSelection = true;
-        SettingsSections.SelectedIndex = section switch { SettingsSection.Game => 1, SettingsSection.Profile => 2, _ => 0 };
+        SettingsSections.SelectedIndex = section switch
+        {
+            SettingsSection.Game => 1,
+            SettingsSection.Storage => 2,
+            SettingsSection.Profile => 3,
+            _ => 0
+        };
         _updatingSelection = false;
         GeneralPanel.Visibility = section == SettingsSection.General ? Visibility.Visible : Visibility.Collapsed;
         ProfilePanel.Visibility = section == SettingsSection.Profile ? Visibility.Visible : Visibility.Collapsed;
         GamePanel.Visibility = section == SettingsSection.Game ? Visibility.Visible : Visibility.Collapsed;
+        StoragePanel.Visibility = section == SettingsSection.Storage ? Visibility.Visible : Visibility.Collapsed;
+        if (sectionChanged && section == SettingsSection.Storage) StartStorageLoad();
         UpdateSkinVisibility();
     }
 
@@ -344,11 +377,13 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         SettingsTitle.Text = HakoStrings.Get("SettingsTitle");
         GeneralSectionLabel.Text = HakoStrings.Get("GeneralSection");
         ProfileSectionLabel.Text = HakoStrings.Get("ProfileTitle");
+        StorageSectionLabel.Text = HakoStrings.Get("StorageSection");
         GeneralTitle.Text = HakoStrings.Get("GeneralSection");
         ProfileTitle.Text = HakoStrings.Get("ProfileTitle");
         LanguageLabel.Text = HakoStrings.Get("LanguageLabel");
         RefreshGameStrings();
         _ = RefreshAppUpdatesAsync();
+        RefreshStorageStrings();
         _updatingLanguage = true;
         LanguageBox.SelectedIndex = _coordinator?.Language == AppLanguage.Russian ? 0 : 1;
         _updatingLanguage = false;
@@ -375,7 +410,13 @@ public sealed partial class SettingsPage : Page, INavigationGuard
             return;
         }
 
-        var section = item.Tag switch { "Profile" => SettingsSection.Profile, "Game" => SettingsSection.Game, _ => SettingsSection.General };
+        var section = item.Tag switch
+        {
+            "Profile" => SettingsSection.Profile,
+            "Game" => SettingsSection.Game,
+            "Storage" => SettingsSection.Storage,
+            _ => SettingsSection.General
+        };
         _coordinator.OpenSettings(section);
         SelectSection(section);
     }
@@ -563,6 +604,271 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         GameSaveError.Text = HakoStrings.Get("GameSettingsSaveError");
         GlobalMemorySlider.RefreshStrings();
     }
+
+    private void RefreshStorageStrings()
+    {
+        DiskSpaceTitle.Text = HakoStrings.Get("DiskSpaceTitle");
+        StorageUsedLabel.Text = HakoStrings.Get("StorageUsedLabel");
+        StorageFreeLabel.Text = HakoStrings.Get("StorageFreeLabel");
+        StorageTotalLabel.Text = HakoStrings.Get("StorageTotalLabel");
+        DiskBuildsLabel.Text = HakoStrings.Get("StorageMinecraftBuilds");
+        StorageUsageTitle.Text = HakoStrings.Get("StorageMinecraftBuilds");
+        StorageOccupyLabel.Text = HakoStrings.Get("StorageOccupyLabel");
+        DiskLoadingText.Text = HakoStrings.Get("StorageLoading");
+        StorageUsageLoadingText.Text = HakoStrings.Get("StorageLoading");
+        DiskErrorText.Text = HakoStrings.Get("StorageLoadError");
+        StorageSizeErrorText.Text = HakoStrings.Get("StorageSizeError");
+        StorageCategoryWorlds.Text = HakoStrings.Get("StorageCategoryWorlds");
+        StorageCategoryMinecraft.Text = HakoStrings.Get("StorageCategoryMinecraft");
+        StorageCategoryScreenshots.Text = HakoStrings.Get("StorageCategoryScreenshots");
+        StorageCategoryJava.Text = HakoStrings.Get("StorageCategoryJava");
+        StorageCategoryMods.Text = HakoStrings.Get("StorageCategoryMods");
+        StorageCategoryDatapacks.Text = HakoStrings.Get("StorageCategoryDatapacks");
+        StorageCategoryResourcePacks.Text = HakoStrings.Get("StorageCategoryResourcePacks");
+        StorageCategoryBuildBackups.Text = HakoStrings.Get("StorageCategoryBuildBackups");
+        StorageCategoryWorldBackups.Text = HakoStrings.Get("StorageCategoryWorldBackups");
+
+        RefreshStorageUsageDisplay();
+    }
+
+    private void StartStorageLoad()
+    {
+        if (_selectedSection != SettingsSection.Storage || !_screenVisible || _store is not { } store) return;
+
+        CancelStorageLoad();
+        var cancellation = new CancellationTokenSource();
+        var generation = _storageLoadGeneration;
+        var cancellationToken = cancellation.Token;
+        _storageCancellation = cancellation;
+        _diskSpaceInfo = null;
+        _storageUsage = null;
+        _diskLoading = true;
+        _diskFailed = false;
+        _storageUsageLoading = true;
+        _storageUsageFailed = false;
+        RefreshDiskStorageDisplay();
+        RefreshStorageUsageDisplay();
+
+        var diskTask = LoadDiskSpaceAsync(store, generation, cancellationToken);
+        var usageTask = LoadStorageUsageAsync(store, generation, cancellationToken);
+        _ = FinishStorageLoadAsync(cancellation, diskTask, usageTask);
+    }
+
+    private void CancelStorageLoad()
+    {
+        _storageLoadGeneration++;
+        var cancellation = _storageCancellation;
+        _storageCancellation = null;
+        cancellation?.Cancel();
+    }
+
+    private async Task LoadDiskSpaceAsync(InstanceStore store, long generation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var space = await Task.Run(store.GetDiskSpaceInfo, cancellationToken);
+            if (!IsCurrentStorageLoad(store, generation, cancellationToken)) return;
+            _diskSpaceInfo = space;
+            _diskLoading = false;
+            _diskFailed = false;
+            RefreshDiskStorageDisplay();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            if (!IsCurrentStorageLoad(store, generation, cancellationToken)) return;
+            _diskSpaceInfo = null;
+            _diskLoading = false;
+            _diskFailed = true;
+            RefreshDiskStorageDisplay();
+        }
+    }
+
+    private async Task LoadStorageUsageAsync(InstanceStore store, long generation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var usage = await Task.Run(() => store.GetStorageUsage(cancellationToken), cancellationToken);
+            if (!IsCurrentStorageLoad(store, generation, cancellationToken)) return;
+            _storageUsage = usage;
+            _storageUsageLoading = false;
+            _storageUsageFailed = false;
+            RefreshStorageUsageDisplay();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            if (!IsCurrentStorageLoad(store, generation, cancellationToken)) return;
+            _storageUsage = null;
+            _storageUsageLoading = false;
+            _storageUsageFailed = true;
+            RefreshStorageUsageDisplay();
+        }
+    }
+
+    private async Task FinishStorageLoadAsync(CancellationTokenSource cancellation, Task diskTask, Task usageTask)
+    {
+        try
+        {
+            await Task.WhenAll(diskTask, usageTask);
+        }
+        catch (Exception)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(_storageCancellation, cancellation)) _storageCancellation = null;
+            cancellation.Dispose();
+        }
+    }
+
+    private bool IsCurrentStorageLoad(InstanceStore store, long generation, CancellationToken cancellationToken) =>
+        generation == _storageLoadGeneration
+        && !cancellationToken.IsCancellationRequested
+        && _screenVisible
+        && _selectedSection == SettingsSection.Storage
+        && ReferenceEquals(_store, store);
+
+    private void RefreshDiskStorageDisplay()
+    {
+        DiskLoadingRing.IsActive = _diskLoading;
+        DiskLoadingPanel.Visibility = _diskLoading ? Visibility.Visible : Visibility.Collapsed;
+        DiskErrorText.Visibility = _diskFailed ? Visibility.Visible : Visibility.Collapsed;
+        DiskDataPanel.Visibility = _diskSpaceInfo is not null ? Visibility.Visible : Visibility.Collapsed;
+        var space = _diskSpaceInfo;
+        if (space is null) return;
+
+        var total = Math.Max(0, space.Total);
+        var free = total == 0 ? 0 : Math.Clamp(space.Free, 0, total);
+        var used = total - free;
+        DiskVolumeName.Text = string.IsNullOrWhiteSpace(space.VolumeName)
+            ? HakoStrings.Get("StorageDiskFallbackName")
+            : space.VolumeName;
+        DiskUsedValue.Text = FormatStorageSize(used);
+        DiskFreeValue.Text = FormatStorageSize(free);
+        DiskTotalValue.Text = FormatStorageSize(total);
+
+        var hasUsage = _storageUsage is not null && !_storageUsageFailed;
+        DiskBuildsLabel.Visibility = hasUsage ? Visibility.Visible : Visibility.Collapsed;
+        DiskBuildsShare.Visibility = hasUsage ? Visibility.Visible : Visibility.Collapsed;
+        if (hasUsage)
+        {
+            var instanceBytes = Math.Min(_storageUsage!.Total, used);
+            var share = total == 0 ? 0 : (double)_storageUsage.Total * 100 / total;
+            DiskBuildsShare.Text = WorldResourceKeys.FormatMessage("StorageBuildsShareFormat", HakoStrings.Get,
+                FormatStorageSize(_storageUsage.Total), FormatPercentNumber(share));
+            SetStorageBar(DiskSpaceSegments,
+            [
+                (instanceBytes, (uint?)0xE0607E),
+                (used - instanceBytes, (uint?)0x9A9A9A),
+                (free, null)
+            ], total);
+        }
+        else
+        {
+            SetStorageBar(DiskSpaceSegments,
+            [
+                (used, (uint?)0x9A9A9A),
+                (free, null)
+            ], total);
+        }
+    }
+
+    private void RefreshStorageUsageDisplay()
+    {
+        StorageUsageLoadingRing.IsActive = _storageUsageLoading;
+        StorageUsageLoadingPanel.Visibility = _storageUsageLoading ? Visibility.Visible : Visibility.Collapsed;
+        StorageSizeErrorText.Visibility = _storageUsageFailed ? Visibility.Visible : Visibility.Collapsed;
+        StorageUsageContent.Visibility = _storageUsage is not null ? Visibility.Visible : Visibility.Collapsed;
+        StorageTotalUsage.Text = _storageUsage is null ? "—" : FormatStorageSize(_storageUsage.Total);
+        StorageBuildsFooter.Text = _store is { } store
+            ? WorldResourceKeys.FormatMessage("StorageBuildsFooterFormat", HakoStrings.Get,
+                store.Instances.Count.ToString(CultureInfo.CurrentCulture), store.GameRoot)
+            : string.Empty;
+
+        if (_storageUsage is { } usage)
+        {
+            var rows = new (InstanceStorageUsageCategory Category, TextBlock Percent, TextBlock Size)[]
+            {
+                (InstanceStorageUsageCategory.Worlds, StorageWorldsPercent, StorageWorldsSize),
+                (InstanceStorageUsageCategory.Minecraft, StorageMinecraftPercent, StorageMinecraftSize),
+                (InstanceStorageUsageCategory.Screenshots, StorageScreenshotsPercent, StorageScreenshotsSize),
+                (InstanceStorageUsageCategory.Java, StorageJavaPercent, StorageJavaSize),
+                (InstanceStorageUsageCategory.Mods, StorageModsPercent, StorageModsSize),
+                (InstanceStorageUsageCategory.Datapacks, StorageDatapacksPercent, StorageDatapacksSize),
+                (InstanceStorageUsageCategory.ResourcePacks, StorageResourcePacksPercent, StorageResourcePacksSize),
+                (InstanceStorageUsageCategory.BuildBackups, StorageBuildBackupsPercent, StorageBuildBackupsSize),
+                (InstanceStorageUsageCategory.WorldBackups, StorageWorldBackupsPercent, StorageWorldBackupsSize)
+            };
+            foreach (var row in rows)
+            {
+                var bytes = usage[row.Category];
+                var fraction = usage.Total == 0 ? 0 : (double)bytes / usage.Total * 100;
+                row.Percent.Text = FormatPercent(fraction);
+                row.Size.Text = FormatStorageSize(bytes);
+            }
+
+            SetStorageBar(StorageCategoryBar, StorageCategories.Select(category =>
+                (usage[category.Category], (uint?)category.Color)).ToArray(), usage.Total);
+        }
+
+        RefreshDiskStorageDisplay();
+    }
+
+    private static readonly (InstanceStorageUsageCategory Category, uint Color)[] StorageCategories =
+    [
+        (InstanceStorageUsageCategory.Worlds, 0xE0607E),
+        (InstanceStorageUsageCategory.Minecraft, 0x7C8DB5),
+        (InstanceStorageUsageCategory.Screenshots, 0xF2884B),
+        (InstanceStorageUsageCategory.Java, 0xE5B93C),
+        (InstanceStorageUsageCategory.Mods, 0x4FA37A),
+        (InstanceStorageUsageCategory.Datapacks, 0x3FA7B8),
+        (InstanceStorageUsageCategory.ResourcePacks, 0x8E6BBF),
+        (InstanceStorageUsageCategory.BuildBackups, 0x9A9A9A),
+        (InstanceStorageUsageCategory.WorldBackups, 0x6E6E6E)
+    ];
+
+    private static void SetStorageBar(Grid bar, IReadOnlyList<(long Bytes, uint? Color)> segments, long total)
+    {
+        bar.Children.Clear();
+        bar.ColumnDefinitions.Clear();
+        if (total <= 0) return;
+
+        var visibleSegments = segments.Where(segment => segment.Bytes > 0).ToArray();
+        for (var index = 0; index < visibleSegments.Length; index++)
+        {
+            var segment = visibleSegments[index];
+            bar.ColumnDefinitions.Add(new ColumnDefinition
+            {
+                Width = new GridLength((double)segment.Bytes / total, GridUnitType.Star)
+            });
+            var cornerRadius = visibleSegments.Length == 1
+                ? new CornerRadius(6)
+                : index == 0
+                    ? new CornerRadius(6, 0, 0, 6)
+                    : index == visibleSegments.Length - 1
+                        ? new CornerRadius(0, 6, 6, 0)
+                        : new CornerRadius(0);
+            var border = new Border
+            {
+                Background = segment.Color is { } color ? CreateStorageBrush(color) : null,
+                CornerRadius = cornerRadius
+            };
+            Grid.SetColumn(border, index);
+            bar.Children.Add(border);
+        }
+    }
+
+    private static SolidColorBrush CreateStorageBrush(uint color) => new(Color.FromArgb(255,
+        (byte)(color >> 16), (byte)(color >> 8), (byte)color));
+
+    private static string FormatStorageSize(long bytes) =>
+        WorldResourceKeys.FormatSize(bytes, CultureInfo.CurrentCulture, HakoStrings.Get);
+
+    private static string FormatPercent(double percent) =>
+        percent.ToString("0.#", CultureInfo.CurrentCulture) + "%";
+
+    private static string FormatPercentNumber(double percent) => percent.ToString("0.#", CultureInfo.CurrentCulture);
 
     private void UpdateGameValidation()
     {
