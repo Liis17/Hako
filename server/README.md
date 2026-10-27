@@ -24,7 +24,17 @@ curl http://127.0.0.1:8081/healthz
 curl http://127.0.0.1:8082/healthz
 ```
 
-On PowerShell, use `Copy-Item .env.example .env`. Compose builds either service image when needed. To force a fresh build, run `docker compose build` before `docker compose up -d`.
+On PowerShell, use `Copy-Item .env.example .env`.
+
+The service images default to the prebuilt `docker.barkfluff.com/hako-auth:latest` and `docker.barkfluff.com/hako-pack:latest` published by CI (see [Server image publishing](#server-image-publishing)). On the deployment host, log in to the registry once and update by pulling; Compose then reuses the pulled images without building:
+
+```sh
+docker login docker.barkfluff.com
+docker compose pull
+docker compose up -d
+```
+
+To build the images locally instead, for example for development without registry access, run `docker compose up -d --build`; Compose tags the built images with the configured image names. Override the image reference through `HAKO_AUTH_IMAGE` or `HAKO_PACK_IMAGE`, for example to pin a published `sha-<commit>` tag.
 
 Compose publishes only Auth `8081` and Pack `8082`, each bound to `127.0.0.1`. Auth's `8091` listener is internal to the Compose network and is never published. PostgreSQL has no host port. Its data persists in the `pgdata` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The database roles and databases from `server/init-db.sh` are created only when PostgreSQL initializes an empty data directory.
 
@@ -41,6 +51,8 @@ Compose reads `.env` from the repository root. Required values have no default; 
 | `POSTGRES_PASSWORD` | Compose/PostgreSQL | Required | Bootstrap administrator password |
 | `HAKO_AUTH_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_auth` role created by `init-db.sh` |
 | `HAKO_PACK_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_pack` role created by `init-db.sh` |
+| `HAKO_AUTH_IMAGE` | Compose | Default: `docker.barkfluff.com/hako-auth:latest` | Auth image reference; override to pin a `sha-<commit>` tag |
+| `HAKO_PACK_IMAGE` | Compose | Default: `docker.barkfluff.com/hako-pack:latest` | Pack image reference; override to pin a `sha-<commit>` tag |
 | `HAKO_AUTH_PUBLIC_ADDR` | Auth | `0.0.0.0:8081` | Public HTTP listener; use the default with the fixed Compose port mapping |
 | `HAKO_AUTH_INTERNAL_ADDR` | Auth | `0.0.0.0:8091` | Internal listener for health and service-to-service token checks; changing its port also requires updating Pack's URL |
 | `HAKO_AUTH_DATABASE_URL` | Auth | Required | Auth PostgreSQL connection URL |
@@ -69,6 +81,10 @@ Compose reads `.env` from the repository root. Required values have no default; 
 | `HAKO_TEST_DATABASE_URL` | Auth and Pack integration tests | Unset; PostgreSQL tests skip | Connection URL for one isolated test database; set it separately for each service's integration suite |
 
 All size limits, validation concurrency, and validation timeout must be positive integers. Archive validation runs in a bounded blocking pool; requests that cannot enter within one second receive `503 validation_busy` with `Retry-After: 1`, and validation that exceeds its time budget is rejected as `invalid_archive`. `HAKO_PACK_CLEANUP_DELAY` must exceed the one-hour maximum download duration and cannot exceed one day. To disable S3-backed operations, leave the five required S3 settings empty; a partial group is a configuration error.
+
+## Server image publishing
+
+Pushes to `main` that change `server/` trigger `.github/workflows/server-images.yml`, which builds both service images for `linux/amd64` and publishes them to the private registry `docker.barkfluff.com`. Each image is tagged `latest` and `sha-<short commit>`. The workflow requires the `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` repository secrets; manual runs are available through `workflow_dispatch`.
 
 ## Create a Telegram bot
 
