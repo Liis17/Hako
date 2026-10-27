@@ -199,7 +199,8 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         var isGuest = account is null && (_coordinator?.IsGuest == true || hakoSession is not null);
         var hasAccount = account is not null;
 
-        ProfileCards.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
+        ProfileCards.Visibility = Visibility.Visible;
+        MicrosoftProfileCards.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
         GuestProfilePanel.Visibility = isGuest ? Visibility.Visible : Visibility.Collapsed;
         SignedOutProfilePanel.Visibility = !hasAccount && !isGuest ? Visibility.Visible : Visibility.Collapsed;
 
@@ -348,20 +349,12 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         {
             ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         }
-        ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         Grid.SetColumnSpan(ProfileTitle, wide ? 2 : 1);
         Grid.SetColumn(ProfileCards, 0);
         Grid.SetRow(ProfileCards, 1);
         Grid.SetColumn(CharacterPanel, wide ? 1 : 0);
         Grid.SetRow(CharacterPanel, wide ? 1 : 2);
-        Grid.SetColumn(HakoProviderPanel, 0);
-        Grid.SetColumnSpan(HakoProviderPanel, wide ? 2 : 1);
-        Grid.SetRow(HakoProviderPanel, wide ? 2 : 3);
-        Grid.SetColumnSpan(GuestProfilePanel, wide ? 2 : 1);
-        Grid.SetRow(GuestProfilePanel, 1);
-        Grid.SetColumnSpan(SignedOutProfilePanel, wide ? 2 : 1);
-        Grid.SetRow(SignedOutProfilePanel, 1);
         ProfileLayout.ColumnSpacing = wide ? 24 : 0;
         SkinView.MinHeight = wide ? 400 : 360;
         SkinView.MinWidth = wide ? 240 : 0;

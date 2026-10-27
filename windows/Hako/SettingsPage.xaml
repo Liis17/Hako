@@ -225,99 +225,101 @@
                     </StackPanel>
 
                     <Grid x:Name="ProfilePanel" Visibility="Collapsed" SizeChanged="ProfilePanel_SizeChanged">
-                        <Grid x:Name="ProfileLayout" ColumnDefinitions="360,*" ColumnSpacing="24" RowDefinitions="Auto,*,Auto">
+                        <Grid x:Name="ProfileLayout" ColumnDefinitions="360,*" ColumnSpacing="24" RowDefinitions="Auto,*">
                             <TextBlock x:Name="ProfileTitle" Grid.ColumnSpan="2" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16" />
                             <StackPanel x:Name="ProfileCards" Grid.Row="1" Spacing="12">
-                                <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                    <Grid ColumnDefinitions="72,*" ColumnSpacing="12">
-                                        <Grid Width="64" Height="64" VerticalAlignment="Center">
-                                            <Ellipse Fill="{ThemeResource ControlFillColorSecondaryBrush}" />
-                                            <FontIcon x:Name="AvatarPlaceholder" Glyph="&#xE77B;" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            <Image x:Name="AccountAvatar" Width="64" Height="64" Visibility="Collapsed" ImageFailed="AccountAvatar_ImageFailed" />
+                                <StackPanel x:Name="MicrosoftProfileCards" Spacing="12">
+                                    <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                        <Grid ColumnDefinitions="72,*" ColumnSpacing="12">
+                                            <Grid Width="64" Height="64" VerticalAlignment="Center">
+                                                <Ellipse Fill="{ThemeResource ControlFillColorSecondaryBrush}" />
+                                                <FontIcon x:Name="AvatarPlaceholder" Glyph="&#xE77B;" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <Image x:Name="AccountAvatar" Width="64" Height="64" Visibility="Collapsed" ImageFailed="AccountAvatar_ImageFailed" />
+                                            </Grid>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                    <TextBlock x:Name="ProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock x:Name="XboxBadge" Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <TextBlock x:Name="ProfileEmail" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                            </StackPanel>
                                         </Grid>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                <TextBlock x:Name="ProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                <TextBlock x:Name="XboxBadge" Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                                            </Grid>
-                                            <TextBlock x:Name="ProfileEmail" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
+                                    </Border>
 
-                                <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                    <Grid ColumnDefinitions="72,*" ColumnSpacing="12">
-                                        <Border Width="64" Height="64" CornerRadius="10" Background="{ThemeResource ControlFillColorSecondaryBrush}" VerticalAlignment="Center">
-                                            <Image x:Name="MinecraftHead" Width="64" Height="64" Stretch="Fill" Visibility="Collapsed" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                <TextBlock x:Name="MinecraftStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                <TextBlock x:Name="MinecraftBadge" Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                                            </Grid>
-                                            <TextBlock x:Name="MinecraftDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
+                                    <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                        <Grid ColumnDefinitions="72,*" ColumnSpacing="12">
+                                            <Border Width="64" Height="64" CornerRadius="10" Background="{ThemeResource ControlFillColorSecondaryBrush}" VerticalAlignment="Center">
+                                                <Image x:Name="MinecraftHead" Width="64" Height="64" Stretch="Fill" Visibility="Collapsed" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                    <TextBlock x:Name="MinecraftStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                    <TextBlock x:Name="MinecraftBadge" Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <TextBlock x:Name="MinecraftDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
 
-                                <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                    <StackPanel Spacing="6">
-                                        <TextBlock x:Name="AccountPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock x:Name="AccountPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
-                                        <TextBlock x:Name="AccountPlaytimeError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                                    <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                        <StackPanel Spacing="6">
+                                            <TextBlock x:Name="AccountPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock x:Name="AccountPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="AccountPlaytimeError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Button x:Name="SignOutButton" HorizontalAlignment="Left" Click="SignOutButton_Click" />
+                                </StackPanel>
+
+                                <StackPanel x:Name="GuestProfilePanel" Visibility="Collapsed" Spacing="16">
+                                    <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                        <StackPanel Spacing="16">
+                                            <TextBlock x:Name="GuestProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="GuestProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="GuestPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock x:Name="GuestPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="GuestPlaytimeTransfer" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="GuestPlaytimeError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                                            <Button x:Name="SignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel x:Name="SignedOutProfilePanel" Visibility="Collapsed" Spacing="16">
+                                    <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                        <StackPanel Spacing="16">
+                                            <TextBlock x:Name="SignedOutProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="SignedOutProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                            <Button x:Name="SignedOutSignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <Border x:Name="HakoProviderPanel" Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                    <StackPanel Spacing="12">
+                                        <TextBlock x:Name="HakoProviderTitle" FontSize="18" FontWeight="SemiBold" />
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock x:Name="HakoProfileStatus" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock x:Name="HakoProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                                <TextBlock x:Name="HakoProfileError" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                            </StackPanel>
+                                            <TextBlock x:Name="HakoProfileBadge" Grid.Column="1" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <Button x:Name="HakoVerifyButton" Click="HakoVerifyButton_Click" />
+                                            <Button x:Name="HakoSignInButton" Style="{ThemeResource AccentButtonStyle}" Click="HakoSignInButton_Click" />
+                                            <Button x:Name="HakoSignOutButton" Click="HakoSignOutButton_Click" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
-
-                                <Button x:Name="SignOutButton" HorizontalAlignment="Left" Click="SignOutButton_Click" />
                             </StackPanel>
 
                             <StackPanel x:Name="CharacterPanel" Grid.Row="1" Grid.Column="1" Spacing="16">
                                 <local:MinecraftSkinView x:Name="SkinView" MinHeight="400" />
                                 <Button x:Name="EditCharacterButton" Width="230" HorizontalAlignment="Center" Click="EditCharacter_Click" Visibility="Collapsed" />
                             </StackPanel>
-
-                            <StackPanel x:Name="GuestProfilePanel" Grid.Row="1" Grid.ColumnSpan="2" Visibility="Collapsed" Spacing="16">
-                                <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                    <StackPanel Spacing="16">
-                                        <TextBlock x:Name="GuestProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="GuestProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="GuestPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock x:Name="GuestPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
-                                        <TextBlock x:Name="GuestPlaytimeTransfer" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="GuestPlaytimeError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
-                                        <Button x:Name="SignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-
-                            <StackPanel x:Name="SignedOutProfilePanel" Grid.Row="1" Grid.ColumnSpan="2" Visibility="Collapsed" Spacing="16">
-                                <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                    <StackPanel Spacing="16">
-                                        <TextBlock x:Name="SignedOutProfileStatus" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                        <TextBlock x:Name="SignedOutProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                        <Button x:Name="SignedOutSignInButton" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left" Click="SignInButton_Click" />
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-
-                            <Border x:Name="HakoProviderPanel" Grid.Row="2" Grid.ColumnSpan="2" Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                                <StackPanel Spacing="12">
-                                    <TextBlock x:Name="HakoProviderTitle" FontSize="18" FontWeight="SemiBold" />
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock x:Name="HakoProfileStatus" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                            <TextBlock x:Name="HakoProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                                            <TextBlock x:Name="HakoProfileError" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
-                                        </StackPanel>
-                                        <TextBlock x:Name="HakoProfileBadge" Grid.Column="1" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    </Grid>
-                                    <StackPanel Orientation="Horizontal" Spacing="12">
-                                        <Button x:Name="HakoVerifyButton" Click="HakoVerifyButton_Click" />
-                                        <Button x:Name="HakoSignInButton" Style="{ThemeResource AccentButtonStyle}" Click="HakoSignInButton_Click" />
-                                        <Button x:Name="HakoSignOutButton" Click="HakoSignOutButton_Click" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
                         </Grid>
                     </Grid>
                 </Grid>
