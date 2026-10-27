@@ -27,6 +27,23 @@ internal static class MinecraftSkinImageDecoder
         return MinecraftSkinNormalizer.NormalizeCapeRgba(rgba, width, height);
     }, cancellationToken);
 
+    internal static async Task<byte[]> DecodeCapeThumbnailAsync(
+        byte[] png,
+        CancellationToken cancellationToken = default)
+    {
+        var rgba = await DecodeCapeAsync(png, cancellationToken);
+        const int sourceWidth = MinecraftSkinNormalizer.CapeWidth;
+        const int thumbnailWidth = 10;
+        const int thumbnailHeight = 16;
+        var thumbnail = new byte[thumbnailWidth * thumbnailHeight * 4];
+        for (var y = 0; y < thumbnailHeight; y++)
+        {
+            System.Buffer.BlockCopy(rgba, ((y + 1) * sourceWidth + 1) * 4, thumbnail, y * thumbnailWidth * 4, thumbnailWidth * 4);
+        }
+
+        return thumbnail;
+    }
+
     private static async Task<(byte[] Rgba, int Width, int Height)> DecodeRgbaAsync(
         byte[] png,
         bool allowLegacySkin,
