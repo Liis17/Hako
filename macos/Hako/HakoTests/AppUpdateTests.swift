@@ -109,6 +109,12 @@ import Testing
             version: "1.0.3", dmgNames: ["Hako.dmg", "Hako-1.0.2-macos.dmg", "Hako-1.0.3-macos.dmg"]
         )))
         #expect(release.dmg?.name == "Hako-1.0.3-macos.dmg")
+        // The installed 1.0.0 client selects the unversioned compatibility asset.
+        let legacy = try #require(release.assets.first { $0.name == "Hako.dmg" })
+        let current = try #require(release.dmg)
+        #expect(legacy.size == current.size)
+        #expect(legacy.sha256 == current.sha256)
+        #expect(release.isUpdate(for: "1.0.0"))
     }
 
     @Test func updateComparisonUsesNumericVersionsAndNormalizesLegacyBundleVersion() throws {

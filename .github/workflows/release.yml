@@ -72,12 +72,16 @@ jobs:
           cp -R build/Build/Products/Release/Hako.app dmg/
           ln -s /Applications dmg/Applications
           hdiutil create -volname Hako -srcfolder dmg -format UDZO -ov "Hako-$RELEASE_VERSION-macos.dmg"
+          # Older stable clients look for this exact asset name.
+          cp "Hako-$RELEASE_VERSION-macos.dmg" Hako.dmg
 
       - name: Upload macOS release asset
         uses: actions/upload-artifact@v4
         with:
           name: macos-release-assets
-          path: Hako-${{ needs.detect.outputs.macos_version }}-macos.dmg
+          path: |
+            Hako-${{ needs.detect.outputs.macos_version }}-macos.dmg
+            Hako.dmg
           if-no-files-found: error
 
   windows:
@@ -320,7 +324,7 @@ jobs:
             Сборка macOS из коммита ${{ github.sha }}.
 
             Приложение подписано ad-hoc, без Developer ID и нотариализации. При первом запуске разрешите его в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть» либо выполните `xattr -dr com.apple.quarantine /Applications/Hako.app`.
-        run: python3 .github/scripts/publish_release.py --tag "$RELEASE_TAG" --title "Hako macOS $RELEASE_VERSION" --notes "$RELEASE_NOTES" --asset "release-assets/Hako-$RELEASE_VERSION-macos.dmg"
+        run: python3 .github/scripts/publish_release.py --tag "$RELEASE_TAG" --title "Hako macOS $RELEASE_VERSION" --notes "$RELEASE_NOTES" --asset "release-assets/Hako-$RELEASE_VERSION-macos.dmg" --asset "release-assets/Hako.dmg"
 
   publish-windows:
     needs: [detect, windows]
