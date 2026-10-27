@@ -12,6 +12,11 @@ namespace Hako;
 
 public partial class App : Application
 {
+#if HAKO_DEV
+    internal const string ProductName = "Hako-dev";
+#else
+    internal const string ProductName = "Hako";
+#endif
     private static Window? _window;
     private static HakoRootLock? _previewRootLock;
     private static LauncherServices? _services;
@@ -79,7 +84,10 @@ public partial class App : Application
                 settingsService,
                 new AccountSessionStore(LaunchPaths!.DataRoot),
                 new MicrosoftDeviceAuth(new HttpClient(), TimeProvider.System),
-                playtimeTransfer: _playtime);
+                playtimeTransfer: _playtime,
+                hakoAccount: new HakoAccountCoordinator(
+                    new HakoAuthApiClient(),
+                    new HakoSessionStore(LaunchPaths!.DataRoot)));
         }
 
     }
@@ -91,7 +99,7 @@ public partial class App : Application
             HakoStrings.SetLanguage(AppLanguages.Default, true);
             _window = new Window
             {
-                Title = "Hako",
+                Title = ProductName,
                 Content = new TextBlock
                 {
                     Text = HakoStrings.Get("HakoAlreadyOpen"),
@@ -204,9 +212,9 @@ public partial class App : Application
             }
         }
 
-        if (InitialRestorePaths.Length > 0 && _coordinator.Account is null)
+        if (InitialRestorePaths.Length > 0)
         {
-            _coordinator.ContinueWithoutAccount();
+            _coordinator.EnsureAvailableForRestoreActivation();
         }
 
         Volatile.Write(ref _restoreQueueReady, 1);
@@ -259,11 +267,7 @@ public partial class App : Application
                 try
                 {
                     if (_services is not { } services) continue;
-                    // A guest session must not replace the sign-in screen while the user is completing it.
-                    if (services.App.Account is null && !services.App.IsGuest && services.App.Screen != LauncherScreen.Login)
-                    {
-                        services.App.ContinueWithoutAccount();
-                    }
+                    services.App.EnsureAvailableForRestoreActivation();
 
                     var success = await BackupRestoreDialog.RestoreAsync(services, entry.Path);
                     if (success is not null) lastSuccess = success;
@@ -284,7 +288,7 @@ public partial class App : Application
             try
             {
                 if (lastSuccess is not null && _window is MainWindow mainWindow
-                    && _services?.App.Screen is not (LauncherScreen.Login or LauncherScreen.Welcome or LauncherScreen.Loading))
+                    && _services?.App.Screen is not (LauncherScreen.Login or LauncherScreen.HakoLogin or LauncherScreen.Welcome or LauncherScreen.Loading))
                 {
                     await mainWindow.NavigateToRestoreAsync(lastSuccess);
                 }
@@ -352,6 +356,7 @@ public partial class App : Application
 
         _services = null;
         services.Updates.Dispose();
+        services.App.Hako.Dispose();
         try { await services.Playtime.StopAsync(); } catch (Exception) { }
         services.ModpackCatalog.Dispose();
         try { await services.Installations.DisposeAsync(); } catch (Exception) { }
@@ -408,7 +413,7 @@ public partial class App : Application
         HakoStrings.SetLanguage(AppLanguages.Default, true);
         _window = new Window
         {
-            Title = "Hako",
+            Title = ProductName,
             Content = new TextBlock
             {
                 Text = HakoStrings.Get("StartupStorageUnavailable"),

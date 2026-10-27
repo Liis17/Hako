@@ -138,7 +138,9 @@ SwiftUI ModelContext. Замена записи того же XUID отменя�
 ## Windows-клиент
 
 Реализация — `windows/Hako.Core/MicrosoftDeviceAuth.cs` (`MicrosoftDeviceAuth` реализует `IMicrosoftAuthService`),
-состояние входа ведёт `AppCoordinator`. Экраны — [[UI/Screens#Windows-клиент]], хранение результата —
+состояние входа ведёт `AppCoordinator`. Этот провайдер остаётся источником лицензированной Minecraft-сессии;
+Hako Telegram auth хранится отдельно и не меняет Microsoft `AccountSession`, XUID или перенос гостевого времени
+([[Auth/HakoAuth]]). Экраны — [[UI/Screens#Windows-клиент]], хранение результата —
 [[Data/Persistence#Windows-клиент]]. Client ID тот же, что и в macOS (`MicrosoftDeviceAuth.ClientId`),
 поэтому статус одобрения Mojang для него — как в разделе «Ограничения и важные детали» выше.
 

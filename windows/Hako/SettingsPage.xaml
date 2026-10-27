@@ -225,7 +225,7 @@
                     </StackPanel>
 
                     <Grid x:Name="ProfilePanel" Visibility="Collapsed" SizeChanged="ProfilePanel_SizeChanged">
-                        <Grid x:Name="ProfileLayout" ColumnDefinitions="360,*" ColumnSpacing="24" RowDefinitions="Auto,*">
+                        <Grid x:Name="ProfileLayout" ColumnDefinitions="360,*" ColumnSpacing="24" RowDefinitions="Auto,*,Auto">
                             <TextBlock x:Name="ProfileTitle" Grid.ColumnSpan="2" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16" />
                             <StackPanel x:Name="ProfileCards" Grid.Row="1" Spacing="12">
                                 <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
@@ -299,6 +299,25 @@
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
+
+                            <Border x:Name="HakoProviderPanel" Grid.Row="2" Grid.ColumnSpan="2" Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock x:Name="HakoProviderTitle" FontSize="18" FontWeight="SemiBold" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock x:Name="HakoProfileStatus" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="HakoProfileDetails" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="HakoProfileError" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                        </StackPanel>
+                                        <TextBlock x:Name="HakoProfileBadge" Grid.Column="1" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Button x:Name="HakoVerifyButton" Click="HakoVerifyButton_Click" />
+                                        <Button x:Name="HakoSignInButton" Style="{ThemeResource AccentButtonStyle}" Click="HakoSignInButton_Click" />
+                                        <Button x:Name="HakoSignOutButton" Click="HakoSignOutButton_Click" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </Grid>
                     </Grid>
                 </Grid>

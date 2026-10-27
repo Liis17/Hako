@@ -42,6 +42,8 @@ public sealed class LocalizationResourcesTests
         var russian = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "ru-RU", "Resources.resw"));
         var english = ReadResourceNames(Path.Combine(AppContext.BaseDirectory, "Resources", "en-US", "Resources.resw"));
         var keys = Enum.GetValues<AuthErrorKind>().Select(error => error.ResourceKey())
+            .Concat(Enum.GetValues<HakoAuthErrorKind>().Select(error => error.ResourceKey()))
+            .Concat(Enum.GetValues<HakoSessionStatus>().Select(status => status.ResourceKey()))
             .Concat(Enum.GetValues<StartupNotice>().Select(notice => notice.ResourceKey()))
             .Concat(Enum.GetValues<InstanceInstallationState>().Select(state => state.ResourceKey()))
             .Concat(Enum.GetValues<InstallationProgressStage>().Select(stage => stage.ResourceKey()));

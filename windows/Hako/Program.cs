@@ -40,7 +40,11 @@ internal static class Program
                 ? CreatePreviewPaths()
                 : overrides.Isolated
                     ? HakoPaths.CreateIsolated(overrides.GameRoot!, overrides.DataRoot!)
+#if HAKO_DEV
+                    : HakoPaths.CreateDevelopment(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+#else
                     : null;
+#endif
         }
         catch (ArgumentException)
         {
@@ -158,7 +162,7 @@ internal static class Program
     private static void ShowStartupError(string resourceKey)
     {
         HakoStrings.SetLanguage(AppLanguages.Default, true);
-        MessageBox(IntPtr.Zero, HakoStrings.Get(resourceKey), "Hako", 0x10);
+        MessageBox(IntPtr.Zero, HakoStrings.Get(resourceKey), App.ProductName, 0x10);
     }
 
     // Redirect runs on a worker thread. The STA thread waits in CoWaitForMultipleObjects so it keeps pumping

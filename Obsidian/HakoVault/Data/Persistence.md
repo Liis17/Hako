@@ -245,7 +245,7 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 
 ## Windows-клиент
 
-Хранение в `windows/Hako.Core/` (без WinUI). Аккаунт — зашифрованный файл `session.dat`, настройки —
+Хранение в `windows/Hako.Core/` (без WinUI). Microsoft-аккаунт — зашифрованный `session.dat`, отдельный Hako-аккаунт — `hako-session.dat`, настройки —
 `settings.json`, профили сборок — `instances.json`. `HakoPaths` задаёт игровой корень, каталог данных и кэш;
 производственный игровой корень — `%USERPROFILE%\.hako`, каталог данных по-прежнему задаёт
 `windows/Hako/AppDataDirectory.cs`. Экраны и вход — [[UI/Screens#Windows-клиент]],
@@ -257,6 +257,7 @@ project/version ID, страницу, SHA-512 и закреплённый descri
 |------|-----------------|------|
 | `windows/Hako.Core/AccountSession.cs` | `AccountSession` | Запись аккаунта |
 | `windows/Hako.Core/AccountSessionStore.cs` | `AccountSessionStore`, `AccountStoreException` | Шифрование, чтение, атомарная запись и удаление `session.dat` |
+| `windows/Hako.Core/HakoSessionStore.cs`, `HakoAuthContracts.cs` | `HakoSessionStore`, `HakoSession` | Отдельная DPAPI-сессия Hako в `hako-session.dat`; формат Microsoft не меняется |
 | `windows/Hako.Core/JsonUserSettingsStore.cs`, `UserSettings.cs`, `UserSettingsService.cs` | `JsonUserSettingsStore`, `UserSettings`, `UserSettingsService` | `settings.json`: язык и глобальные параметры игры; единый сериализованный снимок |
 | `windows/Hako.Core/HakoPaths.cs`, `HakoRootLock.cs` | `HakoPaths`, `HakoRootLock` | Пути корней, изолированные запуски и блокировки game-root/data-root |
 | `windows/Hako.Core/Instances/GameInstance.cs` | `GameInstance`, `InstanceDraft`, `InstanceParameters` | Полный JSON-профиль сборки Windows |
@@ -294,6 +295,19 @@ project/version ID, страницу, SHA-512 и закреплённый descri
   удаляется в `finally`. Ошибки ввода-вывода и криптографии → `AccountStoreException`.
 - `ClearAsync(commitIfCurrent)`: `File.Delete(session.dat)` выполняется внутри `commitIfCurrent`.
 - Не Windows: `PlatformNotSupportedException`.
+
+### Аккаунт Hako: `hako-session.dat`
+
+- Путь — `hako-session.dat` в каталоге данных. Содержимое — JSON `HakoSession` (camelCase), зашифрованный
+  `ProtectedData` с `DataProtectionScope.CurrentUser` и отдельной энтропией `Hako.Session.v1`.
+- Хранятся Hako session token, account username/id/created time, device name, expiry и последнее подтверждённое время.
+  `HakoSession.ToString()` скрывает токен; token и одноразовый exchange secret не входят в `AccountSession`.
+- Запись идёт во временный `hako-session.dat.<guid>.tmp` и атомарно заменяет целевой файл только внутри generation-guarded
+  commit callback. Отмена или устаревшее поколение не фиксирует сессию; временный файл удаляется в `finally`.
+- `/me` обновляет account/device name и expiry в этом же файле. `401` очищает только Hako-сессию; ошибки сети,
+  таймауты, `429` и `5xx` сохраняют кэш.
+- Hako-dev использует отдельный `%LOCALAPPDATA%\Hako-dev\Data`; production-файл не копируется и не читается.
+  Подробнее о протоколе — [[Auth/HakoAuth]].
 
 ### Настройки: `settings.json`
 

@@ -21,6 +21,15 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(HakoDev)' == 'true'">
+    <DefineConstants>$(DefineConstants);HAKO_DEV</DefineConstants>
+    <HakoDevManifest>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(TargetFramework)\Package.dev.appxmanifest</HakoDevManifest>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(HakoDev)' == 'true'">
+    <AppxManifest Include="$(HakoDevManifest)" />
+  </ItemGroup>
+
   <ItemGroup>
     <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\AppIcon.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
@@ -37,6 +46,11 @@
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
+
+  <Target Name="GenerateHakoDevManifest" BeforeTargets="PrepareForBuild" Condition="'$(HakoDev)' == 'true'">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(HakoDevManifest)'))" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\New-HakoDevManifest.ps1&quot; -Source &quot;$(MSBuildProjectDirectory)\Package.appxmanifest&quot; -Destination &quot;$(HakoDevManifest)&quot;" />
+  </Target>
 
   <!--
     Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging

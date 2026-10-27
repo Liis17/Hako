@@ -88,8 +88,9 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | Файл | Значимый символ | Роль |
 |------|-----------------|------|
 | `windows/Hako/MainWindow.xaml`, `windows/Hako/MainWindow.xaml.cs` | `MainWindow`, `ShowScreen`, `RootNavigation_SelectionChanged` | Окно, переключение страниц, `NavigationView` и `Frame` |
-| `windows/Hako/WelcomePage.xaml`, `windows/Hako/WelcomePage.xaml.cs` | `WelcomePage` | Приветствие, выбор языка, вход и гостевой вход |
+| `windows/Hako/WelcomePage.xaml`, `windows/Hako/WelcomePage.xaml.cs` | `WelcomePage` | Приветствие, выбор языка, варианты Hako/Microsoft и гостевой вход |
 | `windows/Hako/LoginPage.xaml`, `windows/Hako/LoginPage.xaml.cs` | `LoginPage` | Фазы входа в Microsoft |
+| `windows/Hako/HakoLoginPage.xaml`, `windows/Hako/HakoLoginPage.xaml.cs` | `HakoLoginPage` | Вход и регистрация Hako через Telegram, ожидание подтверждения, countdown, повтор и отмена |
 | `windows/Hako/LoadingPage.xaml`, `windows/Hako/LoadingPage.xaml.cs` | `LoadingPage` | Индикатор до завершения `InitializeAsync` |
 | `windows/Hako/BuildsPage.xaml`, `windows/Hako/BuildsPage.xaml.cs` | `BuildsPage`, `BuildCardModel` | Раздел «Сборки»: пустое состояние или карточки сборок — [[UI/Launcher#Windows-клиент]] |
 | `windows/Hako/InstanceCreationPage.xaml(.cs)`, `InstanceCreationChoiceDialog.cs` | `InstanceCreationPage`, `InstanceCreationChoiceDialog` | Создание своей сборки: выбор Minecraft, Vanilla/Fabric и параметров запуска |
@@ -113,12 +114,13 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 | `LauncherScreen` | Страница | Содержимое |
 |------------------|----------|------------|
 | `Loading` | `LoadingPage` | Кольцо прогресса на время чтения настроек и аккаунта |
-| `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), кнопка «Начать» (`StartButton`), «Продолжить без аккаунта» (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
-| `Login` | `LoginPage` | Панели по `SignInPhase`: получение кода, код `UserCodeText` с кнопками «Открыть страницу входа» (`Launcher.LaunchUriAsync`) и «Копировать код» (`Clipboard`), ожидание, подключение Xbox, ошибка с «Попробовать снова» (`RetryButton`). `LoginNotice` (`InfoBar`) показывает `OpenVerificationFailed` или `CopyCodeFailed`, если открыть страницу или скопировать код не удалось; при сбое копирования кнопка снова «Скопировать код»; копирование перехватывает любое исключение. Уведомление сбрасывается при следующем нажатии этих кнопок и при «Попробовать снова»; закрытое крестиком (`LoginNotice_Closed`) не открывается повторно при обновлении состояния |
+| `Welcome` | `WelcomePage` | Заголовок и подзаголовок, `LanguageBox` (Русский / English), варианты входа Microsoft (`StartButton`), Hako (`HakoButton`) и явный гостевой вход (`GuestButton`), `InfoBar` со `StartupNotice`, дисклеймер |
+| `Login` | `LoginPage` | Независимый Microsoft device-code flow: получение кода, ожидание, Xbox/Minecraft и ошибка с повтором; Hako-состояние его не заменяет |
+| `HakoLogin` | `HakoLoginPage` | Username для входа, отдельная регистрация, ожидание Telegram-подтверждения с countdown, открытие/копирование проверенной ссылки только по нажатию; отмена возвращает на предыдущий экран. Потерянный ответ одноразового exchange требует нового входа и не повторяет регистрацию |
 | `Builds` | `BuildsPage` | Пустое состояние с кнопкой «Создать сборку» или сетка карточек; ошибка реестра `instances.json` — `InfoBar` |
 | `Instance` | `InstanceProfilePage` | Профиль сборки `AppCoordinator.SelectedInstanceId`: время игры для выбранной сборки, моды только для Fabric, ресурспаки, миры, скриншоты и настройки; меню действий дублирует сборку и создаёт резервную копию |
 | `InstanceCreation` | `InstanceCreationPage` | Форма «Своя сборка» |
-| `Settings` | `SettingsPage` | Слева `ListView` из четырёх разделов (`SettingsSection.General`, `Game`, `Storage`, `Profile`), справа панель выбранного; профиль показывает время аккаунта или гостя и перенос при входе; «Хранилище» показывает место на диске и размер сборок по девяти категориям |
+| `Settings` | `SettingsPage` | Слева `ListView` из четырёх разделов (`SettingsSection.General`, `Game`, `Storage`, `Profile`), справа панель выбранного; профиль независимо показывает Microsoft, Hako и guest/offline playtime, Hako status/verify/logout и Microsoft Minecraft profile; «Хранилище» показывает место на диске и размер сборок по девяти категориям |
 | `ModpackCatalog` | `ModpackCatalogPage` | Поиск готовых сборок Modrinth, фильтр Minecraft, версии и ссылка на проект |
 | `ModpackCreation` | `ModpackCreationPage` | Форма выбранной закреплённой версии `.mrpack`, асинхронная проверка и постановка в очередь |
 
@@ -127,7 +129,7 @@ Microsoft. При успехе токены сохраняются в `TokenKeyc
 - Для `Builds`, `Instance`, `InstanceCreation` и `Settings` `MainWindow` показывает `RootNavigation`
   (`NavigationView`, `PaneDisplayMode=LeftCompact`) — аналог рейла macOS: «Сборки», разделитель, пункты сборок
   (иконка, имя, подсказка с версией) и «+» (`SelectsOnInvoked=False`, открывает `InstanceCreationChoiceDialog`);
-  в `FooterMenuItems` — «Настройки» и аккаунт (ник, gamertag или «Гость»), который открывает раздел «Профиль».
+  в `FooterMenuItems` — «Настройки» и аккаунт (Minecraft name, Xbox gamertag, затем Hako username или «Гость»), который открывает раздел «Профиль».
   Пункты сборок обновляются на месте по `InstanceStore.InstancesChanged`; если выбранная сборка исчезла,
   `AppCoordinator.CloseInstance` возвращает к «Сборкам». Содержимое — `ShellFrame`; для остальных экранов видим только `FlowFrame`.
   При скрытии корневой навигации страница Settings может
