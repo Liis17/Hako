@@ -2,7 +2,7 @@
 
 Parent: [[Index]]
 
-The root `compose.yaml` runs `hako-auth`, `hako-pack`, and PostgreSQL. `server/Dockerfile` builds either Rust package as a small non-root image; both services apply their own SQLx migrations at startup. Service images default to the prebuilt `docker.barkfluff.com/hako-auth:latest` and `hako-pack:latest` published by `.github/workflows/server-images.yml` on pushes to `main` that change `server/` (tags `latest` and `sha-<short commit>`, `linux/amd64`, secrets `REGISTRY_USERNAME`/`REGISTRY_PASSWORD`); the Compose `build` sections remain for local building. `server/init-db.sh` creates separate database roles and databases on first initialization of the PostgreSQL volume. Pack's archive bytes use an external S3-compatible service.
+The root `compose.yaml` runs `hako-auth`, `hako-pack`, and PostgreSQL. `server/Dockerfile` builds either Rust package as a small non-root image; both services apply their own SQLx migrations at startup. Service images default to the prebuilt `docker.barkfluff.com/hako-auth:latest` and `hako-pack:latest` published by `.github/workflows/server-images.yml` on pushes to `main` that change `server/` (tags `latest` and `sha-<short commit>`, `linux/amd64`, secrets `REGISTRY_USERNAME`/`REGISTRY_PASSWORD`); the Compose `build` sections remain for local building. The first-run bootstrap script embedded in `compose.yaml` (top-level `configs`) creates separate database roles and databases on first initialization of the PostgreSQL volume, so a deployment host needs only `compose.yaml` and `.env`. Pack's archive bytes use an external S3-compatible service.
 
 ## Network and environment
 
