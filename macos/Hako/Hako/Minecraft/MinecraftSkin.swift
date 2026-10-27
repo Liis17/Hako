@@ -120,6 +120,10 @@ struct MinecraftSkin {
         return image
     }
 
+    static func capeThumbnail(from data: Data) -> CGImage? {
+        decodeCape(data)?.cropping(to: CGRect(x: 1, y: 1, width: 10, height: 16))
+    }
+
     static func steve(bundle: Bundle = .main) throws -> MinecraftSkin {
         guard let url = bundle.url(forResource: "Steve", withExtension: "png")
         else { throw DecodingError.invalidTexture }

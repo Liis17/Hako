@@ -60,6 +60,29 @@ struct MinecraftSkinTests {
         #expect(SkinTestFixtures.pixel(skin.image, x: 8, y: 8)[3] == 255)
     }
 
+    @Test func capeThumbnailCropsUprightFrontFace() throws {
+        let capePNG = try SkinTestFixtures.png(height: 32)
+        let thumbnail = try #require(MinecraftSkin.capeThumbnail(from: capePNG))
+
+        #expect(thumbnail.width == 10)
+        #expect(thumbnail.height == 16)
+        #expect(SkinTestFixtures.pixel(thumbnail, x: 0, y: 0) == [1, 1, 100, 255])
+        #expect(SkinTestFixtures.pixel(thumbnail, x: 9, y: 15) == [10, 16, 100, 255])
+
+        let skin = try MinecraftSkin(data: SkinTestFixtures.png(), variant: .classic, capeData: capePNG)
+        #expect(skin.capeImage?.width == 64)
+        #expect(skin.capeImage?.height == 32)
+    }
+
+    @Test func capeThumbnailRejectsDamagedData() {
+        #expect(MinecraftSkin.capeThumbnail(from: Data("damaged cape".utf8)) == nil)
+    }
+
+    @Test func capeThumbnailRejectsWrongSizeData() throws {
+        let wrongSizePNG = try SkinTestFixtures.png(height: 64)
+        #expect(MinecraftSkin.capeThumbnail(from: wrongSizePNG) == nil)
+    }
+
     @Test(arguments: ["CLASSIC", "SLIM", "unexpected"])
     func activeProfileVariantIsStored(variant: String) throws {
         let data = try JSONSerialization.data(withJSONObject: [
