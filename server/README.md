@@ -26,7 +26,7 @@ docker compose exec pack curl -fsS http://127.0.0.1:8082/healthz
 
 On PowerShell, use `Copy-Item .env.example .env`.
 
-The service images default to the prebuilt `docker.barkfluff.com/hako-auth:latest` and `docker.barkfluff.com/hako-pack:latest` published by CI (see [Server image publishing](#server-image-publishing)). On the deployment host, log in to the registry once and update by pulling; Compose then reuses the pulled images without building:
+The service images default to the prebuilt `docker.barkfluff.com/hako-auth:latest` and `docker.barkfluff.com/hako-pack:latest` published by CI (see [Server image publishing](#server-image-publishing)). A deployment host needs only `compose.yaml` and `.env` copied from this repository — the first-run database bootstrap is embedded in `compose.yaml`, so no repository checkout is required. On such a host, run `docker compose pull` before `docker compose up -d` (the `build` sections reference a repository checkout and matter only for local builds):
 
 ```sh
 docker login docker.barkfluff.com
@@ -36,7 +36,7 @@ docker compose up -d
 
 To build the images locally instead, for example for development without registry access, run `docker compose up -d --build`; Compose tags the built images with the configured image names. Override the image reference through `HAKO_AUTH_IMAGE` or `HAKO_PACK_IMAGE`, for example to pin a published `sha-<commit>` tag.
 
-No service port is published to the host: Auth `8081`, Auth's internal `8091`, Pack `8082`, and PostgreSQL are reachable only inside the Compose network, which is explicitly named `hako` so that an external reverse-proxy container can join it. PostgreSQL data persists in the `pgdata` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The database roles and databases from `server/init-db.sh` are created only when PostgreSQL initializes an empty data directory.
+No service port is published to the host: Auth `8081`, Auth's internal `8091`, Pack `8082`, and PostgreSQL are reachable only inside the Compose network, which is explicitly named `hako` so that an external reverse-proxy container can join it. PostgreSQL data persists in the `pgdata` volume; `docker compose down` preserves it, while `docker compose down -v` deletes it. The database roles and databases are created by the bootstrap script embedded in `compose.yaml` (top-level `configs`) only when PostgreSQL initializes an empty data directory.
 
 Pack can start without S3 configuration and still reports healthy; archive create, replacement, and download requests then return `503 storage_unavailable`. Metadata and delete operations use PostgreSQL; deletions queue object cleanup, which retries while S3 is unavailable. If any required S3 setting is provided, all five required settings must be present or Pack exits on startup. A missing or invalid Telegram token does not prevent Auth health checks, but registration returns `503 bot_unavailable` until `getMe` supplies the bot username.
 
@@ -49,8 +49,8 @@ Compose reads `.env` from the repository root. Required values have no default; 
 | `POSTGRES_USER` | Compose/PostgreSQL | Fixed: `postgres` | Bootstrap administrator role inside the database container |
 | `POSTGRES_DB` | Compose/PostgreSQL | Fixed: `postgres` | Bootstrap database used by the initialization script |
 | `POSTGRES_PASSWORD` | Compose/PostgreSQL | Required | Bootstrap administrator password |
-| `HAKO_AUTH_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_auth` role created by `init-db.sh` |
-| `HAKO_PACK_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_pack` role created by `init-db.sh` |
+| `HAKO_AUTH_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_auth` role created by the embedded bootstrap script |
+| `HAKO_PACK_DB_PASSWORD` | Compose/PostgreSQL | Required | Password for the `hako_pack` role created by the embedded bootstrap script |
 | `HAKO_AUTH_IMAGE` | Compose | Default: `docker.barkfluff.com/hako-auth:latest` | Auth image reference; override to pin a `sha-<commit>` tag |
 | `HAKO_PACK_IMAGE` | Compose | Default: `docker.barkfluff.com/hako-pack:latest` | Pack image reference; override to pin a `sha-<commit>` tag |
 | `HAKO_AUTH_PUBLIC_ADDR` | Auth | `0.0.0.0:8081` | Public HTTP listener; use the default with the fixed Compose port mapping |
