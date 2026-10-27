@@ -19,6 +19,7 @@
   <data name="HakoAuthRegisterButton" xml:space="preserve"><value>Создать аккаунт Hako</value></data>
   <data name="HakoAuthRequesting" xml:space="preserve"><value>Создаём запрос авторизации…</value></data>
   <data name="HakoAuthRegistrationPending" xml:space="preserve"><value>Откройте ссылку Telegram и отправьте боту команду /start для создания аккаунта.</value></data>
+  <data name="HakoAuthRegistrationTelegramDetails" xml:space="preserve"><value>Бот создаст аккаунт Hako после команды /start в Telegram.</value></data>
   <data name="HakoAuthLoginPending" xml:space="preserve"><value>Подтвердите или отклоните запрос в Telegram. Hako проверяет ответ автоматически.</value></data>
   <data name="HakoAuthPendingCountdown" xml:space="preserve"><value>Ожидаем подтверждения… Осталось {0}:{1:00}</value></data>
   <data name="HakoAuthExchanging" xml:space="preserve"><value>Сохраняем подтверждённый вход…</value></data>
