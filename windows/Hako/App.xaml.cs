@@ -158,7 +158,7 @@ public partial class App : Application
         }
         await _playtime.RefreshAsync();
         _playtime.Start();
-        _services.Updates.Start();
+        _services?.Updates.Start();
 
         if (_previewOptions is not null)
         {

@@ -67,7 +67,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 - [[Minecraft/Launching]] — построение аргументов, проверка Java, процессы и восстановление игр.
 - [[Minecraft/Worlds]] — локальные сохранения, чтение gzip/NBT через системный zlib, копирование, корзина и управление датапаками; `.hakoworld` описан в [[Data/Backups]].
 - [[Minecraft/Modrinth]] — каталог модов, ресурспаков и датапаков мира, зависимости, проверка загрузок и создание сборок из `.mrpack`.
-- [[App/Updates]] — проверка стабильных macOS-релизов, загрузка DMG, замена бандла и перезапуск.
+- [[App/Updates]] — стабильные релизы GitHub: проверка и загрузка DMG/MSIX, установка и перезапуск macOS- и Windows-клиентов.
 - [[UI/ContentView]] — корень главного окна и настройки окна.
 - [[UI/SystemIntegration]] — единые сервисы и быстрый запуск сборок из Dock, Spotlight и Siri.
 - [[UI/Screens]] — экраны, фон с сакурой и общий стиль.
@@ -362,7 +362,7 @@ dotnet test windows/Hako.Tests/Hako.Tests.csproj -c Debug
 
 ### Ограничения Windows-клиента
 
-- Не реализованы: CurseForge, самообновление Windows и восстановление из `.hakobackup`/`.hakoworld`.
+- Не реализован CurseForge. Самообновление Windows использует подписанный MSIX из GitHub ([[App/Updates#Windows-клиент]]); прежним клиентам без этой функции нужна однократная ручная установка.
   Modrinth-паки устанавливаются из каталога; локальный импорт `.mrpack` и обновление всего модпака
   не поддерживаются.
 - Онлайн-запуск обновляет Minecraft-сессию через `MinecraftSessionCoordinator.ConnectForLaunchAsync` (refresh-grant

@@ -73,6 +73,9 @@ public sealed partial class MainWindow : Window
         {
             if (ShellFrame.Content is INavigationGuard guard && !await guard.ConfirmLeaveAsync())
                 throw new OperationCanceledException();
+            await _services.Settings.WaitForPendingSavesAsync(cancellationToken);
+            if (ShellFrame.Content is SettingsPage { AppUpdateHasUnsavedSettings: true })
+                throw new AppUpdateException("AppUpdateSettingsNotSaved");
             using var lease = await _services.Store.TryBeginAppUpdateAsync(cancellationToken)
                 ?? throw new AppUpdateException("AppUpdateWaitOperations");
             if (await _services.Updates.Coordinator.GetBlockReasonAsync(cancellationToken) is { } reason)

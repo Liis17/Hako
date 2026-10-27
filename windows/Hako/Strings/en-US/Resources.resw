@@ -645,4 +645,5 @@ Hako</value></data>
   <data name="AppUpdateCertificateError" xml:space="preserve"><value>Windows could not verify the package certificate. See the installation instructions on the GitHub release page.</value></data>
   <data name="AppUpdateInstallFailed" xml:space="preserve"><value>Windows could not install the update. Your current installation is preserved. Try again or use the GitHub release page.</value></data>
   <data name="AppUpdateFailed" xml:space="preserve"><value>Could not complete the update operation. Check your connection and try again.</value></data>
+  <data name="AppUpdateSettingsNotSaved" xml:space="preserve"><value>Game settings could not be saved. Open the Game section and save your changes before updating.</value></data>
 </root>

@@ -5,6 +5,8 @@ namespace Hako;
 
 public sealed partial class SettingsPage
 {
+    internal bool AppUpdateHasUnsavedSettings => GameSaveError.Visibility == Visibility.Visible;
+
     private void AppUpdates_Changed(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(() => _ = RefreshAppUpdatesAsync());
 
     private async Task RefreshAppUpdatesAsync()

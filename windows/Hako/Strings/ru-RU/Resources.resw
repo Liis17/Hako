@@ -645,4 +645,5 @@
   <data name="AppUpdateCertificateError" xml:space="preserve"><value>Windows не смогла проверить сертификат пакета. Инструкции по установке доступны на странице релиза GitHub.</value></data>
   <data name="AppUpdateInstallFailed" xml:space="preserve"><value>Windows не смогла установить обновление. Текущая установка сохранена. Повторите попытку или откройте страницу релиза GitHub.</value></data>
   <data name="AppUpdateFailed" xml:space="preserve"><value>Не удалось выполнить обновление. Проверьте соединение и повторите попытку.</value></data>
+  <data name="AppUpdateSettingsNotSaved" xml:space="preserve"><value>Не удалось сохранить параметры игры. Откройте раздел «Игра» и сохраните изменения перед обновлением.</value></data>
 </root>

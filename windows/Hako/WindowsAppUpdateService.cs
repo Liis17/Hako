@@ -47,7 +47,8 @@ internal sealed class WindowsAppUpdateService : IDisposable
 
     public bool AutomaticChecks
     {
-        get => Coordinator.Supported && ApplicationData.Current.LocalSettings.Values[AutomaticKey] is not false;
+        get => Coordinator.Supported
+            && (!ApplicationData.Current.LocalSettings.Values.TryGetValue(AutomaticKey, out var value) || value is not false);
         set
         {
             if (!Coordinator.Supported) return;
