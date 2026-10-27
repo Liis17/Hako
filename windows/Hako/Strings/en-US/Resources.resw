@@ -7,10 +7,29 @@
   <data name="WelcomeTitle" xml:space="preserve"><value>Welcome to
 Hako</value></data>
   <data name="WelcomeSubtitle" xml:space="preserve"><value>Minecraft launcher for Windows</value></data>
-  <data name="StartButton" xml:space="preserve"><value>Get started</value></data>
+  <data name="StartButton" xml:space="preserve"><value>Sign in with Microsoft</value></data>
+  <data name="HakoSignInButton" xml:space="preserve"><value>Sign in to Hako</value></data>
   <data name="GuestButton" xml:space="preserve"><value>Continue without an account</value></data>
   <data name="Disclaimer" xml:space="preserve"><value>Hako is not affiliated with or endorsed by Mojang or Microsoft. Minecraft is a trademark of Microsoft.</value></data>
   <data name="LoginTitle" xml:space="preserve"><value>Sign in with Microsoft</value></data>
+  <data name="HakoAuthTitle" xml:space="preserve"><value>Sign in or register with Hako</value></data>
+  <data name="HakoAuthInstructions" xml:space="preserve"><value>Hako is a separate launcher account. Enter your Telegram username and approve the request in the bot. A Microsoft account is still needed to play Minecraft with a license.</value></data>
+  <data name="HakoAuthUsernamePlaceholder" xml:space="preserve"><value>Telegram username</value></data>
+  <data name="HakoAuthLoginButton" xml:space="preserve"><value>Sign in with Telegram approval</value></data>
+  <data name="HakoAuthRegisterButton" xml:space="preserve"><value>Create a Hako account</value></data>
+  <data name="HakoAuthRequesting" xml:space="preserve"><value>Creating an authorization request…</value></data>
+  <data name="HakoAuthRegistrationPending" xml:space="preserve"><value>Open the Telegram link and send /start to the bot to create your account.</value></data>
+  <data name="HakoAuthLoginPending" xml:space="preserve"><value>Approve or deny the request in Telegram. Hako checks for your response automatically.</value></data>
+  <data name="HakoAuthPendingCountdown" xml:space="preserve"><value>Waiting for approval… {0}:{1:00} remaining</value></data>
+  <data name="HakoAuthExchanging" xml:space="preserve"><value>Saving your approved sign-in…</value></data>
+  <data name="HakoAuthOpenTelegram" xml:space="preserve"><value>Open Telegram</value></data>
+  <data name="HakoAuthCopyLink" xml:space="preserve"><value>Copy link</value></data>
+  <data name="HakoAuthCopiedLink" xml:space="preserve"><value>Link copied</value></data>
+  <data name="HakoAuthOpenTelegramFailed" xml:space="preserve"><value>Couldn't open Telegram. Follow the link above manually.</value></data>
+  <data name="HakoAuthCopyLinkFailed" xml:space="preserve"><value>Couldn't copy the link. Select and copy it manually.</value></data>
+  <data name="HakoAuthFreshLoginTitle" xml:space="preserve"><value>A new sign-in is required</value></data>
+  <data name="HakoAuthFreshLoginDetails" xml:space="preserve"><value>The one-time exchange response may have been lost after approval. The old server session may still be active in Telegram. Sign in to your existing Hako account with its Telegram username and approve a new request; the old request can't be reused.</value></data>
+  <data name="HakoAuthFreshLoginButton" xml:space="preserve"><value>Start a new sign-in</value></data>
   <data name="BackButton" xml:space="preserve"><value>Back</value></data>
   <data name="LoginInstructions" xml:space="preserve"><value>Enter the code on the Microsoft page to sign in to Xbox.</value></data>
   <data name="RequestingCode" xml:space="preserve"><value>Getting a code…</value></data>
@@ -23,6 +42,22 @@ Hako</value></data>
   <data name="SigningIn" xml:space="preserve"><value>Connecting Xbox and checking the Minecraft profile…</value></data>
   <data name="RetryButton" xml:space="preserve"><value>Try again</value></data>
   <data name="AuthNetworkError" xml:space="preserve"><value>Couldn't reach the server. Check your connection and try again.</value></data>
+  <data name="HakoAuthNetworkError" xml:space="preserve"><value>Couldn't reach the Hako server. Check your connection and try again.</value></data>
+  <data name="HakoAuthTimeout" xml:space="preserve"><value>The Hako server didn't respond in time. Try again.</value></data>
+  <data name="HakoAuthInvalidResponse" xml:space="preserve"><value>The Hako server returned an unexpected response. Try again.</value></data>
+  <data name="HakoAuthRedirectRejected" xml:space="preserve"><value>The Hako server redirected the request. Sign-in was stopped to protect your data.</value></data>
+  <data name="HakoAuthRateLimited" xml:space="preserve"><value>Too many requests were sent to Hako. Wait and try again.</value></data>
+  <data name="HakoAuthServiceUnavailable" xml:space="preserve"><value>The Hako service is temporarily unavailable. Try again later.</value></data>
+  <data name="HakoAuthBotUnavailable" xml:space="preserve"><value>The Hako bot is temporarily unavailable. Try again later.</value></data>
+  <data name="HakoAuthInvalidUsername" xml:space="preserve"><value>Enter a Telegram username with 5–32 characters: ASCII letters, digits, and underscores.</value></data>
+  <data name="HakoAuthInvalidRequest" xml:space="preserve"><value>Couldn't create a Hako request. Check the device name and try again.</value></data>
+  <data name="HakoAuthAccountNotFound" xml:space="preserve"><value>No Hako account uses this Telegram username. Create an account first.</value></data>
+  <data name="HakoAuthDenied" xml:space="preserve"><value>The Hako sign-in request was denied in Telegram.</value></data>
+  <data name="HakoAuthExpired" xml:space="preserve"><value>The Hako request expired. Create a new one and approve it within five minutes.</value></data>
+  <data name="HakoAuthAccountExists" xml:space="preserve"><value>This Telegram account is already linked to Hako. Sign in to the existing account.</value></data>
+  <data name="HakoAuthFreshLoginRequired" xml:space="preserve"><value>This one-time request was already used. Start a new sign-in and approve it in Telegram.</value></data>
+  <data name="HakoAuthUnauthorized" xml:space="preserve"><value>Hako rejected the request. Start a new sign-in.</value></data>
+  <data name="HakoAuthPersistenceError" xml:space="preserve"><value>Couldn't securely save or remove the Hako session on this device.</value></data>
   <data name="AuthInvalidResponse" xml:space="preserve"><value>The server returned an unexpected response. Try again.</value></data>
   <data name="AuthCodeExpired" xml:space="preserve"><value>The code expired. Get a new one and try again.</value></data>
   <data name="AuthDeclined" xml:space="preserve"><value>Sign-in was declined on the Microsoft page.</value></data>
@@ -35,6 +70,7 @@ Hako</value></data>
   <data name="AccountSaveFailed" xml:space="preserve"><value>Hako couldn't securely save the account on this device.</value></data>
   <data name="StartupPreferencesWarning" xml:space="preserve"><value>Settings couldn't be read. The system language will be used.</value></data>
   <data name="StartupAccountWarning" xml:space="preserve"><value>The saved account couldn't be opened. Sign in again to restore access.</value></data>
+  <data name="StartupHakoAccountWarning" xml:space="preserve"><value>The saved Hako account couldn't be opened. You can continue with Microsoft or sign in to Hako again.</value></data>
   <data name="BuildsTitle" xml:space="preserve"><value>Builds</value></data>
   <data name="BuildsEmptyTitle" xml:space="preserve"><value>Your Minecraft builds will appear here</value></data>
   <data name="BuildsEmptyBody" xml:space="preserve"><value>Hako is setting up your launcher in this stage. Build management will come later.</value></data>
@@ -42,6 +78,24 @@ Hako</value></data>
   <data name="GeneralSection" xml:space="preserve"><value>General</value></data>
   <data name="StorageSection" xml:space="preserve"><value>Storage</value></data>
   <data name="ProfileTitle" xml:space="preserve"><value>Profile</value></data>
+  <data name="HakoProfileTitle" xml:space="preserve"><value>Hako account</value></data>
+  <data name="HakoProfileNotConnected" xml:space="preserve"><value>No Hako account is connected</value></data>
+  <data name="HakoProfileUnverified" xml:space="preserve"><value>Status not checked</value></data>
+  <data name="HakoProfileVerifying" xml:space="preserve"><value>Checking session…</value></data>
+  <data name="HakoProfileVerified" xml:space="preserve"><value>Connected</value></data>
+  <data name="HakoProfileExpired" xml:space="preserve"><value>Session expired; check required</value></data>
+  <data name="HakoProfileLogoutFailed" xml:space="preserve"><value>Couldn't end the server session</value></data>
+  <data name="HakoProfileSignedOutDetails" xml:space="preserve"><value>A Hako account signs in to the launcher separately from Microsoft. Use Microsoft for Minecraft with a license.</value></data>
+  <data name="HakoProfileDeviceFormat" xml:space="preserve"><value>This device: {0}</value></data>
+  <data name="HakoProfileVerifyButton" xml:space="preserve"><value>Check Hako</value></data>
+  <data name="HakoProfileLogoutButton" xml:space="preserve"><value>Sign out of Hako</value></data>
+  <data name="HakoProfileLogoutTitle" xml:space="preserve"><value>Sign out of Hako?</value></data>
+  <data name="HakoProfileLogoutMessage" xml:space="preserve"><value>Hako will try to end the server session and remove its saved token from this device. Your Microsoft account and builds won't change.</value></data>
+  <data name="HakoLogoutRetryTitle" xml:space="preserve"><value>Hako server is unavailable</value></data>
+  <data name="HakoLogoutNetworkFailure" xml:space="preserve"><value>Couldn't end the server session. You can retry or remove the token only from this device. With local-only sign-out, the session may remain active and can be ended through Telegram.</value></data>
+  <data name="HakoLogoutRetryButton" xml:space="preserve"><value>Retry sign-out</value></data>
+  <data name="HakoLogoutLocalOnlyButton" xml:space="preserve"><value>Remove token from device</value></data>
+  <data name="HakoLogoutRetryFailed" xml:space="preserve"><value>Couldn't end the server session. The account remains on this device; retry sign-out or choose local removal.</value></data>
   <data name="DiskSpaceTitle" xml:space="preserve"><value>Disk Space</value></data>
   <data name="StorageUsedLabel" xml:space="preserve"><value>Used</value></data>
   <data name="StorageFreeLabel" xml:space="preserve"><value>Free</value></data>
@@ -64,8 +118,8 @@ Hako</value></data>
   <data name="StorageSizeError" xml:space="preserve"><value>Couldn't get the size of the instances.</value></data>
   <data name="StorageBuildsFooterFormat" xml:space="preserve"><value>{0} instances · {1}</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Interface language</value></data>
-  <data name="GuestProfileTitle" xml:space="preserve"><value>You continued without an account</value></data>
-  <data name="GuestProfileDetails" xml:space="preserve"><value>Sign in with Microsoft to save your account in Hako.</value></data>
+  <data name="GuestProfileTitle" xml:space="preserve"><value>Offline Minecraft profile</value></data>
+  <data name="GuestProfileDetails" xml:space="preserve"><value>This build uses its offline identity. Sign in with Microsoft to use a licensed Minecraft profile.</value></data>
   <data name="ProfileSignedOutTitle" xml:space="preserve"><value>No Microsoft account is connected</value></data>
   <data name="ProfileSignedOutDetails" xml:space="preserve"><value>You can continue without an account or sign in with Microsoft.</value></data>
   <data name="SignInButton" xml:space="preserve"><value>Sign in with Microsoft</value></data>

@@ -36,6 +36,7 @@ public sealed partial class WelcomePage : Page
         WelcomeTitle.Text = HakoStrings.Get("WelcomeTitle");
         WelcomeSubtitle.Text = HakoStrings.Get("WelcomeSubtitle");
         StartButton.Content = HakoStrings.Get("StartButton");
+        HakoButton.Content = HakoStrings.Get("HakoSignInButton");
         GuestButton.Content = HakoStrings.Get("GuestButton");
         Disclaimer.Text = HakoStrings.Get("Disclaimer");
         RefreshStartupNotice();
@@ -85,6 +86,8 @@ public sealed partial class WelcomePage : Page
     }
 
     private void StartButton_Click(object sender, RoutedEventArgs e) => _coordinator?.BeginSignIn();
+
+    private void HakoButton_Click(object sender, RoutedEventArgs e) => _coordinator?.OpenHakoSignIn();
 
     private void GuestButton_Click(object sender, RoutedEventArgs e) => _coordinator?.ContinueWithoutAccount();
 }

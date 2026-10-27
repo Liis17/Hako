@@ -7,10 +7,29 @@
   <data name="WelcomeTitle" xml:space="preserve"><value>Добро пожаловать
 в Hako</value></data>
   <data name="WelcomeSubtitle" xml:space="preserve"><value>Лаунчер Minecraft для Windows</value></data>
-  <data name="StartButton" xml:space="preserve"><value>Начать</value></data>
+  <data name="StartButton" xml:space="preserve"><value>Войти через Microsoft</value></data>
+  <data name="HakoSignInButton" xml:space="preserve"><value>Войти в Hako</value></data>
   <data name="GuestButton" xml:space="preserve"><value>Продолжить без аккаунта</value></data>
   <data name="Disclaimer" xml:space="preserve"><value>Hako не связан с Mojang или Microsoft и не одобрен ими. Minecraft — товарный знак Microsoft.</value></data>
   <data name="LoginTitle" xml:space="preserve"><value>Вход в Microsoft</value></data>
+  <data name="HakoAuthTitle" xml:space="preserve"><value>Вход или регистрация Hako</value></data>
+  <data name="HakoAuthInstructions" xml:space="preserve"><value>Hako — отдельный аккаунт лаунчера. Для входа укажите имя пользователя Telegram и подтвердите запрос в боте. Для Minecraft с лицензией по-прежнему нужен Microsoft.</value></data>
+  <data name="HakoAuthUsernamePlaceholder" xml:space="preserve"><value>Имя пользователя Telegram</value></data>
+  <data name="HakoAuthLoginButton" xml:space="preserve"><value>Войти с подтверждением в Telegram</value></data>
+  <data name="HakoAuthRegisterButton" xml:space="preserve"><value>Создать аккаунт Hako</value></data>
+  <data name="HakoAuthRequesting" xml:space="preserve"><value>Создаём запрос авторизации…</value></data>
+  <data name="HakoAuthRegistrationPending" xml:space="preserve"><value>Откройте ссылку Telegram и отправьте боту команду /start для создания аккаунта.</value></data>
+  <data name="HakoAuthLoginPending" xml:space="preserve"><value>Подтвердите или отклоните запрос в Telegram. Hako проверяет ответ автоматически.</value></data>
+  <data name="HakoAuthPendingCountdown" xml:space="preserve"><value>Ожидаем подтверждения… Осталось {0}:{1:00}</value></data>
+  <data name="HakoAuthExchanging" xml:space="preserve"><value>Сохраняем подтверждённый вход…</value></data>
+  <data name="HakoAuthOpenTelegram" xml:space="preserve"><value>Открыть Telegram</value></data>
+  <data name="HakoAuthCopyLink" xml:space="preserve"><value>Скопировать ссылку</value></data>
+  <data name="HakoAuthCopiedLink" xml:space="preserve"><value>Ссылка скопирована</value></data>
+  <data name="HakoAuthOpenTelegramFailed" xml:space="preserve"><value>Не удалось открыть Telegram. Перейдите по ссылке выше вручную.</value></data>
+  <data name="HakoAuthCopyLinkFailed" xml:space="preserve"><value>Не удалось скопировать ссылку. Выделите её и скопируйте вручную.</value></data>
+  <data name="HakoAuthFreshLoginTitle" xml:space="preserve"><value>Нужен новый вход</value></data>
+  <data name="HakoAuthFreshLoginDetails" xml:space="preserve"><value>Ответ на одноразовый обмен мог потеряться после подтверждения. Старый сеанс может оставаться активным в Telegram. Войдите в существующий аккаунт Hako по имени Telegram и подтвердите новый запрос; повторно использовать старый запрос нельзя.</value></data>
+  <data name="HakoAuthFreshLoginButton" xml:space="preserve"><value>Начать новый вход</value></data>
   <data name="BackButton" xml:space="preserve"><value>Назад</value></data>
   <data name="LoginInstructions" xml:space="preserve"><value>Введите код на странице Microsoft, чтобы войти в Xbox.</value></data>
   <data name="RequestingCode" xml:space="preserve"><value>Получаем код…</value></data>
@@ -23,6 +42,22 @@
   <data name="SigningIn" xml:space="preserve"><value>Подключаем Xbox и проверяем профиль Minecraft…</value></data>
   <data name="RetryButton" xml:space="preserve"><value>Попробовать снова</value></data>
   <data name="AuthNetworkError" xml:space="preserve"><value>Не удалось связаться с сервером. Проверьте подключение и попробуйте снова.</value></data>
+  <data name="HakoAuthNetworkError" xml:space="preserve"><value>Не удалось связаться с сервером Hako. Проверьте подключение и попробуйте снова.</value></data>
+  <data name="HakoAuthTimeout" xml:space="preserve"><value>Сервер Hako не ответил вовремя. Попробуйте снова.</value></data>
+  <data name="HakoAuthInvalidResponse" xml:space="preserve"><value>Сервер Hako вернул неожиданный ответ. Попробуйте снова.</value></data>
+  <data name="HakoAuthRedirectRejected" xml:space="preserve"><value>Сервер Hako перенаправил запрос. Вход остановлен ради защиты данных.</value></data>
+  <data name="HakoAuthRateLimited" xml:space="preserve"><value>Слишком много запросов к Hako. Подождите и попробуйте снова.</value></data>
+  <data name="HakoAuthServiceUnavailable" xml:space="preserve"><value>Сервис Hako временно недоступен. Попробуйте позже.</value></data>
+  <data name="HakoAuthBotUnavailable" xml:space="preserve"><value>Бот Hako временно недоступен. Попробуйте позже.</value></data>
+  <data name="HakoAuthInvalidUsername" xml:space="preserve"><value>Введите имя Telegram длиной от 5 до 32 символов: латинские буквы, цифры и подчёркивания.</value></data>
+  <data name="HakoAuthInvalidRequest" xml:space="preserve"><value>Не удалось создать запрос Hako. Проверьте имя устройства и попробуйте снова.</value></data>
+  <data name="HakoAuthAccountNotFound" xml:space="preserve"><value>Аккаунт Hako с таким именем Telegram не найден. Сначала создайте аккаунт.</value></data>
+  <data name="HakoAuthDenied" xml:space="preserve"><value>Запрос входа в Hako отклонён в Telegram.</value></data>
+  <data name="HakoAuthExpired" xml:space="preserve"><value>Запрос Hako истёк. Создайте новый и подтвердите его в течение пяти минут.</value></data>
+  <data name="HakoAuthAccountExists" xml:space="preserve"><value>Этот Telegram уже связан с аккаунтом Hako. Войдите в существующий аккаунт.</value></data>
+  <data name="HakoAuthFreshLoginRequired" xml:space="preserve"><value>Этот одноразовый запрос уже использован. Начните новый вход и подтвердите его в Telegram.</value></data>
+  <data name="HakoAuthUnauthorized" xml:space="preserve"><value>Запрос Hako не принят. Начните новый вход.</value></data>
+  <data name="HakoAuthPersistenceError" xml:space="preserve"><value>Не удалось безопасно сохранить или удалить сеанс Hako на этом устройстве.</value></data>
   <data name="AuthInvalidResponse" xml:space="preserve"><value>Сервер вернул неожиданный ответ. Попробуйте снова.</value></data>
   <data name="AuthCodeExpired" xml:space="preserve"><value>Код истёк. Получите новый и попробуйте снова.</value></data>
   <data name="AuthDeclined" xml:space="preserve"><value>Вход отклонён на странице Microsoft.</value></data>
@@ -35,6 +70,7 @@
   <data name="AccountSaveFailed" xml:space="preserve"><value>Не удалось безопасно сохранить аккаунт на этом устройстве.</value></data>
   <data name="StartupPreferencesWarning" xml:space="preserve"><value>Не удалось прочитать настройки. Используется язык системы.</value></data>
   <data name="StartupAccountWarning" xml:space="preserve"><value>Сохранённый аккаунт не удалось открыть. Войдите снова, чтобы восстановить доступ.</value></data>
+  <data name="StartupHakoAccountWarning" xml:space="preserve"><value>Сохранённый аккаунт Hako не удалось открыть. Можно продолжить с Microsoft или войти в Hako снова.</value></data>
   <data name="BuildsTitle" xml:space="preserve"><value>Сборки</value></data>
   <data name="BuildsEmptyTitle" xml:space="preserve"><value>Здесь появятся ваши сборки Minecraft</value></data>
   <data name="BuildsEmptyBody" xml:space="preserve"><value>В этом этапе Hako настраивает ваш лаунчер. Управление сборками появится позже.</value></data>
@@ -42,6 +78,24 @@
   <data name="GeneralSection" xml:space="preserve"><value>Основные</value></data>
   <data name="StorageSection" xml:space="preserve"><value>Хранилище</value></data>
   <data name="ProfileTitle" xml:space="preserve"><value>Профиль</value></data>
+  <data name="HakoProfileTitle" xml:space="preserve"><value>Аккаунт Hako</value></data>
+  <data name="HakoProfileNotConnected" xml:space="preserve"><value>Аккаунт Hako не подключён</value></data>
+  <data name="HakoProfileUnverified" xml:space="preserve"><value>Статус не проверен</value></data>
+  <data name="HakoProfileVerifying" xml:space="preserve"><value>Проверяем сеанс…</value></data>
+  <data name="HakoProfileVerified" xml:space="preserve"><value>Подключён</value></data>
+  <data name="HakoProfileExpired" xml:space="preserve"><value>Сеанс истёк; требуется проверка</value></data>
+  <data name="HakoProfileLogoutFailed" xml:space="preserve"><value>Не удалось завершить сеанс на сервере</value></data>
+  <data name="HakoProfileSignedOutDetails" xml:space="preserve"><value>Аккаунт Hako отдельно от Microsoft позволяет войти в лаунчер. Для Minecraft с лицензией используйте Microsoft.</value></data>
+  <data name="HakoProfileDeviceFormat" xml:space="preserve"><value>Это устройство: {0}</value></data>
+  <data name="HakoProfileVerifyButton" xml:space="preserve"><value>Проверить Hako</value></data>
+  <data name="HakoProfileLogoutButton" xml:space="preserve"><value>Выйти из Hako</value></data>
+  <data name="HakoProfileLogoutTitle" xml:space="preserve"><value>Выйти из Hako?</value></data>
+  <data name="HakoProfileLogoutMessage" xml:space="preserve"><value>Hako попытается завершить сеанс на сервере и удалит сохранённый токен с этого устройства. Аккаунт Microsoft и сборки не изменятся.</value></data>
+  <data name="HakoLogoutRetryTitle" xml:space="preserve"><value>Сервер Hako недоступен</value></data>
+  <data name="HakoLogoutNetworkFailure" xml:space="preserve"><value>Не удалось завершить сеанс на сервере. Можно повторить попытку или удалить токен только с этого устройства. При локальном выходе сеанс может оставаться активным и завершиться через Telegram.</value></data>
+  <data name="HakoLogoutRetryButton" xml:space="preserve"><value>Повторить выход</value></data>
+  <data name="HakoLogoutLocalOnlyButton" xml:space="preserve"><value>Удалить токен с устройства</value></data>
+  <data name="HakoLogoutRetryFailed" xml:space="preserve"><value>Не удалось завершить сеанс на сервере. Аккаунт остался на этом устройстве; повторите выход или выберите локальное удаление.</value></data>
   <data name="DiskSpaceTitle" xml:space="preserve"><value>Место на диске</value></data>
   <data name="StorageUsedLabel" xml:space="preserve"><value>Занято</value></data>
   <data name="StorageFreeLabel" xml:space="preserve"><value>Свободно</value></data>
@@ -64,8 +118,8 @@
   <data name="StorageSizeError" xml:space="preserve"><value>Не удалось получить размер сборок.</value></data>
   <data name="StorageBuildsFooterFormat" xml:space="preserve"><value>{0} сборок · {1}</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Язык интерфейса</value></data>
-  <data name="GuestProfileTitle" xml:space="preserve"><value>Вы продолжили без аккаунта</value></data>
-  <data name="GuestProfileDetails" xml:space="preserve"><value>Войдите в Microsoft, чтобы сохранить аккаунт в Hako.</value></data>
+  <data name="GuestProfileTitle" xml:space="preserve"><value>Профиль Minecraft в офлайн-режиме</value></data>
+  <data name="GuestProfileDetails" xml:space="preserve"><value>Эта сборка использует офлайн-имя. Войдите в Microsoft, чтобы играть с лицензированным профилем Minecraft.</value></data>
   <data name="ProfileSignedOutTitle" xml:space="preserve"><value>Аккаунт Microsoft не подключён</value></data>
   <data name="ProfileSignedOutDetails" xml:space="preserve"><value>Вы можете продолжить без аккаунта или войти в Microsoft.</value></data>
   <data name="SignInButton" xml:space="preserve"><value>Войти в Microsoft</value></data>

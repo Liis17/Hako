@@ -103,6 +103,8 @@ public sealed partial class MainWindow : Window
     internal MainWindow(LauncherServices services)
     {
         InitializeComponent();
+        Title = App.ProductName;
+        AppTitleBar.Title = App.ProductName;
         _dispatcher = DispatcherQueue;
         AppWindow.SetIcon(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         ExtendsContentIntoTitleBar = true;
@@ -206,7 +208,9 @@ public sealed partial class MainWindow : Window
             UpdateSelection();
             UpdateSkinAvailability();
         }
-        else if (e.PropertyName is nameof(AppCoordinator.IsGuest) or nameof(AppCoordinator.Account))
+        else if (e.PropertyName is nameof(AppCoordinator.IsGuest) or nameof(AppCoordinator.Account)
+                 or nameof(AppCoordinator.HakoSession) or nameof(AppCoordinator.HakoSessionStatus)
+                 or nameof(AppCoordinator.HakoVerificationError))
         {
             UpdateNavigationLabels();
             if (ShellFrame.Content is SettingsPage currentSettingsPage)
@@ -225,7 +229,7 @@ public sealed partial class MainWindow : Window
     private void ShowScreen()
     {
         var screen = _coordinator.Screen;
-        AppUpdateNotice.Visibility = screen is LauncherScreen.Loading or LauncherScreen.Welcome or LauncherScreen.Login
+        AppUpdateNotice.Visibility = screen is LauncherScreen.Loading or LauncherScreen.Welcome or LauncherScreen.Login or LauncherScreen.HakoLogin
             ? Visibility.Collapsed : Visibility.Visible;
         if (screen is LauncherScreen.Builds or LauncherScreen.Instance or LauncherScreen.InstanceCreation
             or LauncherScreen.ModpackCatalog or LauncherScreen.ModpackCreation or LauncherScreen.Settings)
@@ -280,6 +284,7 @@ public sealed partial class MainWindow : Window
         var page = screen switch
         {
             LauncherScreen.Login => typeof(LoginPage),
+            LauncherScreen.HakoLogin => typeof(HakoLoginPage),
             LauncherScreen.Welcome => typeof(WelcomePage),
             _ => typeof(LoadingPage)
         };
@@ -571,6 +576,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed -= AppWindow_Changed;
         AppWindow.Closing -= AppWindow_Closing;
         _coordinator.CancelSignIn();
+        _coordinator.Hako.CancelAttempt();
         UpdateSkinAvailability();
         _skinPreviewService.Dispose();
     }
@@ -599,6 +605,7 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(CreateNavigationItem, HakoStrings.Get("CreateBuildButton"));
         AccountNavigationItem.Content = _coordinator.Account?.MinecraftName
             ?? _coordinator.Account?.Gamertag
+            ?? _coordinator.HakoSession?.Account.Username
             ?? HakoStrings.Get(_coordinator.IsGuest ? "GuestProfileTitle" : "ProfileTitle");
     }
 

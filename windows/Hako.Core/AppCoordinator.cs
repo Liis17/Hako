@@ -11,6 +11,7 @@ public enum LauncherScreen
     Loading,
     Welcome,
     Login,
+    HakoLogin,
     Builds,
     Instance,
     InstanceCreation,
@@ -30,7 +31,8 @@ public enum SettingsSection
 public enum StartupNotice
 {
     PreferencesUnavailable,
-    AccountUnavailable
+    AccountUnavailable,
+    HakoAccountUnavailable
 }
 
 public static class StartupNoticeExtensions
@@ -39,6 +41,7 @@ public static class StartupNoticeExtensions
     {
         StartupNotice.PreferencesUnavailable => "StartupPreferencesWarning",
         StartupNotice.AccountUnavailable => "StartupAccountWarning",
+        StartupNotice.HakoAccountUnavailable => "StartupHakoAccountWarning",
         _ => throw new ArgumentOutOfRangeException(nameof(notice), notice, null)
     };
 }
@@ -48,6 +51,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     private readonly UserSettingsService _settingsService;
     private readonly IAccountStore _accountStore;
     private readonly IMicrosoftAuthService _authService;
+    private readonly HakoAccountCoordinator _hakoAccount;
     private readonly object _commitLock = new();
     private readonly SemaphoreSlim _accountTransitionGate = new(1, 1);
     private readonly IAccountPlaytimeTransfer? _playtimeTransfer;
@@ -74,8 +78,9 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         IAccountStore accountStore,
         IMicrosoftAuthService authService,
         TimeProvider? timeProvider = null,
-        IAccountPlaytimeTransfer? playtimeTransfer = null)
-        : this(new UserSettingsService(settingsStore), accountStore, authService, timeProvider, playtimeTransfer)
+        IAccountPlaytimeTransfer? playtimeTransfer = null,
+        HakoAccountCoordinator? hakoAccount = null)
+        : this(new UserSettingsService(settingsStore), accountStore, authService, timeProvider, playtimeTransfer, hakoAccount)
     {
     }
 
@@ -84,12 +89,15 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         IAccountStore accountStore,
         IMicrosoftAuthService authService,
         TimeProvider? timeProvider = null,
-        IAccountPlaytimeTransfer? playtimeTransfer = null)
+        IAccountPlaytimeTransfer? playtimeTransfer = null,
+        HakoAccountCoordinator? hakoAccount = null)
     {
         _settingsService = settingsService;
         _accountStore = accountStore;
         _authService = authService;
         _playtimeTransfer = playtimeTransfer;
+        _hakoAccount = hakoAccount ?? new HakoAccountCoordinator();
+        _hakoAccount.PropertyChanged += HakoAccount_PropertyChanged;
         MinecraftSessions = new MinecraftSessionCoordinator(this, _accountStore, _authService, timeProvider);
     }
 
@@ -99,6 +107,9 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     public event EventHandler? AccountGenerationChanged;
 
     public MinecraftSessionCoordinator MinecraftSessions { get; }
+    public HakoAccountCoordinator Hako => _hakoAccount;
+    public HakoSession? HakoSession => _hakoAccount.Session;
+    public bool HasProviderSession => Account is not null || HakoSession is not null;
 
     public LauncherScreen Screen
     {
@@ -175,8 +186,6 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         try
         {
             SetAccount(await _accountStore.LoadAsync(cancellationToken), invalidateSessions: true);
-            IsGuest = false;
-            Screen = Account is null ? LauncherScreen.Welcome : LauncherScreen.Builds;
         }
         catch (OperationCanceledException)
         {
@@ -185,10 +194,25 @@ public sealed class AppCoordinator : INotifyPropertyChanged
         catch
         {
             SetAccount(null, invalidateSessions: true);
-            IsGuest = false;
             CurrentStartupNotice = StartupNotice.AccountUnavailable;
-            Screen = LauncherScreen.Welcome;
         }
+
+        try
+        {
+            await _hakoAccount.InitializeAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            CurrentStartupNotice = StartupNotice.HakoAccountUnavailable;
+        }
+
+        IsGuest = false;
+        Screen = HasProviderSession ? LauncherScreen.Builds : LauncherScreen.Welcome;
+        _ = _hakoAccount.VerifyIfNeededAsync();
     }
 
     public async Task SetLanguageAsync(AppLanguage language, CancellationToken cancellationToken = default)
@@ -229,6 +253,61 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     }
 
     public Task RetrySignIn() => StartAttempt();
+
+    public void OpenHakoSignIn()
+    {
+        lock (_commitLock)
+        {
+            if (Screen != LauncherScreen.HakoLogin)
+            {
+                _loginReturnScreen = Screen;
+                _loginReturnSection = SelectedSettingsSection;
+            }
+
+            Screen = LauncherScreen.HakoLogin;
+        }
+    }
+
+    public Task BeginHakoSignIn(string username)
+    {
+        if (!HakoUsername.TryNormalize(username, out var normalizedUsername))
+        {
+            throw new HakoAuthException(HakoAuthErrorKind.InvalidUsername);
+        }
+
+        lock (_commitLock)
+        {
+            OpenHakoSignIn();
+        }
+
+        return _hakoAccount.BeginLoginAsync(normalizedUsername);
+    }
+
+    public Task BeginHakoRegistration()
+    {
+        lock (_commitLock)
+        {
+            if (Screen != LauncherScreen.HakoLogin)
+            {
+                _loginReturnScreen = Screen;
+                _loginReturnSection = SelectedSettingsSection;
+            }
+
+            Screen = LauncherScreen.HakoLogin;
+        }
+
+        return _hakoAccount.BeginRegistrationAsync();
+    }
+
+    public void BackFromHakoSignIn()
+    {
+        _hakoAccount.CancelAttempt();
+        lock (_commitLock)
+        {
+            Screen = _loginReturnScreen;
+            SelectedSettingsSection = _loginReturnSection;
+        }
+    }
 
     public void BackFromSignIn()
     {
@@ -308,6 +387,19 @@ public sealed class AppCoordinator : INotifyPropertyChanged
     {
         SelectedSettingsSection = section;
         Screen = LauncherScreen.Settings;
+        if (section == SettingsSection.Profile)
+        {
+            _ = _hakoAccount.VerifyIfNeededAsync();
+        }
+    }
+
+    /// <summary>Archive activation opens the launcher as a guest only when neither provider is signed in.</summary>
+    public void EnsureAvailableForRestoreActivation()
+    {
+        if (!HasProviderSession && !IsGuest && Screen is not (LauncherScreen.Login or LauncherScreen.HakoLogin))
+        {
+            ContinueWithoutAccount();
+        }
     }
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
@@ -343,7 +435,7 @@ public sealed class AppCoordinator : INotifyPropertyChanged
                     CurrentDeviceCode = null;
                     LoginError = null;
                     CurrentStartupNotice = null;
-                    Screen = LauncherScreen.Welcome;
+                    Screen = HasProviderSession ? LauncherScreen.Builds : LauncherScreen.Welcome;
                     return true;
                 }
             }, cancellationToken);
@@ -583,6 +675,61 @@ public sealed class AppCoordinator : INotifyPropertyChanged
             InvalidateAccountOperationsLocked();
         }
     }
+
+    private void HakoAccount_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(HakoAccountCoordinator.Session))
+        {
+            NotifyPropertyChanged(nameof(HakoSession));
+            if (Screen != LauncherScreen.Loading)
+            {
+                if (_hakoAccount.Session is not null && Screen is LauncherScreen.Welcome or LauncherScreen.HakoLogin)
+                {
+                    Screen = LauncherScreen.Builds;
+                }
+                else if (_hakoAccount.Session is null && !HasProviderSession && !IsGuest
+                         && Screen is LauncherScreen.Builds or LauncherScreen.Settings)
+                {
+                    Screen = LauncherScreen.Welcome;
+                }
+            }
+        }
+
+        var propertyName = e.PropertyName switch
+        {
+            nameof(HakoAccountCoordinator.SessionStatus) => nameof(HakoSessionStatus),
+            nameof(HakoAccountCoordinator.AttemptPhase) => nameof(HakoAttemptPhase),
+            nameof(HakoAccountCoordinator.AttemptError) => nameof(HakoAttemptError),
+            nameof(HakoAccountCoordinator.VerificationError) => nameof(HakoVerificationError),
+            nameof(HakoAccountCoordinator.BotLink) => nameof(HakoBotLink),
+            nameof(HakoAccountCoordinator.PendingExpiresAt) => nameof(HakoPendingExpiresAt),
+            nameof(HakoAccountCoordinator.RequiresFreshLogin) => nameof(HakoRequiresFreshLogin),
+            _ => null
+        };
+        if (propertyName is not null)
+        {
+            NotifyPropertyChanged(propertyName);
+        }
+    }
+
+    private void NotifyPropertyChanged(string propertyName)
+    {
+        var handlers = PropertyChanged;
+        if (handlers is null) return;
+        foreach (PropertyChangedEventHandler handler in handlers.GetInvocationList())
+        {
+            try { handler(this, new PropertyChangedEventArgs(propertyName)); }
+            catch (Exception) { }
+        }
+    }
+
+    public HakoSessionStatus HakoSessionStatus => _hakoAccount.SessionStatus;
+    public HakoAttemptPhase HakoAttemptPhase => _hakoAccount.AttemptPhase;
+    public HakoAuthErrorKind? HakoAttemptError => _hakoAccount.AttemptError;
+    public HakoAuthErrorKind? HakoVerificationError => _hakoAccount.VerificationError;
+    public Uri? HakoBotLink => _hakoAccount.BotLink;
+    public DateTimeOffset? HakoPendingExpiresAt => _hakoAccount.PendingExpiresAt;
+    public bool HakoRequiresFreshLogin => _hakoAccount.RequiresFreshLogin;
 
     private void InvalidateAccountOperationsLocked()
     {

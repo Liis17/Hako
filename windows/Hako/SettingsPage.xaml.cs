@@ -193,9 +193,10 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     public void RefreshProfile()
     {
         var account = _coordinator?.Account;
+        var hakoSession = _coordinator?.HakoSession;
         if (_editingCharacter && (_modelAccountId != account?.Xuid || _modelProfileId != account?.MinecraftProfileId))
             CloseCharacterEditor();
-        var isGuest = account is null && _coordinator?.IsGuest == true;
+        var isGuest = account is null && (_coordinator?.IsGuest == true || hakoSession is not null);
         var hasAccount = account is not null;
 
         ProfileCards.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
@@ -243,6 +244,24 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         SignedOutSignInButton.Content = HakoStrings.Get("SignInButton");
         SignOutButton.Content = HakoStrings.Get("LogoutButton");
         SignOutButton.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
+
+        HakoProviderTitle.Text = HakoStrings.Get("HakoProfileTitle");
+        HakoProfileStatus.Text = hakoSession?.Account.Username ?? HakoStrings.Get("HakoProfileNotConnected");
+        HakoProfileBadge.Text = HakoStrings.Get((_coordinator?.HakoSessionStatus ?? HakoSessionStatus.SignedOut).ResourceKey());
+        HakoProfileDetails.Text = hakoSession is null
+            ? HakoStrings.Get("HakoProfileSignedOutDetails")
+            : string.Format(HakoStrings.Get("HakoProfileDeviceFormat"), hakoSession.DeviceName);
+        HakoProfileError.Text = _coordinator?.HakoVerificationError is { } hakoError
+            ? HakoStrings.Get(hakoError.ResourceKey())
+            : string.Empty;
+        HakoProfileError.Visibility = _coordinator?.HakoVerificationError is null ? Visibility.Collapsed : Visibility.Visible;
+        HakoVerifyButton.Content = HakoStrings.Get("HakoProfileVerifyButton");
+        HakoVerifyButton.Visibility = hakoSession is null ? Visibility.Collapsed : Visibility.Visible;
+        HakoVerifyButton.IsEnabled = _coordinator?.HakoSessionStatus != HakoSessionStatus.Verifying;
+        HakoSignInButton.Content = HakoStrings.Get("HakoSignInButton");
+        HakoSignInButton.Visibility = hakoSession is null ? Visibility.Visible : Visibility.Collapsed;
+        HakoSignOutButton.Content = HakoStrings.Get("HakoProfileLogoutButton");
+        HakoSignOutButton.Visibility = hakoSession is null ? Visibility.Collapsed : Visibility.Visible;
 
         var profileChanged = !string.Equals(_modelProfileId, account?.MinecraftProfileId, StringComparison.Ordinal);
         var accountChanged = !string.Equals(_modelAccountId, account?.Xuid, StringComparison.Ordinal);
@@ -324,17 +343,21 @@ public sealed partial class SettingsPage : Page, INavigationGuard
 
         ProfileLayout.RowDefinitions.Clear();
         ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = wide ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
         if (!wide)
         {
             ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         }
+        ProfileLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         Grid.SetColumnSpan(ProfileTitle, wide ? 2 : 1);
         Grid.SetColumn(ProfileCards, 0);
         Grid.SetRow(ProfileCards, 1);
         Grid.SetColumn(CharacterPanel, wide ? 1 : 0);
         Grid.SetRow(CharacterPanel, wide ? 1 : 2);
+        Grid.SetColumn(HakoProviderPanel, 0);
+        Grid.SetColumnSpan(HakoProviderPanel, wide ? 2 : 1);
+        Grid.SetRow(HakoProviderPanel, wide ? 2 : 3);
         Grid.SetColumnSpan(GuestProfilePanel, wide ? 2 : 1);
         Grid.SetRow(GuestProfilePanel, 1);
         Grid.SetColumnSpan(SignedOutProfilePanel, wide ? 2 : 1);
@@ -445,6 +468,92 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         if (_coordinator is not null)
         {
             _ = _coordinator.BeginSignIn();
+        }
+    }
+
+    private void HakoSignInButton_Click(object sender, RoutedEventArgs e) => _coordinator?.OpenHakoSignIn();
+
+    private void HakoVerifyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_coordinator is { } coordinator)
+        {
+            _ = coordinator.Hako.VerifyIfNeededAsync(manual: true);
+        }
+    }
+
+    private async void HakoSignOutButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_coordinator is not { } coordinator || coordinator.HakoSession is null)
+        {
+            return;
+        }
+
+        var confirm = new ContentDialog
+        {
+            Title = HakoStrings.Get("HakoProfileLogoutTitle"),
+            Content = HakoStrings.Get("HakoProfileLogoutMessage"),
+            PrimaryButtonText = HakoStrings.Get("HakoProfileLogoutButton"),
+            CloseButtonText = HakoStrings.Get("CancelButton"),
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+        if (await HakoDialogs.ShowAsync(confirm, current =>
+        {
+            current.Title = HakoStrings.Get("HakoProfileLogoutTitle");
+            current.Content = HakoStrings.Get("HakoProfileLogoutMessage");
+            current.PrimaryButtonText = HakoStrings.Get("HakoProfileLogoutButton");
+            current.CloseButtonText = HakoStrings.Get("CancelButton");
+        }) != ContentDialogResult.Primary || _coordinator != coordinator || !_screenVisible)
+        {
+            return;
+        }
+
+        var result = await coordinator.Hako.LogoutAsync();
+        if (result == HakoLogoutResult.LocalClearFailed)
+        {
+            await ShowErrorAsync("HakoAuthPersistenceError");
+            return;
+        }
+
+        if (result != HakoLogoutResult.RemoteLogoutFailed)
+        {
+            return;
+        }
+
+        var recovery = new ContentDialog
+        {
+            Title = HakoStrings.Get("HakoLogoutRetryTitle"),
+            Content = HakoStrings.Get("HakoLogoutNetworkFailure"),
+            PrimaryButtonText = HakoStrings.Get("HakoLogoutRetryButton"),
+            SecondaryButtonText = HakoStrings.Get("HakoLogoutLocalOnlyButton"),
+            CloseButtonText = HakoStrings.Get("CancelButton"),
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+        var choice = await HakoDialogs.ShowAsync(recovery, current =>
+        {
+            current.Title = HakoStrings.Get("HakoLogoutRetryTitle");
+            current.Content = HakoStrings.Get("HakoLogoutNetworkFailure");
+            current.PrimaryButtonText = HakoStrings.Get("HakoLogoutRetryButton");
+            current.SecondaryButtonText = HakoStrings.Get("HakoLogoutLocalOnlyButton");
+            current.CloseButtonText = HakoStrings.Get("CancelButton");
+        });
+        if (_coordinator != coordinator || !_screenVisible)
+        {
+            return;
+        }
+
+        if (choice == ContentDialogResult.Secondary)
+        {
+            if (!await coordinator.Hako.ClearLocalSessionAsync())
+            {
+                await ShowErrorAsync("HakoAuthPersistenceError");
+            }
+        }
+        else if (choice == ContentDialogResult.Primary
+                 && await coordinator.Hako.LogoutAsync() != HakoLogoutResult.SignedOut)
+        {
+            await ShowErrorAsync("HakoLogoutRetryFailed");
         }
     }
 
