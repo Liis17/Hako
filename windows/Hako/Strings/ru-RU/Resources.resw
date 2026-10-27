@@ -88,7 +88,6 @@
   <data name="HakoProfileLogoutFailed" xml:space="preserve"><value>Не удалось завершить сеанс на сервере</value></data>
   <data name="HakoProfileSignedOutDetails" xml:space="preserve"><value>Аккаунт Hako отдельно от Microsoft позволяет войти в лаунчер. Для Minecraft с лицензией используйте Microsoft.</value></data>
   <data name="HakoProfileDeviceFormat" xml:space="preserve"><value>Это устройство: {0}</value></data>
-  <data name="HakoProfileVerifyButton" xml:space="preserve"><value>Проверить Hako</value></data>
   <data name="HakoProfileLogoutButton" xml:space="preserve"><value>Выйти из Hako</value></data>
   <data name="HakoProfileLogoutTitle" xml:space="preserve"><value>Выйти из Hako?</value></data>
   <data name="HakoProfileLogoutMessage" xml:space="preserve"><value>Hako попытается завершить сеанс на сервере и удалит сохранённый токен с этого устройства. Аккаунт Microsoft и сборки не изменятся.</value></data>
