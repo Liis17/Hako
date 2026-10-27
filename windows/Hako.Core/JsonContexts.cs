@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
 using Hako.Core.Playtime;
+using Hako.Core.Updates;
 
 namespace Hako.Core;
 
@@ -10,6 +11,7 @@ namespace Hako.Core;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(UserSettings))]
+[JsonSerializable(typeof(AppRelease[]))]
 [JsonSerializable(typeof(InstanceRegistryFile))]
 [JsonSerializable(typeof(InstanceBackupManifest))]
 [JsonSerializable(typeof(WorldBackupManifest))]
