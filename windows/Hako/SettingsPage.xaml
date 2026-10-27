@@ -25,6 +25,12 @@
                         <TextBlock x:Name="GameSectionLabel" VerticalAlignment="Center" />
                     </StackPanel>
                 </ListViewItem>
+                <ListViewItem Tag="Storage">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <FontIcon Glyph="&#xEDA2;" />
+                        <TextBlock x:Name="StorageSectionLabel" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ListViewItem>
                 <ListViewItem Tag="Profile">
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <SymbolIcon Symbol="Contact" />
@@ -102,6 +108,120 @@
                             </StackPanel>
                         </Border>
                         <TextBlock x:Name="GameSaveError" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="StoragePanel" Spacing="16" Visibility="Collapsed" MaxWidth="760" HorizontalAlignment="Left">
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="14">
+                                <TextBlock x:Name="DiskSpaceTitle" FontSize="18" FontWeight="SemiBold" />
+                                <StackPanel x:Name="DiskLoadingPanel" Orientation="Horizontal" Spacing="8">
+                                    <ProgressRing x:Name="DiskLoadingRing" Width="20" Height="20" />
+                                    <TextBlock x:Name="DiskLoadingText" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                                <TextBlock x:Name="DiskErrorText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                                <StackPanel x:Name="DiskDataPanel" Spacing="14" Visibility="Collapsed">
+                                    <TextBlock x:Name="DiskVolumeName" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                    <Border Height="12" CornerRadius="6" Background="{ThemeResource ControlFillColorTertiaryBrush}">
+                                        <Grid x:Name="DiskSpaceSegments" Height="12" />
+                                    </Border>
+                                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="16">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock x:Name="StorageUsedLabel" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock x:Name="DiskUsedValue" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <TextBlock x:Name="StorageFreeLabel" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock x:Name="DiskFreeValue" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Spacing="4">
+                                            <TextBlock x:Name="StorageTotalLabel" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock x:Name="DiskTotalValue" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock x:Name="DiskBuildsLabel" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="DiskBuildsShare" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="14">
+                                <TextBlock x:Name="StorageUsageTitle" FontSize="18" FontWeight="SemiBold" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock x:Name="StorageOccupyLabel" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="StorageTotalUsage" Grid.Column="1" FontWeight="SemiBold" />
+                                </Grid>
+                                <StackPanel x:Name="StorageUsageLoadingPanel" Orientation="Horizontal" Spacing="8">
+                                    <ProgressRing x:Name="StorageUsageLoadingRing" Width="20" Height="20" />
+                                    <TextBlock x:Name="StorageUsageLoadingText" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                                <TextBlock x:Name="StorageSizeErrorText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                                <StackPanel x:Name="StorageUsageContent" Spacing="14" Visibility="Collapsed">
+                                    <Border Height="12" CornerRadius="6" Background="{ThemeResource ControlFillColorTertiaryBrush}">
+                                        <Grid x:Name="StorageCategoryBar" Height="12" />
+                                    </Border>
+                                    <StackPanel Spacing="10">
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#E0607E" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryWorlds" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageWorldsPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageWorldsSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#7C8DB5" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryMinecraft" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageMinecraftPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageMinecraftSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#F2884B" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryScreenshots" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageScreenshotsPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageScreenshotsSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#E5B93C" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryJava" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageJavaPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageJavaSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#4FA37A" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryMods" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageModsPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageModsSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#3FA7B8" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryDatapacks" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageDatapacksPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageDatapacksSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#8E6BBF" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryResourcePacks" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageResourcePacksPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageResourcePacksSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#9A9A9A" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryBuildBackups" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageBuildBackupsPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageBuildBackupsSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="10,*,56,90" ColumnSpacing="10">
+                                            <Ellipse Width="10" Height="10" Fill="#6E6E6E" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="StorageCategoryWorldBackups" Grid.Column="1" />
+                                            <TextBlock x:Name="StorageWorldBackupsPercent" Grid.Column="2" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextAlignment="Right" />
+                                            <TextBlock x:Name="StorageWorldBackupsSize" Grid.Column="3" FontWeight="SemiBold" TextAlignment="Right" />
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                                <TextBlock x:Name="StorageBuildsFooter" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <Grid x:Name="ProfilePanel" Visibility="Collapsed" SizeChanged="ProfilePanel_SizeChanged">

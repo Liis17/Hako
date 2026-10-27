@@ -40,7 +40,29 @@ Hako</value></data>
   <data name="BuildsEmptyBody" xml:space="preserve"><value>Hako is setting up your launcher in this stage. Build management will come later.</value></data>
   <data name="SettingsTitle" xml:space="preserve"><value>Settings</value></data>
   <data name="GeneralSection" xml:space="preserve"><value>General</value></data>
+  <data name="StorageSection" xml:space="preserve"><value>Storage</value></data>
   <data name="ProfileTitle" xml:space="preserve"><value>Profile</value></data>
+  <data name="DiskSpaceTitle" xml:space="preserve"><value>Disk Space</value></data>
+  <data name="StorageUsedLabel" xml:space="preserve"><value>Used</value></data>
+  <data name="StorageFreeLabel" xml:space="preserve"><value>Free</value></data>
+  <data name="StorageTotalLabel" xml:space="preserve"><value>Total</value></data>
+  <data name="StorageMinecraftBuilds" xml:space="preserve"><value>Minecraft Instances</value></data>
+  <data name="StorageOccupyLabel" xml:space="preserve"><value>Disk usage</value></data>
+  <data name="StorageBuildsShareFormat" xml:space="preserve"><value>{0} · {1}% of disk</value></data>
+  <data name="StorageCategoryWorlds" xml:space="preserve"><value>Worlds</value></data>
+  <data name="StorageCategoryMinecraft" xml:space="preserve"><value>Minecraft files</value></data>
+  <data name="StorageCategoryScreenshots" xml:space="preserve"><value>Screenshots</value></data>
+  <data name="StorageCategoryJava" xml:space="preserve"><value>Java</value></data>
+  <data name="StorageCategoryMods" xml:space="preserve"><value>Mods</value></data>
+  <data name="StorageCategoryDatapacks" xml:space="preserve"><value>Datapacks</value></data>
+  <data name="StorageCategoryResourcePacks" xml:space="preserve"><value>Resource Packs</value></data>
+  <data name="StorageCategoryBuildBackups" xml:space="preserve"><value>Build Backups</value></data>
+  <data name="StorageCategoryWorldBackups" xml:space="preserve"><value>World Backups</value></data>
+  <data name="StorageDiskFallbackName" xml:space="preserve"><value>Hako data disk</value></data>
+  <data name="StorageLoadError" xml:space="preserve"><value>Couldn't get the data</value></data>
+  <data name="StorageLoading" xml:space="preserve"><value>Getting disk information…</value></data>
+  <data name="StorageSizeError" xml:space="preserve"><value>Couldn't get the size of the instances.</value></data>
+  <data name="StorageBuildsFooterFormat" xml:space="preserve"><value>{0} instances · {1}</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Interface language</value></data>
   <data name="GuestProfileTitle" xml:space="preserve"><value>You continued without an account</value></data>
   <data name="GuestProfileDetails" xml:space="preserve"><value>Sign in with Microsoft to save your account in Hako.</value></data>

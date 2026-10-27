@@ -268,21 +268,21 @@ private struct StorageSettingsView: View {
                 }
             }
 
-            SettingsCard(title: "Кеш", systemImage: "tray") {
+            SettingsCard(title: "Резервные копии", systemImage: "externaldrive.badge.timemachine") {
                 HStack {
-                    Text("Объём кеша игры")
+                    Text("Резервные копии сборок")
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("0 Б")
+                    Text(usage.map { formatBytes($0[.instanceBackups]) } ?? "—")
                         .fontWeight(.medium)
                 }
-                ProgressView(value: 0)
-                    .tint(.sakuraDeep)
-                    .accessibilityLabel("Размер кеша игры")
-                    .accessibilityValue("0 Б")
-                Text("Кеш игры пока не создан.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("Резервные копии миров")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(usage.map { formatBytes($0[.worldBackups]) } ?? "—")
+                        .fontWeight(.medium)
+                }
             }
 
             SettingsCard(title: "Сборки Minecraft", systemImage: "shippingbox") {
@@ -370,7 +370,8 @@ private extension InstanceStorageUsage.Category {
         case .mods: "Моды"
         case .datapacks: "Датапаки"
         case .resourcepacks: "Ресурспаки"
-        case .backups: "Резервные копии"
+        case .instanceBackups: "Резервные копии сборок"
+        case .worldBackups: "Резервные копии миров"
         }
     }
 
@@ -383,7 +384,8 @@ private extension InstanceStorageUsage.Category {
         case .mods: Color(hex: 0x4FA37A)
         case .datapacks: Color(hex: 0x3FA7B8)
         case .resourcepacks: Color(hex: 0x8E6BBF)
-        case .backups: Color(hex: 0x9A9A9A)
+        case .instanceBackups: Color(hex: 0x9A9A9A)
+        case .worldBackups: Color(hex: 0xC4C4C4)
         }
     }
 }

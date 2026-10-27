@@ -155,6 +155,12 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     /// <summary>Absolute folder that contains the build folders.</summary>
     public string GameRoot => _storage.Root;
 
+    public InstanceStorageUsage GetStorageUsage() => _storage.Usage();
+
+    public InstanceStorageUsage GetStorageUsage(CancellationToken cancellationToken) => _storage.Usage(cancellationToken);
+
+    public DiskSpaceInfo GetDiskSpaceInfo() => _storage.GetDiskSpaceInfo();
+
     public string GetInstanceDirectory(Guid id)
     {
         _gate.Wait();

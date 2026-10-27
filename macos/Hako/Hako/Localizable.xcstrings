@@ -3759,38 +3759,6 @@
         }
       }
     },
-    "Кеш" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cache"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кеш"
-          }
-        }
-      }
-    },
-    "Кеш игры пока не создан." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The game cache hasn't been created yet."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кеш игры пока не создан."
-          }
-        }
-      }
-    },
     "Код истёк. Получите новый и попробуйте снова." : {
       "localizations" : {
         "en" : {
@@ -6016,22 +5984,6 @@
         }
       }
     },
-    "Объём кеша игры" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Game cache size"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Объём кеша игры"
-          }
-        }
-      }
-    },
     "Обязательный ресурспак" : {
       "localizations" : {
         "en" : {
@@ -7840,22 +7792,6 @@
         }
       }
     },
-    "Размер кеша игры" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Game cache size"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Размер кеша игры"
-          }
-        }
-      }
-    },
     "Размер недоступен" : {
       "localizations" : {
         "en" : {
@@ -8029,6 +7965,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Резервные копии"
+          }
+        }
+      }
+    },
+    "Резервные копии миров" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World backups"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Резервные копии миров"
+          }
+        }
+      }
+    },
+    "Резервные копии сборок" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instance backups"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Резервные копии сборок"
           }
         }
       }
