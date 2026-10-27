@@ -119,6 +119,30 @@ class ReleasePublisherTests(unittest.TestCase):
         self.assertFalse(api.release["draft"])
         self.assertFalse(api.release["prerelease"])
 
+    def test_macos_publishes_both_dmg_names_before_leaving_draft(self) -> None:
+        versioned = Path(self.temp.name) / "Hako-1.2.3-macos.dmg"
+        legacy = Path(self.temp.name) / "Hako.dmg"
+        versioned.write_bytes(legacy.read_bytes())
+
+        class InspectUploads(FakeAPI):
+            def upload_asset(inner, release_id: int, path: Path) -> None:
+                self.assertTrue(inner.release["draft"])
+                self.assertEqual(path.read_bytes(), versioned.read_bytes())
+                super().upload_asset(release_id, path)
+
+        api = InspectUploads()
+        result = self.publisher(api).publish(
+            self.tag, self.source, "Hako 1.2.3", "source", [versioned, legacy]
+        )
+        self.assertEqual(result, "published")
+        self.assertEqual(
+            {asset["name"] for asset in api.assets},
+            {"Hako-1.2.3-macos.dmg", "Hako.dmg"},
+        )
+        self.assertFalse(api.release["draft"])
+        self.assertEqual(api.events[-1][0], "update")
+        self.assertIs(api.events[-1][1]["draft"], False)
+
     def test_prerelease_flag_is_published(self) -> None:
         api = FakeAPI()
         result = self.publisher(api).publish(
