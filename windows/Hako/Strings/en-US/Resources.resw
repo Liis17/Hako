@@ -19,6 +19,7 @@ Hako</value></data>
   <data name="HakoAuthRegisterButton" xml:space="preserve"><value>Create a Hako account</value></data>
   <data name="HakoAuthRequesting" xml:space="preserve"><value>Creating an authorization request…</value></data>
   <data name="HakoAuthRegistrationPending" xml:space="preserve"><value>Open the Telegram link and send /start to the bot to create your account.</value></data>
+  <data name="HakoAuthRegistrationTelegramDetails" xml:space="preserve"><value>The bot creates your Hako account after you send /start in Telegram.</value></data>
   <data name="HakoAuthLoginPending" xml:space="preserve"><value>Approve or deny the request in Telegram. Hako checks for your response automatically.</value></data>
   <data name="HakoAuthPendingCountdown" xml:space="preserve"><value>Waiting for approval… {0}:{1:00} remaining</value></data>
   <data name="HakoAuthExchanging" xml:space="preserve"><value>Saving your approved sign-in…</value></data>
