@@ -256,9 +256,6 @@ public sealed partial class SettingsPage : Page, INavigationGuard
             ? HakoStrings.Get(hakoError.ResourceKey())
             : string.Empty;
         HakoProfileError.Visibility = _coordinator?.HakoVerificationError is null ? Visibility.Collapsed : Visibility.Visible;
-        HakoVerifyButton.Content = HakoStrings.Get("HakoProfileVerifyButton");
-        HakoVerifyButton.Visibility = hakoSession is null ? Visibility.Collapsed : Visibility.Visible;
-        HakoVerifyButton.IsEnabled = _coordinator?.HakoSessionStatus != HakoSessionStatus.Verifying;
         HakoSignInButton.Content = HakoStrings.Get("HakoSignInButton");
         HakoSignInButton.Visibility = hakoSession is null ? Visibility.Visible : Visibility.Collapsed;
         HakoSignOutButton.Content = HakoStrings.Get("HakoProfileLogoutButton");
@@ -465,14 +462,6 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     }
 
     private void HakoSignInButton_Click(object sender, RoutedEventArgs e) => _coordinator?.OpenHakoSignIn();
-
-    private void HakoVerifyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_coordinator is { } coordinator)
-        {
-            _ = coordinator.Hako.VerifyManuallyAsync();
-        }
-    }
 
     private async void HakoSignOutButton_Click(object sender, RoutedEventArgs e)
     {

@@ -242,6 +242,7 @@
                                                     <TextBlock x:Name="XboxBadge" Grid.Column="1" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                                                 </Grid>
                                                 <TextBlock x:Name="ProfileEmail" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                                                <Button x:Name="SignOutButton" Margin="0,8,0,0" HorizontalAlignment="Left" Click="SignOutButton_Click" />
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -268,8 +269,6 @@
                                             <TextBlock x:Name="AccountPlaytimeError" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
                                         </StackPanel>
                                     </Border>
-
-                                    <Button x:Name="SignOutButton" HorizontalAlignment="Left" Click="SignOutButton_Click" />
                                 </StackPanel>
 
                                 <StackPanel x:Name="GuestProfilePanel" Visibility="Collapsed" Spacing="16">
@@ -308,7 +307,6 @@
                                             <TextBlock x:Name="HakoProfileBadge" Grid.Column="1" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                         </Grid>
                                         <StackPanel Orientation="Horizontal" Spacing="12">
-                                            <Button x:Name="HakoVerifyButton" Click="HakoVerifyButton_Click" />
                                             <Button x:Name="HakoSignInButton" Style="{ThemeResource AccentButtonStyle}" Click="HakoSignInButton_Click" />
                                             <Button x:Name="HakoSignOutButton" Click="HakoSignOutButton_Click" />
                                         </StackPanel>
