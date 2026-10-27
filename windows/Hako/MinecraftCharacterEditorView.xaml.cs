@@ -225,9 +225,11 @@ public sealed partial class MinecraftCharacterEditorView : UserControl
         var wide = e.NewSize.Width >= 700;
         if (_wide == wide) return;
         _wide = wide;
+        EditorLayout.ColumnSpacing = wide ? 24 : 0;
         EditorLayout.ColumnDefinitions[1].Width = wide ? new GridLength(360) : new GridLength(0);
         Grid.SetColumn(EditorControls, wide ? 1 : 0);
         Grid.SetRow(EditorControls, wide ? 0 : 1);
-        PreviewView.Height = wide ? 480 : 360;
+        EditorLayout.RowDefinitions[0].Height = new GridLength(1, GridUnitType.Star);
+        EditorLayout.RowDefinitions[1].Height = wide ? new GridLength(0) : new GridLength(3, GridUnitType.Star);
     }
 }
