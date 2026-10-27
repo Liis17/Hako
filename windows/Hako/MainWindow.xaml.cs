@@ -3,6 +3,7 @@ using System.Linq;
 using Hako.Core;
 using Hako.Core.Instances;
 using Hako.Core.Minecraft;
+using Hako.Core.Updates;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -32,6 +33,69 @@ public sealed partial class MainWindow : Window
     private bool _navigating;
     private Guid? _shownInstanceId;
     private InstanceProfileSection? _restoreProfileSection;
+    private string? _notifiedUpdate;
+
+    private void Updates_Changed(object? sender, EventArgs e) => _dispatcher.TryEnqueue(() =>
+    {
+        if (_closed) return;
+        var updates = _services.Updates.Coordinator;
+        AppUpdateNotice.Title = updates.Release is { } release
+            ? string.Format(HakoStrings.Get("AppUpdateAvailable"), release.GetVersion()!.ToString(3)) : "";
+        OpenAppUpdateButton.Content = HakoStrings.Get("AppUpdateOpen");
+        if (updates.Release is { } available && available.Tag != _notifiedUpdate)
+        {
+            _notifiedUpdate = available.Tag;
+            AppUpdateNotice.IsOpen = true;
+        }
+        if (updates.Release is null) AppUpdateNotice.IsOpen = false;
+    });
+
+    private async void OpenAppUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (App.IsApplyingUpdate || RootNavigation.Visibility != Visibility.Visible) return;
+        await NavigateAsync(() =>
+        {
+            _coordinator.OpenSettings(SettingsSection.General);
+            AppUpdateNotice.IsOpen = false;
+        });
+    }
+
+    internal async Task ApplyAppUpdateAsync(DownloadedAppUpdate update, CancellationToken cancellationToken)
+    {
+        if (_closeRequested || _closed || _navigating || App.IsApplyingUpdate)
+            throw new AppUpdateException("AppUpdateWaitOperations");
+        App.IsApplyingUpdate = true;
+        _navigating = true;
+        RootNavigation.IsEnabled = false;
+        FlowFrame.IsEnabled = false;
+        AppUpdateNotice.IsEnabled = false;
+        try
+        {
+            if (ShellFrame.Content is INavigationGuard guard && !await guard.ConfirmLeaveAsync())
+                throw new OperationCanceledException();
+            using var lease = await _services.Store.TryBeginAppUpdateAsync(cancellationToken)
+                ?? throw new AppUpdateException("AppUpdateWaitOperations");
+            if (await _services.Updates.Coordinator.GetBlockReasonAsync(cancellationToken) is { } reason)
+                throw new AppUpdateException(reason);
+            await _services.Playtime.StopAsync();
+            await _services.Playtime.RefreshAsync(cancellationToken);
+            if (await _services.Playtime.HasActiveProcessesAsync(cancellationToken))
+                throw new AppUpdateException("AppUpdateWaitGames");
+            cancellationToken.ThrowIfCancellationRequested();
+            await WindowsAppUpdateService.DeployAsync(update, cancellationToken);
+        }
+        finally
+        {
+            // Deployment normally terminates this process. If it fails, restore a fully usable launcher.
+            _services.Playtime.Start();
+            App.IsApplyingUpdate = false;
+            _navigating = false;
+            RootNavigation.IsEnabled = true;
+            FlowFrame.IsEnabled = true;
+            AppUpdateNotice.IsEnabled = true;
+            App.ResumeRestoreQueue();
+        }
+    }
 
     internal MainWindow(LauncherServices services)
     {
@@ -49,6 +113,8 @@ public sealed partial class MainWindow : Window
         SetInitialWindowSize();
         _coordinator.PropertyChanged += Coordinator_PropertyChanged;
         _services.Store.InstancesChanged += Store_InstancesChanged;
+        _services.Updates.Coordinator.Changed += Updates_Changed;
+        HakoStrings.LanguageChanged += Updates_Changed;
         RootGrid.Loaded += (_, _) =>
         {
             if (RootGrid.XamlRoot is { } root)
@@ -155,6 +221,8 @@ public sealed partial class MainWindow : Window
     private void ShowScreen()
     {
         var screen = _coordinator.Screen;
+        AppUpdateNotice.Visibility = screen is LauncherScreen.Loading or LauncherScreen.Welcome or LauncherScreen.Login
+            ? Visibility.Collapsed : Visibility.Visible;
         if (screen is LauncherScreen.Builds or LauncherScreen.Instance or LauncherScreen.InstanceCreation
             or LauncherScreen.ModpackCatalog or LauncherScreen.ModpackCreation or LauncherScreen.Settings)
         {
@@ -188,7 +256,7 @@ public sealed partial class MainWindow : Window
                 case LauncherScreen.Settings when ShellFrame.Content is not SettingsPage:
                     ShellFrame.Navigate(
                         typeof(SettingsPage),
-                        new SettingsPageContext(_coordinator, _skinPreviewService, _previewOptions, _services.Settings, _services.Playtime));
+                        new SettingsPageContext(_coordinator, _skinPreviewService, _previewOptions, _services.Settings, _services.Playtime, _services.Updates));
                     break;
             }
 
@@ -427,6 +495,7 @@ public sealed partial class MainWindow : Window
 
     private async void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        if (App.IsApplyingUpdate) { args.Cancel = true; return; }
         if (_closeConfirmed)
         {
             return;
@@ -493,6 +562,8 @@ public sealed partial class MainWindow : Window
         _instancesRefresh.Stop();
         _coordinator.PropertyChanged -= Coordinator_PropertyChanged;
         _services.Store.InstancesChanged -= Store_InstancesChanged;
+        _services.Updates.Coordinator.Changed -= Updates_Changed;
+        HakoStrings.LanguageChanged -= Updates_Changed;
         AppWindow.Changed -= AppWindow_Changed;
         AppWindow.Closing -= AppWindow_Closing;
         _coordinator.CancelSignIn();

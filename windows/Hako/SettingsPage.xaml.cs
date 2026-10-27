@@ -1,6 +1,7 @@
 using Hako.Core;
 using Hako.Core.Minecraft;
 using Hako.Core.Playtime;
+using Hako.Core.Updates;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -15,7 +16,8 @@ internal sealed record SettingsPageContext(
     MinecraftSkinPreviewService SkinPreviewService,
     ProfilePreviewOptions? PreviewOptions,
     UserSettingsService Settings,
-    PlaytimeCoordinator Playtime);
+    PlaytimeCoordinator Playtime,
+    WindowsAppUpdateService Updates);
 
 public sealed partial class SettingsPage : Page, INavigationGuard
 {
@@ -39,6 +41,9 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     private bool _loadingGame;
     private bool _pickingJava;
     private bool _editingCharacter;
+    private WindowsAppUpdateService? _updates;
+    private DispatcherQueueTimer? _appUpdateRefresh;
+    private bool _refreshingAppUpdates;
 
     public SettingsPage()
     {
@@ -57,6 +62,12 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         _previewOptions = context.PreviewOptions;
         _settings = context.Settings;
         _playtime = context.Playtime;
+        _updates = context.Updates;
+        _updates.Coordinator.Changed += AppUpdates_Changed;
+        _appUpdateRefresh = DispatcherQueue.CreateTimer();
+        _appUpdateRefresh.Interval = TimeSpan.FromSeconds(2);
+        _appUpdateRefresh.Tick += (_, _) => { if (_updates?.Coordinator.Phase == AppUpdatePhase.Ready) _ = RefreshAppUpdatesAsync(); };
+        _appUpdateRefresh.Start();
         _playtime.PropertyChanged += Playtime_PropertyChanged;
         LoadGameSettings();
         _profileRequestScope = Guid.NewGuid();
@@ -79,6 +90,9 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         SkinView.HeadImageReady -= SkinView_HeadImageReady;
         SkinView.DisposeView();
         _gameSaveTimer?.Stop();
+        _appUpdateRefresh?.Stop();
+        if (_updates is not null) _updates.Coordinator.Changed -= AppUpdates_Changed;
+        _updates = null;
         if (_playtime is not null) _playtime.PropertyChanged -= Playtime_PropertyChanged;
         // Covers navigation without ConfirmLeaveAsync; after the guard saved, the draft equals the settings snapshot and nothing is written.
         _ = SaveGameSettingsAsync();
@@ -334,6 +348,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         ProfileTitle.Text = HakoStrings.Get("ProfileTitle");
         LanguageLabel.Text = HakoStrings.Get("LanguageLabel");
         RefreshGameStrings();
+        _ = RefreshAppUpdatesAsync();
         _updatingLanguage = true;
         LanguageBox.SelectedIndex = _coordinator?.Language == AppLanguage.Russian ? 0 : 1;
         _updatingLanguage = false;

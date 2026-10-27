@@ -10,6 +10,24 @@ public sealed record DownloadedAppUpdate(AppRelease Release, string PackagePath,
 
 public sealed class AppUpdateDownload(HttpClient http, string cacheRoot, AppPackageIdentity installed)
 {
+    public static void CleanupStaleDownloads(string cacheRoot)
+    {
+        var root = Path.Combine(cacheRoot, "AppUpdates");
+        try
+        {
+            if (!Directory.Exists(root)) return;
+            foreach (var directory in Directory.EnumerateDirectories(root))
+            {
+                // A process can be terminated by deployment before its Dispose runs. Never remove
+                // recent attempts: the Windows deployment service may still hold those files.
+                if (Guid.TryParseExact(Path.GetFileName(directory), "N", out _)
+                    && Directory.GetLastWriteTimeUtc(directory) < DateTime.UtcNow.AddDays(-1)) DeleteDirectory(directory);
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     public async Task<DownloadedAppUpdate> DownloadAsync(AppRelease release, IProgress<double>? progress,
         CancellationToken cancellationToken)
     {
@@ -69,10 +87,15 @@ public sealed class AppUpdateDownload(HttpClient http, string cacheRoot, AppPack
         if (assets.Length != paths.Length) throw new AppUpdateException("AppUpdateInvalidPackage");
         for (var index = 0; index < paths.Length; index++)
         {
-            await using var stream = File.OpenRead(paths[index]);
-            var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-            if (stream.Length != assets[index].Size || !DigestMatches(assets[index].Digest, hash))
-                throw new AppUpdateException("AppUpdateInvalidPackage");
+            try
+            {
+                await using var stream = File.OpenRead(paths[index]);
+                var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
+                if (stream.Length != assets[index].Size || !DigestMatches(assets[index].Digest, hash))
+                    throw new AppUpdateException("AppUpdateInvalidPackage");
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            { throw new AppUpdateException("AppUpdateInvalidPackage", exception); }
         }
     }
 

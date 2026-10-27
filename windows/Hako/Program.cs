@@ -14,9 +14,11 @@ namespace Hako;
 
 internal static class Program
 {
+    internal static long StartedAt { get; private set; }
     [STAThread]
     private static void Main(string[] args)
     {
+        StartedAt = Stopwatch.GetTimestamp();
         if (TryRunPlaytimeHelper(args))
         {
             return;

@@ -620,4 +620,29 @@ Hako</value></data>
   <data name="CharacterRetry" xml:space="preserve"><value>Retry</value></data>
   <data name="InstanceOpenMinecraftFolder" xml:space="preserve"><value>Open Minecraft folder</value></data>
   <data name="ContentOpenOnModrinth" xml:space="preserve"><value>Open on Modrinth</value></data>
+  <data name="AppUpdatesTitle" xml:space="preserve"><value>Hako updates</value></data>
+  <data name="AppUpdateCurrentVersion" xml:space="preserve"><value>Installed version: {0}</value></data>
+  <data name="AppUpdateAutomatic" xml:space="preserve"><value>Check for updates automatically</value></data>
+  <data name="AppUpdateCheck" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="AppUpdateDownload" xml:space="preserve"><value>Update</value></data>
+  <data name="AppUpdateInstall" xml:space="preserve"><value>Install and restart</value></data>
+  <data name="AppUpdateCancel" xml:space="preserve"><value>Cancel download</value></data>
+  <data name="AppUpdateOpen" xml:space="preserve"><value>View update</value></data>
+  <data name="AppUpdateReleases" xml:space="preserve"><value>Releases on GitHub</value></data>
+  <data name="AppUpdateAvailable" xml:space="preserve"><value>Hako {0} is available.</value></data>
+  <data name="AppUpdateNotChecked" xml:space="preserve"><value>Check for the latest stable Windows version on GitHub.</value></data>
+  <data name="AppUpdateUpToDate" xml:space="preserve"><value>You have the latest version of Hako.</value></data>
+  <data name="AppUpdateChecking" xml:space="preserve"><value>Checking GitHub for updates…</value></data>
+  <data name="AppUpdateDownloading" xml:space="preserve"><value>Downloading update: {0}%</value></data>
+  <data name="AppUpdateInstalling" xml:space="preserve"><value>Preparing and installing the update. Preparation may take about a minute. Hako will restart automatically…</value></data>
+  <data name="AppUpdateReady" xml:space="preserve"><value>Update downloaded. Ready to install and restart Hako.</value></data>
+  <data name="AppUpdateWaitGames" xml:space="preserve"><value>Close Minecraft and wait for playtime tracking to finish before installing the downloaded update.</value></data>
+  <data name="AppUpdateWaitOperations" xml:space="preserve"><value>Wait for installations and file operations to finish before installing the downloaded update.</value></data>
+  <data name="AppUpdateUnsupported" xml:space="preserve"><value>Automatic installation is available in the installed x64 and ARM64 release packages. Preview, isolated and development launches cannot update the installed app.</value></data>
+  <data name="AppUpdateInvalidRelease" xml:space="preserve"><value>GitHub returned incomplete or invalid update information. Try checking again later.</value></data>
+  <data name="AppUpdateInvalidPackage" xml:space="preserve"><value>The update failed verification. Download it again.</value></data>
+  <data name="AppUpdateRateLimited" xml:space="preserve"><value>GitHub has temporarily limited requests. Try again later.</value></data>
+  <data name="AppUpdateCertificateError" xml:space="preserve"><value>Windows could not verify the package certificate. See the installation instructions on the GitHub release page.</value></data>
+  <data name="AppUpdateInstallFailed" xml:space="preserve"><value>Windows could not install the update. Your current installation is preserved. Try again or use the GitHub release page.</value></data>
+  <data name="AppUpdateFailed" xml:space="preserve"><value>Could not complete the update operation. Check your connection and try again.</value></data>
 </root>

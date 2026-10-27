@@ -127,6 +127,26 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
 
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
 
+    /// <summary>Includes helpers and sessions whose build has been removed from the instance registry.</summary>
+    public async Task<bool> HasActiveProcessesAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_stateSync)
+        {
+            if (_launchingSessions.Count != 0) return true;
+        }
+        var ledger = await _ledger.ReadAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var session in ledger.Sessions.Values)
+        {
+            var path = PlaytimePaths.Journal(_gameRoot, session.SessionID);
+            if (!File.Exists(path)) continue;
+            var journal = await Task.Run(() => PlaytimeJson.ReadJournal(path), cancellationToken).ConfigureAwait(false);
+            if (journal.Helper is { } helper && _processProbe.IsRunning(helper)) return true;
+            if (journal.Process is { } process && _processProbe.IsRunning(
+                new PlaytimeProcessIdentity(process.Pid, process.StartSeconds, process.StartMicroseconds))) return true;
+        }
+        return false;
+    }
+
     public async Task<PlaytimeTrackingRequest?> BeginSessionAsync(Guid instanceID, string? xuid,
         CancellationToken cancellationToken = default)
     {

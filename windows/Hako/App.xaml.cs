@@ -144,6 +144,8 @@ public partial class App : Application
             modrinth, modpacks, modpackCatalog, content, contentController, worlds, screenshots, backups,
             worldBackups, restores, previewModrinthHttpClient, _skinPreviewService!, _previewOptions, _playtime!);
 
+        _services.Updates = new WindowsAppUpdateService(_services, Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
+
         _window = new MainWindow(_services);
         _window.Activate();
 
@@ -156,6 +158,7 @@ public partial class App : Application
         }
         await _playtime.RefreshAsync();
         _playtime.Start();
+        _services.Updates.Start();
 
         if (_previewOptions is not null)
         {
@@ -223,7 +226,7 @@ public partial class App : Application
 
     private static void StartRestoreQueue()
     {
-        if (Volatile.Read(ref _restoreQueueReady) == 0
+        if (IsApplyingUpdate || Volatile.Read(ref _restoreQueueReady) == 0
             || HakoDialogs.Root is null
             || Interlocked.CompareExchange(ref _restoreQueueRunning, 1, 0) != 0)
         {
@@ -335,6 +338,9 @@ public partial class App : Application
     internal static WindowId? MainWindowId => _window?.AppWindow.Id;
 
     internal static Window? CurrentWindow => _window;
+    internal static bool IsApplyingUpdate { get; set; }
+    internal static bool HasPendingRestore => Volatile.Read(ref _restoreQueueRunning) != 0 || RestoreQueue.HasPending;
+    internal static void ResumeRestoreQueue() => StartRestoreQueue();
 
     /// <summary>Stops app-lifetime services before the window closes. Exiting does not pause the installation queue.</summary>
     internal static async Task ShutdownServicesAsync()
@@ -345,6 +351,7 @@ public partial class App : Application
         }
 
         _services = null;
+        services.Updates.Dispose();
         try { await services.Playtime.StopAsync(); } catch (Exception) { }
         services.ModpackCatalog.Dispose();
         try { await services.Installations.DisposeAsync(); } catch (Exception) { }

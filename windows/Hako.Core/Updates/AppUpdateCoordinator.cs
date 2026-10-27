@@ -11,13 +11,15 @@ public sealed class AppUpdateCoordinator(
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _downloadCancellation;
     private int _operation;
-    private bool _disposed;
+    private volatile bool _disposed;
+    private volatile bool _cancelledByUser;
     public event EventHandler? Changed;
     public AppUpdatePhase Phase { get; private set; }
     public AppRelease? Release { get; private set; }
     public DownloadedAppUpdate? Downloaded { get; private set; }
     public string? ErrorResourceKey { get; private set; }
     public double Progress { get; private set; }
+    public bool HasChecked { get; private set; }
     public bool Supported => supported;
     public Version CurrentVersion => installed.Version;
     public bool IsBusy => Volatile.Read(ref _operation) != 0;
@@ -35,6 +37,7 @@ public sealed class AppUpdateCoordinator(
             timeout.CancelAfter(TimeSpan.FromMinutes(1));
             var release = await releases.LatestAsync(installed.Architecture, timeout.Token).ConfigureAwait(false);
             Release = release?.GetVersion() > installed.Version ? release : null;
+            HasChecked = true;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception exception)
@@ -56,6 +59,7 @@ public sealed class AppUpdateCoordinator(
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         cancellation.CancelAfter(TimeSpan.FromMinutes(30));
         _downloadCancellation = cancellation;
+        _cancelledByUser = false;
         Phase = AppUpdatePhase.Downloading;
         ErrorResourceKey = null;
         Progress = 0;
@@ -64,11 +68,15 @@ public sealed class AppUpdateCoordinator(
         {
             Downloaded = await downloads.DownloadAsync(Release, new DownloadProgress(this), cancellation.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            if (!_cancelledByUser && !_lifetime.IsCancellationRequested) ErrorResourceKey = "AppUpdateFailed";
+        }
         catch (Exception exception) { ErrorResourceKey = ErrorKey(exception); }
         finally
         {
             _downloadCancellation = null;
+            if (_disposed && Downloaded is not null) { AppUpdateDownload.Delete(Downloaded); Downloaded = null; }
             Phase = Downloaded is null ? AppUpdatePhase.Available : AppUpdatePhase.Ready;
             Interlocked.Exchange(ref _operation, 0);
             Notify();
@@ -77,6 +85,7 @@ public sealed class AppUpdateCoordinator(
 
     public void CancelDownload()
     {
+        _cancelledByUser = true;
         try { _downloadCancellation?.Cancel(); } catch (ObjectDisposedException) { }
     }
 

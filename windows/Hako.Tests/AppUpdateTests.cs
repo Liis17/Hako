@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Hako.Core;
 using Hako.Core.Updates;
+using Hako.Core.Instances;
 
 namespace Hako.Tests;
 
@@ -12,6 +13,49 @@ namespace Hako.Tests;
 public sealed class AppUpdateTests
 {
     private static readonly AppPackageIdentity Installed = new("hako", "CN=daske", new Version(1, 1, 1, 0), "x64");
+
+    [TestMethod]
+    public async Task UpdateLeaseRejectsActiveOperationsAndPreventsNewOnesUntilReleased()
+    {
+        await using var directory = new TemporaryDirectory();
+        var store = directory.CreateStore();
+        await store.LoadAsync();
+        var instance = store.Create(new InstanceDraft { Name = "Update Test" }, "1.21.4");
+        store.SetInstallationStatus(instance.Id, InstanceInstallationState.Ready, false);
+        await store.DisposeAsync(); // Wait for initial background cleanup only.
+        Assert.IsTrue(store.TryBeginContent(instance.Id, out var content, out _));
+        Assert.IsNull(await store.TryBeginAppUpdateAsync());
+        content!.Dispose();
+        Assert.IsTrue(store.TryBeginLaunch(instance.Id, out var game, out _));
+        Assert.IsNull(await store.TryBeginAppUpdateAsync());
+        game!.Dispose();
+        var update = await store.TryBeginAppUpdateAsync();
+        Assert.IsNotNull(update);
+        Assert.IsNull(await store.TryBeginAppUpdateAsync());
+        Assert.IsFalse(store.TryBeginContent(instance.Id, out _, out _));
+        Assert.IsFalse(store.TryBeginLaunch(instance.Id, out _, out _));
+        Assert.ThrowsExactly<InstanceStorageException>(() => store.Create(new InstanceDraft { Name = "Blocked" }, "1.21.4"));
+        Assert.ThrowsExactly<InstanceStorageException>(() => store.Delete(instance.Id));
+        Assert.ThrowsExactly<InstanceStorageException>(() => store.ReserveTemporaryName(".hako-restore-test"));
+        update.Dispose();
+        Assert.IsTrue(store.TryBeginContent(instance.Id, out var restored, out _));
+        restored!.Dispose();
+    }
+
+    [TestMethod]
+    public async Task QueuedInstallationsAndStagedRestoresBlockAppUpdate()
+    {
+        await using var directory = new TemporaryDirectory();
+        var store = directory.CreateStore();
+        await store.LoadAsync();
+        var instance = store.Create(new InstanceDraft { Name = "Queued" }, "1.21.4");
+        await store.DisposeAsync();
+        Assert.IsNull(await store.TryBeginAppUpdateAsync());
+        store.SetInstallationStatus(instance.Id, InstanceInstallationState.Ready, false);
+        using (store.ReserveTemporaryName(".hako-restore-test")) Assert.IsNull(await store.TryBeginAppUpdateAsync());
+        using var update = await store.TryBeginAppUpdateAsync();
+        Assert.IsNotNull(update);
+    }
 
     [TestMethod]
     public async Task LatestTraversesPagesAndSelectsNumericWindowsVersionForInstalledArchitecture()
@@ -172,6 +216,56 @@ public sealed class AppUpdateTests
         Assert.IsNull(failed.ErrorResourceKey);
         await failed.CheckAsync();
         Assert.AreEqual("AppUpdateFailed", failed.ErrorResourceKey);
+    }
+
+    [TestMethod]
+    public async Task OlderVersionsAndUnsupportedLaunchesCannotInstall()
+    {
+        using var directory = new TemporaryDirectory();
+        var checks = 0;
+        using var http = Http(_ => { checks++; return Json(Release("1.1.1"), Release("1.0.0")); });
+        using var current = new AppUpdateCoordinator(new AppReleaseClient(http), new AppUpdateDownload(http, directory.Root, Installed),
+            Installed, true, _ => Task.FromResult<string?>(null), (_, _) => throw new AssertFailedException("Unexpected installation"));
+        await current.CheckAsync();
+        Assert.IsTrue(current.HasChecked);
+        Assert.IsNull(current.Release);
+        await current.DownloadAsync();
+        await current.InstallAsync();
+        using var unsupported = new AppUpdateCoordinator(new AppReleaseClient(http), new AppUpdateDownload(http, directory.Root, Installed),
+            Installed, false, _ => Task.FromResult<string?>(null), (_, _) => throw new AssertFailedException("Unexpected installation"));
+        await unsupported.CheckAsync();
+        await unsupported.DownloadAsync();
+        await unsupported.InstallAsync();
+        Assert.AreEqual(1, checks);
+    }
+
+    [TestMethod]
+    public async Task MissingDownloadedPackageCanBeDownloadedAgainAndDeploymentFailureCanBeRetried()
+    {
+        using var directory = new TemporaryDirectory();
+        var bytes = Package();
+        using var http = Http(request => request.RequestUri!.Host == "api.github.com" ? Json(Release("1.2.0", bytes: bytes)) : Bytes(bytes));
+        var installs = 0;
+        using var coordinator = new AppUpdateCoordinator(new AppReleaseClient(http), new AppUpdateDownload(http, directory.Root, Installed),
+            Installed, true, _ => Task.FromResult<string?>(null), (_, _) =>
+            {
+                if (++installs == 1) throw new AppUpdateException("AppUpdateInstallFailed");
+                return Task.CompletedTask;
+            });
+        await coordinator.CheckAsync();
+        await coordinator.DownloadAsync();
+        File.Delete(coordinator.Downloaded!.PackagePath);
+        await coordinator.InstallAsync();
+        Assert.AreEqual("AppUpdateInvalidPackage", coordinator.ErrorResourceKey);
+        Assert.AreEqual(AppUpdatePhase.Available, coordinator.Phase);
+        Assert.IsNull(coordinator.Downloaded);
+        await coordinator.DownloadAsync();
+        await coordinator.InstallAsync();
+        Assert.AreEqual("AppUpdateInstallFailed", coordinator.ErrorResourceKey);
+        Assert.AreEqual(AppUpdatePhase.Ready, coordinator.Phase);
+        await coordinator.InstallAsync();
+        Assert.IsNull(coordinator.ErrorResourceKey);
+        Assert.AreEqual(2, installs);
     }
 
     private static AppRelease Release(string version, string architecture = "x64", byte[]? bytes = null) => new(
