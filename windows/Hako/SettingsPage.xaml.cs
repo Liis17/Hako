@@ -421,8 +421,12 @@ public sealed partial class SettingsPage : Page, INavigationGuard
             PrimaryButtonText = HakoStrings.Get("LogoutConfirm"),
             CloseButtonText = HakoStrings.Get("CancelButton"),
             DefaultButton = ContentDialogButton.Close,
+            PrimaryButtonStyle = (Style)Resources["LogoutConfirmButtonStyle"],
+            CloseButtonStyle = (Style)Application.Current.Resources["DefaultButtonStyle"],
             XamlRoot = XamlRoot
         };
+        // The dialog template accents its default button independently of CloseButtonStyle.
+        dialog.Resources["AccentButtonStyle"] = Application.Current.Resources["DefaultButtonStyle"];
         if (await HakoDialogs.ShowAsync(dialog, current =>
         {
             current.Title = HakoStrings.Get("LogoutTitle");
@@ -489,6 +493,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
     {
         if (_coordinator is null || _skinPreviewService is null || _editingCharacter) return;
         _editingCharacter = true;
+        SettingsScrollViewer.Visibility = Visibility.Collapsed;
         ProfilePanel.Visibility = Visibility.Collapsed;
         CharacterEditor.Visibility = Visibility.Visible;
         UpdateSkinVisibility();
@@ -503,6 +508,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         CharacterEditor.Close();
         CharacterEditor.Visibility = Visibility.Collapsed;
         _editingCharacter = false;
+        SettingsScrollViewer.Visibility = Visibility.Visible;
         ProfilePanel.Visibility = _selectedSection == SettingsSection.Profile ? Visibility.Visible : Visibility.Collapsed;
         _profileRequestScope = Guid.NewGuid();
         UpdateSkinVisibility();

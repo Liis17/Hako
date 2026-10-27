@@ -10,9 +10,9 @@
             <TextBlock x:Name="EditorTitle" Grid.Column="1" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
             <Button x:Name="SaveButton" Grid.Column="2" Click="Save_Click" Style="{ThemeResource AccentButtonStyle}" />
         </Grid>
-        <Grid x:Name="EditorLayout" Grid.Row="1" ColumnDefinitions="*,360" RowDefinitions="Auto,Auto" ColumnSpacing="24" RowSpacing="20">
-            <local:MinecraftSkinView x:Name="PreviewView" Height="480" MinWidth="180" />
-            <StackPanel x:Name="EditorControls" Grid.Column="1" Spacing="16">
+        <Grid x:Name="EditorLayout" Grid.Row="1" ColumnDefinitions="*,360" RowDefinitions="*,0" ColumnSpacing="24">
+            <local:MinecraftSkinView x:Name="PreviewView" MinWidth="180" />
+            <Grid x:Name="EditorControls" Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="16">
                 <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                     <StackPanel Spacing="12">
                         <TextBlock x:Name="SkinTitle" FontSize="18" FontWeight="SemiBold" />
@@ -24,21 +24,25 @@
                         <TextBlock x:Name="LegacyCaption" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
                     </StackPanel>
                 </Border>
-                <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                    <StackPanel Spacing="12">
+                <Border Grid.Row="1" Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
                         <TextBlock x:Name="CapeTitle" FontSize="18" FontWeight="SemiBold" />
-                        <TextBlock x:Name="NoCapesCaption" TextWrapping="Wrap" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        <GridView x:Name="CapeList" SelectionMode="Single" IsItemClickEnabled="True" ItemClick="Cape_ItemClick" HorizontalAlignment="Stretch">
+                        <TextBlock x:Name="NoCapesCaption" Grid.Row="1" TextWrapping="Wrap" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <GridView x:Name="CapeList" Grid.Row="2" SelectionMode="Single" IsItemClickEnabled="True" ItemClick="Cape_ItemClick" HorizontalAlignment="Stretch"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.IsVerticalScrollChainingEnabled="False" ScrollViewer.IsHorizontalScrollChainingEnabled="False">
                             <GridView.ItemsPanel>
                                 <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" ItemWidth="132" ItemHeight="112" /></ItemsPanelTemplate>
                             </GridView.ItemsPanel>
                         </GridView>
-                    </StackPanel>
+                    </Grid>
                 </Border>
-                <ProgressBar x:Name="BusyProgress" IsIndeterminate="True" Visibility="Collapsed" />
-                <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
-                <Button x:Name="RetryButton" Click="Retry_Click" Visibility="Collapsed" />
-            </StackPanel>
+                <StackPanel Grid.Row="2" Spacing="8">
+                    <ProgressBar x:Name="BusyProgress" IsIndeterminate="True" Visibility="Collapsed" />
+                    <TextBlock x:Name="StatusText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                    <Button x:Name="RetryButton" Click="Retry_Click" Visibility="Collapsed" />
+                </StackPanel>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

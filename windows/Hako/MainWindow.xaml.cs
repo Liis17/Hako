@@ -108,6 +108,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
+        AppVersionLabel.Text = $"v{services.Updates.Coordinator.CurrentVersion.ToString(3)}";
         _services = services;
         _coordinator = services.App;
         _skinPreviewService = services.SkinPreview;

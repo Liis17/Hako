@@ -20,6 +20,9 @@
             <TitleBar.IconSource>
                 <ImageIconSource ImageSource="ms-appx:///Assets/AppIcon.png" />
             </TitleBar.IconSource>
+            <TitleBar.RightHeader>
+                <TextBlock x:Name="AppVersionLabel" Opacity="0.5" VerticalAlignment="Center" Margin="0,0,12,0" />
+            </TitleBar.RightHeader>
         </TitleBar>
 
         <InfoBar x:Name="AppUpdateNotice" Grid.Row="1" IsOpen="False" Severity="Informational" Margin="12,0,12,8">
