@@ -3,7 +3,7 @@ import Foundation
 /// Занятое сборками место по категориям; датапаки мира не входят в размер мира.
 nonisolated struct InstanceStorageUsage: Sendable, Equatable {
     enum Category: CaseIterable, Sendable {
-        case worlds, minecraft, screenshots, java, mods, datapacks, resourcepacks, backups
+        case worlds, minecraft, screenshots, java, mods, datapacks, resourcepacks, instanceBackups, worldBackups
     }
 
     private var bytes: [Category: Int64] = [:]
@@ -18,7 +18,8 @@ nonisolated struct InstanceStorageUsage: Sendable, Equatable {
     /// Категория файла по пути относительно корня `~/.hako`: `[сборка, minecraft, saves, мир, datapacks, …]`.
     static func category(of components: [String]) -> Category {
         guard let first = components.first else { return .minecraft }
-        if first == InstanceStorage.backupsFolder || first == InstanceStorage.worldsFolder { return .backups }
+        if first == InstanceStorage.backupsFolder { return .instanceBackups }
+        if first == InstanceStorage.worldsFolder { return .worldBackups }
         guard components.count > 2 else { return .minecraft }
         if components[1] == "java" { return .java }
         guard components[1] == "minecraft" else { return .minecraft }

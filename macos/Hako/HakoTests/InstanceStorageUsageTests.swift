@@ -41,7 +41,8 @@ struct InstanceStorageUsageTests {
         #expect(usage[.screenshots] == 6 * block)
         #expect(usage[.worlds] == (7 + 8) * block)
         #expect(usage[.datapacks] == (9 + 10) * block)
-        #expect(usage[.backups] == (12 + 13) * block)
+        #expect(usage[.instanceBackups] == 12 * block)
+        #expect(usage[.worldBackups] == 13 * block)
         #expect(usage.total == 91 * block)
     }
 
