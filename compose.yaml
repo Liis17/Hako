@@ -18,7 +18,7 @@ services:
       start_period: 5s
 
   auth:
-    image: hako-auth:local
+    image: ${HAKO_AUTH_IMAGE:-docker.barkfluff.com/hako-auth:latest}
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   pack:
-    image: hako-pack:local
+    image: ${HAKO_PACK_IMAGE:-docker.barkfluff.com/hako-pack:latest}
     build:
       context: ./server
       dockerfile: Dockerfile
