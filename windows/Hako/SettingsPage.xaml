@@ -41,7 +41,7 @@
 
             <ScrollViewer x:Name="SettingsScrollViewer" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,0,0,0">
                 <Grid>
-                    <StackPanel x:Name="GeneralPanel" Spacing="20">
+                    <StackPanel x:Name="GeneralPanel" Spacing="20" MaxWidth="760" HorizontalAlignment="Left">
                         <TextBlock x:Name="GeneralTitle" FontSize="24" FontWeight="SemiBold" />
                         <StackPanel Spacing="8">
                             <TextBlock x:Name="LanguageLabel" />
@@ -50,7 +50,7 @@
                                 <ComboBoxItem Content="English" />
                             </ComboBox>
                         </StackPanel>
-                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" MaxWidth="760" HorizontalAlignment="Stretch">
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                             <StackPanel Spacing="12">
                                 <TextBlock x:Name="AppUpdatesTitle" FontSize="18" FontWeight="SemiBold" />
                                 <TextBlock x:Name="AppVersionText" />
