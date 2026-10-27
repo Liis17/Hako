@@ -206,10 +206,21 @@ struct MinecraftCharacterEditorView: View {
 private struct CapeTile: View {
     let title: String
     let imageData: Data?
+    private let thumbnail: CGImage?
     let isSelected: Bool
     var isNoCape = false
     var error: String? = nil
     let action: () -> Void
+
+    init(title: String, imageData: Data?, isSelected: Bool, isNoCape: Bool = false, error: String? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.imageData = imageData
+        thumbnail = imageData.flatMap { MinecraftSkin.capeThumbnail(from: $0) }
+        self.isSelected = isSelected
+        self.isNoCape = isNoCape
+        self.error = error
+        self.action = action
+    }
 
     var body: some View {
         Button(action: action) {
@@ -219,13 +230,14 @@ private struct CapeTile: View {
                         .font(.title2)
                         .foregroundStyle(.secondary)
                         .frame(height: 54)
-                } else if let imageData, let image = NSImage(data: imageData) {
+                } else if let thumbnail {
+                    let image = NSImage(cgImage: thumbnail, size: .zero)
                     Image(nsImage: image)
                         .resizable()
                         .interpolation(.none)
                         .scaledToFit()
                         .frame(height: 54)
-                } else if error != nil {
+                } else if imageData != nil || error != nil {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.title2)
                         .foregroundStyle(.secondary)
