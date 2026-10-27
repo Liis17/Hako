@@ -620,4 +620,30 @@
   <data name="CharacterRetry" xml:space="preserve"><value>Повторить</value></data>
   <data name="InstanceOpenMinecraftFolder" xml:space="preserve"><value>Открыть папку Minecraft</value></data>
   <data name="ContentOpenOnModrinth" xml:space="preserve"><value>Открыть на Modrinth</value></data>
+  <data name="AppUpdatesTitle" xml:space="preserve"><value>Обновления Hako</value></data>
+  <data name="AppUpdateCurrentVersion" xml:space="preserve"><value>Установленная версия: {0}</value></data>
+  <data name="AppUpdateAutomatic" xml:space="preserve"><value>Проверять обновления автоматически</value></data>
+  <data name="AppUpdateCheck" xml:space="preserve"><value>Проверить обновления</value></data>
+  <data name="AppUpdateDownload" xml:space="preserve"><value>Обновить</value></data>
+  <data name="AppUpdateInstall" xml:space="preserve"><value>Установить и перезапустить</value></data>
+  <data name="AppUpdateCancel" xml:space="preserve"><value>Отменить загрузку</value></data>
+  <data name="AppUpdateOpen" xml:space="preserve"><value>Посмотреть обновление</value></data>
+  <data name="AppUpdateReleases" xml:space="preserve"><value>Релизы на GitHub</value></data>
+  <data name="AppUpdateAvailable" xml:space="preserve"><value>Доступна Hako {0}.</value></data>
+  <data name="AppUpdateNotChecked" xml:space="preserve"><value>Проверьте последнюю стабильную версию Windows на GitHub.</value></data>
+  <data name="AppUpdateUpToDate" xml:space="preserve"><value>Установлена последняя версия Hako.</value></data>
+  <data name="AppUpdateChecking" xml:space="preserve"><value>Проверяем обновления на GitHub…</value></data>
+  <data name="AppUpdateDownloading" xml:space="preserve"><value>Загружаем обновление: {0}%</value></data>
+  <data name="AppUpdateInstalling" xml:space="preserve"><value>Готовим и устанавливаем обновление. Подготовка может занять около минуты. Hako перезапустится автоматически…</value></data>
+  <data name="AppUpdateReady" xml:space="preserve"><value>Обновление скачано. Можно установить его и перезапустить Hako.</value></data>
+  <data name="AppUpdateWaitGames" xml:space="preserve"><value>Закройте Minecraft и дождитесь завершения учёта игрового времени, чтобы установить скачанное обновление.</value></data>
+  <data name="AppUpdateWaitOperations" xml:space="preserve"><value>Дождитесь завершения установок и файловых операций, чтобы установить скачанное обновление.</value></data>
+  <data name="AppUpdateUnsupported" xml:space="preserve"><value>Автообновление доступно в установленных релизных пакетах x64 и ARM64. Предпросмотр, изолированные и отладочные запуски не обновляют установленное приложение.</value></data>
+  <data name="AppUpdateInvalidRelease" xml:space="preserve"><value>GitHub вернул неполные или некорректные сведения об обновлении. Повторите проверку позже.</value></data>
+  <data name="AppUpdateInvalidPackage" xml:space="preserve"><value>Обновление не прошло проверку. Скачайте его заново.</value></data>
+  <data name="AppUpdateRateLimited" xml:space="preserve"><value>GitHub временно ограничил запросы. Повторите попытку позже.</value></data>
+  <data name="AppUpdateCertificateError" xml:space="preserve"><value>Windows не смогла проверить сертификат пакета. Инструкции по установке доступны на странице релиза GitHub.</value></data>
+  <data name="AppUpdateInstallFailed" xml:space="preserve"><value>Windows не смогла установить обновление. Текущая установка сохранена. Повторите попытку или откройте страницу релиза GitHub.</value></data>
+  <data name="AppUpdateFailed" xml:space="preserve"><value>Не удалось выполнить обновление. Проверьте соединение и повторите попытку.</value></data>
+  <data name="AppUpdateSettingsNotSaved" xml:space="preserve"><value>Не удалось сохранить параметры игры. Откройте раздел «Игра» и сохраните изменения перед обновлением.</value></data>
 </root>

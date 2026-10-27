@@ -36,7 +36,10 @@ internal sealed record LauncherServices(
     HttpClient? PreviewModrinthHttpClient,
     MinecraftSkinPreviewService SkinPreview,
     ProfilePreviewOptions? PreviewOptions,
-    PlaytimeCoordinator Playtime);
+    PlaytimeCoordinator Playtime)
+{
+    public WindowsAppUpdateService Updates { get; set; } = null!;
+}
 
 internal enum InstanceProfileSection { Mods, ResourcePacks, Worlds, Screenshots, Settings }
 

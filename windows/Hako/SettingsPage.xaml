@@ -38,6 +38,22 @@
                                 <ComboBoxItem Content="English" />
                             </ComboBox>
                         </StackPanel>
+                        <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" MaxWidth="760" HorizontalAlignment="Stretch">
+                            <StackPanel Spacing="12">
+                                <TextBlock x:Name="AppUpdatesTitle" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock x:Name="AppVersionText" />
+                                <CheckBox x:Name="AutomaticAppUpdatesBox" Click="AutomaticAppUpdatesBox_Click" />
+                                <TextBlock x:Name="AppUpdateStatus" TextWrapping="Wrap" />
+                                <ProgressBar x:Name="AppUpdateProgress" Minimum="0" Maximum="100" Visibility="Collapsed" />
+                                <StackPanel Spacing="8" HorizontalAlignment="Left">
+                                    <Button x:Name="CheckAppUpdateButton" Click="CheckAppUpdateButton_Click" />
+                                    <Button x:Name="DownloadAppUpdateButton" Click="DownloadAppUpdateButton_Click" Visibility="Collapsed" />
+                                    <Button x:Name="InstallAppUpdateButton" Click="InstallAppUpdateButton_Click" Visibility="Collapsed" />
+                                    <Button x:Name="CancelAppUpdateButton" Click="CancelAppUpdateButton_Click" Visibility="Collapsed" />
+                                </StackPanel>
+                                <HyperlinkButton x:Name="AppReleasesLink" NavigateUri="https://github.com/Liis17/Hako/releases" Padding="0" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <StackPanel x:Name="GamePanel" Spacing="20" Visibility="Collapsed" MaxWidth="760" HorizontalAlignment="Left">

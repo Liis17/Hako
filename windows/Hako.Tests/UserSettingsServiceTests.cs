@@ -8,6 +8,21 @@ namespace Hako.Tests;
 public sealed class UserSettingsServiceTests
 {
     [TestMethod]
+    public async Task AppUpdateWaitsUntilPendingSettingsWriteCompletes()
+    {
+        var store = new PausingSettingsStore(new UserSettings("ru"));
+        var service = new UserSettingsService(store);
+        await service.LoadAsync();
+        var save = service.SetLanguageAsync(AppLanguage.English);
+        await store.FirstSaveReached.Task;
+        var pending = service.WaitForPendingSavesAsync();
+        Assert.IsFalse(pending.IsCompleted);
+        store.ReleaseFirstSave.TrySetResult();
+        await Task.WhenAll(save, pending);
+        Assert.AreEqual("en", store.Settings!.Language);
+    }
+
+    [TestMethod]
     public async Task GameParametersAndLanguagePersistTogetherInEitherUpdateOrder()
     {
         using var temporary = new TemporaryDirectory();

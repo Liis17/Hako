@@ -59,6 +59,29 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     // Written under _gate, read lock-free so UI-thread checks never wait for a long operation holding _gate.
     private ImmutableHashSet<Guid> _launchBusy = ImmutableHashSet<Guid>.Empty;
     private ImmutableHashSet<Guid> _contentBusy = ImmutableHashSet<Guid>.Empty;
+    private bool _appUpdateInProgress;
+
+    public bool HasAppUpdateBlockers => !Volatile.Read(ref _launchBusy).IsEmpty || !Volatile.Read(ref _contentBusy).IsEmpty
+        || Instances.Any(instance => instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing)
+        || DeleteStagingCleanupTask is { IsCompleted: false } || HasReservedTemporaryNames;
+
+    private bool HasReservedTemporaryNames
+    {
+        get { lock (_reservedNamesSync) return _reservedTemporaryNames.Count != 0; }
+    }
+
+    /// <summary>Atomically prevents new game launches and file operations until deployment finishes or fails.</summary>
+    public async Task<IDisposable?> TryBeginAppUpdateAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_appUpdateInProgress || HasAppUpdateBlockers) return null;
+            _appUpdateInProgress = true;
+            return new BusyLease(() => Volatile.Write(ref _appUpdateInProgress, false));
+        }
+        finally { _gate.Release(); }
+    }
 
     public InstanceStore(HakoPaths paths, Action? beforeRegistryCommit = null)
         : this(paths, beforeRegistryCommit, null, null, null)
@@ -483,6 +506,7 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             ValidateOffline(draft);
+            ThrowIfAppUpdating();
             var (name, folderName) = ParseName(draft.Name);
             ValidateReservedName(folderName);
             var registry = GetRegistrySnapshot();
@@ -1356,6 +1380,12 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     {
         lock (_snapshotSync)
         {
+            if (Volatile.Read(ref _appUpdateInProgress))
+            {
+                registry = new InstanceRegistryFile(1, []);
+                reason = InstanceStorageError.BuildFilesBusy;
+                return false;
+            }
             if (!_isLoaded)
             {
                 registry = new InstanceRegistryFile(1, []);
@@ -1496,6 +1526,7 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
 
     private void WriteRegistry(InstanceRegistryFile registry)
     {
+        ThrowIfAppUpdating();
         System.IO.Directory.CreateDirectory(_storage.Root);
         var registryPath = InstanceStorage.ContainedPath("instances.json", _storage.Root, allowBaseReparsePoint: true);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(registry, HakoJsonContext.Default.InstanceRegistryFile);
@@ -1681,7 +1712,13 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
     /// <summary>Protects a temporary folder of this process from load-time cleanup until the returned lease is disposed.</summary>
     internal IDisposable ReserveTemporaryName(string name)
     {
-        lock (_reservedNamesSync) _reservedTemporaryNames.Add(name);
+        _gate.Wait();
+        try
+        {
+            ThrowIfAppUpdating();
+            lock (_reservedNamesSync) _reservedTemporaryNames.Add(name);
+        }
+        finally { _gate.Release(); }
         return new BusyLease(() =>
         {
             lock (_reservedNamesSync) _reservedTemporaryNames.Remove(name);
@@ -1829,6 +1866,7 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
 
     private InstanceStorageError? GetManagementBlock(GameInstance instance)
     {
+        if (Volatile.Read(ref _appUpdateInProgress)) return InstanceStorageError.BuildFilesBusy;
         if (instance.State is InstanceInstallationState.Queued or InstanceInstallationState.Installing)
         {
             return InstanceStorageError.BuildInstalling;
@@ -1853,6 +1891,12 @@ public sealed class InstanceStore : INotifyPropertyChanged, IAsyncDisposable
         {
             throw new InstanceStorageException(error, ManagementMessage(error));
         }
+    }
+
+    private void ThrowIfAppUpdating()
+    {
+        if (Volatile.Read(ref _appUpdateInProgress))
+            throw new InstanceStorageException(InstanceStorageError.BuildFilesBusy, "Hako is installing an application update.");
     }
 
     private static string ManagementMessage(InstanceStorageError error) => error switch

@@ -9,6 +9,25 @@ namespace Hako.Tests;
 public sealed class PlaytimeTests
 {
     [TestMethod]
+    public async Task AppUpdateWaitsForGameAndHelperIndependentlyOfInstanceRegistry()
+    {
+        await using var fixture = new PlaytimeFixture();
+        Assert.IsFalse(await fixture.Coordinator.HasActiveProcessesAsync());
+        var (sessionID, _) = await fixture.StartSessionAsync("guest");
+        Assert.IsTrue(await fixture.Coordinator.HasActiveProcessesAsync());
+        var path = PlaytimePaths.Journal(fixture.GameRoot, sessionID);
+        var journal = PlaytimeJson.ReadJournal(path);
+        var helper = new PlaytimeProcessIdentity(999, 200, 0);
+        journal.Helper = helper;
+        PlaytimeJson.AtomicWrite(path, PlaytimeJson.SerializeJournal(journal));
+        fixture.Probe.SetRunning(new PlaytimeProcessIdentity(151, 100, 0), false);
+        fixture.Probe.SetRunning(helper, true);
+        Assert.IsTrue(await fixture.Coordinator.HasActiveProcessesAsync());
+        fixture.Probe.SetRunning(helper, false);
+        Assert.IsFalse(await fixture.Coordinator.HasActiveProcessesAsync());
+    }
+
+    [TestMethod]
     public async Task ReconcileCreditsOnlyPositiveElapsedDeltaAndIsIdempotent()
     {
         await using var fixture = new PlaytimeFixture();

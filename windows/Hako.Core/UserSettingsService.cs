@@ -116,6 +116,13 @@ public sealed class UserSettingsService(IUserSettingsStore store)
 
     public GameLaunchDefaults GetGameLaunchDefaults() => GameLaunchDefaults.From(Current);
 
+    /// <summary>Waits for already submitted language and game-settings writes before application replacement.</summary>
+    public async Task WaitForPendingSavesAsync(CancellationToken cancellationToken = default)
+    {
+        await _saveGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _saveGate.Release();
+    }
+
     private async Task SaveSnapshotAsync(CancellationToken cancellationToken, Action rollback)
     {
         var acquired = false;
