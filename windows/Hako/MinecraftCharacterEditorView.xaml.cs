@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Windows.Storage.Streams;
 using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Hako;
@@ -145,7 +145,14 @@ public sealed partial class MinecraftCharacterEditorView : UserControl
         var panel = new StackPanel { Width = 108, Spacing = 6, Padding = new Thickness(6) };
         if (png is not null)
         {
-            var image = new Image { Width = 80, Height = 44 };
+            var image = new Image
+            {
+                Width = 80,
+                Height = 44,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
             panel.Children.Add(image);
             _ = SetCapeImageAsync(image, png);
         }
@@ -159,11 +166,13 @@ public sealed partial class MinecraftCharacterEditorView : UserControl
     {
         try
         {
-            using var stream = new InMemoryRandomAccessStream();
-            await stream.WriteAsync(png.AsBuffer());
-            stream.Seek(0);
-            var bitmap = new BitmapImage();
-            await bitmap.SetSourceAsync(stream);
+            var rgba = await MinecraftSkinImageDecoder.DecodeCapeThumbnailAsync(png);
+            var bgra = MinecraftSkinHeadBitmapConverter.ConvertStraightRgbaToPremultipliedBgra(rgba);
+            var bitmap = new WriteableBitmap(10, 16);
+            using (var stream = bitmap.PixelBuffer.AsStream())
+            {
+                stream.Write(bgra, 0, bgra.Length);
+            }
             image.Source = bitmap;
         }
         catch (Exception) { } // Choosing the tile retries its full texture through the coordinator.
