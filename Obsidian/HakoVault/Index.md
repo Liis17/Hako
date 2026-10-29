@@ -1,12 +1,12 @@
 # Hako — База знаний
 
 Hako — нативный лаунчер Minecraft для macOS на SwiftUI и SwiftData (Xcode 27, macOS 27.0+)
-с авторизацией через Microsoft и интеграцией Modrinth и CurseForge.
-Сейчас реализованы приветствие, вход в Microsoft по коду, главная страница с вкладками и настройками
+с независимыми входами через Microsoft и Telegram/Hako и интеграцией Modrinth и CurseForge.
+Реализованы приветствие, вход Microsoft по коду и вход Hako через Telegram, главная страница с вкладками и настройками
 и выход, создание и фоновая установка ванильных сборок с независимой Java, профили и локальные текстурпаки.
 Игра запускается с Minecraft-сессией либо явным offline-mode; лаунчер доступен без аккаунта.
 Время игры учитывается отдельно для аккаунта и каждой сборки, сохраняется после удаления сборок
-и продолжает измеряться при закрытом Hako. Гостевая статистика переносится при входе.
+и продолжает измеряться при закрытом Hako. Гостевая статистика переносится в аккаунт Microsoft при входе.
 Создаются Vanilla- и Fabric-сборки; Fabric API автоматически устанавливается из официального проекта Modrinth.
 Каталог готовых модпаков Modrinth создаёт Fabric/Vanilla-сборки из `.mrpack`. Каталог контента ставит в сборку моды и ресурспаки, а в выбранный мир — датапаки с обязательными зависимостями; CurseForge пока не реализован.
 Ресурспаки и датапаки сохраняют источник и версию Modrinth и обновляются по одному или всем разделом/миром;
@@ -34,7 +34,7 @@ Windows-клиент (`windows/`, WinUI 3, .NET 8) поддерживает Vani
 
 | Заметка | Назначение |
 |---------|------------|
-| [[Data/Persistence]] | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; токены, параметры и независимые папки сборок; Windows: зашифрованный `session.dat`, `settings.json` и общий `.hako-playtime` ledger |
+| [[Data/Persistence]] | SwiftData: `Account` и `GameInstance`, совместимость прежнего store; отдельные Keychain items Microsoft и Hako, параметры и независимые папки сборок; Windows: зашифрованные сессии, `settings.json` и общий `.hako-playtime` ledger |
 | [[Data/Backups]] | macOS и Windows: резервные копии `.hakobackup` и `.hakoworld`, состав архива, схема `data.json` и восстановление |
 
 ## Minecraft
@@ -49,7 +49,7 @@ Windows-клиент (`windows/`, WinUI 3, .NET 8) поддерживает Vani
 | Заметка | Назначение |
 |---------|------------|
 | [[Auth/MicrosoftAuth]] | Вход через Microsoft device code flow, цепочка Xbox Live → Minecraft, ошибки; Windows: `MicrosoftDeviceAuth` и `AppCoordinator` |
-| [[Auth/HakoAuth]] | Независимый вход Hako через Telegram на Windows, API, DPAPI-сессия, проверка и выход |
+| [[Auth/HakoAuth]] | Независимый вход Hako через Telegram на macOS и Windows, API, защищённая сессия, проверка и выход |
 
 ## Server
 

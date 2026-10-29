@@ -3,13 +3,33 @@ import Observation
 import SwiftData
 
 struct LauncherPresentationState: Equatable {
-    private(set) var isGuestLauncher = false
+    private(set) var isExplicitGuest = false
+    private(set) var isRestoreLauncher = false
+    private(set) var isQuickLaunchActive = false
+    private(set) var hasMicrosoftSession = false
+    private(set) var hasHakoSession = false
 
-    mutating func continueAsGuest() { isGuestLauncher = true }
-    mutating func restoreRequested() { isGuestLauncher = true }
+    var isGuestLauncher: Bool { isExplicitGuest || isRestoreLauncher || isQuickLaunchActive }
+    var hasProviderSession: Bool { hasMicrosoftSession || hasHakoSession }
+
+    mutating func continueAsGuest() { isExplicitGuest = true }
+    mutating func restoreRequested() { isRestoreLauncher = true }
+    mutating func quickLaunchRequested() { isQuickLaunchActive = true }
+    mutating func quickLaunchEnded() { isQuickLaunchActive = false }
+
+    mutating func providersChanged(microsoftSession: Bool, hakoSession: Bool, restoreVisible: Bool) {
+        hasMicrosoftSession = microsoftSession
+        hasHakoSession = hakoSession
+        if hasProviderSession {
+            isExplicitGuest = false
+            isRestoreLauncher = false
+        } else {
+            isRestoreLauncher = restoreVisible
+        }
+    }
 
     mutating func accountsChanged(hasAccount: Bool, restoreVisible: Bool) {
-        if !hasAccount { isGuestLauncher = restoreVisible }
+        providersChanged(microsoftSession: hasAccount, hakoSession: false, restoreVisible: restoreVisible)
     }
 }
 

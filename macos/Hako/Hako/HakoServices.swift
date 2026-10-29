@@ -23,6 +23,7 @@ import SwiftData
     let content: InstanceContentController
     let backupRestore: BackupRestoreCoordinator
     let sessions: MinecraftSessionCoordinator
+    let hakoAccount: HakoAccountCoordinator
     let appearances: MinecraftAppearanceStore
     let skinLoader: MinecraftSkinLoader
     let characterEditor: MinecraftCharacterEditorCoordinator
@@ -34,6 +35,7 @@ import SwiftData
     let spotlight: InstanceSpotlightIndexer
     let updates: AppUpdateCoordinator
     let startsInCharacterEditor: Bool
+    private var didStart = false
 
     private init(characterEditorPreview: Bool = false) throws {
         let schema = HakoSchema.schema
@@ -83,6 +85,13 @@ import SwiftData
             sessionDependencies = nil
         }
         sessions = MinecraftSessionCoordinator(context: container.mainContext, dependencies: sessionDependencies, appearances: appearances)
+        if characterEditorPreview {
+            hakoAccount = HakoAccountCoordinator(
+                api: PreviewHakoAuthAPI(), store: PreviewHakoSessionStore(), initiallyRestored: true
+            )
+        } else {
+            hakoAccount = HakoAccountCoordinator(api: HakoAuthAPIClient(), store: HakoSessionKeychainStore())
+        }
         characterEditor = MinecraftCharacterEditorCoordinator(
             api: MinecraftProfileAPIClient(session: fixtureSession ?? .shared), sessions: sessions,
             context: container.mainContext, appearances: appearances
@@ -112,9 +121,26 @@ import SwiftData
     }
 
     func start() {
-        guard !startsInCharacterEditor else { return }
+        guard !startsInCharacterEditor, !didStart else { return }
+        didStart = true
+        Task { await hakoAccount.initialize() }
         games.start()
         installations.start()
         updates.start()
     }
+}
+
+nonisolated struct PreviewHakoAuthAPI: HakoAuthAPI {
+    func register(deviceName: String) async throws -> HakoPendingAuthRequest { throw HakoAuthError.serviceUnavailable }
+    func login(username: String, deviceName: String) async throws -> HakoPendingAuthRequest { throw HakoAuthError.serviceUnavailable }
+    func requestStatus(_ request: HakoPendingAuthRequest) async throws -> HakoAuthRequestStatus { throw HakoAuthError.serviceUnavailable }
+    func exchange(_ request: HakoPendingAuthRequest) async throws -> HakoExchangeResult { throw HakoAuthError.serviceUnavailable }
+    func me(token: String) async throws -> HakoMeResult { throw HakoAuthError.serviceUnavailable }
+    func logout(token: String, timeout: Duration) async throws { throw HakoAuthError.serviceUnavailable }
+}
+
+nonisolated struct PreviewHakoSessionStore: HakoSessionStore {
+    func load() async throws -> HakoSession? { nil }
+    func save(_ session: HakoSession) async throws { throw HakoAuthError.persistence }
+    func clear(ifMatching token: String) async throws -> Bool { false }
 }

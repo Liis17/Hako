@@ -8,10 +8,10 @@ Hako — нативное macOS-приложение: таргет `Hako` (bundl
 и отдельные таргеты Swift Testing `HakoTests` и CLI-помощника `HakoPlaytimeHelper`.
 Windows-клиент — отдельный стек WinUI 3 в каталоге `windows/` ([[#Windows-клиент]]).
 
-Назначение (со слов пользователя): лаунчер Minecraft с авторизацией через Microsoft
-и интеграцией каталогов Modrinth и CurseForge.
+Назначение (со слов пользователя): лаунчер Minecraft с независимыми авторизациями через Microsoft
+и Telegram/Hako и интеграцией каталогов Modrinth и CurseForge.
 
-Текущее состояние: реализованы приветствие, вход в Microsoft по коду (device code flow)
+Текущее состояние: реализованы приветствие, независимый вход Microsoft по коду (device code flow) и Hako через Telegram
 с получением профиля Xbox и, если доступен, профиля Minecraft, главная страница с рейлом вкладок
 (карточки и профили сборок, настройки игры, хранилище, сведения о приложении, профиль с аккаунтами Xbox и Java,
 редактор PNG-скина/плаща и анимированный 3D-скин) и выход.
@@ -31,8 +31,8 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 | AppKit, App Intents, Core Spotlight | Меню Dock, поиск сборок и запуск через Siri/Shortcuts | [[UI/SystemIntegration]] |
 | UserDefaults / `@AppStorage` | Глобальные параметры игры, язык интерфейса | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift`, `macos/Hako/Hako/AppLanguage.swift` |
 | String Catalog | Русский и английский интерфейс | `macos/Hako/Hako/Localizable.xcstrings` |
-| Security (Keychain) | Хранение токенов | `macos/Hako/Hako/Auth/TokenKeychain.swift` |
-| URLSession | Авторизация, Minecraft/Java, Fabric Meta, Fabric API, каталог Modrinth, Minecraft Java Profile API и обновления Hako | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `macos/Hako/Hako/Auth/MinecraftProfileAPI.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
+| Security (Keychain) | Независимые токены Microsoft и сессия Telegram/Hako | `macos/Hako/Hako/Auth/TokenKeychain.swift`, `HakoSessionKeychainStore.swift` |
+| URLSession | Авторизация Microsoft и Hako, Minecraft/Java, Fabric Meta/API, Modrinth, Minecraft Java Profile API и обновления | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `HakoAuthAPIClient.swift`, `MinecraftProfileAPI.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
 
 ## Структура репозитория
@@ -55,15 +55,16 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
   (`macos/Hako/Hako/HakoServices.swift`) и создаёт единственную сцену `Window("Hako", id: "main")`.
   Обычный запуск использует `HakoServices.shared`; редакторный fixture-флаг создаёт отдельные контейнер и
   координаторы. `HakoServices` владеет `ModelContainer`, `InstallationCoordinator`, `InstanceContentController`,
-  `MinecraftSessionCoordinator`, `MinecraftAppearanceStore`, `MinecraftSkinLoader`,
+  `MinecraftSessionCoordinator`, `HakoAccountCoordinator`, `MinecraftAppearanceStore`, `MinecraftSkinLoader`,
   `MinecraftCharacterEditorCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator`,
   `InstanceRenameExitCoordinator`, `QuickLaunchCoordinator` и `AppUpdateCoordinator`. Интерфейс и системные
   команды обычного процесса используют те же объекты.
   Устройство контейнера описано в [[Data/Persistence]], быстрый запуск — в [[UI/SystemIntegration]].
-- [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками и игровым временем, контейнер хранилища, токены в Keychain,
+- [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками и игровым временем, контейнер хранилища, отдельные Keychain items Microsoft и Hako,
   глобальные параметры игры, независимые папки сборок и статистика времени по XUID.
 - [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и общий сервис действительной Minecraft-сессии.
+- [[Auth/HakoAuth]] — независимый вход через Telegram, отдельный Keychain item, проверка `/me` и выход.
 - [[Minecraft/Launching]] — построение аргументов, проверка Java, процессы и восстановление игр.
 - [[Minecraft/Worlds]] — локальные сохранения, чтение gzip/NBT через системный zlib, копирование, корзина и управление датапаками; `.hakoworld` описан в [[Data/Backups]].
 - [[Minecraft/Modrinth]] — каталог модов, ресурспаков и датапаков мира, зависимости, проверка загрузок и создание сборок из `.mrpack`.
@@ -90,10 +91,15 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
    Подробная команда — [[UI/MinecraftSkin#PNG для редактора]].
 2. `Window("Hako", id: "main") { ContentView() }` получает контейнер через
    `.modelContainer(services.modelContainer)`, который помещает `modelContext` в окружение окна.
-3. Окно открывается в 1280×720 без восстановления прошлого размера. `ContentView`
-   показывает поверх фона с сакурой `LauncherView`, если в SwiftData есть `Account` либо выбран гостевой вход,
-   иначе приветствие. Гостевой выбор действует до закрытия Hako; сборки сохраняются независимо.
-4. `ContentView` наблюдает срок Minecraft-токена через `MinecraftSessionCoordinator.monitor` ([[Auth/MicrosoftAuth]]).
+3. Окно открывается в 1280×720 без восстановления прошлого размера. Пока Keychain-сессия Hako загружается,
+   `ContentView` показывает состояние восстановления; затем показывает `LauncherView`, если в SwiftData есть
+   Microsoft `Account`, восстановлена Hako-сессия либо выбран гостевой вход, иначе приветствие. Провайдеры
+   независимы, гостевой выбор действует до закрытия Hako, сборки сохраняются независимо.
+4. `HakoServices.start()` запускает восстановление Telegram/Hako через `HakoAccountCoordinator.initialize()`
+   независимо от SwiftData-аккаунта. При успешном чтении launcher открывается немедленно и в фоне выполняется
+   `/me`; повторная проверка идёт раз в сутки и при входе в профиль. Ошибка Keychain оставляет доступ к
+   существующей Microsoft/guest-работе, показывает предупреждение и запрещает запись/удаление Hako-сессии.
+5. `ContentView` наблюдает срок Minecraft-токена через `MinecraftSessionCoordinator.monitor` ([[Auth/MicrosoftAuth]]).
    `GameLaunchCoordinator.start` включает `PlaytimeCoordinator`, читает журналы сессий и восстанавливает
    работающие игры с независимым помощником учёта до запуска очереди установки.
    Общий координатор из окружения восстанавливает очередь независимо от аккаунта; сохранённая пауза остаётся паузой.
@@ -103,8 +109,8 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 
 ### Вход
 
-1. «Начать» на приветствии открывает `LoginView`; «Продолжить без аккаунта» открывает гостевой лаунчер.
-   Из профиля гостя также доступен Microsoft-вход: отмена возвращает в лаунчер.
+1. Приветствие предоставляет отдельные действия Microsoft-входа, Telegram/Hako и гостевого запуска.
+   Из гостевого профиля доступны оба provider-входа; отмена возвращает к предыдущему экрану.
 2. `LoginView.signIn()` запрашивает код (`MicrosoftAuth.requestDeviceCode`) и показывает его;
    пользователь вводит код на microsoft.com/link.
 3. `MicrosoftAuth.waitForToken` опрашивает Microsoft до подтверждения, `signIn` получает профиль Xbox
@@ -113,12 +119,21 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
    `PlaytimeCoordinator.transferGuest(to:)` сохраняет аккаунт и перенос гостевого времени одной операцией ([[Data/Persistence]]).
 5. `@Query` в `ContentView` видит аккаунт и переключает окно на `LauncherView`.
 
+Для Hako `HakoLoginView` запрашивает регистрацию без username или вход с нормализованным Telegram username.
+После пользовательского открытия или копирования Telegram-ссылки `HakoAccountCoordinator` проверяет статус
+каждые две секунды до терминального состояния/срока запроса и однократно обменивает подтверждение. Полный
+поток, deadline, отмена, безопасное сохранение, проверка и выход описаны в [[Auth/HakoAuth]]. Hako-сессия не
+создаёт SwiftData `Account`; Hako-only запускает игру как гость/offline и не переносит гостевое время.
+
 Источники: `macos/Hako/Hako/Views/LoginView.swift`, `macos/Hako/Hako/Auth/MicrosoftAuth.swift`.
 
 ### Выход
 
 `ProfileView.signOut()` (вкладка «Профиль») удаляет запись токенов из Keychain и `Account` из SwiftData,
 сохраняет контекст; `ContentView` возвращает приветствие. `GameInstance`, файлы сборок и очередь установки сохраняются.
+Hako-выход независимо отзывает Hako-токен и удаляет только совпадающую запись Hako; при ошибке удалённого выхода
+профиль предлагает retry, cancel или предупреждённое локальное удаление. Выход из одного провайдера оставляет
+лаунчер открытым, пока подключён второй; последний выход возвращает приветствие, если не открыт архив восстановления.
 Работающие игры продолжаются независимо от выхода из аккаунта и закрытия Hako.
 `HakoPlaytimeHelper` продолжает измерять их длительность; общее время аккаунта хранится отдельно
 от удаляемых данных входа и сборок. Жизненный цикл и восстановление описаны в [[Minecraft/Launching]].
@@ -160,7 +175,7 @@ xcodebuild -project macos/Hako/Hako.xcodeproj -scheme Hako -configuration Debug 
 Она собирает приложение с зависимым CLI-помощником и запускает `HakoTests`. Помощник копируется
 в `Contents/MacOS` с `CodeSignOnCopy`; имеет те же deployment target и Hardened Runtime.
 Тестовый таргет без приложения-хоста: компилирует
-те же исходники скина, авторизации, данных сборок, официальных метаданных, установщика и клиента Modrinth; использует собственную копию `Steve.png`,
+те же исходники скина, Microsoft- и Hako-авторизации, данных сборок, официальных метаданных, установщика и клиента Modrinth; использует собственную копию `Steve.png`,
 фикстуры Mojang и подменённые HTTP-ответы; главное окно и вход в Microsoft не запускаются.
 
 ```sh

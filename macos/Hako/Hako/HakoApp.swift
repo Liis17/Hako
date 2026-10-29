@@ -27,6 +27,7 @@ struct HakoApp: App {
                 .environment(services.content)
                 .environment(services.backupRestore)
                 .environment(services.sessions)
+                .environment(services.hakoAccount)
                 .environment(services.appearances)
                 .environment(services.skinLoader)
                 .environment(services.characterEditor)

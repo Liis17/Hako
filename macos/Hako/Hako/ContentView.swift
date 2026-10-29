@@ -14,10 +14,12 @@ import Foundation
 struct ContentView: View {
     var startsInCharacterEditor = false
     @Query private var accounts: [Account]
-    @State private var isSigningIn = false
+    @State private var authDestination: AuthDestination?
+    @State private var startupWarning: HakoAuthError?
     @State private var presentation = LauncherPresentationState()
     @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.current.rawValue
     @Environment(MinecraftSessionCoordinator.self) private var sessions
+    @Environment(HakoAccountCoordinator.self) private var hakoAccount
     @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
     @Environment(QuickLaunchCoordinator.self) private var quickLaunch
     @Environment(BackupRestoreCoordinator.self) private var backupRestore
@@ -31,35 +33,70 @@ struct ContentView: View {
         return AppLanguage(rawValue: storedLanguage) ?? AppLanguage.current
     }
 
+    private var hasProviderSession: Bool { accounts.first != nil || hakoAccount.session != nil }
+
     var body: some View {
         ZStack {
             SakuraBackground()
 
-            if isSigningIn {
-                LoginView(onBack: { isSigningIn = false })
+            if hakoAccount.isRestoringSession {
+                VStack(spacing: 14) {
+                    ProgressView()
+                    Text("Загружаем сохранённый аккаунт…").foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity)
+            } else if authDestination == .microsoft {
+                LoginView(onBack: { authDestination = nil })
                     .transition(.blurReplace)
-            } else if accounts.first != nil || presentation.isGuestLauncher {
-                LauncherView(account: accounts.first, onSignIn: { isSigningIn = true }, startsInCharacterEditor: startsInCharacterEditor)
+            } else if authDestination == .hako {
+                HakoLoginView(onBack: { authDestination = nil })
+                    .transition(.blurReplace)
+            } else if hasProviderSession || presentation.isGuestLauncher {
+                LauncherView(
+                    account: accounts.first,
+                    onMicrosoftSignIn: { authDestination = .microsoft },
+                    onHakoSignIn: { authDestination = .hako },
+                    startsInCharacterEditor: startsInCharacterEditor
+                )
                     .transition(.blurReplace)
             } else {
-                WelcomeView(onStart: { isSigningIn = true }, onContinueWithoutAccount: { presentation.continueAsGuest() })
+                WelcomeView(
+                    onMicrosoftSignIn: { authDestination = .microsoft },
+                    onHakoSignIn: { authDestination = .hako },
+                    onContinueWithoutAccount: { presentation.continueAsGuest() }
+                )
                     .transition(.blurReplace)
             }
         }
-        .animation(.smooth, value: isSigningIn)
+        .animation(.smooth, value: authDestination)
         .animation(.smooth, value: accounts.isEmpty)
         .animation(.smooth, value: presentation.isGuestLauncher)
+        .animation(.smooth, value: hakoAccount.session != nil)
         // После выхода без активного восстановления экран без аккаунта — приветствие.
         .onChange(of: accounts.isEmpty) { _, isEmpty in
-            isSigningIn = false
             if isEmpty { sessions.signOut() }
-            presentation.accountsChanged(hasAccount: !isEmpty, restoreVisible: backupRestore.shouldPresentRestoreLauncher)
+            if hasProviderSession { authDestination = nil }
+            updateProviderRouting(restoreVisible: backupRestore.shouldPresentRestoreLauncher)
         }
-        .onChange(of: accounts.first?.persistentModelID) { characterEditor.invalidateForAccountChange() }
+        .onChange(of: accounts.first?.persistentModelID) { _, _ in
+            characterEditor.invalidateForAccountChange()
+            if hasProviderSession { authDestination = nil }
+            updateProviderRouting(restoreVisible: backupRestore.shouldPresentRestoreLauncher)
+        }
+        .onChange(of: hakoAccount.session?.account.id) { _, _ in
+            if hasProviderSession { authDestination = nil }
+            updateProviderRouting(restoreVisible: backupRestore.shouldPresentRestoreLauncher)
+        }
+        .onChange(of: backupRestore.shouldPresentRestoreLauncher) { _, isVisible in
+            if isVisible { authDestination = nil }
+            updateProviderRouting(restoreVisible: isVisible)
+        }
+        .onChange(of: hakoAccount.startupError) { _, error in startupWarning = error }
         .task(id: accounts.first?.persistentModelID) { if let account = accounts.first { await sessions.monitor(account) } }
         .onAppear {
             if backupRestore.shouldPresentRestoreLauncher {
-                isSigningIn = false
+                authDestination = nil
                 presentation.restoreRequested()
             }
             let renameExit = renameExit, openWindow = openWindow
@@ -75,15 +112,25 @@ struct ContentView: View {
             }
         }
         .task(id: quickLaunch.presentation?.id) {
-            if quickLaunch.presentation != nil { isSigningIn = false; presentation.restoreRequested() }
+            guard quickLaunch.presentation != nil else { presentation.quickLaunchEnded(); return }
+            authDestination = nil
+            presentation.quickLaunchRequested()
         }
         .task(id: backupRestore.presentationRequestID) {
             guard let requestID = backupRestore.presentationRequestID else { return }
-            isSigningIn = false
+            authDestination = nil
             presentation.restoreRequested()
             backupRestore.consumePresentationRequest(requestID)
         }
         .onDisappear { quickLaunch.cancelPresentations() }
+        .alert("Не удалось восстановить аккаунт Hako", isPresented: Binding(
+            get: { startupWarning != nil },
+            set: { if !$0 { startupWarning = nil } }
+        )) {
+            Button("ОК", role: .cancel) { startupWarning = nil }
+        } message: {
+            Text(startupWarning?.localizedDescription ?? "")
+        }
         .alert("Не удалось запустить сборку", isPresented: Binding(get: { quickLaunch.error != nil }, set: { if !$0 { quickLaunch.error = nil } })) {
             Button("ОК", role: .cancel) { quickLaunch.error = nil }
         } message: {
@@ -94,6 +141,19 @@ struct ContentView: View {
         .preferredColorScheme(.light)
         .tint(.sakuraDeep)
     }
+
+    private func updateProviderRouting(restoreVisible: Bool) {
+        presentation.providersChanged(
+            microsoftSession: accounts.first != nil,
+            hakoSession: hakoAccount.session != nil,
+            restoreVisible: restoreVisible
+        )
+    }
+}
+
+private enum AuthDestination: Equatable {
+    case microsoft
+    case hako
 }
 
 #Preview {
@@ -110,6 +170,7 @@ struct ContentView: View {
         .environment(content)
         .environment(backupRestore)
         .environment(sessions)
+        .environment(HakoAccountCoordinator(api: PreviewHakoAuthAPI(), store: PreviewHakoSessionStore(), initiallyRestored: true))
         .environment(playtime)
         .environment(InstanceRenameExitCoordinator())
         .environment(games)

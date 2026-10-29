@@ -4,9 +4,10 @@ Parent: [[Index]]
 
 ## Назначение
 
-Главная страница лаунчера для пользователя с аккаунтом или гостя: узкий стеклянный рейл вкладок слева
-и содержимое выбранной вкладки справа. Общий сервис обновляет Minecraft-сессию при наличии аккаунта.
-Показывается [[UI/ContentView]] после входа либо выбора «Продолжить без аккаунта».
+Главная страница лаунчера для пользователя с Microsoft- и/или Hako-сессией либо гостя: узкий стеклянный
+рейл вкладок слева и содержимое выбранной вкладки справа. Microsoft управляет Minecraft-сессией и XUID;
+Hako — отдельный provider в профиле. Показывается [[UI/ContentView]] после входа либо выбора
+«Продолжить без аккаунта».
 
 ## Источники
 
@@ -29,7 +30,8 @@ Parent: [[Index]]
 | `macos/Hako/Hako/Instances/InstanceContent.swift` | `InstanceContent` | Локальные списки, независимый импорт и корзина |
 | `macos/Hako/Hako/Instances/InstanceRenameExitCoordinator.swift` | `InstanceRenameExitCoordinator`, `InstanceRenameWindowCloseGuard` | Защита незавершённого переименования при закрытии окна или приложения |
 | `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Язык интерфейса, глобальные параметры игры, место на диске и сведения о приложении |
-| `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView`, `GuestProfileView` | Профиль аккаунта, повтор подключения Minecraft, выход и предложение входа гостю |
+| `macos/Hako/Hako/Views/Launcher/ProfileView.swift` | `ProfileView`, `GuestProfileView` | Независимые карточки Microsoft и Hako, подключение Minecraft, выход и guest-профиль |
+| `macos/Hako/Hako/Auth/HakoAccountCoordinator.swift` | `HakoAccountCoordinator` | Проверка профиля при входе во вкладку, выход Hako и состояния подключения |
 | `macos/Hako/Hako/Views/Launcher/MinecraftCharacterEditorView.swift` | `MinecraftCharacterEditorView` | Загрузка PNG, выбор модели и плаща, локальное 3D-превью и действия редактора |
 | `macos/Hako/Hako/Auth/MinecraftCharacterEditorCoordinator.swift` | `MinecraftCharacterEditorCoordinator` | Черновик редактора, авторизованные чтения/записи, сверка частичных результатов и защита поколением |
 | `macos/Hako/Hako/Views/Launcher/PlaytimeSummaryView.swift` | `PlaytimeSummaryView` | Общее игровое время аккаунта или гостя и ошибка сохранения |
@@ -40,7 +42,7 @@ Parent: [[Index]]
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `LauncherView(account: Account?, onSignIn:startsInCharacterEditor:)` | Требует SwiftData со схемой `[Account, GameInstance, PlayerPlaytime, InstancePlaytime, PlaytimeSession]`, `InstallationCoordinator`, `InstanceContentController`, `MinecraftSessionCoordinator`, `MinecraftAppearanceStore`, `MinecraftSkinLoader`, `MinecraftCharacterEditorCoordinator`, `GameLaunchCoordinator` и `PlaytimeCoordinator` в окружении. Начальная вкладка — `.instances`; preview-флаг открывает редактор изолированного аккаунта |
+| `LauncherView(account: Account?, onMicrosoftSignIn:onHakoSignIn:startsInCharacterEditor:)` | `account` — только Microsoft/Xbox-профиль и может быть `nil` при Hako-only или guest; требует `HakoAccountCoordinator` наряду с сервисами сборок, Microsoft и игрового времени. Начальная вкладка — `.instances`; preview-флаг открывает редактор изолированного аккаунта |
 | `LauncherPage(caption:title:content:)` | Японская подпись, `heroTitle`, содержимое; выравнивание по верхнему левому краю, появление через `reveal` |
 | `AccountAvatar(account:)` | Голова из последнего авторитетного Java-профиля, если он загружен; иначе из сохранённого `minecraftSkinURL`; при отсутствии URL — `XboxAvatar` |
 | `XboxAvatar(url:name:)` | `AsyncImage`; пока картинки нет или она не загрузилась — первая буква `name` на градиенте `sakuraDeep` |
@@ -70,8 +72,8 @@ Parent: [[Index]]
 | `InstancesView` | パック | «Сборки», центрированный блок создания первой сборки либо адаптивная сетка карточек |
 | `InstanceProfileView` | — | Профиль выбранной сборки: установка, моды, текстурпаки, миры, скриншоты и настройки |
 | `SettingsView` | 設定 | Разделы «Основные», «Игра», «Хранилище», «О приложении» |
-| `ProfileView` | プロフィール | «Профиль»: строки Xbox и Java Edition, общее время Minecraft, кнопка «Выйти», 3D-скин и активный плащ справа |
-| `GuestProfileView` | プロフィール | Гостевое время, пояснение о переносе при входе и кнопка Microsoft-входа |
+| `ProfileView` | プロフィール | Независимые карточки Microsoft (Xbox, Java Edition, общее время, выход, 3D-скин) и Telegram/Hako |
+| `GuestProfileView` | プロフィール | Гостевое время, пояснение о переносе при входе только в Microsoft, кнопки Microsoft и Hako |
 
 `ProfileView(account:minecraftStatus:)` — две колонки: слева заголовок, две стеклянные строки
 (ширина 400–600 pt), общее время и выход; справа [[UI/MinecraftSkin|3D-скин, а при наличии — активный плащ]] на прозрачном фоне.
@@ -92,6 +94,13 @@ Parent: [[Index]]
 Значения обновляются при чтении игровых журналов каждые 10 секунд, без повторного открытия страницы.
 Ошибка записи отображается в строке статистики; игра продолжается. При Microsoft-входе накопленное
 гостевое время и работающие гостевые сессии переходят аккаунту ([[Data/Persistence]]).
+
+Hako-карточка независима от Microsoft-карточки и доступна гостю и Hako-only пользователю. При подключённом
+Hako она показывает Telegram username, имя устройства и статус `/me`; профиль можно проверить вручную,
+выйти удалённо или после ошибки явно удалить только локальную сессию. Если аккаунт Microsoft есть, рядом
+сохраняются все прежние Xbox/Java строки и редактор скина. Hako-only не создаёт Microsoft `Account`, XUID
+или Minecraft-сессию и не меняет гостевые счётчики; запуск Minecraft и игровое время остаются в guest/offline-пути.
+Выход из Microsoft оставляет лаунчер открытым при Hako-сессии, а выход из Hako — при Microsoft-сессии.
 
 3D-превью использует UUID, URL и вариант скина из `Account`, пока нет авторитетного ответа Java Profile API.
 После чтения или сохранения `MinecraftAppearanceStore` становится источником скина и плаща; при известном

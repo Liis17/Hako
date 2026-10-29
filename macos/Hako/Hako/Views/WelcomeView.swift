@@ -7,7 +7,8 @@ import SwiftUI
 
 /// Экран приветствия, который видит пользователь без сохранённого аккаунта.
 struct WelcomeView: View {
-    let onStart: () -> Void
+    let onMicrosoftSignIn: () -> Void
+    let onHakoSignIn: () -> Void
     var onContinueWithoutAccount: () -> Void = {}
 
     @State private var isVisible = false
@@ -33,11 +34,15 @@ struct WelcomeView: View {
                 .reveal(isVisible, order: 3)
 
             HStack(spacing: 18) {
-                Button(action: onStart) {
-                    Text("Начать").padding(.horizontal, 12)
+                Button(action: onMicrosoftSignIn) {
+                    Label("Войти в Microsoft", systemImage: "person.crop.circle.badge.checkmark")
                 }
                 .buttonStyle(.glassProminent).tint(.sakuraDeep)
                 .keyboardShortcut(.defaultAction)
+                Button(action: onHakoSignIn) {
+                    Label("Войти через Telegram", systemImage: "paperplane")
+                }
+                .buttonStyle(.glass)
                 Button("Продолжить без аккаунта", action: onContinueWithoutAccount)
                     .buttonStyle(.glass)
             }
@@ -66,7 +71,7 @@ struct WelcomeView: View {
 }
 
 #Preview {
-    WelcomeView(onStart: {})
+    WelcomeView(onMicrosoftSignIn: {}, onHakoSignIn: {})
         .background { SakuraBackground() }
         .frame(width: 1280, height: 720)
 }

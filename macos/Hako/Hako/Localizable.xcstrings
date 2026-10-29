@@ -1,6 +1,966 @@
 {
   "sourceLanguage" : "ru",
   "strings" : {
+    "Не удалось подключиться к Hako. Проверьте интернет и попробуйте снова." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not connect to Hako. Check your internet connection and try again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к Hako. Проверьте интернет и попробуйте снова."
+          }
+        }
+      }
+    },
+    "Запрос к Hako занял слишком много времени. Попробуйте снова." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Hako request timed out. Try again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрос к Hako занял слишком много времени. Попробуйте снова."
+          }
+        }
+      }
+    },
+    "Сервер Hako вернул некорректный ответ." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Hako server returned an invalid response."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер Hako вернул некорректный ответ."
+          }
+        }
+      }
+    },
+    "Сервер Hako перенаправил запрос на другой адрес." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Hako server redirected the request to another address."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер Hako перенаправил запрос на другой адрес."
+          }
+        }
+      }
+    },
+    "Слишком много запросов. Подождите и попробуйте снова." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many requests. Wait a moment and try again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слишком много запросов. Подождите и попробуйте снова."
+          }
+        }
+      }
+    },
+    "Сервис Hako временно недоступен." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hako is temporarily unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервис Hako временно недоступен."
+          }
+        }
+      }
+    },
+    "Telegram-бот Hako временно недоступен." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Hako Telegram bot is temporarily unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telegram-бот Hako временно недоступен."
+          }
+        }
+      }
+    },
+    "Введите Telegram username длиной от 5 до 32 символов: латинские буквы, цифры и _." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a Telegram username from 5 to 32 characters long, using ASCII letters, numbers, and underscores."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите Telegram username длиной от 5 до 32 символов: латинские буквы, цифры и _."
+          }
+        }
+      }
+    },
+    "Не удалось отправить запрос Hako." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not send the Hako request."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось отправить запрос Hako."
+          }
+        }
+      }
+    },
+    "Аккаунт с таким Telegram username не найден." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No account was found for that Telegram username."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аккаунт с таким Telegram username не найден."
+          }
+        }
+      }
+    },
+    "Вход отклонён в Telegram." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sign-in request was denied in Telegram."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход отклонён в Telegram."
+          }
+        }
+      }
+    },
+    "Запрос истёк. Начните вход заново." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The request expired. Start sign-in again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрос истёк. Начните вход заново."
+          }
+        }
+      }
+    },
+    "Этот Telegram-аккаунт уже зарегистрирован." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Telegram account is already registered."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот Telegram-аккаунт уже зарегистрирован."
+          }
+        }
+      }
+    },
+    "Запрос уже использован. Начните новый вход по username." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This request was already used. Start a new sign-in with your username."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрос уже использован. Начните новый вход по username."
+          }
+        }
+      }
+    },
+    "Сессия Hako истекла. Войдите снова." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Hako session expired. Sign in again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессия Hako истекла. Войдите снова."
+          }
+        }
+      }
+    },
+    "Не удалось сохранить сессию Hako в Keychain." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not save the Hako session to Keychain."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось сохранить сессию Hako в Keychain."
+          }
+        }
+      }
+    },
+    "Не удалось загрузить сессию Hako. Проверьте доступ к Keychain и перезапустите приложение." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the saved Hako session. Check Keychain access and restart the app."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить сессию Hako. Проверьте доступ к Keychain и перезапустите приложение."
+          }
+        }
+      }
+    },
+    "Загружаем сохранённый аккаунт…" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading saved account…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загружаем сохранённый аккаунт…"
+          }
+        }
+      }
+    },
+    "Не удалось восстановить аккаунт Hako" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not restore Hako account"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось восстановить аккаунт Hako"
+          }
+        }
+      }
+    },
+    "Войти через Telegram" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with Telegram"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти через Telegram"
+          }
+        }
+      }
+    },
+    "Вход через Telegram" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with Telegram"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход через Telegram"
+          }
+        }
+      }
+    },
+    "Войдите по Telegram username или создайте аккаунт Hako через бота." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with your Telegram username or create a Hako account through the bot."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войдите по Telegram username или создайте аккаунт Hako через бота."
+          }
+        }
+      }
+    },
+    "Вход в Hako" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to Hako"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход в Hako"
+          }
+        }
+      }
+    },
+    "Создаём запрос…" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating request…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Создаём запрос…"
+          }
+        }
+      }
+    },
+    "Ожидаем подтверждение в Telegram…" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for confirmation in Telegram…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидаем подтверждение в Telegram…"
+          }
+        }
+      }
+    },
+    "Сохраняем сессию Hako…" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving Hako session…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохраняем сессию Hako…"
+          }
+        }
+      }
+    },
+    "Запрос истекает через %@" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request expires in %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрос истекает через %@"
+          }
+        }
+      }
+    },
+    "Откройте бота и отправьте команду /start." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the bot and send the /start command."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Откройте бота и отправьте команду /start."
+          }
+        }
+      }
+    },
+    "Открыть Telegram" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Telegram"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Telegram"
+          }
+        }
+      }
+    },
+    "Скопировать ссылку" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy link"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировать ссылку"
+          }
+        }
+      }
+    },
+    "Откройте чат с ботом Hako в Telegram и подтвердите запрос." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the Hako bot chat in Telegram and approve the request."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Откройте чат с ботом Hako в Telegram и подтвердите запрос."
+          }
+        }
+      }
+    },
+    "Telegram username" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telegram username"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telegram username"
+          }
+        }
+      }
+    },
+    "Например, Player_123" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For example, Player_123"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Например, Player_123"
+          }
+        }
+      }
+    },
+    "Войти" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти"
+          }
+        }
+      }
+    },
+    "Создать аккаунт" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create account"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Создать аккаунт"
+          }
+        }
+      }
+    },
+    "Для регистрации username не нужен. Подтверждение выполняется в Telegram." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You do not need a username to register. Confirm the request in Telegram."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для регистрации username не нужен. Подтверждение выполняется в Telegram."
+          }
+        }
+      }
+    },
+    "Ответ на обмен потерян или запрос уже использован. Начните новый вход по Telegram username." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The exchange response was lost or the request was already used. Start a new sign-in with your Telegram username."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ответ на обмен потерян или запрос уже использован. Начните новый вход по Telegram username."
+          }
+        }
+      }
+    },
+    "Аккаунт Microsoft" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microsoft account"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аккаунт Microsoft"
+          }
+        }
+      }
+    },
+    "Аккаунт Microsoft не подключён" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microsoft account is not connected"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аккаунт Microsoft не подключён"
+          }
+        }
+      }
+    },
+    "Для онлайн-запуска подключите Microsoft с Minecraft: Java Edition. Offline-mode настраивается отдельно для каждой сборки." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect a Microsoft account with Minecraft: Java Edition for online play. Offline mode is configured for each build."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для онлайн-запуска подключите Microsoft с Minecraft: Java Edition. Offline-mode настраивается отдельно для каждой сборки."
+          }
+        }
+      }
+    },
+    "Гостевое время переносится в аккаунт Microsoft при входе. Время Hako хранится отдельно." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guest playtime transfers to Microsoft when you sign in. Hako keeps separate account data."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Гостевое время переносится в аккаунт Microsoft при входе. Время Hako хранится отдельно."
+          }
+        }
+      }
+    },
+    "Аккаунт Hako" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hako account"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аккаунт Hako"
+          }
+        }
+      }
+    },
+    "Проверить подключение" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check connection"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить подключение"
+          }
+        }
+      }
+    },
+    "Выходим…" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing out…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выходим…"
+          }
+        }
+      }
+    },
+    "Выйти из Hako" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out of Hako"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти из Hako"
+          }
+        }
+      }
+    },
+    "Выйти из Microsoft" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out of Microsoft"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти из Microsoft"
+          }
+        }
+      }
+    },
+    "Выйти из аккаунта Microsoft?" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out of Microsoft?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти из аккаунта Microsoft?"
+          }
+        }
+      }
+    },
+    "Данные Microsoft будут удалены с этого Mac. Сессия Hako останется подключённой." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microsoft sign-in data will be removed from this Mac. Your Hako session will stay connected."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Данные Microsoft будут удалены с этого Mac. Сессия Hako останется подключённой."
+          }
+        }
+      }
+    },
+    "Выйти из Hako?" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out of Hako?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти из Hako?"
+          }
+        }
+      }
+    },
+    "Сессия будет отозвана на сервере и удалена с этого Mac." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session will be revoked on the server and removed from this Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессия будет отозвана на сервере и удалена с этого Mac."
+          }
+        }
+      }
+    },
+    "Не удалось выйти из Hako" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not sign out of Hako"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось выйти из Hako"
+          }
+        }
+      }
+    },
+    "Выйти только на этом Mac" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out on this Mac only"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти только на этом Mac"
+          }
+        }
+      }
+    },
+    "Не удалось выполнить выход из аккаунта Hako." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not sign out of the Hako account."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось выполнить выход из аккаунта Hako."
+          }
+        }
+      }
+    },
+    "Удаление только локальной сессии может оставить серверную сессию активной в Telegram." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removing only the local session may leave the server session active in Telegram."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаление только локальной сессии может оставить серверную сессию активной в Telegram."
+          }
+        }
+      }
+    },
+    "Сессия сохранена, но ещё не проверена." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The session is saved but has not been verified yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессия сохранена, но ещё не проверена."
+          }
+        }
+      }
+    },
+    "Проверяем аккаунт Hako…" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking Hako account…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверяем аккаунт Hako…"
+          }
+        }
+      }
+    },
+    "Аккаунт Hako подключён." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hako account is connected."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аккаунт Hako подключён."
+          }
+        }
+      }
+    },
+    "Аккаунт Hako не подключён" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hako account is not connected."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аккаунт Hako не подключён"
+          }
+        }
+      }
+    },
+    "Сохранённая сессия Hako истекла." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The saved Hako session has expired."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённая сессия Hako истекла."
+          }
+        }
+      }
+    },
+    "Не удалось завершить сессию Hako." : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not end the Hako session."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось завершить сессию Hako."
+          }
+        }
+      }
+    },
     "" : {},
     "-Xmx и MaxHeapSize из аргументов заменяются лимитом ползунка при запуске." : {
       "localizations" : {

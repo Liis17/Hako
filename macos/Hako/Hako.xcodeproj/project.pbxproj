@@ -70,6 +70,11 @@
 		F8A000000000000000000005 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000015 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift */; };
 		F81000000000000000000001 /* Hako/Instances/BackupRestoreCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000011 /* Hako/Instances/BackupRestoreCoordinator.swift */; };
 		F81000000000000000000002 /* Hako/Instances/RestoreArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000012 /* Hako/Instances/RestoreArchive.swift */; };
+		F81000000000000000000003 /* Hako/Auth/HakoAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000013 /* Hako/Auth/HakoAuth.swift */; };
+		F81000000000000000000004 /* Hako/Auth/HakoAuthAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000014 /* Hako/Auth/HakoAuthAPIClient.swift */; };
+		F81000000000000000000005 /* Hako/Auth/HakoAccountCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000015 /* Hako/Auth/HakoAccountCoordinator.swift */; };
+		F81000000000000000000006 /* Hako/Auth/HakoSessionKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000016 /* Hako/Auth/HakoSessionKeychainStore.swift */; };
+		F81000000000000000000007 /* Hako/Auth/HakoDeviceName.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000017 /* Hako/Auth/HakoDeviceName.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -160,6 +165,11 @@
 		F8A000000000000000000015 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Minecraft/MinecraftCharacterPreviewFixture.swift; sourceTree = SOURCE_ROOT; };
 		F81000000000000000000011 /* Hako/Instances/BackupRestoreCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/BackupRestoreCoordinator.swift; sourceTree = SOURCE_ROOT; };
 		F81000000000000000000012 /* Hako/Instances/RestoreArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Instances/RestoreArchive.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000013 /* Hako/Auth/HakoAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoAuth.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000014 /* Hako/Auth/HakoAuthAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoAuthAPIClient.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000015 /* Hako/Auth/HakoAccountCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoAccountCoordinator.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000016 /* Hako/Auth/HakoSessionKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoSessionKeychainStore.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000017 /* Hako/Auth/HakoDeviceName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoDeviceName.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -280,6 +290,11 @@
 				F8A000000000000000000015 /* Hako/Minecraft/MinecraftCharacterPreviewFixture.swift */,
 				F81000000000000000000011 /* Hako/Instances/BackupRestoreCoordinator.swift */,
 				F81000000000000000000012 /* Hako/Instances/RestoreArchive.swift */,
+				F81000000000000000000013 /* Hako/Auth/HakoAuth.swift */,
+				F81000000000000000000014 /* Hako/Auth/HakoAuthAPIClient.swift */,
+				F81000000000000000000015 /* Hako/Auth/HakoAccountCoordinator.swift */,
+				F81000000000000000000016 /* Hako/Auth/HakoSessionKeychainStore.swift */,
+				F81000000000000000000017 /* Hako/Auth/HakoDeviceName.swift */,
 			);
 			name = "Skin Test Sources";
 			sourceTree = "<group>";
@@ -459,6 +474,11 @@
 				3969B149243F465D924013E7 /* Hako/Minecraft/MinecraftSkin.swift in Sources */,
 				7BA304A44DF04915B9044970 /* Hako/Minecraft/MinecraftSkinLoader.swift in Sources */,
 				AC77148AC01F44EABDE88576 /* Hako/Auth/MicrosoftAuth.swift in Sources */,
+				F81000000000000000000003 /* Hako/Auth/HakoAuth.swift in Sources */,
+				F81000000000000000000004 /* Hako/Auth/HakoAuthAPIClient.swift in Sources */,
+				F81000000000000000000005 /* Hako/Auth/HakoAccountCoordinator.swift in Sources */,
+				F81000000000000000000006 /* Hako/Auth/HakoSessionKeychainStore.swift in Sources */,
+				F81000000000000000000007 /* Hako/Auth/HakoDeviceName.swift in Sources */,
 				52A0AEB1BB084D53B5F5BA60 /* Hako/Account.swift in Sources */,
 				F7A000000000000000000001 /* Hako/Playtime/PlaytimeModels.swift in Sources */,
 				F7A000000000000000000002 /* Hako/Playtime/PlaytimeCoordinator.swift in Sources */,
