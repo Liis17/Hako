@@ -148,7 +148,7 @@ import Observation
                 // An expired or revoked token is already signed out remotely.
             }
             let cleared = await clearLocalSession(expected: expected, generation: expectedGeneration)
-            if !cleared {
+            if !cleared && session != nil {
                 setLogoutFailure(.persistence, expected: expected, generation: expectedGeneration)
                 return .localClearFailed
             }

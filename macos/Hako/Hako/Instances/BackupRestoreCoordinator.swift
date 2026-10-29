@@ -23,7 +23,6 @@ struct LauncherPresentationState: Equatable {
         if hasProviderSession {
             isExplicitGuest = false
             isRestoreLauncher = false
-            isQuickLaunchActive = false
         } else {
             isRestoreLauncher = restoreVisible
         }

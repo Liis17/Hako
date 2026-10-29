@@ -449,6 +449,39 @@ import Testing
         localCoordinator.stop()
     }
 
+    @Test func logoutSucceedsWhenUnauthorizedVerificationAlreadyClearedSession() async throws {
+        let clock = HakoAuthTestClock()
+        let cached = Self.session(token: "cached")
+        let api = HakoAuthTestService(now: clock.now())
+        await api.setMeError(.unauthorized)
+        await api.suspendNextLogout()
+        let store = HakoAuthTestSessionStore(session: cached)
+        await store.suspendNextClear()
+        let coordinator = coordinator(api: api, store: store, clock: clock, initialSession: cached)
+        let verification = Task { await coordinator.verifyManually() }
+        try await eventually { await store.clearCalls == 1 }
+        let logout = Task { await coordinator.logout() }
+        try await eventually { await api.logoutCalls.count == 1 }
+        await store.resumeClear()
+        await verification.value
+        #expect(coordinator.session == nil)
+        await api.resumeLogout()
+        #expect(await logout.value == .signedOut)
+        #expect(await store.storedSession == nil)
+        coordinator.stop()
+    }
+
+    @Test func quickLaunchSurvivesProviderRestorationAndLastLogout() {
+        var routing = LauncherPresentationState()
+        routing.quickLaunchRequested()
+        routing.providersChanged(microsoftSession: false, hakoSession: true, restoreVisible: false)
+        routing.providersChanged(microsoftSession: false, hakoSession: false, restoreVisible: false)
+        #expect(routing.isGuestLauncher)
+        #expect(routing.isQuickLaunchActive)
+        routing.quickLaunchEnded()
+        #expect(!routing.isGuestLauncher)
+    }
+
     @Test func providerRoutingCoversAllProviderCombinationsAndRestore() {
         for (microsoft, hako) in [(false, false), (true, false), (false, true), (true, true)] {
             var routing = LauncherPresentationState()
@@ -519,6 +552,8 @@ private actor HakoAuthTestService: HakoAuthAPI {
     private var suspendMe = false
     private var meContinuation: CheckedContinuation<Result<HakoMeResult, HakoAuthError>, Never>?
     private var logoutError: HakoAuthError?
+    private var suspendLogout = false
+    private var logoutContinuation: CheckedContinuation<Void, Never>?
     private(set) var registerCalls = 0
     private(set) var loginUsernames: [String] = []
     private(set) var statusCalls = 0
@@ -572,6 +607,10 @@ private actor HakoAuthTestService: HakoAuthAPI {
 
     func logout(token: String, timeout: Duration) async throws {
         logoutCalls.append((token, timeout))
+        if suspendLogout {
+            suspendLogout = false
+            await withCheckedContinuation { logoutContinuation = $0 }
+        }
         if let logoutError { throw logoutError }
     }
 
@@ -584,6 +623,8 @@ private actor HakoAuthTestService: HakoAuthAPI {
     func setMeResult(_ result: HakoMeResult) { meResult = result }
     func suspendNextMe() { suspendMe = true }
     func resumeMe(_ result: Result<HakoMeResult, HakoAuthError>) { meContinuation?.resume(returning: result); meContinuation = nil }
+    func suspendNextLogout() { suspendLogout = true }
+    func resumeLogout() { logoutContinuation?.resume(); logoutContinuation = nil }
     func setLogoutError(_ error: HakoAuthError?) { logoutError = error }
 
     private func pending() -> HakoPendingAuthRequest {
@@ -598,6 +639,8 @@ private actor HakoAuthTestSessionStore: HakoSessionStore {
     private var saveFailure = false
     private var clearFailure = false
     private var suspendSave = false
+    private var suspendClear = false
+    private var clearContinuation: CheckedContinuation<Void, Never>?
     private var saveContinuation: CheckedContinuation<Void, Never>?
     private(set) var saveCalls = 0
     private(set) var clearCalls = 0
@@ -623,6 +666,10 @@ private actor HakoAuthTestSessionStore: HakoSessionStore {
 
     func clear(ifMatching token: String) async throws -> Bool {
         clearCalls += 1
+        if suspendClear {
+            suspendClear = false
+            await withCheckedContinuation { clearContinuation = $0 }
+        }
         if clearFailure { throw HakoSessionStoreError() }
         guard let stored else { return true }
         guard stored.token == token else { return false }
@@ -633,6 +680,8 @@ private actor HakoAuthTestSessionStore: HakoSessionStore {
     func setLoadFailure(_ value: Bool) { loadFailure = value }
     func setSaveFailure(_ value: Bool) { saveFailure = value }
     func setClearFailure(_ value: Bool) { clearFailure = value }
+    func suspendNextClear() { suspendClear = true }
+    func resumeClear() { clearContinuation?.resume(); clearContinuation = nil }
     func suspendNextSave() { suspendSave = true }
     func resumeSave() { saveContinuation?.resume(); saveContinuation = nil }
 }
