@@ -17,13 +17,15 @@ enum LauncherTab: Hashable {
 /// Главная страница лаунчера: рейл вкладок слева и содержимое выбранной вкладки.
 struct LauncherView: View {
     let account: Account?
-    var onSignIn: () -> Void = {}
+    var onMicrosoftSignIn: () -> Void = {}
+    var onHakoSignIn: () -> Void = {}
     var startsInCharacterEditor = false
     @State private var selectedResourcePack: String?
 
     @Environment(InstallationCoordinator.self) private var installations
     @Environment(InstanceContentController.self) private var content
     @Environment(MinecraftSessionCoordinator.self) private var sessions
+    @Environment(HakoAccountCoordinator.self) private var hakoAccount
     @Environment(MinecraftCharacterEditorCoordinator.self) private var characterEditor
     @Environment(InstanceRenameExitCoordinator.self) private var renameExit
     @Environment(QuickLaunchCoordinator.self) private var quickLaunch
@@ -40,9 +42,15 @@ struct LauncherView: View {
     @State private var deleteError: String?
     @State private var pendingRestoreNavigationID: UUID?
 
-    init(account: Account?, onSignIn: @escaping () -> Void = {}, startsInCharacterEditor: Bool = false) {
+    init(
+        account: Account?,
+        onMicrosoftSignIn: @escaping () -> Void = {},
+        onHakoSignIn: @escaping () -> Void = {},
+        startsInCharacterEditor: Bool = false
+    ) {
         self.account = account
-        self.onSignIn = onSignIn
+        self.onMicrosoftSignIn = onMicrosoftSignIn
+        self.onHakoSignIn = onHakoSignIn
         self.startsInCharacterEditor = startsInCharacterEditor
         _tab = State(initialValue: startsInCharacterEditor ? .profile : .instances)
         _isEditingCharacter = State(initialValue: startsInCharacterEditor)
@@ -78,10 +86,11 @@ struct LauncherView: View {
                         ProfileView(
                             account: account,
                             minecraftStatus: sessions.statuses[account.xuid] ?? .idle,
-                            onEditCharacter: { isEditingCharacter = true }
+                            onEditCharacter: { isEditingCharacter = true },
+                            onHakoSignIn: onHakoSignIn
                         )
                     }
-                    else { GuestProfileView(onSignIn: onSignIn) }
+                    else { GuestProfileView(onMicrosoftSignIn: onMicrosoftSignIn, onHakoSignIn: onHakoSignIn) }
                 }
             }
             .id(tab)
@@ -110,6 +119,9 @@ struct LauncherView: View {
                 requestTab(.instance(request.instanceID), presentationID: request.id)
                 completeQuickLaunchNavigation()
             }
+        }
+        .task(id: tab) {
+            if tab == .profile { await hakoAccount.verifyOnProfileEntry() }
         }
         .task(id: backupRestore.navigation?.id) {
             guard let destination = backupRestore.navigation else { pendingRestoreNavigationID = nil; return }
@@ -361,6 +373,7 @@ struct LauncherView: View {
         .environment(content)
         .environment(backupRestore)
         .environment(sessions)
+        .environment(HakoAccountCoordinator(api: PreviewHakoAuthAPI(), store: PreviewHakoSessionStore(), initiallyRestored: true))
         .environment(appearances)
         .environment(skinLoader)
         .environment(characterEditor)

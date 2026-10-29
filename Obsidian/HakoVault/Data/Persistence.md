@@ -18,6 +18,8 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `macos/Hako/Hako/AppDataLocation.swift` | `AppDataLocation.storeURL` | Перенос прежнего store в `Application Support/Hako` и глобальных параметров |
 | `macos/Hako/Hako/Account.swift` | `Account` | Аккаунт Microsoft/Xbox и профиль Minecraft |
 | `macos/Hako/Hako/Auth/TokenKeychain.swift` | `TokenKeychain`, `AccountTokens`, `KeychainError` | Токены аккаунта в Keychain |
+| `macos/Hako/Hako/Auth/HakoSessionKeychainStore.swift`, `HakoAuth.swift` | `HakoSessionKeychainStore`, `HakoSession` | Отдельная Keychain-сессия Telegram/Hako; Microsoft-хранилище не меняется |
+| `macos/Hako/Hako/Auth/HakoAccountCoordinator.swift` | `HakoAccountCoordinator` | Восстановление, проверка, хранение профиля и выход Hako |
 | `macos/Hako/Hako/GameLaunchDefaults.swift` | `GameLaunchDefaults` | Ключи, значения по умолчанию и снимок параметров игры |
 | `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Редактирование параметров через `@AppStorage` |
 
@@ -76,6 +78,14 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 (токена Minecraft нет, пока Minecraft не подключён).
 Хранится JSON в generic password: `kSecAttrService = "com.Launcher.Hako.auth"`, `kSecAttrAccount = xuid`.
 
+### Сессия Hako
+
+`HakoSession` хранит токен, профиль Hako, имя устройства, срок действия и время последней проверки. Это независимая запись generic password с `kSecAttrService = "com.Launcher.Hako.telegram-session"` и `kSecAttrAccount = "current"`; Microsoft `AccountTokens`, XUID и SwiftData-схема не затрагиваются. Вся сериализованная сессия сохраняется вместе, а диагностическое описание скрывает токен.
+
+`HakoSessionKeychainStore` выполняет Keychain-операции на отдельной последовательной очереди. `load()` возвращает `nil` только при `errSecItemNotFound`; ошибки доступа и декодирования пробрасываются, чтобы интерфейс показал предупреждение и не очищал/перезаписывал неизвестную сессию. Сохранение использует `SecItemUpdate`, затем `SecItemAdd` только при отсутствии записи. Удаление проверяет совпадение токена, чтобы не стереть более новую сессию после устаревшего ответа.
+
+`HakoAccountCoordinator.initialize()` загружает сессию независимо от Microsoft. При ошибке чтения отключает новые записи и удаление. Сохранённая сессия становится доступна интерфейсу до фоновой проверки `/me`; успешная проверка обновляет профиль, имя устройства, expiry и `verifiedAt`, временная ошибка оставляет кэш как непроверенный/истёкший, `401` удаляет только сессию Hako. Точки входа, периоды проверки и выход описаны в [[Auth/HakoAuth]].
+
 ### Глобальные параметры игры
 
 `UserDefaults.standard`, ключи определены в `GameLaunchDefaults.Key`:
@@ -128,6 +138,9 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `TokenKeychain.save(_:for:) throws` | Удаляет прежнюю запись для XUID и добавляет новую; при ошибке `SecItemAdd` бросает `KeychainError` |
 | `TokenKeychain.load(for:) -> AccountTokens?` | Запись для XUID; `nil`, если записи нет или JSON не читается |
 | `TokenKeychain.delete(for:)` | Удаляет запись для XUID; результат `SecItemDelete` не проверяется |
+| `HakoSessionKeychainStore.load()` | `nil` означает только отсутствующую запись; ошибки чтения/декодирования остаются ошибками |
+| `HakoSessionKeychainStore.save(_:)` | Обновляет отдельную запись Hako или добавляет её при `errSecItemNotFound`; Microsoft Keychain item не меняется |
+| `HakoSessionKeychainStore.clear(ifMatching:)` | Удаляет только сессию с ожидаемым токеном; другая запись остаётся на месте |
 | `GameLaunchDefaults.load(from:) -> GameLaunchDefaults` | Не изменяет хранилище; возвращает независимый снимок параметров игры из переданного `UserDefaults` |
 | `InstanceStore.updateSettings(_:with:) throws` | Сохраняет иконку и параметры сборки, не меняя имя или папку |
 | `InstanceStore.rename(_:to:) throws` | Проверяет новое имя, перемещает папку сборки и сохраняет имя и `folderName` одной операцией |
@@ -149,6 +162,7 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 - `MinecraftSessionCoordinator.connect` читает токены, сохраняет обновлённый refresh token и,
   при успехе, токен Minecraft, затем `account.connect(_:)` и `modelContext.save()` ([[UI/Launcher]]).
 - `ProfileView.signOut()` отменяет общую Minecraft-сессию, вызывает `TokenKeychain.delete`, удаляет `Account` и сохраняет контекст.
+- `HakoAccountCoordinator` отдельно управляет Telegram/Hako-сессией: login сохраняет её до публикации в UI, `/me` обновляет эту же запись, выход удаляет только Hako. Hako-вход не создаёт `Account`, не вызывает `transferGuest(to:)` и не меняет владельца игрового времени.
 
 ## Ограничения и важные детали
 

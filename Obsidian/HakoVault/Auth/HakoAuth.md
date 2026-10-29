@@ -1,10 +1,39 @@
-# Hako account authentication on Windows
+# Hako account authentication
 
 Parent: [[Index]]
 
-The Windows launcher has an independent Hako account provider authenticated through the Telegram bot. The protocol authority is [`server/docs/auth-api.md`](../../../server/docs/auth-api.md). Microsoft remains the provider for licensed Minecraft sessions and XUID; a Hako session does not replace or mutate Microsoft `AccountSession`, Minecraft launch credentials, or guest playtime transfer.
+The macOS and Windows launchers have an independent Hako account provider authenticated through the Telegram bot. The protocol authority is [`server/docs/auth-api.md`](../../../server/docs/auth-api.md). Microsoft remains the provider for licensed Minecraft sessions and XUID; a Hako session does not replace or mutate Microsoft credentials, Minecraft launch identity, or guest playtime transfer.
 
-## Request flow
+## macOS
+
+`HakoAuthAPIClient` uses independent Codable DTOs for the server API; it does not reuse Microsoft or Minecraft authentication models. Its fixed origin is `https://hako.liis17.com:443/`. Redirects are rejected and each URLSession request has a 20-second deadline covering the complete response body. DTOs and API/storage protocols are explicitly nonisolated and `Sendable`; the `@MainActor @Observable` `HakoAccountCoordinator` owns UI state and request generations.
+
+`HakoSessionKeychainStore` stores the whole Hako session as JSON in a generic-password item with service `com.Launcher.Hako.telegram-session` and account `current`. This is separate from Microsoft's `com.Launcher.Hako.auth` items keyed by XUID. Keychain reads distinguish a missing item from access/decoding failures; a failed load shows a startup warning and disables authentication writes or clearing. Keychain operations run on a private serial queue. Save uses `SecItemUpdate`, then `SecItemAdd` only for `errSecItemNotFound`.
+
+Startup restores Hako independently from Microsoft and displays a loading state until Keychain restoration completes. A restored session opens the launcher immediately while `/me` verifies in the background; checks also run daily and on profile entry (coalesced and throttled to one attempt per minute). Successful `/me` saves the refreshed account, device name, expiry, and verification time. Network errors keep the cached session and mark it unverified or expired; `401` clears only Hako.
+
+Remote logout cancels login and verification, calls the server, then clears only the matching local Hako token. On failure, Profile offers retry, cancel, or explicitly warned local-only removal. Authentication and verification use generations to ignore stale responses. If an exchange response is lost, the one-use exchange is never retried and the user starts a fresh username login; a returned token that became stale, expired before storage, or could not be persisted is revoked best effort with a five-second deadline. Session and exchange secrets are redacted from diagnostics.
+
+Hako-only accounts do not create SwiftData `Account` records and do not transfer guest playtime. Minecraft and playtime continue through the existing guest/offline path; Microsoft remains an independent provider for Minecraft identity and licensed launch.
+
+### macOS sources
+
+| File | Role |
+|------|------|
+| `macos/Hako/Hako/Auth/HakoAuth.swift` | Domain types, API/store contracts, username normalization, strict Telegram link validation, secret-safe descriptions |
+| `macos/Hako/Hako/Auth/HakoAuthAPIClient.swift` | Fixed-origin URLSession API, wire DTOs, redirects and whole-request deadline |
+| `macos/Hako/Hako/Auth/HakoAccountCoordinator.swift` | Register/login polling, expiry, exchange, generations, restoration, verification and logout |
+| `macos/Hako/Hako/Auth/HakoSessionKeychainStore.swift` | Independent session Keychain item and serial off-main-actor access |
+| `macos/Hako/Hako/Auth/HakoDeviceName.swift` | Computer name selection, trimming, Unicode-scalar limit and fallback |
+| `macos/Hako/Hako/Views/HakoLoginView.swift`, `Views/WelcomeView.swift` | Registration/login UI and user-triggered Telegram open/copy actions |
+| `macos/Hako/Hako/Views/Launcher/ProfileView.swift`, `ContentView.swift`, `HakoServices.swift` | Separate provider cards, root routing and startup ownership |
+| `macos/Hako/HakoTests/HakoAuthTests.swift` | Mocked wire, Keychain, coordinator, routing, cancellation and provider-isolation tests |
+
+## Windows
+
+The Windows implementation and its source table follow.
+
+## Request flow — Windows
 
 `HakoAuthApiClient` uses the fixed `https://hako.liis17.com:443/` HTTPS origin and the public API endpoints. Its default `HttpClientHandler` disables automatic redirects so an authorization header is never forwarded to a redirect target; certificate validation remains the platform default. Each API operation has a 20-second deadline covering response headers and the full body, including JSON error bodies; caller cancellation remains cancellation. API JSON DTOs declare their snake_case wire names explicitly in `HakoJsonContext`; saved Hako and Microsoft sessions keep their existing camelCase serialization.
 
@@ -21,7 +50,7 @@ Exchange is one-use. If its response is lost after the server consumed the reque
 
 Terminal statuses and HTTP failures map through `HakoAuthErrorKind.ResourceKey()` to Russian/English resources. `429`, timeouts, invalid/non-JSON Cloudflare responses, redirects, and `5xx` are classified without showing response bodies or server diagnostics.
 
-## Session verification and logout
+## Session verification and logout — Windows
 
 `HakoSessionStore` protects `hako-session.dat` with DPAPI `CurrentUser` scope and the separate entropy `Hako.Session.v1`; it does not read or alter Microsoft `session.dat`. Saves use a temporary file and atomically replace it inside a generation-guarded callback. See [[Data/Persistence#Аккаунт Hako: hako-session.dat]].
 
