@@ -235,6 +235,11 @@ public sealed partial class SettingsPage : Page, INavigationGuard
 
         GuestProfileStatus.Text = HakoStrings.Get("GuestProfileTitle");
         GuestProfileDetails.Text = HakoStrings.Get("GuestProfileDetails");
+        var localPlaytimeVisibility = hakoSession is null ? Visibility.Visible : Visibility.Collapsed;
+        AccountPlaytimeCard.Visibility = localPlaytimeVisibility;
+        GuestPlaytimeTitle.Visibility = localPlaytimeVisibility;
+        GuestPlaytimeValue.Visibility = localPlaytimeVisibility;
+        GuestPlaytimeTransfer.Visibility = localPlaytimeVisibility;
         AccountPlaytimeTitle.Text = HakoStrings.Get("PlaytimeSummaryTitle");
         AccountPlaytimeValue.Text = PlaytimeFormatter.Format(_playtime?.TotalSeconds(account?.Xuid) ?? 0,
             _coordinator?.Language ?? AppLanguages.Default, HakoStrings.Get);
@@ -245,7 +250,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         AccountPlaytimeError.Text = PlaytimeErrorText(_playtime?.ErrorResourceKey, _playtime?.ErrorDetail);
         AccountPlaytimeError.Visibility = account is not null && _playtime?.ErrorResourceKey is not null ? Visibility.Visible : Visibility.Collapsed;
         GuestPlaytimeError.Text = PlaytimeErrorText(_playtime?.ErrorResourceKey, _playtime?.ErrorDetail);
-        GuestPlaytimeError.Visibility = isGuest && _playtime?.ErrorResourceKey is not null ? Visibility.Visible : Visibility.Collapsed;
+        GuestPlaytimeError.Visibility = isGuest && hakoSession is null && _playtime?.ErrorResourceKey is not null ? Visibility.Visible : Visibility.Collapsed;
         SignInButton.Content = HakoStrings.Get("SignInButton");
         SignedOutProfileStatus.Text = HakoStrings.Get("ProfileSignedOutTitle");
         SignedOutProfileDetails.Text = HakoStrings.Get("ProfileSignedOutDetails");
