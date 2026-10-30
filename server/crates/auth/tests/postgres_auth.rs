@@ -231,6 +231,87 @@ async fn postgres_auth_flow_and_telegram_updates() {
     )
     .await;
     assert_eq!(exchange_status, StatusCode::OK);
+    // Repeated, concurrent and conflicting uploads must never double-credit.
+    let play_id = Uuid::new_v4();
+    let play_body = json!({"session_id":play_id,"duration_ms":60000}).to_string();
+    let (left, right) = tokio::join!(
+        api_json::<Value>(
+            &public_api,
+            "POST",
+            "/v1/playtime/sessions",
+            Some(&initial.token),
+            Some(&play_body)
+        ),
+        api_json::<Value>(
+            &public_api,
+            "POST",
+            "/v1/playtime/sessions",
+            Some(&initial.token),
+            Some(&play_body)
+        )
+    );
+    assert_eq!(left.0, StatusCode::OK);
+    assert_eq!(right.0, StatusCode::OK);
+    assert_eq!(left.1["session_id"], play_id.to_string());
+    let conflicting = json!({"session_id":play_id,"duration_ms":60001}).to_string();
+    let (status, body) = api_json::<Value>(
+        &public_api,
+        "POST",
+        "/v1/playtime/sessions",
+        Some(&initial.token),
+        Some(&conflicting),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"]["code"], "playtime_session_conflict");
+    let another = json!({"session_id":Uuid::new_v4(),"duration_ms":30000}).to_string();
+    assert_eq!(
+        api_json::<Value>(
+            &public_api,
+            "POST",
+            "/v1/playtime/sessions",
+            Some(&initial.token),
+            Some(&another)
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    let (status, total) = api_json::<Value>(
+        &public_api,
+        "GET",
+        "/v1/playtime",
+        Some(&initial.token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(total["total_duration_ms"], 90000);
+    for invalid in [
+        json!({"session_id":Uuid::new_v4(),"duration_ms":-1}),
+        json!({"session_id":Uuid::new_v4(),"duration_ms":0.5}),
+        json!({"session_id":Uuid::new_v4(),"duration_ms":18446744073709551615u64}),
+    ] {
+        assert_eq!(
+            api_json::<Value>(
+                &public_api,
+                "POST",
+                "/v1/playtime/sessions",
+                Some(&initial.token),
+                Some(&invalid.to_string())
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    assert_eq!(
+        api_json::<Value>(&public_api, "GET", "/v1/playtime", None, None)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+
     let (repeat_status, repeat_body): (StatusCode, Value) = api_json(
         &public_api,
         "POST",
@@ -306,6 +387,45 @@ async fn postgres_auth_flow_and_telegram_updates() {
     clock.set(base);
 
     // Internal token checks also slide the expiry.
+    let other_user = TelegramUser {
+        id: telegram_id + 1,
+        username: Some("OtherPlaytimePlayer".to_owned()),
+    };
+    let other_registration = auth
+        .register("Other playtime PC", "hako_test_bot")
+        .await
+        .expect("register other player");
+    auth.process_update(&message_update(
+        &update_ids,
+        other_user,
+        "/start",
+        Some(&deep_link_code(&other_registration)),
+    ))
+    .await
+    .expect("approve other player");
+    let other = auth
+        .exchange(
+            other_registration.request_id,
+            &other_registration.exchange_secret,
+        )
+        .await
+        .expect("exchange other player");
+    let (status, body) = api_json::<Value>(
+        &public_api,
+        "POST",
+        "/v1/playtime/sessions",
+        Some(&other.token),
+        Some(&play_body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["error"]["code"], "playtime_session_conflict");
+    assert_eq!(auth.playtime(&other.token).await.expect("other total"), 0);
+    assert_eq!(
+        auth.playtime(&initial.token).await.expect("original total"),
+        90000
+    );
+
     let internal_session = approve_login(
         &auth,
         &bot,
@@ -320,6 +440,16 @@ async fn postgres_auth_flow_and_telegram_updates() {
         .await
         .expect("internal token check");
     assert_eq!(internal.username, username);
+    auth.record_playtime(&internal_session.token, play_id, 60000)
+        .await
+        .expect("replay after new login");
+    assert_eq!(
+        auth.playtime(&internal_session.token)
+            .await
+            .expect("same owner total"),
+        90000
+    );
+
     assert_eq!(
         session_expiry(&pool, &hash(internal_session.token.as_bytes())).await,
         base + Duration::minutes(1) + Duration::days(14)

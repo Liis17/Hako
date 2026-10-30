@@ -369,6 +369,50 @@ impl AuthService {
         })
     }
 
+    pub async fn record_playtime(&self, token: &str, id: Uuid, duration_ms: i64) -> AuthResult<()> {
+        if id.is_nil() || duration_ms < 0 {
+            return Err(AuthError::bad_request());
+        }
+        let mut tx = self.pool.begin().await?;
+        let session = renew_session(&mut tx, token, self.clock.now()).await?;
+        let inserted = sqlx::query("INSERT INTO playtime_sessions (id, account_id, duration_ms) VALUES ($1,$2,$3) ON CONFLICT (id) DO NOTHING")
+            .bind(id).bind(session.account_id).bind(duration_ms).execute(&mut *tx).await?.rows_affected();
+        if inserted == 0 {
+            let existing = sqlx::query_as::<_, (Uuid, i64)>(
+                "SELECT account_id, duration_ms FROM playtime_sessions WHERE id=$1",
+            )
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+            if existing != (session.account_id, duration_ms) {
+                return Err(AuthError::new(
+                    axum::http::StatusCode::CONFLICT,
+                    "playtime_session_conflict",
+                    "Playtime session conflicts with an existing record.",
+                ));
+            }
+        } else {
+            sqlx::query("INSERT INTO playtime_totals (account_id, duration_ms) VALUES ($1,$2) ON CONFLICT (account_id) DO UPDATE SET duration_ms=playtime_totals.duration_ms + EXCLUDED.duration_ms")
+                .bind(session.account_id).bind(duration_ms).execute(&mut *tx).await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn playtime(&self, token: &str) -> AuthResult<i64> {
+        let mut tx = self.pool.begin().await?;
+        let session = renew_session(&mut tx, token, self.clock.now()).await?;
+        let total = sqlx::query_scalar::<_, i64>(
+            "SELECT duration_ms FROM playtime_totals WHERE account_id=$1",
+        )
+        .bind(session.account_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or(0);
+        tx.commit().await?;
+        Ok(total)
+    }
+
     pub async fn logout(&self, token: &str) -> AuthResult<()> {
         let now = self.clock.now();
         let mut transaction = self.pool.begin().await?;

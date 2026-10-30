@@ -56,6 +56,8 @@ pub fn public_router(state: AppState) -> Router {
         .route("/v1/auth/requests/{id}", get(request_status))
         .route("/v1/auth/exchange", post(exchange))
         .route("/v1/auth/me", get(me))
+        .route("/v1/playtime/sessions", post(record_playtime))
+        .route("/v1/playtime", get(playtime))
         .route("/v1/auth/logout", post(logout))
         .fallback(route_not_found)
         .method_not_allowed_fallback(method_not_allowed)
@@ -183,6 +185,35 @@ async fn me(
 ) -> AuthResult<Json<crate::service::MeResponse>> {
     let token = bearer(&headers)?;
     Ok(Json(state.auth.me(token).await?))
+}
+
+#[derive(Deserialize)]
+struct PlaytimeInput {
+    session_id: Uuid,
+    duration_ms: i64,
+}
+
+async fn record_playtime(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<PlaytimeInput>, axum::extract::rejection::JsonRejection>,
+) -> AuthResult<impl IntoResponse> {
+    let token = bearer(&headers)?;
+    let Json(input) = body.map_err(AuthError::from_json_rejection)?;
+    state
+        .auth
+        .record_playtime(token, input.session_id, input.duration_ms)
+        .await?;
+    Ok(Json(serde_json::json!({"session_id": input.session_id})))
+}
+
+async fn playtime(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> AuthResult<impl IntoResponse> {
+    Ok(Json(
+        serde_json::json!({"total_duration_ms": state.auth.playtime(bearer(&headers)?).await?}),
+    ))
 }
 
 async fn logout(State(state): State<AppState>, headers: HeaderMap) -> AuthResult<StatusCode> {
