@@ -744,7 +744,7 @@ import SwiftData
               let session = currentHakoSession,
               session.expiresAt > now(),
               let ownerID = Self.canonicalOwnerID(session.account.id),
-              submissions.values.contains(where: { $0.hakoOwnerID == ownerID }) else { return }
+              submissions.values.contains(where: { $0.hakoOwnerID == ownerID && sessions[$0.sessionID] == nil }) else { return }
         let generation = deliveryGeneration
         delivery = Task { [weak self] in await self?.drainQueue(generation: generation) }
     }
@@ -766,8 +766,9 @@ import SwiftData
             guard let session = currentHakoSession,
                   session.expiresAt > now(),
                   let ownerID = Self.canonicalOwnerID(session.account.id) else { return }
+            // A retained source can enqueue again during recovery. Deliver only after its durable removal.
             let pending = submissions.values
-                .filter({ $0.hakoOwnerID == ownerID })
+                .filter({ $0.hakoOwnerID == ownerID && sessions[$0.sessionID] == nil })
                 .sorted(by: { $0.sessionID.uuidString < $1.sessionID.uuidString })
             guard !pending.isEmpty else {
                 if didSubmit {
