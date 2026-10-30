@@ -13,6 +13,7 @@ import Foundation
 /// Корень окна: приветствие, вход или лаунчер с аккаунтом/гостевым режимом.
 struct ContentView: View {
     var startsInCharacterEditor = false
+    var startsInProfilePreview = false
     @Query private var accounts: [Account]
     @State private var authDestination: AuthDestination?
     @State private var startupWarning: HakoAuthError?
@@ -28,7 +29,8 @@ struct ContentView: View {
 
     private var language: AppLanguage {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--character-editor-preview") { return AppLanguage.current }
+        if ProcessInfo.processInfo.arguments.contains("--character-editor-preview") ||
+            ProcessInfo.processInfo.arguments.contains("--playtime-profile-preview") { return AppLanguage.current }
         #endif
         return AppLanguage(rawValue: storedLanguage) ?? AppLanguage.current
     }
@@ -57,7 +59,8 @@ struct ContentView: View {
                     account: accounts.first,
                     onMicrosoftSignIn: { authDestination = .microsoft },
                     onHakoSignIn: { authDestination = .hako },
-                    startsInCharacterEditor: startsInCharacterEditor
+                    startsInCharacterEditor: startsInCharacterEditor,
+                    startsInProfilePreview: startsInProfilePreview
                 )
                     .transition(.blurReplace)
             } else {

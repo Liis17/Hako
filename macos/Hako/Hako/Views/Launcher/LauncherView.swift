@@ -20,6 +20,7 @@ struct LauncherView: View {
     var onMicrosoftSignIn: () -> Void = {}
     var onHakoSignIn: () -> Void = {}
     var startsInCharacterEditor = false
+    var startsInProfilePreview = false
     @State private var selectedResourcePack: String?
 
     @Environment(InstallationCoordinator.self) private var installations
@@ -46,13 +47,15 @@ struct LauncherView: View {
         account: Account?,
         onMicrosoftSignIn: @escaping () -> Void = {},
         onHakoSignIn: @escaping () -> Void = {},
-        startsInCharacterEditor: Bool = false
+        startsInCharacterEditor: Bool = false,
+        startsInProfilePreview: Bool = false
     ) {
         self.account = account
         self.onMicrosoftSignIn = onMicrosoftSignIn
         self.onHakoSignIn = onHakoSignIn
         self.startsInCharacterEditor = startsInCharacterEditor
-        _tab = State(initialValue: startsInCharacterEditor ? .profile : .instances)
+        self.startsInProfilePreview = startsInProfilePreview
+        _tab = State(initialValue: startsInCharacterEditor || startsInProfilePreview ? .profile : .instances)
         _isEditingCharacter = State(initialValue: startsInCharacterEditor)
     }
 

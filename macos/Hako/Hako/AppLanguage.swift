@@ -19,6 +19,9 @@ nonisolated enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
             if ProcessInfo.processInfo.arguments.contains("--character-editor-preview-language=en") { return .english }
             if ProcessInfo.processInfo.arguments.contains("--character-editor-preview-language=ru") { return .russian }
         }
+        if ProcessInfo.processInfo.arguments.contains("--playtime-profile-preview") {
+            return ProcessInfo.processInfo.arguments.contains("--playtime-profile-preview-language=ru") ? .russian : .english
+        }
         #endif
         if let raw = UserDefaults.standard.string(forKey: storageKey), let language = AppLanguage(rawValue: raw) { return language }
         return Locale.preferredLanguages.first?.hasPrefix("ru") == true ? .russian : .english

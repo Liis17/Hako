@@ -43,7 +43,7 @@ Hako — отдельный provider в профиле. Показывается
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `LauncherView(account: Account?, onMicrosoftSignIn:onHakoSignIn:startsInCharacterEditor:)` | `account` — только Microsoft/Xbox-профиль и может быть `nil` при Hako-only или guest; требует `HakoAccountCoordinator` наряду с сервисами сборок, Microsoft и игрового времени. Начальная вкладка — `.instances`; preview-флаг открывает редактор изолированного аккаунта |
+| `LauncherView(account: Account?, onMicrosoftSignIn:onHakoSignIn:startsInCharacterEditor:startsInProfilePreview:)` | `account` — только Microsoft/Xbox-профиль и может быть `nil` при Hako-only или guest; требует `HakoAccountCoordinator` наряду с сервисами сборок, Microsoft и игрового времени. Обычная начальная вкладка — `.instances`; DEBUG-флаги выбирают редактор или профиль изолированного preview |
 | `LauncherPage(caption:title:content:)` | Японская подпись, `heroTitle`, содержимое; выравнивание по верхнему левому краю, появление через `reveal` |
 | `AccountAvatar(account:)` | Голова из последнего авторитетного Java-профиля, если он загружен; иначе из сохранённого `minecraftSkinURL`; при отсутствии URL — `XboxAvatar` |
 | `XboxAvatar(url:name:)` | `AsyncImage`; пока картинки нет или она не загрузилась — первая буква `name` на градиенте `sakuraDeep` |
@@ -106,6 +106,9 @@ Hako она показывает Telegram username, имя устройства 
 в guest/offline-пути. Вход/выход Microsoft и смена Hako завершают текущий журналируемый сегмент и продолжают игру
 с новым закреплённым владельцем; уже завершённый сегмент не перепривязывается.
 Выход из Microsoft оставляет лаунчер открытым при Hako-сессии, а выход из Hako — при Microsoft-сессии.
+Для нативной проверки профиля Debug-сборку запускают с `--playtime-profile-preview`; режим сразу открывает `.profile`,
+показывает fixture Hako-сессию, серверный итог и ожидающее игровое время. Он использует временный in-memory SwiftData,
+изолированный defaults suite, fixture auth/playtime API и не обращается к production Keychain или store.
 
 3D-превью использует UUID, URL и вариант скина из `Account`, пока нет авторитетного ответа Java Profile API.
 После чтения или сохранения `MinecraftAppearanceStore` становится источником скина и плаща; при известном

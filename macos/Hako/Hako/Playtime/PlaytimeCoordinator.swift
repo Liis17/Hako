@@ -12,10 +12,16 @@ import SwiftData
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let helper: PlaytimeHelperClient
     @ObservationIgnored private let retryDelays: [Duration]
+    @ObservationIgnored private let rotationPollInterval: Duration
     @ObservationIgnored private var polling: Task<Void, Never>?
     @ObservationIgnored private var delivery: Task<Void, Never>?
     @ObservationIgnored private var deliveryGeneration: UInt64 = 0
     @ObservationIgnored private var currentHakoSession: HakoSession?
+    @ObservationIgnored private var ownershipTransitionLocked = false
+    @ObservationIgnored private var ownershipTransitionWaiters: [CheckedContinuation<Void, Never>] = []
+    @ObservationIgnored private var rotatingSessionIDs: Set<UUID> = []
+    @ObservationIgnored private var ownershipRetry: Task<Void, Never>?
+    @ObservationIgnored private var receivedHakoSessionUpdate = false
     let journalDirectory: URL
     private(set) var errorMessage: String?
     private(set) var hakoSyncErrorMessage: String?
@@ -31,6 +37,7 @@ import SwiftData
         api: any HakoPlaytimeAPI = HakoPlaytimeAPIClient(),
         helper: PlaytimeHelperClient = PlaytimeHelperClient(),
         retryDelays: [Duration] = [.seconds(1), .seconds(2), .seconds(4), .seconds(8), .seconds(16), .seconds(32), .seconds(60), .seconds(120), .seconds(300)],
+        rotationPollInterval: Duration = .milliseconds(20),
         now: @escaping () -> Date = { .now },
         persist: (() throws -> Void)? = nil,
         saveAcknowledgement: ((ModelContext) throws -> Void)? = nil
@@ -42,6 +49,7 @@ import SwiftData
         self.api = api
         self.helper = helper
         self.retryDelays = retryDelays.isEmpty ? [.seconds(300)] : retryDelays
+        self.rotationPollInterval = rotationPollInterval
         self.now = now
         self.journalDirectory = journalDirectory
         players = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<PlayerPlaytime>()).map { ($0.ownerKey, $0) })
@@ -60,6 +68,60 @@ import SwiftData
     deinit {
         polling?.cancel()
         delivery?.cancel()
+        ownershipRetry?.cancel()
+    }
+
+    private func acquireOwnershipTransition() async {
+        guard ownershipTransitionLocked else {
+            ownershipTransitionLocked = true
+            return
+        }
+        await withCheckedContinuation { ownershipTransitionWaiters.append($0) }
+    }
+
+    private func releaseOwnershipTransition() {
+        if ownershipTransitionWaiters.isEmpty {
+            ownershipTransitionLocked = false
+        } else {
+            ownershipTransitionWaiters.removeFirst().resume()
+        }
+    }
+
+    private func scheduleOwnershipRetryIfNeeded() {
+        guard receivedHakoSessionUpdate, ownershipRetry == nil else { return }
+        let ownerID = Self.canonicalOwnerID(currentHakoSession?.account.id)
+        guard sessions.values.contains(where: { $0.rotationPending || $0.hakoOwnerID != ownerID }) else { return }
+        ownershipRetry = Task { [weak self] in await self?.retryOwnershipTransitions() }
+    }
+
+    private func clearHakoSyncErrorIfOwnershipStable() {
+        guard !sessions.values.contains(where: { $0.rotationPending }) else { return }
+        hakoSyncErrorMessage = nil
+    }
+
+    private func retryOwnershipTransitions() async {
+        defer { ownershipRetry = nil }
+        await acquireOwnershipTransition()
+        defer { releaseOwnershipTransition() }
+        let ownerID = Self.canonicalOwnerID(currentHakoSession?.account.id)
+        do {
+            try await rotateActiveSessions(
+                fromLocalOwnerKey: nil,
+                toLocalOwnerKey: nil,
+                hakoOwnerID: ownerID,
+                requestedUptime: ProcessInfo.processInfo.systemUptime
+            )
+            try reconcile()
+            if let session = currentHakoSession,
+               session.expiresAt > now(),
+               let ownerID {
+                try reserveUnsubmittedHistory(for: ownerID)
+            }
+            scheduleDelivery()
+            hakoSyncErrorMessage = nil
+        } catch {
+            hakoSyncErrorMessage = String(appLocalized: "Не удалось разделить игровую сессию: \(error.localizedDescription)")
+        }
     }
 
     func start() {
@@ -82,25 +144,35 @@ import SwiftData
         } catch {
             errorMessage = String(appLocalized: "Не удалось сохранить игровое время: \(error.localizedDescription)")
         }
+        scheduleOwnershipRetryIfNeeded()
     }
 
     /// Applies an authenticated Hako profile. Session and queue ownership are always tied to the Hako account UUID.
     func updateHakoSession(_ session: HakoSession?) async {
+        let transitionRequestedUptime = ProcessInfo.processInfo.systemUptime
         if currentHakoSession != session { cancelDelivery() }
-        let previousOwnerID = Self.canonicalOwnerID(currentHakoSession?.account.id)
+        await acquireOwnershipTransition()
+        receivedHakoSessionUpdate = true
+        if currentHakoSession != session { cancelDelivery() }
         let newOwnerID = Self.canonicalOwnerID(session?.account.id)
         currentHakoSession = session
 
-        if previousOwnerID != newOwnerID {
-            hakoSyncErrorMessage = nil
-            do { try await rotateActiveSessions(fromLocalOwnerKey: nil, toLocalOwnerKey: nil, hakoOwnerID: newOwnerID) }
-            catch {
-                hakoSyncErrorMessage = String(appLocalized: "Не удалось разделить игровую сессию: \(error.localizedDescription)")
-            }
+        hakoSyncErrorMessage = nil
+        do {
+            try await rotateActiveSessions(
+                fromLocalOwnerKey: nil,
+                toLocalOwnerKey: nil,
+                hakoOwnerID: newOwnerID,
+                requestedUptime: transitionRequestedUptime
+            )
         }
+        catch {
+            hakoSyncErrorMessage = String(appLocalized: "Не удалось разделить игровую сессию: \(error.localizedDescription)")
+        }
+        releaseOwnershipTransition()
 
         guard let session else {
-            if let previousOwnerID { hakoServerTotalsMS[previousOwnerID] = nil }
+            hakoServerTotalsMS = [:]
             return
         }
 
@@ -120,15 +192,36 @@ import SwiftData
     }
 
     func retryHakoSync() async {
+        let transitionRequestedUptime = ProcessInfo.processInfo.systemUptime
         guard let session = currentHakoSession,
               session.expiresAt > now(),
               let ownerID = Self.canonicalOwnerID(session.account.id) else { return }
         cancelDelivery()
+        await acquireOwnershipTransition()
+        guard currentHakoSession == session else {
+            releaseOwnershipTransition()
+            return
+        }
+        do {
+            try await rotateActiveSessions(
+                fromLocalOwnerKey: nil,
+                toLocalOwnerKey: nil,
+                hakoOwnerID: ownerID,
+                requestedUptime: transitionRequestedUptime
+            )
+        }
+        catch {
+            hakoSyncErrorMessage = String(appLocalized: "Не удалось разделить игровую сессию: \(error.localizedDescription)")
+            releaseOwnershipTransition()
+            return
+        }
+        releaseOwnershipTransition()
         do {
             try reconcile()
             try reserveUnsubmittedHistory(for: ownerID)
             do { try await refreshServerTotal(for: session, ownerID: ownerID) }
             catch {
+                guard currentHakoSession == session else { return }
                 hakoSyncErrorMessage = String(appLocalized: "Не удалось синхронизировать время с Hako: \(error.localizedDescription)")
             }
             scheduleDelivery()
@@ -138,6 +231,10 @@ import SwiftData
     }
 
     func reconcile() throws {
+        try reconcile(preservingSessionIDs: rotatingSessionIDs)
+    }
+
+    private func reconcile(preservingSessionIDs: Set<UUID>) throws {
         guard FileManager.default.fileExists(atPath: journalDirectory.path) else { return }
         let files = try FileManager.default.contentsOfDirectory(at: journalDirectory, includingPropertiesForKeys: nil)
         var failure: Error?
@@ -145,12 +242,13 @@ import SwiftData
             do {
                 var journal = try PlaytimeJournal.load(from: url)
                 guard sessions[journal.sessionID] != nil || journal.isFinished else { continue }
+                if preservingSessionIDs.contains(journal.sessionID) || sessions[journal.sessionID]?.rotationPending == true { continue }
                 if !journal.isFinished, !journal.process.isRunning, journal.helper?.isRunning != true {
                     // После выключения Mac или потери помощника известна только последняя контрольная точка.
                     guard let lock = try PlaytimeJournalLock.acquire(sessionID: journal.sessionID, directory: journalDirectory) else { continue }
                     try withExtendedLifetime(lock) {
                         journal = try PlaytimeJournal.load(from: url)
-                        journal.isFinished = true
+                        journal.finish()
                         try journal.save(in: journalDirectory)
                     }
                 }
@@ -185,12 +283,22 @@ import SwiftData
         let instanceID = session.instanceID
         let creditedSeconds = session.creditedSeconds
         let hakoOwnerID = session.hakoOwnerID
+        let rotationPending = session.rotationPending
+        let rotationTargetOwnerKey = session.rotationTargetOwnerKey
+        let rotationTargetHakoOwnerID = session.rotationTargetHakoOwnerID
+        let rotationContinuationID = session.rotationContinuationID
+        let rotationRequestedUptime = session.rotationRequestedUptime
         context.delete(session)
         do { try persist() }
         catch {
             let restored = PlaytimeSession(instanceID: instanceID, ownerKey: ownerKey, hakoOwnerID: hakoOwnerID)
             restored.id = id
             restored.creditedSeconds = creditedSeconds
+            restored.rotationPending = rotationPending
+            restored.rotationTargetOwnerKey = rotationTargetOwnerKey
+            restored.rotationTargetHakoOwnerID = rotationTargetHakoOwnerID
+            restored.rotationContinuationID = rotationContinuationID
+            restored.rotationRequestedUptime = rotationRequestedUptime
             context.insert(restored)
             sessions[id] = restored
             throw error
@@ -206,8 +314,9 @@ import SwiftData
         )
     }
 
-    private func createSession(instanceID: UUID, ownerKey: String, hakoOwnerID: String?) throws -> UUID {
+    private func createSession(id: UUID = UUID(), instanceID: UUID, ownerKey: String, hakoOwnerID: String?) throws -> UUID {
         let session = PlaytimeSession(instanceID: instanceID, ownerKey: ownerKey, hakoOwnerID: hakoOwnerID)
+        session.id = id
         context.insert(session)
         do { try persist() }
         catch { context.delete(session); throw error }
@@ -285,11 +394,15 @@ import SwiftData
 
     /// Guest totals move to Microsoft, while amounts already reserved for a Hako owner stay with their original local counter.
     func transferGuest(to xuid: String) async throws {
+        let transitionRequestedUptime = ProcessInfo.processInfo.systemUptime
+        await acquireOwnershipTransition()
+        defer { releaseOwnershipTransition() }
         let owner = Self.ownerKey(xuid)
         try await rotateActiveSessions(
             fromLocalOwnerKey: "guest",
             toLocalOwnerKey: owner,
-            hakoOwnerID: Self.canonicalOwnerID(currentHakoSession?.account.id)
+            hakoOwnerID: Self.canonicalOwnerID(currentHakoSession?.account.id),
+            requestedUptime: transitionRequestedUptime
         )
 
         let guest = players["guest"]
@@ -336,66 +449,225 @@ import SwiftData
     }
 
     func signOutMicrosoft(xuid: String) async throws {
+        let transitionRequestedUptime = ProcessInfo.processInfo.systemUptime
+        await acquireOwnershipTransition()
+        defer { releaseOwnershipTransition() }
         try await rotateActiveSessions(
             fromLocalOwnerKey: Self.ownerKey(xuid),
             toLocalOwnerKey: Self.ownerKey(nil),
-            hakoOwnerID: Self.canonicalOwnerID(currentHakoSession?.account.id)
+            hakoOwnerID: Self.canonicalOwnerID(currentHakoSession?.account.id),
+            requestedUptime: transitionRequestedUptime
         )
     }
 
     private func rotateActiveSessions(
         fromLocalOwnerKey sourceLocalOwner: String?,
         toLocalOwnerKey targetLocalOwner: String?,
-        hakoOwnerID targetHakoOwner: String?
+        hakoOwnerID targetHakoOwner: String?,
+        requestedUptime: TimeInterval
     ) async throws {
-        let active = Array(sessions.values)
-        for session in active {
-            if let sourceLocalOwner, session.ownerKey != sourceLocalOwner { continue }
-            let instanceID = session.instanceID
-            let desiredLocalOwner = targetLocalOwner ?? session.ownerKey
-            guard desiredLocalOwner != session.ownerKey || targetHakoOwner != session.hakoOwnerID else { continue }
-            let journalURL = journalDirectory.appendingPathComponent("\(session.id.uuidString).json")
-            guard FileManager.default.fileExists(atPath: journalURL.path) else {
-                let previousLocalOwner = session.ownerKey
-                let previousHakoOwner = session.hakoOwnerID
-                session.ownerKey = desiredLocalOwner
-                session.hakoOwnerID = targetHakoOwner
-                do { try persist() }
-                catch {
-                    session.ownerKey = previousLocalOwner
-                    session.hakoOwnerID = previousHakoOwner
-                    throw error
+        while let session = sessions.values.sorted(by: { $0.id.uuidString < $1.id.uuidString }).first(where: { candidate in
+            if candidate.rotationPending { return true }
+            if let sourceLocalOwner, candidate.ownerKey != sourceLocalOwner { return false }
+            let desiredLocalOwner = targetLocalOwner ?? candidate.ownerKey
+            return desiredLocalOwner != candidate.ownerKey || targetHakoOwner != candidate.hakoOwnerID
+        }) {
+            rotatingSessionIDs.insert(session.id)
+            do {
+                if !session.rotationPending {
+                    let desiredLocalOwner = targetLocalOwner ?? session.ownerKey
+                    try prepareRotation(
+                        session,
+                        targetOwnerKey: desiredLocalOwner,
+                        targetHakoOwnerID: targetHakoOwner,
+                        requestedUptime: requestedUptime
+                    )
                 }
-                continue
+                try await completeRotation(for: session)
+                rotatingSessionIDs.remove(session.id)
+            } catch {
+                rotatingSessionIDs.remove(session.id)
+                throw error
             }
-
-            let oldJournal = try await finishSegmentForRotation(sessionID: session.id)
-            guard let oldJournal else { continue }
-            try reconcile()
-            guard oldJournal.process.isRunning else { continue }
-            let continuationID = try createSession(
-                instanceID: instanceID,
-                ownerKey: desiredLocalOwner,
-                hakoOwnerID: targetHakoOwner
-            )
-            var continuation = PlaytimeJournal(
-                sessionID: continuationID,
-                process: oldJournal.process,
-                startedUptime: ProcessInfo.processInfo.systemUptime,
-                hakoOwnerID: targetHakoOwner
-            )
-            continuation.checkpoint()
-            try continuation.save(in: journalDirectory)
-            try await helper.attach(to: continuation, in: journalDirectory)
         }
     }
 
-    private func finishSegmentForRotation(sessionID: UUID) async throws -> PlaytimeJournal? {
+    private func prepareRotation(
+        _ session: PlaytimeSession,
+        targetOwnerKey: String,
+        targetHakoOwnerID: String?,
+        requestedUptime: TimeInterval
+    ) throws {
+        guard targetOwnerKey != session.ownerKey || targetHakoOwnerID != session.hakoOwnerID else { return }
+        session.rotationPending = true
+        session.rotationTargetOwnerKey = targetOwnerKey
+        session.rotationTargetHakoOwnerID = targetHakoOwnerID
+        session.rotationContinuationID = UUID()
+        session.rotationRequestedUptime = requestedUptime
+        do { try persist() }
+        catch {
+            session.rotationPending = false
+            session.rotationTargetOwnerKey = nil
+            session.rotationTargetHakoOwnerID = nil
+            session.rotationContinuationID = nil
+            session.rotationRequestedUptime = nil
+            throw error
+        }
+    }
+
+    private func completeRotation(for session: PlaytimeSession) async throws {
+        guard session.rotationPending,
+              let targetOwnerKey = session.rotationTargetOwnerKey,
+              let continuationID = session.rotationContinuationID else {
+            throw InstanceFileError.message(String(appLocalized: "Не удалось восстановить переход игровой сессии."))
+        }
+        rotatingSessionIDs.insert(continuationID)
+        defer { rotatingSessionIDs.remove(continuationID) }
+        let targetHakoOwnerID = session.rotationTargetHakoOwnerID
+        let oldURL = journalDirectory.appendingPathComponent("\(session.id.uuidString).json")
+        guard FileManager.default.fileExists(atPath: oldURL.path) else {
+            let oldOwnerKey = session.ownerKey
+            let oldHakoOwnerID = session.hakoOwnerID
+            let requestedUptime = session.rotationRequestedUptime
+            clearRotation(session)
+            session.ownerKey = targetOwnerKey
+            session.hakoOwnerID = targetHakoOwnerID
+            do { try persist() }
+            catch {
+                session.ownerKey = oldOwnerKey
+                session.hakoOwnerID = oldHakoOwnerID
+                restoreRotation(
+                    session,
+                    targetOwnerKey: targetOwnerKey,
+                    targetHakoOwnerID: targetHakoOwnerID,
+                    continuationID: continuationID,
+                    requestedUptime: requestedUptime
+                )
+                throw error
+            }
+            return
+        }
+
+        guard let oldJournal = try await finishSegmentForRotation(
+            sessionID: session.id,
+            requestedUptime: session.rotationRequestedUptime
+        ) else {
+            throw InstanceFileError.message(String(appLocalized: "Не удалось найти завершаемый журнал игрового времени."))
+        }
+        try credit(sessionID: session.id, elapsedSeconds: oldJournal.elapsedSeconds)
+        try enqueueEndedSession(session, durationSeconds: oldJournal.elapsedSeconds)
+
+        guard oldJournal.process.isRunning else {
+            try removeSession(session.id)
+            removeJournalFiles(for: session.id, journal: oldJournal)
+            return
+        }
+
+        let continuationSession: PlaytimeSession
+        if let existing = sessions[continuationID] {
+            continuationSession = existing
+        } else {
+            _ = try createSession(
+                id: continuationID,
+                instanceID: session.instanceID,
+                ownerKey: targetOwnerKey,
+                hakoOwnerID: targetHakoOwnerID
+            )
+            guard let created = sessions[continuationID] else {
+                throw InstanceFileError.message(String(appLocalized: "Не удалось создать продолжение игровой сессии."))
+            }
+            continuationSession = created
+        }
+        guard continuationSession.ownerKey == targetOwnerKey,
+              continuationSession.hakoOwnerID == targetHakoOwnerID else {
+            throw InstanceFileError.message(String(appLocalized: "Владелец продолжения игровой сессии не совпадает с сохранённым переходом."))
+        }
+
+        let continuationURL = journalDirectory.appendingPathComponent("\(continuationID.uuidString).json")
+        var continuationJournal: PlaytimeJournal
+        if FileManager.default.fileExists(atPath: continuationURL.path) {
+            continuationJournal = try PlaytimeJournal.load(from: continuationURL)
+            guard continuationJournal.process == oldJournal.process else {
+                throw InstanceFileError.message(String(appLocalized: "Продолжение игровой сессии принадлежит другому процессу."))
+            }
+        } else {
+            continuationJournal = PlaytimeJournal(
+                sessionID: continuationID,
+                process: oldJournal.process,
+                startedUptime: ProcessInfo.processInfo.systemUptime,
+                hakoOwnerID: targetHakoOwnerID
+            )
+            continuationJournal.checkpoint()
+            try continuationJournal.save(in: journalDirectory)
+        }
+        if !continuationJournal.isFinished, continuationJournal.helper?.isRunning != true {
+            try await helper.attach(to: continuationJournal, in: journalDirectory)
+            continuationJournal = try PlaytimeJournal.load(from: continuationURL)
+        }
+        guard continuationJournal.isFinished || continuationJournal.helper?.isRunning == true else {
+            throw InstanceFileError.message(String(appLocalized: "Не удалось подключить помощник к продолжению игровой сессии."))
+        }
+        try removeSession(session.id)
+        removeJournalFiles(for: session.id, journal: oldJournal)
+    }
+
+    private func clearRotation(_ session: PlaytimeSession) {
+        session.rotationPending = false
+        session.rotationTargetOwnerKey = nil
+        session.rotationTargetHakoOwnerID = nil
+        session.rotationContinuationID = nil
+        session.rotationRequestedUptime = nil
+    }
+
+    private func restoreRotation(
+        _ session: PlaytimeSession,
+        targetOwnerKey: String,
+        targetHakoOwnerID: String?,
+        continuationID: UUID,
+        requestedUptime: TimeInterval?
+    ) {
+        session.rotationPending = true
+        session.rotationTargetOwnerKey = targetOwnerKey
+        session.rotationTargetHakoOwnerID = targetHakoOwnerID
+        session.rotationContinuationID = continuationID
+        session.rotationRequestedUptime = requestedUptime
+    }
+
+    private func removeJournalFiles(for sessionID: UUID, journal: PlaytimeJournal) {
+        try? FileManager.default.removeItem(at: journal.url(in: journalDirectory))
+        try? FileManager.default.removeItem(at: journal.splitRequestURL(in: journalDirectory))
+        try? FileManager.default.removeItem(at: journalDirectory.appendingPathComponent("\(sessionID.uuidString).lock"))
+    }
+
+    private func finishSegmentForRotation(sessionID: UUID, requestedUptime: TimeInterval?) async throws -> PlaytimeJournal? {
         let journalURL = journalDirectory.appendingPathComponent("\(sessionID.uuidString).json")
         guard FileManager.default.fileExists(atPath: journalURL.path) else { return nil }
         var journal = try PlaytimeJournal.load(from: journalURL)
+        if journal.isFinished, let requestedUptime, requestedUptime.isFinite {
+            let boundaryDuration = max(0, requestedUptime - journal.startedUptime)
+            guard journal.elapsedSeconds > boundaryDuration else { return journal }
+            for _ in 0..<150 {
+                if let lock = try PlaytimeJournalLock.acquire(sessionID: sessionID, directory: journalDirectory) {
+                    try withExtendedLifetime(lock) {
+                        var final = try PlaytimeJournal.load(from: journalURL)
+                        if final.isFinished && final.elapsedSeconds > boundaryDuration {
+                            final.elapsedSeconds = boundaryDuration
+                            try final.save(in: journalDirectory)
+                        }
+                    }
+                    return try PlaytimeJournal.load(from: journalURL)
+                }
+                try await Task.sleep(for: rotationPollInterval)
+            }
+            throw InstanceFileError.message(String(appLocalized: "Не удалось завершить сегмент игрового времени."))
+        }
         if journal.isFinished { return journal }
-        try Data().write(to: journal.splitRequestURL(in: journalDirectory), options: .atomic)
+        let splitRequestURL = journal.splitRequestURL(in: journalDirectory)
+        if PlaytimeSplitRequest.load(from: splitRequestURL) == nil {
+            try PlaytimeSplitRequest(
+                requestedUptime: requestedUptime ?? ProcessInfo.processInfo.systemUptime
+            ).save(to: splitRequestURL)
+        }
 
         for _ in 0..<150 {
             guard FileManager.default.fileExists(atPath: journalURL.path) else { return nil }
@@ -407,14 +679,13 @@ import SwiftData
                     try withExtendedLifetime(lock) {
                         var final = try PlaytimeJournal.load(from: journalURL)
                         if !final.isFinished {
-                            final.checkpoint()
-                            final.isFinished = true
+                            final.finish(atUptime: PlaytimeSplitRequest.load(from: splitRequestURL)?.requestedUptime)
                             try final.save(in: journalDirectory)
                         }
                     }
                 }
             }
-            try await Task.sleep(for: .milliseconds(20))
+            try await Task.sleep(for: rotationPollInterval)
         }
         throw InstanceFileError.message(String(appLocalized: "Не удалось завершить сегмент игрового времени."))
     }
@@ -463,8 +734,9 @@ import SwiftData
         guard session.expiresAt > now() else { return }
         let total = try await api.totalDuration(token: session.token)
         guard total >= 0 else { throw HakoAuthError.invalidResponse }
+        guard currentHakoSession == session else { return }
         hakoServerTotalsMS[ownerID] = total
-        hakoSyncErrorMessage = nil
+        clearHakoSyncErrorIfOwnershipStable()
     }
 
     private func scheduleDelivery() {
@@ -487,43 +759,61 @@ import SwiftData
         defer { if deliveryGeneration == generation { delivery = nil } }
         var retryIndex = 0
         var didSubmit = false
+        var attemptedSessionIDs: Set<UUID> = []
+        var passFailed = false
         while !Task.isCancelled {
             guard deliveryGeneration == generation else { return }
             guard let session = currentHakoSession,
                   session.expiresAt > now(),
                   let ownerID = Self.canonicalOwnerID(session.account.id) else { return }
-            guard let item = submissions.values
+            let pending = submissions.values
                 .filter({ $0.hakoOwnerID == ownerID })
                 .sorted(by: { $0.sessionID.uuidString < $1.sessionID.uuidString })
-                .first else {
+            guard !pending.isEmpty else {
                 if didSubmit {
                     do {
                         hakoServerTotalsMS[ownerID] = try await api.totalDuration(token: session.token)
-                        hakoSyncErrorMessage = nil
+                        if !passFailed { clearHakoSyncErrorIfOwnershipStable() }
                     } catch {
                         hakoSyncErrorMessage = String(appLocalized: "Не удалось синхронизировать время с Hako: \(error.localizedDescription)")
                     }
                 }
                 return
             }
+            guard let item = pending.first(where: { !attemptedSessionIDs.contains($0.sessionID) }) else {
+                if didSubmit {
+                    do {
+                        hakoServerTotalsMS[ownerID] = try await api.totalDuration(token: session.token)
+                        didSubmit = false
+                    } catch {
+                        hakoSyncErrorMessage = String(appLocalized: "Не удалось синхронизировать время с Hako: \(error.localizedDescription)")
+                    }
+                }
+                do { try await Task.sleep(for: retryDelays[min(retryIndex, retryDelays.count - 1)]) }
+                catch { return }
+                retryIndex = min(retryIndex + 1, retryDelays.count - 1)
+                attemptedSessionIDs.removeAll()
+                passFailed = false
+                continue
+            }
+            attemptedSessionIDs.insert(item.sessionID)
             do {
                 let returnedID = try await api.postSession(
                     sessionID: item.sessionID,
                     durationMS: item.durationMS,
                     token: session.token
                 )
+                guard deliveryGeneration == generation, !Task.isCancelled else { return }
                 guard returnedID == item.sessionID else { throw HakoAuthError.invalidResponse }
                 try acknowledge(item)
                 didSubmit = true
                 retryIndex = 0
-                hakoSyncErrorMessage = nil
+                if !passFailed { clearHakoSyncErrorIfOwnershipStable() }
             } catch is CancellationError {
                 return
             } catch {
                 hakoSyncErrorMessage = String(appLocalized: "Не удалось синхронизировать время с Hako: \(error.localizedDescription)")
-                do { try await Task.sleep(for: retryDelays[min(retryIndex, retryDelays.count - 1)]) }
-                catch { return }
-                retryIndex = min(retryIndex + 1, retryDelays.count - 1)
+                passFailed = true
             }
         }
     }
@@ -577,7 +867,7 @@ import SwiftData
 
         var activeByOwner: [String: Int64] = [:]
         let queuedIDs = Set(submissions.keys)
-        for session in sessions.values where session.hakoOwnerID == ownerID && !queuedIDs.contains(session.id) {
+        for session in sessions.values where session.hakoOwnerID != nil && !queuedIDs.contains(session.id) {
             activeByOwner[session.ownerKey] = Self.saturatingAdd(
                 activeByOwner[session.ownerKey, default: 0], Self.milliseconds(session.creditedSeconds)
             )

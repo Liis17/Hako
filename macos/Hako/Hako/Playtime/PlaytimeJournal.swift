@@ -42,6 +42,37 @@ nonisolated struct PlaytimeJournal: Codable, Sendable {
     mutating func checkpoint(atUptime uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         elapsedSeconds = max(elapsedSeconds, max(0, uptime - startedUptime))
     }
+
+    mutating func finish(atUptime uptime: TimeInterval? = nil) {
+        if let uptime, uptime.isFinite {
+            // A profile transition owns the time up to the request, even if recovery happens later.
+            elapsedSeconds = max(0, uptime - startedUptime)
+        } else {
+            checkpoint()
+        }
+        isFinished = true
+    }
+}
+
+nonisolated struct PlaytimeSplitRequest: Codable, Sendable {
+    let requestedUptime: TimeInterval
+
+    func save(to url: URL) throws {
+        try JSONEncoder().encode(self).write(to: url, options: .atomic)
+    }
+
+    static func load(from url: URL) -> Self? {
+        guard let data = try? Data(contentsOf: url),
+              let request = try? JSONDecoder().decode(Self.self, from: data),
+              request.requestedUptime.isFinite else { return nil }
+        return request
+    }
+
+    static func isPresentOrLegacyEmpty(at url: URL) -> Bool {
+        if load(from: url) != nil { return true }
+        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]) else { return false }
+        return values.isRegularFile == true && values.fileSize == 0
+    }
 }
 
 /// Один писатель на сессию; блокировка освобождается системой при завершении помощника.

@@ -28,12 +28,19 @@ import SwiftData
     var instanceID = UUID()
     var creditedSeconds: TimeInterval = 0
     var hakoOwnerID: String? = nil
+    var rotationPending = false
+    var rotationTargetOwnerKey: String? = nil
+    var rotationTargetHakoOwnerID: String? = nil
+    var rotationContinuationID: UUID? = nil
+    var rotationRequestedUptime: TimeInterval? = nil
 
     init(instanceID: UUID, ownerKey: String, hakoOwnerID: String? = nil) {
         self.instanceID = instanceID
         self.ownerKey = ownerKey
         self.hakoOwnerID = hakoOwnerID
     }
+
+    var hasPendingRotation: Bool { rotationPending }
 }
 
 @Model final class HakoPlaytimeSubmission {

@@ -54,7 +54,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 
 - `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: получает `HakoServices.forCurrentLaunch()`
   (`macos/Hako/Hako/HakoServices.swift`) и создаёт единственную сцену `Window("Hako", id: "main")`.
-  Обычный запуск использует `HakoServices.shared`; редакторный fixture-флаг создаёт отдельные контейнер и
+  Обычный запуск использует `HakoServices.shared`; DEBUG preview-флаги создают отдельные контейнеры и
   координаторы. `HakoServices` владеет `ModelContainer`, `InstallationCoordinator`, `InstanceContentController`,
   `MinecraftSessionCoordinator`, `HakoAccountCoordinator`, `MinecraftAppearanceStore`, `MinecraftSkinLoader`,
   `MinecraftCharacterEditorCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator`,
@@ -90,6 +90,8 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
    фиктивные токены и `URLSession` с `MinecraftCharacterPreviewFixture`; миграция не запускается, а
    production store и Keychain не изменяются. `--character-editor-preview-language=ru|en` задаёт язык только для preview.
    Подробная команда — [[UI/MinecraftSkin#PNG для редактора]].
+   Debug `--playtime-profile-preview` открывает профиль Microsoft + Telegram/Hako с fixture API и очередью игрового времени;
+   контейнер, временная папка и defaults изолированы, production Keychain/store/settings не используются.
 2. `Window("Hako", id: "main") { ContentView() }` получает контейнер через
    `.modelContainer(services.modelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. Пока Keychain-сессия Hako загружается,

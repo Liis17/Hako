@@ -100,7 +100,7 @@ struct ProfileView: View {
                         .controlSize(.large)
                         .padding(.top, 8)
                         .confirmationDialog("Выйти из аккаунта Microsoft?", isPresented: $isConfirmingSignOut) {
-                    Button("Выйти из Microsoft", role: .destructive) { Task { await signOut() } }
+                            Button("Выйти из Microsoft", role: .destructive) { Task { await signOut() } }
                             Button("Отмена", role: .cancel) {}
                         } message: {
                             Text("Данные Microsoft будут удалены с этого Mac. Сессия Hako останется подключённой.")
