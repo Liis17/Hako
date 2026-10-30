@@ -87,6 +87,11 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         _appUpdateRefresh.Start();
         _store = context.Store;
         _playtime.PropertyChanged += Playtime_PropertyChanged;
+        if (_playtime.Hako is { } sync)
+        {
+            sync.PropertyChanged += HakoPlaytime_PropertyChanged;
+            _ = sync.RefreshAsync();
+        }
         LoadGameSettings();
         _profileRequestScope = Guid.NewGuid();
         _screenVisible = true;
@@ -114,6 +119,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         if (_updates is not null) _updates.Coordinator.Changed -= AppUpdates_Changed;
         _updates = null;
         if (_playtime is not null) _playtime.PropertyChanged -= Playtime_PropertyChanged;
+        if (_playtime?.Hako is { } sync) sync.PropertyChanged -= HakoPlaytime_PropertyChanged;
         // Covers navigation without ConfirmLeaveAsync; after the guard saved, the draft equals the settings snapshot and nothing is written.
         _ = SaveGameSettingsAsync();
         _coordinator = null;
@@ -170,6 +176,7 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         _selectedSection = section;
         if (enteringProfile)
         {
+            if (_playtime?.Hako is { } sync) _ = sync.RefreshAsync();
             _profileRequestScope = Guid.NewGuid();
         }
 
@@ -246,6 +253,17 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         SignOutButton.Content = HakoStrings.Get("LogoutButton");
         SignOutButton.Visibility = hasAccount ? Visibility.Visible : Visibility.Collapsed;
 
+        var cloud = _playtime?.Hako;
+        HakoPlaytimePanel.Visibility = hakoSession is null ? Visibility.Collapsed : Visibility.Visible;
+        HakoPlaytimeTitle.Text = HakoStrings.Get("PlaytimeSummaryTitle");
+        HakoPlaytimeValue.Text = cloud?.TotalDurationMs is { } milliseconds
+            ? PlaytimeFormatter.Format(milliseconds / 1000d, _coordinator?.Language ?? AppLanguages.Default, HakoStrings.Get)
+            : HakoStrings.Get(cloud?.HasError == true ? "HakoPlaytimeUnavailable" : "HakoPlaytimeLoading");
+        HakoPlaytimePending.Text = string.Format(HakoStrings.Get("HakoPlaytimePending"),
+            PlaytimeFormatter.Format((cloud?.PendingDurationMs ?? 0) / 1000d, _coordinator?.Language ?? AppLanguages.Default, HakoStrings.Get));
+        HakoPlaytimePending.Visibility = cloud?.PendingDurationMs > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HakoPlaytimeError.Text = HakoStrings.Get("HakoPlaytimeSyncError");
+        HakoPlaytimeError.Visibility = cloud?.HasError == true ? Visibility.Visible : Visibility.Collapsed;
         HakoProviderTitle.Text = HakoStrings.Get("HakoProfileTitle");
         HakoProfileStatus.Text = hakoSession?.Account.Username ?? HakoStrings.Get("HakoProfileNotConnected");
         HakoProfileBadge.Text = HakoStrings.Get((_coordinator?.HakoSessionStatus ?? HakoSessionStatus.SignedOut).ResourceKey());
@@ -283,6 +301,9 @@ public sealed partial class SettingsPage : Page, INavigationGuard
         : string.IsNullOrWhiteSpace(detail)
             ? HakoStrings.Get(key)
             : HakoStrings.Get(key) + " " + string.Format(HakoStrings.Get("PlaytimeErrorDetails"), detail);
+
+    private void HakoPlaytime_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+        DispatcherQueue.TryEnqueue(RefreshProfile);
 
     private void Playtime_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {

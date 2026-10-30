@@ -58,7 +58,7 @@ Startup loads both providers independently and opens Builds when either has a lo
 
 Hako sign-out cancels a pending login and verification, calls `POST /v1/auth/logout`, and then clears the local file. `401` from logout means the server session is already invalid. On network failure the profile offers retry, explicit local-only removal, or cancel; local-only removal warns that the server session can remain active. Microsoft state and builds are unaffected.
 
-Hako-only builds do not create a Microsoft Minecraft profile or XUID. Minecraft continues through the existing offline/guest path, and playtime stays under the guest identity. Archive activation enters explicit guest mode only when neither Microsoft nor Hako has a session ([[UI/SystemIntegration#Открытие архивов в Windows]]).
+Hako-only builds do not create a Microsoft Minecraft profile or XUID. Minecraft continues through the existing offline/guest path. Windows profile playtime uses `Playtime/HakoPlaytimeSync.cs`: Hako login imports unassigned local totals once, completed segments are uploaded through the authenticated playtime API, and build-specific counters remain local under their Microsoft/guest identity. Account boundaries are applied independently of network requests; launches await durable assignment. See [[Data/Persistence#Игровое время Windows]]. Archive activation enters explicit guest mode only when neither Microsoft nor Hako has a session ([[UI/SystemIntegration#Открытие архивов в Windows]]).
 
 ## Sources
 

@@ -81,6 +81,40 @@ Successful `/v1/auth/me` and internal token checks renew an active session to 14
 
 Account identity is the Telegram numeric `telegram_id`, which is unique in the Auth database. Telegram usernames can change and are refreshed from Telegram updates; the username is used for login lookup, not as the account's unique identity.
 
+## Playtime
+
+Both endpoints use `Authorization: Bearer <Hako session token>` and renew active sessions using the same rules as `/v1/auth/me`.
+
+### Submit a completed session
+
+`POST /v1/playtime/sessions`
+
+```json
+{"session_id":"<uuid>","duration_ms":123456}
+```
+
+`duration_ms` is a nonnegative signed 64-bit integer in milliseconds; fractional and out-of-range values and the nil UUID are rejected with `400 invalid_request`. The server derives ownership from the bearer token, never a client-supplied account ID.
+
+Returns `200`:
+
+```json
+{"session_id":"<same uuid>"}
+```
+
+The first submission stores the UUID and increments the account total atomically. An identical replay returns the same acknowledgement without incrementing the total. Reusing a UUID with a different duration or account returns `409 playtime_session_conflict`. Deduplication records persist independently of authentication sessions; retrying after a lost response or logging in again does not add time twice. Independent sessions, including overlapping games on two computers, are summed. No wall-clock timestamps are required. Account totals use signed 64-bit milliseconds; an overflowing increment rolls back the entire submission.
+
+### Read the profile total
+
+`GET /v1/playtime` returns `200`:
+
+```json
+{"total_duration_ms":123456}
+```
+
+A profile with no submitted sessions returns zero. Invalid, expired and revoked tokens return `401`; neither endpoint accepts an account ID to read or modify another profile.
+
+Deploy Auth with its playtime migration before distributing clients using these endpoints. Existing authentication response shapes remain unchanged.
+
 ## Internal API
 
 `POST /internal/v1/tokens/check` is served only on port `8091`. It requires `X-Service-Secret: <HAKO_AUTH_SERVICE_SECRET>` and a JSON body:

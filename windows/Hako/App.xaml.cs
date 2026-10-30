@@ -160,6 +160,11 @@ public partial class App : Application
         await _coordinator.InitializeAsync();
         if (_previewOptions?.Language is { } previewLanguage) await _coordinator.SetLanguageAsync(previewLanguage);
         await _playtime!.RecoverPendingTransferAsync(_coordinator.Account?.Xuid);
+        if (_previewOptions is null)
+        {
+            var playtimeSync = new HakoPlaytimeSync(_playtime, _coordinator.Hako, new HakoAuthApiClient());
+            await playtimeSync.InitializeAsync();
+        }
         if (InstanceStore.LoadError is null)
         {
             await StartBuildServicesAsync(installations, games);

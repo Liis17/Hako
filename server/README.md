@@ -102,7 +102,7 @@ No service port is published to the host. Run the reverse proxy as a container, 
 docker network connect hako <proxy-container>
 ```
 
-Both public services can share one domain: route `/v1/packs` to Pack and everything else — the Auth API `/v1/auth/...` and `/healthz` — to Auth. The proxy must resolve `auth` and `pack` through Docker DNS at request time (nginx: `resolver 127.0.0.11` with a variable `proxy_pass`), because Compose assigns new container addresses whenever it recreates services.
+Both public services can share one domain: route `/v1/packs` to Pack and everything else — the Auth APIs `/v1/auth/...`, `/v1/playtime/...`, `/v1/playtime` and `/healthz` — to Auth. The proxy must resolve `auth` and `pack` through Docker DNS at request time (nginx: `resolver 127.0.0.11` with a variable `proxy_pass`), because Compose assigns new container addresses whenever it recreates services.
 
 Example nginx server block for `hako.example.com` behind Cloudflare (TLS terminates at Cloudflare, the origin certificate is a Cloudflare Origin CA certificate, and the Cloudflare SSL mode must be Full (strict); see the [nginx proxy module reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)):
 

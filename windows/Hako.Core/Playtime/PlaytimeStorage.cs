@@ -256,8 +256,17 @@ internal sealed class PlaytimeLedgerStore
         if (!File.Exists(_path)) return new PlaytimeLedger();
         var ledger = JsonSerializer.Deserialize(PlaytimeJson.ReadBoundedBytes(_path, PlaytimeJson.MaximumLedgerBytes), HakoJsonContext.Default.PlaytimeLedger)
             ?? throw new JsonException("The playtime ledger is empty.");
-        if (ledger.FormatVersion != 1 || ledger.Owners is null || ledger.Sessions is null || ledger.AppliedTransfers is null)
+        if (ledger.FormatVersion is not (1 or 2) || ledger.Owners is null || ledger.Sessions is null || ledger.AppliedTransfers is null || ledger.Uploads is null)
             throw new JsonException("The playtime ledger format is unsupported.");
+        if (ledger.HakoAccountId is not null && !Guid.TryParse(ledger.HakoAccountId, out _))
+            throw new JsonException("Invalid Hako playtime owner.");
+        foreach (var (id, upload) in ledger.Uploads)
+            if (id == Guid.Empty || upload is null || upload.SessionId != id || upload.DurationMs < 0
+                || !Guid.TryParse(upload.AccountId, out _)) throw new JsonException("Invalid pending playtime upload.");
+        foreach (var session in ledger.Sessions.Values)
+            if (session is null || !PlaytimeJson.IsFiniteNonnegative(session.HakoSeconds)
+                || (session.HakoAccountId is not null && (!Guid.TryParse(session.HakoAccountId, out _) || session.SegmentId == Guid.Empty)))
+                throw new JsonException("Invalid Hako playtime session.");
         foreach (var (key, owner) in ledger.Owners)
         {
             if (!PlaytimeJson.IsOwnerKey(key) || owner is null || owner.Instances is null
@@ -296,6 +305,7 @@ internal sealed class PlaytimeLedgerStore
 
     private void WriteCore(PlaytimeLedger ledger)
     {
+        ledger.FormatVersion = 2;
         var bytes = JsonSerializer.SerializeToUtf8Bytes(ledger, HakoJsonContext.Default.PlaytimeLedger);
         if (bytes.Length > PlaytimeJson.MaximumLedgerBytes) throw new IOException("The playtime ledger is too large.");
         PlaytimeJson.AtomicWrite(_path, bytes);
