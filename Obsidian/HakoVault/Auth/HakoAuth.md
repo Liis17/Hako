@@ -2,11 +2,13 @@
 
 Parent: [[Index]]
 
-The macOS and Windows launchers have an independent Hako account provider authenticated through the Telegram bot. The protocol authority is [`server/docs/auth-api.md`](../../../server/docs/auth-api.md). Microsoft remains the provider for licensed Minecraft sessions and XUID; a Hako session does not replace or mutate Microsoft credentials, Minecraft launch identity, or guest playtime transfer.
+The macOS and Windows launchers have an independent Hako account provider authenticated through the Telegram bot. The protocol authority is [`server/docs/auth-api.md`](../../../server/docs/auth-api.md). Microsoft remains the provider for licensed Minecraft sessions and XUID; a Hako session does not replace or mutate Microsoft credentials or Minecraft launch identity. macOS also syncs playtime to the authenticated Hako profile while keeping local guest/Microsoft counters and instance totals separate.
 
 ## macOS
 
 `HakoAuthAPIClient` uses independent Codable DTOs for the server API; it does not reuse Microsoft or Minecraft authentication models. Its fixed origin is `https://hako.liis17.com:443/`. Redirects are rejected and each URLSession request has a 20-second deadline covering the complete response body. DTOs and API/storage protocols are explicitly nonisolated and `Sendable`; the `@MainActor @Observable` `HakoAccountCoordinator` owns UI state and request generations.
+
+`HakoPlaytimeAPIClient` uses the same fixed HTTPS origin and Bearer Hako token for `GET /v1/playtime` and `POST /v1/playtime/sessions`. Session payloads contain `session_id` and nonnegative integer `duration_ms`; only a `200` response with the same UUID acknowledges a submission. `409`, network failures and `401` retain the durable SwiftData queue item. Retries reuse its UUID so a lost response remains idempotent. Queue entries pin their Hako account UUID and cannot be sent by another Hako profile. On login, unreserved historical time is reserved across all guest/Microsoft `PlayerPlaytime` totals, excluding prior queue allocations and current sessions; `InstancePlaytime` is excluded. Acknowledgement deletes the entry and subtracts only its recorded local allocations in the same SwiftData save. The Profile card displays the Hako server total and the amount waiting to sync separately. Hako logout or profile changes split active journalled play into owner-pinned segments; the independent helper continues tracking after the launcher closes.
 
 `HakoSessionKeychainStore` stores the whole Hako session as JSON in a generic-password item with service `com.Launcher.Hako.telegram-session` and account `current`. This is separate from Microsoft's `com.Launcher.Hako.auth` items keyed by XUID. Keychain reads distinguish a missing item from access/decoding failures; a failed load shows a startup warning and disables authentication writes or clearing. Keychain operations run on a private serial queue. Save uses `SecItemUpdate`, then `SecItemAdd` only for `errSecItemNotFound`.
 
@@ -14,7 +16,7 @@ Startup restores Hako independently from Microsoft and displays a loading state 
 
 Remote logout cancels login and verification, calls the server, then clears only the matching local Hako token. On failure, Profile offers retry, cancel, or explicitly warned local-only removal. Authentication and verification use generations to ignore stale responses. If an exchange response is lost, the one-use exchange is never retried and the user starts a fresh username login; a returned token that became stale, expired before storage, or could not be persisted is revoked best effort with a five-second deadline. Session and exchange secrets are redacted from diagnostics.
 
-Hako-only accounts do not create SwiftData `Account` records and do not transfer guest playtime. Minecraft and playtime continue through the existing guest/offline path; Microsoft remains an independent provider for Minecraft identity and licensed launch.
+Hako-only accounts do not create SwiftData `Account` records or change local guest/MS ownership. Their ended playtime segments are sent to the Hako UUID recorded when each segment began, while guest totals remain transferable to Microsoft by the existing sign-in flow.
 
 ### macOS sources
 
@@ -22,6 +24,7 @@ Hako-only accounts do not create SwiftData `Account` records and do not transfer
 |------|------|
 | `macos/Hako/Hako/Auth/HakoAuth.swift` | Domain types, API/store contracts, username normalization, strict Telegram link validation, secret-safe descriptions |
 | `macos/Hako/Hako/Auth/HakoAuthAPIClient.swift` | Fixed-origin URLSession API, wire DTOs, redirects and whole-request deadline |
+| `macos/Hako/Hako/Auth/HakoPlaytimeAPIClient.swift` | Hako playtime GET/POST contract, UUID acknowledgement and Bearer authentication |
 | `macos/Hako/Hako/Auth/HakoAccountCoordinator.swift` | Register/login polling, expiry, exchange, generations, restoration, verification and logout |
 | `macos/Hako/Hako/Auth/HakoSessionKeychainStore.swift` | Independent session Keychain item and serial off-main-actor access |
 | `macos/Hako/Hako/Auth/HakoDeviceName.swift` | Computer name selection, trimming, Unicode-scalar limit and fallback |

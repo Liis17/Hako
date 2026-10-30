@@ -20,6 +20,12 @@ private final class PlaytimeWatcher: @unchecked Sendable {
         self.lock = lock
         journal = try PlaytimeJournal.load(from: journal.url(in: directory))
         guard !journal.isFinished else { return false }
+        if FileManager.default.fileExists(atPath: journal.splitRequestURL(in: directory).path) {
+            journal.checkpoint()
+            journal.isFinished = true
+            try journal.save(in: directory)
+            return false
+        }
         journal.helper = PlaytimeProcessIdentity.read(pid: getpid())
         if !journal.process.isRunning {
             journal.isFinished = true
@@ -36,10 +42,17 @@ private final class PlaytimeWatcher: @unchecked Sendable {
         }
         self.observer = observer
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + PlaytimeJournal.checkpointInterval, repeating: PlaytimeJournal.checkpointInterval)
+        timer.schedule(deadline: .now() + .milliseconds(250), repeating: .milliseconds(250))
         timer.setEventHandler { [self] in
-            if !journal.isFinished { journal.checkpoint() }
-            saveCheckpoint()
+            guard !journal.isFinished else { return }
+            if FileManager.default.fileExists(atPath: journal.splitRequestURL(in: directory).path) {
+                journal.checkpoint()
+                journal.isFinished = true
+                saveCheckpoint()
+            } else if ProcessInfo.processInfo.systemUptime - journal.startedUptime >= journal.elapsedSeconds + PlaytimeJournal.checkpointInterval {
+                journal.checkpoint()
+                saveCheckpoint()
+            }
         }
         self.timer = timer
         observer.resume(); timer.resume()

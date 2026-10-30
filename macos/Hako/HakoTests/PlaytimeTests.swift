@@ -37,7 +37,7 @@ import Darwin
         #expect(playtime.instanceSeconds(UUID(), xuid: "first") == 0)
     }
 
-    @Test func signingInMovesGuestCountersAndKeepsRunningSessionsWithTheirNewOwner() throws {
+    @Test func signingInMovesGuestCountersAndKeepsRunningSessionsWithTheirNewOwner() async throws {
         let container = try container()
         let playtime = try PlaytimeCoordinator(context: container.mainContext)
         let first = UUID(), second = UUID()
@@ -48,25 +48,25 @@ import Darwin
         let preparingGuest = try playtime.beginSession(instanceID: first, xuid: nil)
         try playtime.credit(sessionID: guest, elapsedSeconds: 90)
         try playtime.credit(sessionID: anotherGuest, elapsedSeconds: 60)
-        try playtime.transferGuest(to: "first")
+        try await playtime.transferGuest(to: "first")
         #expect(playtime.totalSeconds(xuid: nil) == 0)
         #expect(playtime.totalSeconds(xuid: "first") == 180)
         #expect(playtime.instanceSeconds(first, xuid: "first") == 120)
         #expect(playtime.instanceSeconds(second, xuid: "first") == 60)
         try playtime.credit(sessionID: guest, elapsedSeconds: 150)
         try playtime.credit(sessionID: preparingGuest, elapsedSeconds: 15)
-        try playtime.transferGuest(to: "first")
+        try await playtime.transferGuest(to: "first")
         #expect(playtime.totalSeconds(xuid: "first") == 255)
         let newGuest = try playtime.beginSession(instanceID: first, xuid: nil)
         try playtime.credit(sessionID: newGuest, elapsedSeconds: 20)
-        try playtime.transferGuest(to: "second")
+        try await playtime.transferGuest(to: "second")
         try playtime.credit(sessionID: guest, elapsedSeconds: 160)
         #expect(playtime.totalSeconds(xuid: "first") == 265)
         #expect(playtime.totalSeconds(xuid: "second") == 20)
         #expect(playtime.totalSeconds(xuid: nil) == 0)
     }
 
-    @Test func failedSavePreservesCountersAndUnrelatedEditsUntilRetry() throws {
+    @Test func failedSavePreservesCountersAndUnrelatedEditsUntilRetry() async throws {
         let container = try container(), context = container.mainContext
         var fail = false
         let playtime = try PlaytimeCoordinator(context: context, persist: {
@@ -83,11 +83,11 @@ import Darwin
         #expect(playtime.totalSeconds(xuid: nil) == 90)
         #expect(playtime.instanceSeconds(instance.id, xuid: nil) == 90)
         #expect(instance.name == "Unsaved edit")
-        #expect(throws: InstanceFileError.self) { try playtime.transferGuest(to: "first") }
+        await #expect(throws: InstanceFileError.self) { try await playtime.transferGuest(to: "first") }
         #expect(playtime.totalSeconds(xuid: nil) == 90 && playtime.totalSeconds(xuid: "first") == 0)
         fail = false
         try playtime.credit(sessionID: session, elapsedSeconds: 150)
-        try playtime.transferGuest(to: "first")
+        try await playtime.transferGuest(to: "first")
         #expect(playtime.totalSeconds(xuid: "first") == 150 && playtime.totalSeconds(xuid: nil) == 0)
     }
 

@@ -11,7 +11,9 @@ struct ProfileView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(MinecraftSessionCoordinator.self) private var sessions
     @Environment(MinecraftAppearanceStore.self) private var appearances
+    @Environment(PlaytimeCoordinator.self) private var playtime
     @State private var isConfirmingSignOut = false
+    @State private var signOutError: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 32) {
@@ -32,6 +34,14 @@ struct ProfileView: View {
             }
             .frame(minWidth: 240, maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 16)
+        }
+        .alert("Не удалось разделить игровую сессию", isPresented: Binding(
+            get: { signOutError != nil },
+            set: { if !$0 { signOutError = nil } }
+        )) {
+            Button("ОК", role: .cancel) { signOutError = nil }
+        } message: {
+            Text(signOutError ?? "")
         }
     }
 
@@ -90,7 +100,7 @@ struct ProfileView: View {
                         .controlSize(.large)
                         .padding(.top, 8)
                         .confirmationDialog("Выйти из аккаунта Microsoft?", isPresented: $isConfirmingSignOut) {
-                            Button("Выйти из Microsoft", role: .destructive, action: signOut)
+                    Button("Выйти из Microsoft", role: .destructive) { Task { await signOut() } }
                             Button("Отмена", role: .cancel) {}
                         } message: {
                             Text("Данные Microsoft будут удалены с этого Mac. Сессия Hako останется подключённой.")
@@ -120,7 +130,12 @@ struct ProfileView: View {
         return minecraftStatusText
     }
 
-    private func signOut() {
+    private func signOut() async {
+        do { try await playtime.signOutMicrosoft(xuid: account.xuid) }
+        catch {
+            signOutError = error.localizedDescription
+            return
+        }
         sessions.signOut()
         TokenKeychain.delete(for: account.xuid)
         modelContext.delete(account)
@@ -180,6 +195,7 @@ private struct HakoProviderCard: View {
                 Text(sessionStatusText)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                HakoPlaytimeSummaryView(ownerID: session.account.id)
                 if let error = hakoAccount.verificationError {
                     Text(error.localizedDescription)
                         .font(.callout)

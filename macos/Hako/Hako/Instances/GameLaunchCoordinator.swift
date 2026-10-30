@@ -49,7 +49,11 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
                         let id = instance.id, attempt = UUID()
                         let sessionID = try playtime.resumeSession(instanceID: id, sessionID: record.sessionID, xuid: xuid)
                         record.sessionID = sessionID
-                        let restoredRecord = record, tracking = PlaytimeTrackingRequest(sessionID: sessionID, directory: playtime.journalDirectory)
+                        let restoredRecord = record, tracking = PlaytimeTrackingRequest(
+                            sessionID: sessionID,
+                            directory: playtime.journalDirectory,
+                            hakoOwnerID: playtime.hakoOwnerID(sessionID: sessionID)
+                        )
                         attempts[id] = attempt; states[id] = .running; store.launchBusy.insert(id)
                         Task { [runner, weak self] in
                             do { try await runner.observe(restoredRecord, root: root, tracking: tracking) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) } }
@@ -106,7 +110,12 @@ nonisolated struct MinecraftLaunchRequest: Sendable {
                 let plan = try await prepareLaunch(.init(root: root, version: version, sha1: sha1, executable: executable, identity: identity, source: source, parameters: parameters, clientID: MicrosoftAuth.clientID, fabric: fabric, fabricProfileSHA1: fabricProfileSHA1))
                 try Task.checkCancellation()
                 if !offline, sessions.identity(for: account)?.accessToken != identity.accessToken { throw InstanceFileError.message(String(appLocalized: "Minecraft-сессия изменилась или завершилась. Повторите запуск.")) }
-                let record = try await runner.start(plan, id: id, root: root, tracking: .init(sessionID: sessionID, directory: playtime.journalDirectory)) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) }
+                let tracking = PlaytimeTrackingRequest(
+                    sessionID: sessionID,
+                    directory: playtime.journalDirectory,
+                    hakoOwnerID: playtime.hakoOwnerID(sessionID: sessionID)
+                )
+                let record = try await runner.start(plan, id: id, root: root, tracking: tracking) { [weak self] status in await self?.finished(id, attempt: attempt, status: status) }
                 if attempts[id] == attempt, states[id] == .preparing {
                     if record.startSeconds > 0 { states[id] = .running }
                     else { store.launchBusy.remove(id) }

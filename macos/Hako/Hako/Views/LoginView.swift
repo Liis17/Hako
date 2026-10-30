@@ -143,7 +143,7 @@ struct LoginView: View {
                 account.connect(minecraft.profile)
             }
             modelContext.insert(account)
-            do { try playtime.transferGuest(to: account.xuid) }
+            do { try await playtime.transferGuest(to: account.xuid) }
             catch { modelContext.delete(account); throw error }
         } catch {
             // Отмена — экран закрыт кнопкой «Назад»; показывать нечего.

@@ -58,6 +58,7 @@ import SwiftData
         }
         let container = try ModelContainer(for: schema, configurations: [configuration])
         if !characterEditorPreview { try LaunchSettingsMigration.run(context: container.mainContext) }
+        let playtimeCoordinator = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: playtimeDirectory)
         modelContainer = container
         installations = InstallationCoordinator(context: container.mainContext, storage: storage)
         content = InstanceContentController(installations: installations)
@@ -90,13 +91,15 @@ import SwiftData
                 api: PreviewHakoAuthAPI(), store: PreviewHakoSessionStore(), initiallyRestored: true
             )
         } else {
-            hakoAccount = HakoAccountCoordinator(api: HakoAuthAPIClient(), store: HakoSessionKeychainStore())
+            hakoAccount = HakoAccountCoordinator(
+                api: HakoAuthAPIClient(), store: HakoSessionKeychainStore(), playtime: playtimeCoordinator
+            )
         }
         characterEditor = MinecraftCharacterEditorCoordinator(
             api: MinecraftProfileAPIClient(session: fixtureSession ?? .shared), sessions: sessions,
             context: container.mainContext, appearances: appearances
         )
-        playtime = try PlaytimeCoordinator(context: container.mainContext, journalDirectory: playtimeDirectory)
+        playtime = playtimeCoordinator
         games = GameLaunchCoordinator(store: installations.store, sessions: sessions, playtime: playtime)
         quickLaunch = QuickLaunchCoordinator(store: installations.store, games: games)
         instanceCatalog = InstanceEntityCatalog(store: installations.store)
@@ -123,6 +126,7 @@ import SwiftData
     func start() {
         guard !startsInCharacterEditor, !didStart else { return }
         didStart = true
+        playtime.start()
         Task { await hakoAccount.initialize() }
         games.start()
         installations.start()

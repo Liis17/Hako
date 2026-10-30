@@ -21,6 +21,7 @@ nonisolated struct PlaytimeJournal: Codable, Sendable {
     let sessionID: UUID
     let process: PlaytimeProcessIdentity
     let startedUptime: TimeInterval
+    var hakoOwnerID: String? = nil
     var elapsedSeconds: TimeInterval = 0
     var isFinished = false
     var helper: PlaytimeProcessIdentity?
@@ -30,6 +31,7 @@ nonisolated struct PlaytimeJournal: Codable, Sendable {
     }
 
     func url(in directory: URL) -> URL { directory.appendingPathComponent("\(sessionID.uuidString).json") }
+    func splitRequestURL(in directory: URL) -> URL { directory.appendingPathComponent("\(sessionID.uuidString).split") }
     static func load(from url: URL) throws -> Self { try JSONDecoder().decode(Self.self, from: Data(contentsOf: url)) }
 
     func save(in directory: URL) throws {

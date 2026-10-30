@@ -20,6 +20,8 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 | `macos/Hako/Hako/Auth/TokenKeychain.swift` | `TokenKeychain`, `AccountTokens`, `KeychainError` | Токены аккаунта в Keychain |
 | `macos/Hako/Hako/Auth/HakoSessionKeychainStore.swift`, `HakoAuth.swift` | `HakoSessionKeychainStore`, `HakoSession` | Отдельная Keychain-сессия Telegram/Hako; Microsoft-хранилище не меняется |
 | `macos/Hako/Hako/Auth/HakoAccountCoordinator.swift` | `HakoAccountCoordinator` | Восстановление, проверка, хранение профиля и выход Hako |
+| `macos/Hako/Hako/Auth/HakoPlaytimeAPIClient.swift` | `HakoPlaytimeAPIClient` | Bearer API Hako для отправки сегментов и чтения серверной суммы |
+| `macos/Hako/Hako/Playtime/PlaytimeCoordinator.swift` | `PlaytimeCoordinator` | Локальные счётчики, разделение сегментов, очередь и сверка с Hako |
 | `macos/Hako/Hako/GameLaunchDefaults.swift` | `GameLaunchDefaults` | Ключи, значения по умолчанию и снимок параметров игры |
 | `macos/Hako/Hako/Views/Launcher/SettingsView.swift` | `SettingsView` | Редактирование параметров через `@AppStorage` |
 
@@ -51,26 +53,38 @@ Minecraft) — в SwiftData, его токены — в связке ключе�
 ### Наигранное время
 
 `macos/Hako/Hako/Playtime/PlaytimeModels.swift` определяет `PlayerPlaytime`, `InstancePlaytime`,
-`PlaytimeSession` и общую `HakoSchema.schema`. Длительности — `TimeInterval` в секундах, изначально ноль.
+`PlaytimeSession`, `HakoPlaytimeSubmission` и общую `HakoSchema.schema`. Длительности локальных счётчиков —
+`TimeInterval` в секундах, изначально ноль.
 `PlayerPlaytime.ownerKey` уникален: `account:<XUID>` либо `guest`; `totalSeconds` — самостоятельное
 общее время пользователя. `InstancePlaytime.key` объединяет владельца и UUID сборки; хранит её
-`totalSeconds`. `PlaytimeSession.id` — уникальный UUID с владельцем, UUID сборки и `creditedSeconds`.
+`totalSeconds`. `PlaytimeSession.id` — уникальный UUID с владельцем, UUID сборки, `creditedSeconds` и необязательным
+`hakoOwnerID`, закрепляющим профиль Hako для сегмента. `HakoPlaytimeSubmission` хранит UUID запроса, закреплённый Hako UUID,
+целое число миллисекунд и JSON-снимок распределения этого времени по локальным `PlayerPlaytime.ownerKey`.
 Отношений с `Account` и `GameInstance` нет: удаление данных входа или сборки не удаляет общее время.
-Новая сборка с другим UUID начинает с нуля. Добавление моделей поддерживает лёгкую миграцию прежнего store.
+Новая сборка с другим UUID начинает с нуля. Новая модель очереди и необязательное поле поддерживают лёгкую миграцию
+прежнего store; миграция проверяется на отдельном временном store.
 
 `macos/Hako/Hako/Playtime/PlaytimeCoordinator.swift` — общий `@MainActor @Observable` сервис.
 `beginSession(instanceID:xuid:)` сохраняет нулевую сессию; `credit(sessionID:elapsedSeconds:)`
 начисляет только положительную разницу с курсором, сохраняет оба счётчика и курсор одной операцией.
 Ошибка сохранения восстанавливает затронутые значения, не откатывая чужие несохранённые изменения.
-`transferGuest(to:)` прибавляет гостевые счётчики аккаунту, обнуляет гостевые значения и переназначает
-его сессии без изменения курсоров. Последующие интервалы этих сессий принадлежат вошедшему аккаунту,
-даже после его выхода. Повторный вход переносит только новое гостевое время.
+`transferGuest(to:)` сначала закрывает журналируемые гостевые сегменты и создаёт продолжения для Microsoft,
+затем переносит не зарезервированный гостевой итог и счётчики сборок. Уже поставленные в очередь суммы остаются
+на прежнем локальном владельце, чтобы успешный ответ вычел их из правильного счётчика. `signOutMicrosoft(xuid:)`
+закрывает сегменты аккаунта и продолжает игру под гостем; прошлые Microsoft-счётчики остаются при аккаунте.
+Hako-переходы таким же образом делят активную сессию по Hako UUID. Исходный и новый сегменты сохраняют
+собственных локального и Hako-владельцев, поэтому другой профиль не отправит чужой запрос.
 `totalSeconds(xuid:)` и `instanceSeconds(_:xuid:)` возвращают статистику текущего владельца.
 `start()` включает чтение журналов при запуске и каждые 10 секунд; `reconcile()` начисляет сохранённые
-интервалы и удаляет завершённый журнал только после успешной записи счётчиков и удаления сессии.
-Завершённый файл с уже удалённой сессией очищается без повторного начисления. `refresh()` сохраняет
-сообщение ошибки в `errorMessage` для UI, не останавливая игры; следующая проверка повторяет чтение.
-Файлы и жизненный цикл независимого помощника описаны в [[Minecraft/Launching]].
+интервалы, создаёт очередь для завершённых сегментов Hako и удаляет завершённый журнал только после успешной записи.
+Отправка `POST /v1/playtime/sessions` повторяет тот же UUID и миллисекунды до подтверждения `200` с совпадающим UUID;
+`409`, сеть, отказ авторизации и истёкший токен сохраняют строку очереди. `GET /v1/playtime` обновляет серверный итог.
+История резервируется суммой всех гостевых и Microsoft общих счётчиков за вычетом уже зарезервированных сумм и активных
+сессий Hako; счётчики сборок не участвуют. После подтверждения удаление строки очереди и вычитание только её локальных
+распределений сохраняются одним `ModelContext.save()`, поэтому параллельно начисленное время остаётся локальным ожиданием.
+`HakoPlaytimeSubmission` и обновлённые `PlayerPlaytime` входят в ту же транзакцию SwiftData.
+`refresh()` оставляет ошибки видимыми для UI и запускает очередь при доступной аутентификации. Файлы и жизненный цикл
+независимого помощника описаны в [[Minecraft/Launching]].
 
 ### Токены
 
