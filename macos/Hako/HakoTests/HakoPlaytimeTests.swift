@@ -120,6 +120,56 @@ private enum HakoPlaytimeMigrationPlan: SchemaMigrationPlan {
         #expect(condition())
     }
 
+    @Test(arguments: ["guest", "account:first"])
+    func sourceCleanupMustCommitBeforeDelivery(ownerKey: String) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try container()
+        let api = HakoPlaytimeAPIFixture()
+        var failCleanup = true
+        var sourceID: UUID?
+        let playtime = try PlaytimeCoordinator(
+            context: container.mainContext, journalDirectory: root, api: api,
+            persist: {
+                if failCleanup, let sourceID,
+                   container.mainContext.deletedModelsArray.contains(where: {
+                       ($0 as? PlaytimeSession)?.id == sourceID
+                   }) { throw InstanceFileError.message("cleanup failed") }
+                try container.mainContext.save()
+            }
+        )
+        await playtime.updateHakoSession(session(ownerA))
+        let xuid = ownerKey == "guest" ? nil : "first"
+        let id = try playtime.beginSession(instanceID: UUID(), xuid: xuid)
+        sourceID = id
+        try playtime.credit(sessionID: id, elapsedSeconds: 10)
+        // Another local session's time must survive this submission's acknowledgement.
+        let other = try playtime.beginSession(instanceID: UUID(), xuid: xuid)
+        try playtime.credit(sessionID: other, elapsedSeconds: 7)
+        var journal = PlaytimeJournal(
+            sessionID: id, process: .init(pid: -1, startSeconds: 0, startMicroseconds: 0),
+            startedUptime: 0, hakoOwnerID: ownerA
+        )
+        journal.elapsedSeconds = 10
+        journal.isFinished = true
+        try journal.save(in: root)
+        #expect(throws: (any Error).self) { try playtime.reconcile() }
+        await playtime.retryHakoSync()
+        #expect(await api.posts.isEmpty)
+        #expect(playtime.totalSeconds(xuid: xuid) == 17)
+        failCleanup = false
+        try playtime.reconcile()
+        await playtime.retryHakoSync()
+        try await eventually { (try? container.mainContext.fetch(FetchDescriptor<HakoPlaytimeSubmission>()).isEmpty) == true }
+        #expect(playtime.totalSeconds(xuid: xuid) == 7)
+        // Replaying the orphan journal after a successful acknowledgement must be harmless.
+        try journal.save(in: root)
+        try playtime.reconcile()
+        await playtime.retryHakoSync()
+        #expect(playtime.totalSeconds(xuid: xuid) == 7)
+        #expect(await api.posts.filter { $0.sessionID == id }.count == 1)
+    }
+
     @Test func wireContractUsesBearerSnakeCaseAndMatchingUUID() async throws {
         let session = HakoPlaytimeTestURLProtocol.session()
         defer { session.invalidateAndCancel() }
