@@ -12,6 +12,7 @@ struct ProfileView: View {
     @Environment(MinecraftSessionCoordinator.self) private var sessions
     @Environment(MinecraftAppearanceStore.self) private var appearances
     @Environment(PlaytimeCoordinator.self) private var playtime
+    @Environment(HakoAccountCoordinator.self) private var hakoAccount
     @State private var isConfirmingSignOut = false
     @State private var signOutError: String?
 
@@ -87,7 +88,9 @@ struct ProfileView: View {
                         }
                     }
 
-                    PlaytimeSummaryView(xuid: account.xuid)
+                    if hakoAccount.session == nil {
+                        PlaytimeSummaryView(xuid: account.xuid)
+                    }
 
                     if sessions.identity(for: account) == nil || minecraftSubtitle != nil {
                         Button("Повторить подключение Minecraft") { Task { await sessions.connect(account, force: true) } }
@@ -144,6 +147,8 @@ struct ProfileView: View {
 }
 
 struct GuestProfileView: View {
+    @Environment(HakoAccountCoordinator.self) private var hakoAccount
+
     let onMicrosoftSignIn: () -> Void
     let onHakoSignIn: () -> Void
 
@@ -156,10 +161,12 @@ struct GuestProfileView: View {
                             .font(.title3.weight(.semibold))
                         Text("Для онлайн-запуска подключите Microsoft с Minecraft: Java Edition. Offline-mode настраивается отдельно для каждой сборки.")
                             .foregroundStyle(.secondary)
-                        PlaytimeSummaryView(xuid: nil)
-                        Text("Гостевое время переносится в аккаунт Microsoft при входе. Время Hako хранится отдельно.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                        if hakoAccount.session == nil {
+                            PlaytimeSummaryView(xuid: nil)
+                            Text("Гостевое время переносится в аккаунт Microsoft при входе. Время Hako хранится отдельно.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
                         Button("Войти в Microsoft", action: onMicrosoftSignIn)
                             .buttonStyle(.glassProminent)
                             .tint(.sakuraDeep)
@@ -182,9 +189,9 @@ private struct HakoProviderCard: View {
     @State private var isShowingLogoutFailure = false
 
     var body: some View {
-        ProviderCard(title: "Аккаунт Hako", systemImage: "paperplane.fill") {
+        ProviderCard(title: "Аккаунт Hako", systemImage: "paperplane.fill", compact: true) {
             if let session = hakoAccount.session {
-                AccountRow(title: session.account.username, subtitle: session.deviceName, badge: "Telegram") {
+                AccountRow(title: session.account.username, subtitle: session.deviceName, badge: "Telegram", compact: true) {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 24))
                         .foregroundStyle(Color.sakuraDeep)
@@ -192,9 +199,11 @@ private struct HakoProviderCard: View {
                         .background(.quaternary, in: .circle)
                 }
 
-                Text(sessionStatusText)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                if hakoAccount.sessionStatus != .verified {
+                    Text(sessionStatusText)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
                 HakoPlaytimeSummaryView(ownerID: session.account.id)
                 if let error = hakoAccount.verificationError {
                     Text(error.localizedDescription)
@@ -213,7 +222,7 @@ private struct HakoProviderCard: View {
                     .buttonStyle(.glass)
                     .disabled(hakoAccount.isLoggingOut)
                 }
-                .controlSize(.large)
+                .controlSize(.regular)
                 .confirmationDialog("Выйти из Hako?", isPresented: $isConfirmingLogout) {
                     Button("Выйти из Hako", role: .destructive) { Task { await performLogout() } }
                     Button("Отмена", role: .cancel) {}
@@ -270,16 +279,17 @@ private struct HakoProviderCard: View {
 private struct ProviderCard<Content: View>: View {
     let title: LocalizedStringKey
     let systemImage: String
+    var compact = false
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             Label(title, systemImage: systemImage)
                 .font(.title3.weight(.semibold))
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
+        .padding(compact ? 14 : 18)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))
     }
 }
@@ -288,11 +298,12 @@ private struct AccountRow<Avatar: View>: View {
     let title: String
     let subtitle: String?
     let badge: String
+    var compact = false
     @ViewBuilder var avatar: Avatar
 
     var body: some View {
         HStack(spacing: 16) {
-            avatar.frame(width: 56, height: 56)
+            avatar.frame(width: compact ? 36 : 56, height: compact ? 36 : 56)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.title3.weight(.semibold))
                 if let subtitle {
@@ -305,7 +316,7 @@ private struct AccountRow<Avatar: View>: View {
             Spacer(minLength: 16)
             Text(badge).font(.callout.weight(.medium)).foregroundStyle(.secondary)
         }
-        .padding(16)
+        .padding(compact ? 10 : 16)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 }
