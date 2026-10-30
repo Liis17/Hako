@@ -594,7 +594,7 @@ import SwiftData
             continuationJournal = PlaytimeJournal(
                 sessionID: continuationID,
                 process: oldJournal.process,
-                startedUptime: ProcessInfo.processInfo.systemUptime,
+                startedUptime: oldJournal.startedUptime + oldJournal.elapsedSeconds,
                 hakoOwnerID: targetHakoOwnerID
             )
             continuationJournal.checkpoint()

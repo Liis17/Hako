@@ -431,6 +431,7 @@ private enum HakoPlaytimeMigrationPlan: SchemaMigrationPlan {
         let oldID: UUID
         let blockedSplitURL: URL
         let expectedDurationMS: Int64
+        let expectedContinuationStart: TimeInterval
         do {
             let container = try persistentContainer(at: storeURL)
             let api = HakoPlaytimeAPIFixture()
@@ -459,6 +460,7 @@ private enum HakoPlaytimeMigrationPlan: SchemaMigrationPlan {
             #expect(pendingRotation.rotationPending)
             let requestedUptime = try #require(pendingRotation.rotationRequestedUptime)
             expectedDurationMS = Int64(((requestedUptime - startedUptime) * 1000).rounded(.down))
+            expectedContinuationStart = requestedUptime
         }
         fakeHelper.terminate()
         fakeHelper.waitUntilExit()
@@ -481,6 +483,8 @@ private enum HakoPlaytimeMigrationPlan: SchemaMigrationPlan {
         let active = try #require(try restartedContainer.mainContext.fetch(FetchDescriptor<PlaytimeSession>()).first)
         #expect(active.ownerKey == "guest")
         #expect(active.hakoOwnerID == nil)
+        let continuationJournal = try PlaytimeJournal.load(from: active.id, directory: root)
+        #expect(abs(continuationJournal.startedUptime - expectedContinuationStart) < 0.001)
         #expect(restarted.hakoServerSeconds(ownerID: ownerA) == nil)
         let oldSubmission = try #require(try restartedContainer.mainContext.fetch(FetchDescriptor<HakoPlaytimeSubmission>()).first)
         #expect(oldSubmission.sessionID == oldID)
