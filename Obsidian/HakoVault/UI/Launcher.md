@@ -35,6 +35,7 @@ Hako — отдельный provider в профиле. Показывается
 | `macos/Hako/Hako/Views/Launcher/MinecraftCharacterEditorView.swift` | `MinecraftCharacterEditorView` | Загрузка PNG, выбор модели и плаща, локальное 3D-превью и действия редактора |
 | `macos/Hako/Hako/Auth/MinecraftCharacterEditorCoordinator.swift` | `MinecraftCharacterEditorCoordinator` | Черновик редактора, авторизованные чтения/записи, сверка частичных результатов и защита поколением |
 | `macos/Hako/Hako/Views/Launcher/PlaytimeSummaryView.swift` | `PlaytimeSummaryView` | Общее игровое время аккаунта или гостя и ошибка сохранения |
+| `macos/Hako/Hako/Views/Launcher/PlaytimeSummaryView.swift` | `HakoPlaytimeSummaryView` | Серверный итог Hako отдельно от локального времени в очереди |
 | `macos/Hako/Hako/Views/Launcher/MinecraftSkinView.swift` | `MinecraftSkinView` | Анимированная модель скина справа в профиле |
 | `macos/Hako/Hako/Views/Avatars.swift` | `AccountAvatar`, `XboxAvatar`, `MinecraftHead` | Аватары аккаунтов |
 
@@ -42,7 +43,7 @@ Hako — отдельный provider в профиле. Показывается
 
 | Контракт | Поведение и условия |
 |----------|---------------------|
-| `LauncherView(account: Account?, onMicrosoftSignIn:onHakoSignIn:startsInCharacterEditor:)` | `account` — только Microsoft/Xbox-профиль и может быть `nil` при Hako-only или guest; требует `HakoAccountCoordinator` наряду с сервисами сборок, Microsoft и игрового времени. Начальная вкладка — `.instances`; preview-флаг открывает редактор изолированного аккаунта |
+| `LauncherView(account: Account?, onMicrosoftSignIn:onHakoSignIn:startsInCharacterEditor:startsInProfilePreview:)` | `account` — только Microsoft/Xbox-профиль и может быть `nil` при Hako-only или guest; требует `HakoAccountCoordinator` наряду с сервисами сборок, Microsoft и игрового времени. Обычная начальная вкладка — `.instances`; DEBUG-флаги выбирают редактор или профиль изолированного preview |
 | `LauncherPage(caption:title:content:)` | Японская подпись, `heroTitle`, содержимое; выравнивание по верхнему левому краю, появление через `reveal` |
 | `AccountAvatar(account:)` | Голова из последнего авторитетного Java-профиля, если он загружен; иначе из сохранённого `minecraftSkinURL`; при отсутствии URL — `XboxAvatar` |
 | `XboxAvatar(url:name:)` | `AsyncImage`; пока картинки нет или она не загрузилась — первая буква `name` на градиенте `sakuraDeep` |
@@ -97,10 +98,17 @@ Hako — отдельный provider в профиле. Показывается
 
 Hako-карточка независима от Microsoft-карточки и доступна гостю и Hako-only пользователю. При подключённом
 Hako она показывает Telegram username, имя устройства и статус `/me`; профиль можно проверить вручную,
-выйти удалённо или после ошибки явно удалить только локальную сессию. Если аккаунт Microsoft есть, рядом
+выйти удалённо или после ошибки явно удалить только локальную сессию. Также карточка показывает серверное время Hako
+и отдельное локальное время, ожидающее синхронизации. Очередь закрепляет каждый сегмент за исходным Hako UUID;
+без сети, при `409` или истёкшем токене сегмент остаётся на очереди. Если аккаунт Microsoft есть, рядом
 сохраняются все прежние Xbox/Java строки и редактор скина. Hako-only не создаёт Microsoft `Account`, XUID
-или Minecraft-сессию и не меняет гостевые счётчики; запуск Minecraft и игровое время остаются в guest/offline-пути.
+или Minecraft-сессию и не меняет локальные guest/MS ключи статистики; запуск Minecraft и игровое время остаются
+в guest/offline-пути. Вход/выход Microsoft и смена Hako завершают текущий журналируемый сегмент и продолжают игру
+с новым закреплённым владельцем; уже завершённый сегмент не перепривязывается.
 Выход из Microsoft оставляет лаунчер открытым при Hako-сессии, а выход из Hako — при Microsoft-сессии.
+Для нативной проверки профиля Debug-сборку запускают с `--playtime-profile-preview`; режим сразу открывает `.profile`,
+показывает fixture Hako-сессию, серверный итог и ожидающее игровое время. Он использует временный in-memory SwiftData,
+изолированный defaults suite, fixture auth/playtime API и не обращается к production Keychain или store.
 
 3D-превью использует UUID, URL и вариант скина из `Account`, пока нет авторитетного ответа Java Profile API.
 После чтения или сохранения `MinecraftAppearanceStore` становится источником скина и плаща; при известном

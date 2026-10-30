@@ -2654,6 +2654,30 @@
         }
       }
     },
+    "Время Hako" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hako playtime" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Время Hako" } }
+      }
+    },
+    "На сервере: %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "On server: %@" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "На сервере: %@" } }
+      }
+    },
+    "Серверное время недоступно" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Server total unavailable" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Серверное время недоступно" } }
+      }
+    },
+    "Ожидает синхронизации: %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Waiting to sync: %@" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ожидает синхронизации: %@" } }
+      }
+    },
     "Все" : {
       "localizations" : {
         "en" : {
@@ -6062,6 +6086,42 @@
             "value" : "Не удалось сохранить игровое время: %@"
           }
         }
+      }
+    },
+    "Не удалось прочитать очередь игрового времени Hako." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't read the Hako playtime queue." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось прочитать очередь игрового времени Hako." } }
+      }
+    },
+    "Не удалось разделить игровую сессию: %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't split the playtime session: %@" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось разделить игровую сессию: %@" } }
+      }
+    },
+    "Не удалось синхронизировать время с Hako: %@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't sync playtime with Hako: %@" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось синхронизировать время с Hako: %@" } }
+      }
+    },
+    "Не удалось завершить сегмент игрового времени." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't finish the playtime segment." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось завершить сегмент игрового времени." } }
+      }
+    },
+    "Не удалось разделить игровую сессию" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't split the playtime session" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось разделить игровую сессию" } }
+      }
+    },
+    "Сервер Hako отклонил запись игрового времени. Она сохранена для повтора." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hako rejected this playtime entry. It has been saved to retry." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Сервер Hako отклонил запись игрового времени. Она сохранена для повтора." } }
       }
     },
     "Не удалось сохранить иконку." : {

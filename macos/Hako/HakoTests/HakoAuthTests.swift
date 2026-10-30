@@ -537,7 +537,7 @@ nonisolated private final class HakoAuthTestClock: @unchecked Sendable {
     }
 }
 
-private actor HakoAuthTestService: HakoAuthAPI {
+actor HakoAuthTestService: HakoAuthAPI {
     private let defaultRequestID = UUID(uuidString: "55555555-5555-4555-8555-555555555555")!
     private let defaultAccount = HakoAccount(id: "11111111-1111-4111-8111-111111111111", username: "Player_123", createdAt: Date(timeIntervalSince1970: 1_700_000_000))
     private var requestExpiry: Date
@@ -633,7 +633,7 @@ private actor HakoAuthTestService: HakoAuthAPI {
     }
 }
 
-private actor HakoAuthTestSessionStore: HakoSessionStore {
+actor HakoAuthTestSessionStore: HakoSessionStore {
     private var stored: HakoSession?
     private var loadFailure = false
     private var saveFailure = false

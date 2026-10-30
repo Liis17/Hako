@@ -25,6 +25,7 @@ nonisolated struct GameProcessRecord: Codable, Equatable, Sendable {
 nonisolated struct PlaytimeTrackingRequest: Sendable {
     let sessionID: UUID
     let directory: URL
+    var hakoOwnerID: String? = nil
 }
 
 actor GameProcessRunner {
@@ -60,7 +61,12 @@ actor GameProcessRunner {
             // Короткий процесс уже завершился: никакой записи о запущенной игре не остаётся.
             process.waitUntilExit()
             if let tracking {
-                var journal = PlaytimeJournal(sessionID: tracking.sessionID, process: .init(pid: process.processIdentifier, startSeconds: 0, startMicroseconds: 0), startedUptime: startedUptime)
+                var journal = PlaytimeJournal(
+                    sessionID: tracking.sessionID,
+                    process: .init(pid: process.processIdentifier, startSeconds: 0, startMicroseconds: 0),
+                    startedUptime: startedUptime,
+                    hakoOwnerID: tracking.hakoOwnerID
+                )
                 journal.checkpoint(); journal.isFinished = true
                 try journal.save(in: tracking.directory)
             }
@@ -72,7 +78,12 @@ actor GameProcessRunner {
         do {
             try JSONEncoder().encode(record).write(to: GameProcessRecord.url(in: root), options: .atomic)
             if let tracking {
-                let journal = PlaytimeJournal(sessionID: tracking.sessionID, process: .init(pid: record.pid, startSeconds: record.startSeconds, startMicroseconds: record.startMicroseconds), startedUptime: startedUptime)
+                let journal = PlaytimeJournal(
+                    sessionID: tracking.sessionID,
+                    process: .init(pid: record.pid, startSeconds: record.startSeconds, startMicroseconds: record.startMicroseconds),
+                    startedUptime: startedUptime,
+                    hakoOwnerID: tracking.hakoOwnerID
+                )
                 try journal.save(in: tracking.directory)
                 try await helper.attach(to: journal, in: tracking.directory)
             }
@@ -97,7 +108,12 @@ actor GameProcessRunner {
         observer.resume()
         try JSONEncoder().encode(record).write(to: GameProcessRecord.url(in: root), options: .atomic)
         if let tracking {
-            let journal = PlaytimeJournal(sessionID: tracking.sessionID, process: .init(pid: record.pid, startSeconds: record.startSeconds, startMicroseconds: record.startMicroseconds), startedUptime: ProcessInfo.processInfo.systemUptime)
+            let journal = PlaytimeJournal(
+                sessionID: tracking.sessionID,
+                process: .init(pid: record.pid, startSeconds: record.startSeconds, startMicroseconds: record.startMicroseconds),
+                startedUptime: ProcessInfo.processInfo.systemUptime,
+                hakoOwnerID: tracking.hakoOwnerID
+            )
             if !FileManager.default.fileExists(atPath: journal.url(in: tracking.directory).path) { try journal.save(in: tracking.directory) }
             try await helper.attach(to: journal, in: tracking.directory)
         }

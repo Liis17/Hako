@@ -23,3 +23,38 @@ struct PlaytimeSummaryView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 }
+
+struct HakoPlaytimeSummaryView: View {
+    let ownerID: String
+    @Environment(PlaytimeCoordinator.self) private var playtime
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Время Hako")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            if let serverSeconds = playtime.hakoServerSeconds(ownerID: ownerID) {
+                Text("На сервере: \(PlaytimeFormatter.string(serverSeconds))")
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+            } else {
+                Text("Серверное время недоступно")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Text("Ожидает синхронизации: \(PlaytimeFormatter.string(playtime.hakoPendingSeconds(ownerID: ownerID)))")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            if let error = playtime.hakoSyncErrorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(Color.shu)
+                    .textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+}

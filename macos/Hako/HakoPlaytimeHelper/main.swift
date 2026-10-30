@@ -20,6 +20,11 @@ private final class PlaytimeWatcher: @unchecked Sendable {
         self.lock = lock
         journal = try PlaytimeJournal.load(from: journal.url(in: directory))
         guard !journal.isFinished else { return false }
+        if PlaytimeSplitRequest.isPresentOrLegacyEmpty(at: journal.splitRequestURL(in: directory)) {
+            finishAtSplitBoundary()
+            try journal.save(in: directory)
+            return false
+        }
         journal.helper = PlaytimeProcessIdentity.read(pid: getpid())
         if !journal.process.isRunning {
             journal.isFinished = true
@@ -31,22 +36,31 @@ private final class PlaytimeWatcher: @unchecked Sendable {
         let process = journal.process
         let observer = DispatchSource.makeProcessSource(identifier: process.pid, eventMask: .exit, queue: queue)
         observer.setEventHandler { [self] in
-            if !journal.isFinished { journal.checkpoint(); journal.isFinished = true }
+            if !journal.isFinished { finishAtCurrentBoundaryOrExit() }
             saveCheckpoint()
         }
         self.observer = observer
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + PlaytimeJournal.checkpointInterval, repeating: PlaytimeJournal.checkpointInterval)
+        timer.schedule(deadline: .now() + .milliseconds(250), repeating: .milliseconds(250))
         timer.setEventHandler { [self] in
-            if !journal.isFinished { journal.checkpoint() }
-            saveCheckpoint()
+            if journal.isFinished {
+                saveCheckpoint()
+                return
+            }
+            if PlaytimeSplitRequest.isPresentOrLegacyEmpty(at: journal.splitRequestURL(in: directory)) {
+                finishAtSplitBoundary()
+                saveCheckpoint()
+            } else if ProcessInfo.processInfo.systemUptime - journal.startedUptime >= journal.elapsedSeconds + PlaytimeJournal.checkpointInterval {
+                journal.checkpoint()
+                saveCheckpoint()
+            }
         }
         self.timer = timer
         observer.resume(); timer.resume()
         // Игра могла завершиться между проверкой PID и подключением наблюдателя.
         if !process.isRunning {
             queue.async { [self] in
-                if !journal.isFinished { journal.checkpoint(); journal.isFinished = true; saveCheckpoint() }
+                if !journal.isFinished { finishAtCurrentBoundaryOrExit(); saveCheckpoint() }
             }
         }
         return true
@@ -58,6 +72,20 @@ private final class PlaytimeWatcher: @unchecked Sendable {
             if journal.isFinished { exit(0) }
         } catch {
             // Следующий тик повторит запись; время завершившейся игры уже зафиксировано в памяти.
+        }
+    }
+
+    private func finishAtSplitBoundary() {
+        let request = PlaytimeSplitRequest.load(from: journal.splitRequestURL(in: directory))
+        journal.finish(atUptime: request?.requestedUptime)
+    }
+
+    private func finishAtCurrentBoundaryOrExit() {
+        let splitURL = journal.splitRequestURL(in: directory)
+        if PlaytimeSplitRequest.isPresentOrLegacyEmpty(at: splitURL) {
+            finishAtSplitBoundary()
+        } else {
+            journal.finish()
         }
     }
 }

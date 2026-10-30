@@ -21,6 +21,7 @@ import Observation
 
     @ObservationIgnored private let api: any HakoAuthAPI
     @ObservationIgnored private let store: any HakoSessionStore
+    @ObservationIgnored private let playtime: PlaytimeCoordinator?
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
     @ObservationIgnored private var storageWasReadable = false
@@ -38,6 +39,7 @@ import Observation
     init(
         api: any HakoAuthAPI,
         store: any HakoSessionStore,
+        playtime: PlaytimeCoordinator? = nil,
         now: @escaping @Sendable () -> Date = { .now },
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         initiallyRestored: Bool = false,
@@ -45,6 +47,7 @@ import Observation
     ) {
         self.api = api
         self.store = store
+        self.playtime = playtime
         self.now = now
         self.sleep = sleep
         if initiallyRestored {
@@ -76,6 +79,7 @@ import Observation
             sessionStatus = .signedOut
         }
         isRestoringSession = false
+        await playtime?.updateHakoSession(session)
         if session != nil {
             startPeriodicVerification()
             Task { [weak self] in await self?.verifyOnStartup() }
@@ -118,6 +122,7 @@ import Observation
 
     func verifyOnProfileEntry() async {
         await verify(respectProfileThrottle: true)
+        await playtime?.retryHakoSync()
     }
 
     func verifyManually() async {
@@ -305,6 +310,7 @@ import Observation
             requiresFreshLogin = false
             attemptPhase = .idle
             issuedToken = nil
+            await playtime?.updateHakoSession(session)
             startPeriodicVerification()
         } catch is CancellationError {
             if let issuedToken { await revokeStaleToken(issuedToken) }
@@ -412,6 +418,7 @@ import Observation
             setSession(renewed)
             sessionStatus = .verified
             verificationError = nil
+            await playtime?.updateHakoSession(renewed)
         } catch is CancellationError {
             // A logout or a newer provider transition owns the resulting state.
         } catch HakoAuthError.unauthorized {
@@ -459,6 +466,7 @@ import Observation
             setSession(nil)
             sessionStatus = .signedOut
             verificationError = nil
+            await playtime?.updateHakoSession(nil)
             return true
         } catch {
             verificationError = .persistence

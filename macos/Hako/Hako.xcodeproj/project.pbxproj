@@ -75,6 +75,7 @@
 		F81000000000000000000005 /* Hako/Auth/HakoAccountCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000015 /* Hako/Auth/HakoAccountCoordinator.swift */; };
 		F81000000000000000000006 /* Hako/Auth/HakoSessionKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000016 /* Hako/Auth/HakoSessionKeychainStore.swift */; };
 		F81000000000000000000007 /* Hako/Auth/HakoDeviceName.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000017 /* Hako/Auth/HakoDeviceName.swift */; };
+		F81000000000000000000008 /* Hako/Auth/HakoPlaytimeAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F81000000000000000000018 /* Hako/Auth/HakoPlaytimeAPIClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -170,6 +171,7 @@
 		F81000000000000000000015 /* Hako/Auth/HakoAccountCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoAccountCoordinator.swift; sourceTree = SOURCE_ROOT; };
 		F81000000000000000000016 /* Hako/Auth/HakoSessionKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoSessionKeychainStore.swift; sourceTree = SOURCE_ROOT; };
 		F81000000000000000000017 /* Hako/Auth/HakoDeviceName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoDeviceName.swift; sourceTree = SOURCE_ROOT; };
+		F81000000000000000000018 /* Hako/Auth/HakoPlaytimeAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hako/Auth/HakoPlaytimeAPIClient.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -292,6 +294,7 @@
 				F81000000000000000000012 /* Hako/Instances/RestoreArchive.swift */,
 				F81000000000000000000013 /* Hako/Auth/HakoAuth.swift */,
 				F81000000000000000000014 /* Hako/Auth/HakoAuthAPIClient.swift */,
+				F81000000000000000000018 /* Hako/Auth/HakoPlaytimeAPIClient.swift */,
 				F81000000000000000000015 /* Hako/Auth/HakoAccountCoordinator.swift */,
 				F81000000000000000000016 /* Hako/Auth/HakoSessionKeychainStore.swift */,
 				F81000000000000000000017 /* Hako/Auth/HakoDeviceName.swift */,
@@ -476,6 +479,7 @@
 				AC77148AC01F44EABDE88576 /* Hako/Auth/MicrosoftAuth.swift in Sources */,
 				F81000000000000000000003 /* Hako/Auth/HakoAuth.swift in Sources */,
 				F81000000000000000000004 /* Hako/Auth/HakoAuthAPIClient.swift in Sources */,
+				F81000000000000000000008 /* Hako/Auth/HakoPlaytimeAPIClient.swift in Sources */,
 				F81000000000000000000005 /* Hako/Auth/HakoAccountCoordinator.swift in Sources */,
 				F81000000000000000000006 /* Hako/Auth/HakoSessionKeychainStore.swift in Sources */,
 				F81000000000000000000007 /* Hako/Auth/HakoDeviceName.swift in Sources */,

@@ -22,7 +22,11 @@ struct HakoApp: App {
 
     var body: some Scene {
         Window("Hako", id: "main") {
-            ContentView(startsInCharacterEditor: services.startsInCharacterEditor)
+            ContentView(
+                startsInCharacterEditor: services.startsInCharacterEditor,
+                startsInProfilePreview: services.startsInProfilePreview
+            )
+                .defaultAppStorage(services.appStorage)
                 .environment(services.installations)
                 .environment(services.content)
                 .environment(services.backupRestore)
@@ -40,7 +44,7 @@ struct HakoApp: App {
                 .task { services.start() }
         }
         .modelContainer(services.modelContainer)
-        .defaultSize(width: 1280, height: 720)
+        .defaultSize(width: 1280, height: services.startsInProfilePreview ? 900 : 720)
         .windowResizability(.contentMinSize)
         .windowStyle(.hiddenTitleBar)
         .windowBackgroundDragBehavior(.enabled)

@@ -8,6 +8,14 @@ import Darwin
         try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
+    private func eventually(_ condition: @MainActor () -> Bool) async throws {
+        for _ in 0..<300 {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(condition())
+    }
+
     @Test func coordinatorKeepsItsContainerAliveForDeferredCredit() async throws {
         let instanceID = UUID()
         func makeCoordinator() throws -> (PlaytimeCoordinator, UUID) {
@@ -37,7 +45,7 @@ import Darwin
         #expect(playtime.instanceSeconds(UUID(), xuid: "first") == 0)
     }
 
-    @Test func signingInMovesGuestCountersAndKeepsRunningSessionsWithTheirNewOwner() throws {
+    @Test func signingInMovesGuestCountersAndKeepsRunningSessionsWithTheirNewOwner() async throws {
         let container = try container()
         let playtime = try PlaytimeCoordinator(context: container.mainContext)
         let first = UUID(), second = UUID()
@@ -48,25 +56,25 @@ import Darwin
         let preparingGuest = try playtime.beginSession(instanceID: first, xuid: nil)
         try playtime.credit(sessionID: guest, elapsedSeconds: 90)
         try playtime.credit(sessionID: anotherGuest, elapsedSeconds: 60)
-        try playtime.transferGuest(to: "first")
+        try await playtime.transferGuest(to: "first")
         #expect(playtime.totalSeconds(xuid: nil) == 0)
         #expect(playtime.totalSeconds(xuid: "first") == 180)
         #expect(playtime.instanceSeconds(first, xuid: "first") == 120)
         #expect(playtime.instanceSeconds(second, xuid: "first") == 60)
         try playtime.credit(sessionID: guest, elapsedSeconds: 150)
         try playtime.credit(sessionID: preparingGuest, elapsedSeconds: 15)
-        try playtime.transferGuest(to: "first")
+        try await playtime.transferGuest(to: "first")
         #expect(playtime.totalSeconds(xuid: "first") == 255)
         let newGuest = try playtime.beginSession(instanceID: first, xuid: nil)
         try playtime.credit(sessionID: newGuest, elapsedSeconds: 20)
-        try playtime.transferGuest(to: "second")
+        try await playtime.transferGuest(to: "second")
         try playtime.credit(sessionID: guest, elapsedSeconds: 160)
         #expect(playtime.totalSeconds(xuid: "first") == 265)
         #expect(playtime.totalSeconds(xuid: "second") == 20)
         #expect(playtime.totalSeconds(xuid: nil) == 0)
     }
 
-    @Test func failedSavePreservesCountersAndUnrelatedEditsUntilRetry() throws {
+    @Test func failedSavePreservesCountersAndUnrelatedEditsUntilRetry() async throws {
         let container = try container(), context = container.mainContext
         var fail = false
         let playtime = try PlaytimeCoordinator(context: context, persist: {
@@ -83,11 +91,11 @@ import Darwin
         #expect(playtime.totalSeconds(xuid: nil) == 90)
         #expect(playtime.instanceSeconds(instance.id, xuid: nil) == 90)
         #expect(instance.name == "Unsaved edit")
-        #expect(throws: InstanceFileError.self) { try playtime.transferGuest(to: "first") }
+        await #expect(throws: InstanceFileError.self) { try await playtime.transferGuest(to: "first") }
         #expect(playtime.totalSeconds(xuid: nil) == 90 && playtime.totalSeconds(xuid: "first") == 0)
         fail = false
         try playtime.credit(sessionID: session, elapsedSeconds: 150)
-        try playtime.transferGuest(to: "first")
+        try await playtime.transferGuest(to: "first")
         #expect(playtime.totalSeconds(xuid: "first") == 150 && playtime.totalSeconds(xuid: nil) == 0)
     }
 
@@ -104,25 +112,27 @@ import Darwin
             id = instance.id; old.mainContext.insert(instance)
             try old.mainContext.save()
         }
-        let updated = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(url: url))
-        let context = updated.mainContext
-        let account = try #require(context.fetch(FetchDescriptor<Account>()).first)
-        let instance = try #require(context.fetch(FetchDescriptor<GameInstance>()).first)
-        #expect(account.xuid == "preserved" && instance.id == id && instance.folderName == "Pack")
-        let playtime = try PlaytimeCoordinator(context: context)
-        #expect(playtime.totalSeconds(xuid: "preserved") == 0)
-        let session = try playtime.beginSession(instanceID: id, xuid: "preserved")
-        try playtime.credit(sessionID: session, elapsedSeconds: 180)
-        context.delete(account); context.delete(instance); try context.save()
-        let restored = try PlaytimeCoordinator(context: ModelContext(updated))
-        #expect(restored.totalSeconds(xuid: "preserved") == 180)
-        try restored.credit(sessionID: session, elapsedSeconds: 240)
-        #expect(restored.totalSeconds(xuid: "preserved") == 240)
-        context.insert(Account(xbox: .init(xuid: "preserved", gamertag: "Player", avatarURL: nil), email: nil))
-        let recreated = GameInstance(name: "Pack", folderName: "Pack", versionID: "v", metadataURL: "url", metadataSHA1: "sha")
-        context.insert(recreated); try context.save()
-        #expect(restored.totalSeconds(xuid: "preserved") == 240)
-        #expect(restored.instanceSeconds(recreated.id, xuid: "preserved") == 0)
+        do {
+            let updated = try ModelContainer(for: HakoSchema.schema, configurations: ModelConfiguration(url: url))
+            let context = updated.mainContext
+            let account = try #require(context.fetch(FetchDescriptor<Account>()).first)
+            let instance = try #require(context.fetch(FetchDescriptor<GameInstance>()).first)
+            #expect(account.xuid == "preserved" && instance.id == id && instance.folderName == "Pack")
+            let playtime = try PlaytimeCoordinator(context: context)
+            #expect(playtime.totalSeconds(xuid: "preserved") == 0)
+            let session = try playtime.beginSession(instanceID: id, xuid: "preserved")
+            try playtime.credit(sessionID: session, elapsedSeconds: 180)
+            context.delete(account); context.delete(instance); try context.save()
+            let restored = try PlaytimeCoordinator(context: ModelContext(updated))
+            #expect(restored.totalSeconds(xuid: "preserved") == 180)
+            try restored.credit(sessionID: session, elapsedSeconds: 240)
+            #expect(restored.totalSeconds(xuid: "preserved") == 240)
+            context.insert(Account(xbox: .init(xuid: "preserved", gamertag: "Player", avatarURL: nil), email: nil))
+            let recreated = GameInstance(name: "Pack", folderName: "Pack", versionID: "v", metadataURL: "url", metadataSHA1: "sha")
+            context.insert(recreated); try context.save()
+            #expect(restored.totalSeconds(xuid: "preserved") == 240)
+            #expect(restored.instanceSeconds(recreated.id, xuid: "preserved") == 0)
+        }
     }
 
     @Test func journalsResumeWithoutDuplicateCreditAndSurviveSaveFailure() throws {
@@ -203,6 +213,59 @@ import Darwin
         #expect(finished.elapsedSeconds == journal.elapsedSeconds)
         try FileManager.default.removeItem(at: journal.url(in: root))
         try await PlaytimeHelperClient(executable: root.appendingPathComponent("missing-helper")).attach(to: journal, in: root)
+    }
+
+    @Test func helperRetriesAFailedFinalSaveOnTheNextTimerTick() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = Process()
+        game.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        game.arguments = ["20"]
+        try game.run()
+        defer { if game.isRunning { game.terminate() } }
+        let identity = try #require(PlaytimeProcessIdentity.read(pid: game.processIdentifier))
+        let journal = PlaytimeJournal(sessionID: UUID(), process: identity, startedUptime: ProcessInfo.processInfo.systemUptime)
+        try journal.save(in: root)
+        let executable = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        try await PlaytimeHelperClient(executable: executable).attach(to: journal, in: root)
+        let journalURL = journal.url(in: root)
+        let parkedJournalURL = root.appendingPathComponent("\(journal.sessionID.uuidString).parked")
+        try FileManager.default.moveItem(at: journalURL, to: parkedJournalURL)
+        try FileManager.default.createDirectory(at: journalURL, withIntermediateDirectories: false)
+        try Data().write(to: journal.splitRequestURL(in: root), options: .atomic)
+
+        // Let the first final write hit the directory obstruction, then remove it for the retry tick.
+        try await Task.sleep(for: .milliseconds(400))
+        try FileManager.default.removeItem(at: journalURL)
+        try await eventually { FileManager.default.fileExists(atPath: journalURL.path) }
+        let finished = try PlaytimeJournal.load(from: journalURL)
+        #expect(finished.isFinished)
+        #expect(finished.elapsedSeconds > 0)
+        try await eventually { (try? PlaytimeJournal.load(from: journalURL).helper?.isRunning) == false }
+    }
+
+    @Test func helperFinishesAtThePersistedProfileTransitionBoundary() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = Process()
+        game.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        game.arguments = ["20"]
+        try game.run()
+        defer { if game.isRunning { game.terminate() } }
+        let identity = try #require(PlaytimeProcessIdentity.read(pid: game.processIdentifier))
+        let startedUptime = ProcessInfo.processInfo.systemUptime - 4
+        let journal = PlaytimeJournal(sessionID: UUID(), process: identity, startedUptime: startedUptime)
+        try journal.save(in: root)
+        let request = PlaytimeSplitRequest(requestedUptime: startedUptime + 2)
+        try request.save(to: journal.splitRequestURL(in: root))
+        try await Task.sleep(for: .milliseconds(300))
+
+        let executable = SkinTestFixtures.bundle.bundleURL.deletingLastPathComponent().appendingPathComponent("HakoPlaytimeHelper")
+        try await PlaytimeHelperClient(executable: executable).attach(to: journal, in: root)
+
+        let finished = try PlaytimeJournal.load(from: journal.url(in: root))
+        #expect(finished.isFinished)
+        #expect(abs(finished.elapsedSeconds - 2) < 0.001)
     }
 
     @Test func finalJournalSurvivesCleanupSaveFailureAndRetriesWithoutDuplicateTime() throws {

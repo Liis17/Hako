@@ -19,6 +19,7 @@ Windows-клиент — отдельный стек WinUI 3 в каталоге
 Установленные сборки запускаются онлайн или в offline-mode; гостевой вход открывает лаунчер без аккаунта.
 Поддерживаются Vanilla и Fabric, локальные моды и Fabric API из официального проекта Modrinth. Каталог Modrinth устанавливает моды и ресурспаки в сборку и датапаки в выбранный локальный мир ([[Minecraft/Modrinth]]); каталог CurseForge не реализован. В macOS-приложении сторонних зависимостей (Swift Package Manager,
 CocoaPods, Carthage не используются) нет; NuGet-пакеты Windows-клиента — в разделе [[#Windows-клиент]].
+Игровое время macOS синхронизируется с Hako по закреплённым игровым сегментам; серверный итог, локальные счётчики и сохранённая очередь остаются отдельными состояниями.
 
 ## Стек
 
@@ -32,7 +33,7 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 | UserDefaults / `@AppStorage` | Глобальные параметры игры, язык интерфейса | `macos/Hako/Hako/GameLaunchDefaults.swift`, `macos/Hako/Hako/Views/Launcher/SettingsView.swift`, `macos/Hako/Hako/AppLanguage.swift` |
 | String Catalog | Русский и английский интерфейс | `macos/Hako/Hako/Localizable.xcstrings` |
 | Security (Keychain) | Независимые токены Microsoft и сессия Telegram/Hako | `macos/Hako/Hako/Auth/TokenKeychain.swift`, `HakoSessionKeychainStore.swift` |
-| URLSession | Авторизация Microsoft и Hako, Minecraft/Java, Fabric Meta/API, Modrinth, Minecraft Java Profile API и обновления | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `HakoAuthAPIClient.swift`, `MinecraftProfileAPI.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
+| URLSession | Авторизация Microsoft и Hako, синхронизация игрового времени Hako, Minecraft/Java, Fabric Meta/API, Modrinth, Minecraft Java Profile API и обновления | `macos/Hako/Hako/Auth/MicrosoftAuth.swift`, `HakoAuthAPIClient.swift`, `HakoPlaytimeAPIClient.swift`, `MinecraftProfileAPI.swift`, `macos/Hako/Hako/Minecraft/MojangClient.swift`, `macos/Hako/Hako/Minecraft/MinecraftInstaller.swift`, `macos/Hako/Hako/Minecraft/FabricClient.swift`, `macos/Hako/Hako/Minecraft/ModrinthClient.swift` |
 | Xcode 27, macOS SDK | Сборка; минимальная ОС macOS 27.0 (`MACOSX_DEPLOYMENT_TARGET`) | `macos/Hako/Hako.xcodeproj/project.pbxproj` |
 
 ## Структура репозитория
@@ -53,14 +54,14 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
 
 - `HakoApp` (`macos/Hako/Hako/HakoApp.swift`) — точка входа `@main`: получает `HakoServices.forCurrentLaunch()`
   (`macos/Hako/Hako/HakoServices.swift`) и создаёт единственную сцену `Window("Hako", id: "main")`.
-  Обычный запуск использует `HakoServices.shared`; редакторный fixture-флаг создаёт отдельные контейнер и
+  Обычный запуск использует `HakoServices.shared`; DEBUG preview-флаги создают отдельные контейнеры и
   координаторы. `HakoServices` владеет `ModelContainer`, `InstallationCoordinator`, `InstanceContentController`,
   `MinecraftSessionCoordinator`, `HakoAccountCoordinator`, `MinecraftAppearanceStore`, `MinecraftSkinLoader`,
   `MinecraftCharacterEditorCoordinator`, `GameLaunchCoordinator`, `PlaytimeCoordinator`,
   `InstanceRenameExitCoordinator`, `QuickLaunchCoordinator` и `AppUpdateCoordinator`. Интерфейс и системные
   команды обычного процесса используют те же объекты.
   Устройство контейнера описано в [[Data/Persistence]], быстрый запуск — в [[UI/SystemIntegration]].
-- [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками и игровым временем, контейнер хранилища, отдельные Keychain items Microsoft и Hako,
+- [[Data/Persistence]] — общая `HakoSchema` с аккаунтом, сборками, локальным игровым временем и сохранённой очередью Hako, контейнер хранилища, отдельные Keychain items Microsoft и Hako,
   глобальные параметры игры, независимые папки сборок и статистика времени по XUID.
 - [[Minecraft/Installation]] — официальный каталог, нативная совместимость, независимая установка Java и игры.
 - [[Auth/MicrosoftAuth]] — вход через Microsoft device code flow и общий сервис действительной Minecraft-сессии.
@@ -89,6 +90,8 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
    фиктивные токены и `URLSession` с `MinecraftCharacterPreviewFixture`; миграция не запускается, а
    production store и Keychain не изменяются. `--character-editor-preview-language=ru|en` задаёт язык только для preview.
    Подробная команда — [[UI/MinecraftSkin#PNG для редактора]].
+   Debug `--playtime-profile-preview` открывает профиль Microsoft + Telegram/Hako с fixture API и очередью игрового времени;
+   контейнер, временная папка и defaults изолированы, production Keychain/store/settings не используются.
 2. `Window("Hako", id: "main") { ContentView() }` получает контейнер через
    `.modelContainer(services.modelContainer)`, который помещает `modelContext` в окружение окна.
 3. Окно открывается в 1280×720 без восстановления прошлого размера. Пока Keychain-сессия Hako загружается,
@@ -99,6 +102,8 @@ CocoaPods, Carthage не используются) нет; NuGet-пакеты Wi
    независимо от SwiftData-аккаунта. При успешном чтении launcher открывается немедленно и в фоне выполняется
    `/me`; повторная проверка идёт раз в сутки и при входе в профиль. Ошибка Keychain оставляет доступ к
    существующей Microsoft/guest-работе, показывает предупреждение и запрещает запись/удаление Hako-сессии.
+   Восстановленный Hako-профиль передаётся в `PlaytimeCoordinator` для чтения серверного итога и повтора
+   закреплённой очереди; запуск и восстановление игр не ждут сетевого ответа Hako.
 5. `ContentView` наблюдает срок Minecraft-токена через `MinecraftSessionCoordinator.monitor` ([[Auth/MicrosoftAuth]]).
    `GameLaunchCoordinator.start` включает `PlaytimeCoordinator`, читает журналы сессий и восстанавливает
    работающие игры с независимым помощником учёта до запуска очереди установки.
@@ -136,7 +141,8 @@ Hako-выход независимо отзывает Hako-токен и уда�
 лаунчер открытым, пока подключён второй; последний выход возвращает приветствие, если не открыт архив восстановления.
 Работающие игры продолжаются независимо от выхода из аккаунта и закрытия Hako.
 `HakoPlaytimeHelper` продолжает измерять их длительность; общее время аккаунта хранится отдельно
-от удаляемых данных входа и сборок. Жизненный цикл и восстановление описаны в [[Minecraft/Launching]].
+от удаляемых данных входа и сборок. Завершённые Hako-сегменты попадают в локальную очередь и отправляются
+только при доступности исходного Hako-профиля. Жизненный цикл и восстановление описаны в [[Minecraft/Launching]].
 
 Источники: `macos/Hako/Hako/Views/Launcher/ProfileView.swift`, `macos/Hako/Hako/Auth/TokenKeychain.swift`.
 
