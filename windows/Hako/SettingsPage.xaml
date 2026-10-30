@@ -262,7 +262,7 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                    <Border x:Name="AccountPlaytimeCard" Padding="16" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                                         <StackPanel Spacing="6">
                                             <TextBlock x:Name="AccountPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             <TextBlock x:Name="AccountPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
