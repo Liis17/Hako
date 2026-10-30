@@ -9,6 +9,127 @@ namespace Hako.Tests;
 public sealed class PlaytimeTests
 {
     [TestMethod]
+    public async Task HakoFinishedHelperCheckpointIsQueuedOnRestartBeforeJournalDeletion()
+    {
+        await using var fixture = new PlaytimeFixture();
+        var account = Guid.NewGuid().ToString();
+        await fixture.Coordinator.SetHakoAccountAsync(account);
+        var (id, _) = await fixture.StartSessionAsync("guest");
+        var path = PlaytimePaths.Journal(fixture.GameRoot, id);
+        var journal = PlaytimeJson.ReadJournal(path);
+        journal.ElapsedSeconds = 65;
+        journal.IsFinished = true;
+        PlaytimeJson.AtomicWrite(path, PlaytimeJson.SerializeJournal(journal));
+        fixture.Probe.SetRunning(new PlaytimeProcessIdentity(151, 100, 0), false);
+        await using var restarted = fixture.CreateCoordinator();
+        await restarted.SetHakoAccountAsync(account);
+        Assert.IsFalse(File.Exists(path));
+        var queued = (await fixture.ReadLedgerAsync()).Uploads.Values.Single();
+        Assert.AreEqual(account, queued.AccountId);
+        Assert.AreEqual(65000L, queued.DurationMs);
+        await restarted.SetHakoAccountAsync(account);
+        Assert.AreEqual(queued.SessionId, (await fixture.ReadLedgerAsync()).Uploads.Values.Single().SessionId);
+    }
+
+    [TestMethod]
+    public async Task HakoImportUpgradesOldLedgerAndRejectsConcurrentMicrosoftReservationUntilResolved()
+    {
+        await using var fixture = new PlaytimeFixture();
+        await fixture.StartSessionAsync("guest");
+        fixture.Clock.AdvanceSeconds(8);
+        var transfer = await fixture.Coordinator.PrepareGuestTransferAsync("microsoft");
+        Assert.IsNotNull(transfer);
+        var account = Guid.NewGuid().ToString();
+        await Assert.ThrowsExactlyAsync<IOException>(() => fixture.Coordinator.SetHakoAccountAsync(account));
+        Assert.AreEqual(0, (await fixture.ReadLedgerAsync()).Uploads.Count);
+        await fixture.Coordinator.CompleteGuestTransferAsync(transfer.Value);
+        var legacy = await fixture.ReadLedgerAsync();
+        legacy.FormatVersion = 1;
+        PlaytimeJson.AtomicWrite(PlaytimePaths.Ledger(fixture.GameRoot),
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(legacy, HakoJsonContext.Default.PlaytimeLedger));
+        await fixture.Coordinator.SetHakoAccountAsync(account);
+        var migrated = await fixture.ReadLedgerAsync();
+        Assert.AreEqual(2, migrated.FormatVersion);
+        Assert.AreEqual(8000L, migrated.Uploads.Values.Single().DurationMs);
+        Assert.AreEqual(8, fixture.Coordinator.InstanceSeconds(fixture.InstanceID, "microsoft"), 0.001);
+    }
+
+    [TestMethod]
+    public async Task HakoHistoryReservationSurvivesRestartAndPreservesInstanceTime()
+    {
+        await using var fixture = new PlaytimeFixture();
+        await new PlaytimeLedgerStore(fixture.GameRoot).MutateAsync(ledger => {
+            ledger.Owners["guest"] = new PlaytimeOwnerRecord { TotalSeconds = 12, Instances = new() { [fixture.InstanceID] = 12 } };
+            ledger.Owners["account:old"] = new PlaytimeOwnerRecord { TotalSeconds = 30 };
+            return true;
+        });
+        var account = Guid.NewGuid().ToString();
+        await fixture.Coordinator.SetHakoAccountAsync(account);
+        var reserved = (await fixture.ReadLedgerAsync()).Uploads.Values.Single();
+        Assert.AreEqual(42000L, reserved.DurationMs);
+        Assert.AreEqual(0, fixture.Coordinator.TotalSeconds(null));
+        Assert.AreEqual(12, fixture.Coordinator.InstanceSeconds(fixture.InstanceID, null));
+        await using var restarted = fixture.CreateCoordinator();
+        await restarted.SetHakoAccountAsync(account);
+        Assert.AreEqual(reserved.SessionId, (await fixture.ReadLedgerAsync()).Uploads.Values.Single().SessionId);
+        await restarted.AcknowledgeHakoUploadAsync(reserved.SessionId);
+        await restarted.SetHakoAccountAsync(account);
+        Assert.AreEqual(0, (await fixture.ReadLedgerAsync()).Uploads.Count);
+        await restarted.SetHakoAccountAsync(null);
+        await restarted.SetHakoAccountAsync(Guid.NewGuid().ToString());
+        Assert.AreEqual(0, (await fixture.ReadLedgerAsync()).Uploads.Count);
+    }
+
+    [TestMethod]
+    public async Task HakoAccountBoundariesSplitActiveGameAndQueueOnlyCompletedSegments()
+    {
+        await using var fixture = new PlaytimeFixture();
+        var (id, _) = await fixture.StartSessionAsync("guest");
+        fixture.Clock.AdvanceSeconds(10);
+        var first = Guid.NewGuid().ToString();
+        var second = Guid.NewGuid().ToString();
+        await fixture.Coordinator.SetHakoAccountAsync(first);
+        Assert.AreEqual(10000L, (await fixture.ReadLedgerAsync()).Uploads.Values.Single().DurationMs);
+        fixture.Clock.AdvanceSeconds(20);
+        await fixture.Coordinator.RefreshAsync();
+        Assert.AreEqual(1, (await fixture.ReadLedgerAsync()).Uploads.Count);
+        await fixture.Coordinator.SetHakoAccountAsync(second);
+        var ledger = await fixture.ReadLedgerAsync();
+        Assert.AreEqual(first, ledger.Uploads.Values.Single(x => x.DurationMs == 20000).AccountId);
+        fixture.Clock.AdvanceSeconds(5);
+        await fixture.Coordinator.RefreshAsync();
+        var journal = PlaytimeJson.ReadJournal(PlaytimePaths.Journal(fixture.GameRoot, id));
+        journal.IsFinished = true;
+        PlaytimeJson.AtomicWrite(PlaytimePaths.Journal(fixture.GameRoot, id), PlaytimeJson.SerializeJournal(journal));
+        fixture.Probe.SetRunning(new PlaytimeProcessIdentity(151, 100, 0), false);
+        await fixture.Coordinator.RefreshAsync();
+        await fixture.Coordinator.RefreshAsync();
+        ledger = await fixture.ReadLedgerAsync();
+        Assert.AreEqual(3, ledger.Uploads.Count);
+        Assert.AreEqual(5000L, ledger.Uploads.Values.Single(x => x.AccountId == second).DurationMs);
+        Assert.AreEqual(0, ledger.Sessions.Count);
+        Assert.AreEqual(35, fixture.Coordinator.InstanceSeconds(fixture.InstanceID, null), 0.001);
+        Assert.AreEqual(0, fixture.Coordinator.TotalSeconds(null));
+    }
+
+    [TestMethod]
+    public async Task HakoLogoutKeepsPendingRecipientAndNewGuestTimeIsImportedSeparately()
+    {
+        await using var fixture = new PlaytimeFixture();
+        var first = Guid.NewGuid().ToString();
+        await fixture.Coordinator.SetHakoAccountAsync(first);
+        await fixture.StartSessionAsync("guest");
+        fixture.Clock.AdvanceSeconds(9);
+        await fixture.Coordinator.SetHakoAccountAsync(null);
+        fixture.Clock.AdvanceSeconds(4);
+        var second = Guid.NewGuid().ToString();
+        await fixture.Coordinator.SetHakoAccountAsync(second);
+        var ledger = await fixture.ReadLedgerAsync();
+        Assert.AreEqual(9000L, ledger.Uploads.Values.Single(x => x.AccountId == first).DurationMs);
+        Assert.AreEqual(4000L, ledger.Uploads.Values.Single(x => x.AccountId == second).DurationMs);
+    }
+
+    [TestMethod]
     public async Task AppUpdateWaitsForGameAndHelperIndependentlyOfInstanceRegistry()
     {
         await using var fixture = new PlaytimeFixture();

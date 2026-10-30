@@ -1,4 +1,5 @@
 using System.Net;
+using Hako.Core.Playtime;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -7,7 +8,7 @@ using System.Text.Json.Serialization.Metadata;
 
 namespace Hako.Core;
 
-public sealed class HakoAuthApiClient : IHakoAuthService, IDisposable
+public sealed class HakoAuthApiClient : IHakoAuthService, IHakoPlaytimeService, IDisposable
 {
     public static readonly Uri ServiceBaseAddress = new("https://hako.liis17.com:443/");
 
@@ -154,6 +155,25 @@ public sealed class HakoAuthApiClient : IHakoAuthService, IDisposable
 
             throw await ReadErrorAsync(response, operationToken);
         });
+    }
+
+    public async Task SubmitPlaytimeAsync(string token, Guid sessionId, long durationMs, CancellationToken cancellationToken)
+    {
+        if (sessionId == Guid.Empty || durationMs < 0) throw new ArgumentOutOfRangeException(nameof(durationMs));
+        using var request = CreateJsonRequest(HttpMethod.Post, "v1/playtime/sessions",
+            new HakoPlaytimeSessionDto(sessionId, durationMs), HakoJsonContext.Default.HakoPlaytimeSessionDto);
+        SetBearer(request, token);
+        var ack = await SendJsonAsync(request, HakoJsonContext.Default.HakoPlaytimeAckDto, cancellationToken);
+        if (ack.SessionId != sessionId) throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse);
+    }
+
+    public async Task<long> GetPlaytimeAsync(string token, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_baseAddress, "v1/playtime"));
+        SetBearer(request, token);
+        var result = await SendJsonAsync(request, HakoJsonContext.Default.HakoPlaytimeTotalDto, cancellationToken);
+        if (result.TotalDurationMs < 0) throw new HakoAuthException(HakoAuthErrorKind.InvalidResponse);
+        return result.TotalDurationMs;
     }
 
     private async Task<T> SendJsonAsync<T>(HttpRequestMessage request, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)

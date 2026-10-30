@@ -306,6 +306,12 @@
                                             </StackPanel>
                                             <TextBlock x:Name="HakoProfileBadge" Grid.Column="1" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                         </Grid>
+                                        <StackPanel x:Name="HakoPlaytimePanel" Spacing="4" Visibility="Collapsed">
+                                            <TextBlock x:Name="HakoPlaytimeTitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock x:Name="HakoPlaytimeValue" FontSize="22" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="HakoPlaytimePending" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock x:Name="HakoPlaytimeError" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" />
+                                        </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="12">
                                             <Button x:Name="HakoSignInButton" Style="{ThemeResource AccentButtonStyle}" Click="HakoSignInButton_Click" />
                                             <Button x:Name="HakoSignOutButton" Click="HakoSignOutButton_Click" />

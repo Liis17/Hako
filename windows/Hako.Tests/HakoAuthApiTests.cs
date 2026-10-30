@@ -7,6 +7,42 @@ namespace Hako.Tests;
 public sealed class HakoAuthApiTests
 {
     [TestMethod]
+    public async Task PlaytimeUsesFixedWireContractAndValidatesAcknowledgement()
+    {
+        var id = Guid.NewGuid();
+        using var http = new HttpClient(new CallbackHttpHandler(async (request, cancellationToken) => {
+            Assert.AreEqual("Bearer", request.Headers.Authorization?.Scheme);
+            if (request.Method == HttpMethod.Post) {
+                Assert.AreEqual("/v1/playtime/sessions", request.RequestUri!.AbsolutePath);
+                using var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                Assert.AreEqual(id, body.RootElement.GetProperty("session_id").GetGuid());
+                Assert.AreEqual(1234L, body.RootElement.GetProperty("duration_ms").GetInt64());
+                return JsonResponse(HttpStatusCode.OK, "{\"session_id\":\"" + id + "\"}");
+            }
+            Assert.AreEqual("/v1/playtime", request.RequestUri!.AbsolutePath);
+            return JsonResponse(HttpStatusCode.OK, "{\"total_duration_ms\":1234}");
+        }));
+        using var client = new HakoAuthApiClient(http);
+        await client.SubmitPlaytimeAsync("token", id, 1234, CancellationToken.None);
+        Assert.AreEqual(1234L, await client.GetPlaytimeAsync("token", CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task PlaytimeRejectsMissingOrMismatchedAcknowledgementAndMissingTotal()
+    {
+        foreach (var response in new[] { "{}", "{\"session_id\":\"" + Guid.NewGuid() + "\"}" }) {
+            using var http = new HttpClient(new CallbackHttpHandler((_, _) => Task.FromResult(JsonResponse(HttpStatusCode.OK, response))));
+            using var client = new HakoAuthApiClient(http);
+            var error = await Assert.ThrowsExactlyAsync<HakoAuthException>(() => client.SubmitPlaytimeAsync("token", Guid.NewGuid(), 100, CancellationToken.None));
+            Assert.AreEqual(HakoAuthErrorKind.InvalidResponse, error.Kind);
+        }
+        using var emptyHttp = new HttpClient(new CallbackHttpHandler((_, _) => Task.FromResult(JsonResponse(HttpStatusCode.OK, "{}"))));
+        using var emptyClient = new HakoAuthApiClient(emptyHttp);
+        var missing = await Assert.ThrowsExactlyAsync<HakoAuthException>(() => emptyClient.GetPlaytimeAsync("token", CancellationToken.None));
+        Assert.AreEqual(HakoAuthErrorKind.InvalidResponse, missing.Kind);
+    }
+
+    [TestMethod]
     public async Task RegistrationUsesSnakeCaseAndKeepsExchangeSecretOutOfDiagnostics()
     {
         HttpRequestMessage? observedRequest = null;

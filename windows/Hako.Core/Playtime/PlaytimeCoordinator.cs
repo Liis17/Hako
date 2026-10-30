@@ -24,7 +24,7 @@ internal enum PlaytimeTransferCheckpoint
 public sealed record PlaytimeTrackingRequest(Guid SessionID, string JournalPath, string OwnerKey, ulong StartedUnbiasedTicks);
 
 /// <summary>Shared game-root ledger and session-journal coordinator; journals are checkpointed by Hako.exe's helper.</summary>
-public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlaytimeTransfer, IAsyncDisposable
+public sealed partial class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlaytimeTransfer, IAsyncDisposable
 {
     public static readonly TimeSpan CheckpointInterval = TimeSpan.FromSeconds(10);
     private readonly PlaytimeLedgerStore _ledger;
@@ -47,6 +47,7 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
     private string? _errorResourceKey;
     private string? _errorDetail;
     private long _revision;
+    private HashSet<Guid> _uploadIds = [];
 
     public PlaytimeCoordinator(string gameRoot, IPlaytimeHelperLauncher? helperLauncher = null,
         IPlaytimeClock? clock = null, IPlaytimeProcessProbe? processProbe = null,
@@ -125,7 +126,11 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
         _pollingTask = null;
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync().ConfigureAwait(false);
+        if (Hako is not null) await Hako.DisposeAsync().ConfigureAwait(false);
+    }
 
     /// <summary>Includes helpers and sessions whose build has been removed from the instance registry.</summary>
     public async Task<bool> HasActiveProcessesAsync(CancellationToken cancellationToken = default)
@@ -151,6 +156,7 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
         CancellationToken cancellationToken = default)
     {
         if (_preview || instanceID == Guid.Empty) return null;
+        if (BeforeSessionStart is { } beforeStart) await beforeStart(cancellationToken).ConfigureAwait(false);
         await _sessionStartGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         var sessionID = Guid.NewGuid();
         var ownerKey = OwnerKey(xuid);
@@ -165,7 +171,8 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
                     {
                         SessionID = sessionID,
                         InstanceID = instanceID,
-                        OwnerKey = ownerKey
+                        OwnerKey = ownerKey,
+                        HakoAccountId = ledger.HakoAccountId
                     });
                     return true;
                 }, cancellationToken).ConfigureAwait(false);
@@ -279,7 +286,8 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
                     {
                         SessionID = sessionID,
                         InstanceID = tracked.InstanceID,
-                        OwnerKey = ownerKey
+                        OwnerKey = ownerKey,
+                        HakoAccountId = ledger.HakoAccountId
                     });
                 }
                 else if (session.InstanceID != tracked.InstanceID)
@@ -379,7 +387,11 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
                 }), cancellationToken).ConfigureAwait(false);
             }
 
-            await _ledger.MutateAsync(ledger => ledger.Sessions.Remove(sessionID), cancellationToken).ConfigureAwait(false);
+            await _ledger.MutateAsync(ledger =>
+            {
+                if (ledger.Sessions.TryGetValue(sessionID, out var session)) QueueHakoSegment(ledger, session);
+                return ledger.Sessions.Remove(sessionID);
+            }, cancellationToken).ConfigureAwait(false);
             DeleteJournalFiles(sessionID);
             await RefreshSnapshotAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -596,7 +608,11 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
             if (!ledger.Sessions.TryGetValue(journal.SessionID, out var session)) return false;
             if (ledger.PendingTransfer?.SessionIDs.Contains(journal.SessionID) == true) return false;
             Credit(ledger, session, elapsed);
-            if (isFinished) ledger.Sessions.Remove(journal.SessionID);
+            if (isFinished)
+            {
+                QueueHakoSegment(ledger, session);
+                ledger.Sessions.Remove(journal.SessionID);
+            }
             return true;
         }, cancellationToken).ConfigureAwait(false);
 
@@ -671,7 +687,8 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
         bool changed;
         lock (_stateSync)
         {
-            changed = !SnapshotsEqual(_owners, next);
+            changed = !SnapshotsEqual(_owners, next) || !_uploadIds.SetEquals(ledger.Uploads.Keys);
+            _uploadIds = ledger.Uploads.Keys.ToHashSet();
             if (changed)
             {
                 _owners = next;
@@ -841,7 +858,11 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
                 {
                     if (!ledger.Sessions.TryGetValue(sessionID, out var session) || session.OwnerKey != "guest") continue;
                     Credit(ledger, session, boundary.Elapsed);
-                    if (!boundary.Retain) ledger.Sessions.Remove(sessionID);
+                    if (!boundary.Retain)
+                    {
+                        QueueHakoSegment(ledger, session);
+                        ledger.Sessions.Remove(sessionID);
+                    }
                 }
 
                 var guest = ledger.Owners.GetValueOrDefault("guest") ?? new PlaytimeOwnerRecord();
@@ -881,7 +902,11 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
         if (orphans.Count == 0) return;
         await _ledger.MutateAsync(current =>
         {
-            foreach (var id in orphans) current.Sessions.Remove(id);
+            foreach (var id in orphans)
+            {
+                if (current.Sessions.TryGetValue(id, out var session)) QueueHakoSegment(current, session);
+                current.Sessions.Remove(id);
+            }
             return true;
         }, cancellationToken).ConfigureAwait(false);
     }
@@ -896,7 +921,8 @@ public sealed class PlaytimeCoordinator : INotifyPropertyChanged, IAccountPlayti
         var delta = elapsedSeconds - session.CreditedSeconds;
         if (delta <= 0) return;
         var owner = ledger.Owners.GetValueOrDefault(session.OwnerKey) ?? new PlaytimeOwnerRecord();
-        owner.TotalSeconds += delta;
+        if (session.HakoAccountId is null) owner.TotalSeconds += delta;
+        else session.HakoSeconds += delta;
         owner.Instances[session.InstanceID] = owner.Instances.GetValueOrDefault(session.InstanceID) + delta;
         session.CreditedSeconds = elapsedSeconds;
         ledger.Owners[session.OwnerKey] = owner;
