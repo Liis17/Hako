@@ -37,6 +37,7 @@ Vault: `Obsidian/HakoVault` — память о текущем устройст�
 | `Obsidian/HakoVault/Server/Auth.md` | Сервер Auth: Telegram identity, публичный и внутренний API, сессии и rate limits |
 | `Obsidian/HakoVault/Server/Pack.md` | Сервер Pack: API, формат `.hakopack`, S3, лимиты и отложенная очистка |
 | `Obsidian/HakoVault/Server/Deployment.md` | Docker Compose, env, HTTPS reverse proxy, CI и ограничения серверного домена |
+| `Obsidian/HakoVault/Site/Landing.md` | Статический лендинг `site/`: сборка `dist/`, nginx и ссылки на релизы GitHub |
 | `Obsidian/HakoVault/UI/ContentView.md` | Корень окна, настройки окна, выбор экрана |
 | `Obsidian/HakoVault/UI/Screens.md` | Экраны и общий стиль |
 | `Obsidian/HakoVault/UI/Launcher.md` | Главная страница: рейл, создание и профили сборок, удаление, дублирование и копии, текстурпаки, скриншоты, каталог Modrinth, настройки и аккаунт |

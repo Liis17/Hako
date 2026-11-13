@@ -60,6 +60,10 @@ Windows-клиент (`windows/`, WinUI 3, .NET 8) поддерживает Vani
 | [[Server/Pack]] | Сервер Pack: API, формат `.hakopack`, S3, лимиты и отложенная очистка |
 | [[Server/Deployment]] | Docker Compose, переменные окружения, HTTPS reverse proxy, CI и ограничения |
 
+## Site
+
+- [[Site/Landing|Лендинг]] — статический сайт `hako.liis17.com`, сборка, nginx и ссылки на релизы
+
 ## UI
 
 | Заметка | Назначение |
