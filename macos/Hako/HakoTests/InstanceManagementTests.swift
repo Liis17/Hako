@@ -399,7 +399,7 @@ import zlib
         await #expect(throws: InstanceFileError.self) { _ = try await store.duplicate(instance) }
     }
 
-    @Test func backupArchivesFolderWithManifestAtRoot() async throws {
+    @Test(arguments: [true, false]) func backupArchivesFolderWithManifestAtRoot(includeWorlds: Bool) async throws {
         let root = try temporary()
         defer { try? FileManager.default.removeItem(at: root) }
         let container = try container()
@@ -465,7 +465,13 @@ import zlib
         try Data("stale source manifest".utf8).write(to: folder.appendingPathComponent("data.json"))
         try container.mainContext.save()
 
-        let archive = try await store.backup(instance, content: InstanceContent())
+        let world = folder.appendingPathComponent("minecraft/saves/Test World/datapacks")
+        try FileManager.default.createDirectory(at: world, withIntermediateDirectories: true)
+        let datapack = world.appendingPathComponent("test.zip")
+        try Data("world datapack".utf8).write(to: datapack)
+
+        let archive = try await store.backup(instance, content: InstanceContent(), includeWorlds: includeWorlds)
+        #expect(FileManager.default.fileExists(atPath: datapack.path))
         #expect(archive.deletingLastPathComponent().standardizedFileURL == root.appendingPathComponent("backups").standardizedFileURL)
         #expect(archive.lastPathComponent.hasPrefix("Backup_Pack_") && archive.pathExtension == "hakobackup")
         #expect(try FileManager.default.contentsOfDirectory(atPath: archive.deletingLastPathComponent().path) == [archive.lastPathComponent])
@@ -483,6 +489,10 @@ import zlib
         #expect(entries.isSuperset(of: ["data.json", "icon.png", "java/runtime/bin/java", "java/runtime/alias/java", "java/link", "minecraft/mods/fabric-api.jar", "minecraft/mods/one.jar", "minecraft/mods/two.jar.disabled"]))
         #expect(entryNames.filter { $0 == "data.json" }.count == 1)
         #expect(!entries.contains("minecraft/.hako-running.json"))
+        #expect(entries.contains("minecraft/saves/Test World/datapacks/test.zip") == includeWorlds)
+        if !includeWorlds {
+            #expect(!entries.contains { $0 == "minecraft/saves" || $0.hasPrefix("minecraft/saves/") })
+        }
 
         let data = try await FabricClient.archiveEntry("data.json", in: archive, limit: 1_048_576)
         let manifest = try InstanceBackupManifest.decoder().decode(InstanceBackupManifest.self, from: data)
