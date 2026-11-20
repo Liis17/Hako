@@ -558,6 +558,7 @@ Hako</value></data>
   <data name="InstanceDuplicate" xml:space="preserve"><value>Duplicate build</value></data>
   <data name="InstanceDuplicating" xml:space="preserve"><value>Duplicating build…</value></data>
   <data name="InstanceBackup" xml:space="preserve"><value>Create backup</value></data>
+  <data name="InstanceBackupWithoutWorlds" xml:space="preserve"><value>Create backup without worlds</value></data>
   <data name="InstanceBackupInProgress" xml:space="preserve"><value>Creating build backup…</value></data>
   <data name="InstanceBackupSucceededMessage" xml:space="preserve"><value>Backup “{0}” was created.</value></data>
   <data name="WorldsBackup" xml:space="preserve"><value>Back up world</value></data>

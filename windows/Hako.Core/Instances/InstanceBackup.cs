@@ -72,7 +72,11 @@ public sealed class InstanceBackup
         _beforeArchiveEntry = beforeArchiveEntry;
     }
 
-    public async Task<BackupResult> CreateAsync(Guid instanceId, CancellationToken cancellationToken = default)
+    public Task<BackupResult> CreateAsync(Guid instanceId, CancellationToken cancellationToken = default) =>
+        CreateAsync(instanceId, includeWorlds: true, cancellationToken);
+
+    public async Task<BackupResult> CreateAsync(Guid instanceId, bool includeWorlds,
+        CancellationToken cancellationToken = default)
     {
         string? partialPath = null;
         var ownsPartial = false;
@@ -136,12 +140,13 @@ public sealed class InstanceBackup
                         instance.FabricProfileSHA1)
                 };
 
-                var excluded = IsExcludedPath;
-                var entries = await Task.Run(() => InstanceFileTree.Snapshot(root, excluded, token), token)
+                bool Excluded(string path) => IsExcludedPath(path)
+                    || (!includeWorlds && path.Equals("minecraft/saves", StringComparison.OrdinalIgnoreCase));
+                var entries = await Task.Run(() => InstanceFileTree.Snapshot(root, Excluded, token), token)
                     .ConfigureAwait(false);
                 partialPath = Path.Combine(outputDirectory, "." + Guid.NewGuid().ToString("N") + ".partial");
                 await WriteArchiveAsync(partialPath, manifest, entries, token, () => ownsPartial = true).ConfigureAwait(false);
-                InstanceFileTree.EnsureUnchanged(_store.GetInstanceDirectory(instanceId), entries, excluded, token);
+                InstanceFileTree.EnsureUnchanged(_store.GetInstanceDirectory(instanceId), entries, Excluded, token);
                 EnsureOutputDirectory(InstanceStorage.BackupsFolder);
                 if (EntryExists(target))
                     return BackupResult.Failed(BackupFailureReason.DestinationConflict,

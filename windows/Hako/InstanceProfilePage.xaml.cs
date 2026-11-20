@@ -147,6 +147,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         DuplicateMenuItem.Text = HakoStrings.Get("InstanceDuplicate");
         OpenMinecraftFolderMenuItem.Text = HakoStrings.Get("InstanceOpenMinecraftFolder");
         BackupMenuItem.Text = HakoStrings.Get("InstanceBackup");
+        BackupWithoutWorldsMenuItem.Text = HakoStrings.Get("InstanceBackupWithoutWorlds");
         DeleteMenuItem.Text = HakoStrings.Get("DeleteBuildMenu");
         SettingsTitle.Text = HakoStrings.Get("SettingsTitle");
         ModsSectionButton.Content = HakoStrings.Get("InstanceSectionMods");
@@ -782,8 +783,11 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         OpenMinecraftFolderMenuItem.IsEnabled = ready;
         DuplicateMenuItem.IsEnabled = ready && blocked is null && !_busyOperation;
         BackupMenuItem.IsEnabled = ready && blocked is null && !_busyOperation;
+        BackupWithoutWorldsMenuItem.IsEnabled = BackupMenuItem.IsEnabled;
         ToolTipService.SetToolTip(DuplicateMenuItem, blocked is { } duplicateError ? HakoStrings.Get(duplicateError.ResourceKey()) : null);
-        ToolTipService.SetToolTip(BackupMenuItem, blocked is { } backupError ? HakoStrings.Get(backupError.ResourceKey()) : null);
+        var backupTooltip = blocked is { } backupError ? HakoStrings.Get(backupError.ResourceKey()) : null;
+        ToolTipService.SetToolTip(BackupMenuItem, backupTooltip);
+        ToolTipService.SetToolTip(BackupWithoutWorldsMenuItem, backupTooltip);
         DeleteMenuItem.IsEnabled = blocked is null && !_busyOperation;
         ToolTipService.SetToolTip(DeleteMenuItem, blocked is { } error ? HakoStrings.Get(error.ResourceKey()) : null);
     }
@@ -832,7 +836,13 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
         }
     }
 
-    private async void BackupMenuItem_Click(object sender, RoutedEventArgs e)
+    private async void BackupMenuItem_Click(object sender, RoutedEventArgs e) =>
+        await CreateBackupAsync(includeWorlds: true);
+
+    private async void BackupWithoutWorldsMenuItem_Click(object sender, RoutedEventArgs e) =>
+        await CreateBackupAsync(includeWorlds: false);
+
+    private async Task CreateBackupAsync(bool includeWorlds)
     {
         if (_services is not { } services || Current() is not { } instance || _busyOperation) return;
         _busyOperation = true;
@@ -849,7 +859,7 @@ public sealed partial class InstanceProfilePage : Page, INavigationGuard
                 return;
             }
 
-            var result = await services.Backups.CreateAsync(_id);
+            var result = await services.Backups.CreateAsync(_id, includeWorlds);
             if (!result.Succeeded || result.Path is null)
             {
                 await HakoDialogs.ShowErrorAsync(BackupResourceKeys.FormatFailure(result.Failure, HakoStrings.Get));

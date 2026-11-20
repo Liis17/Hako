@@ -558,6 +558,7 @@
   <data name="InstanceDuplicate" xml:space="preserve"><value>Дублировать сборку</value></data>
   <data name="InstanceDuplicating" xml:space="preserve"><value>Создаём копию сборки…</value></data>
   <data name="InstanceBackup" xml:space="preserve"><value>Создать резервную копию</value></data>
+  <data name="InstanceBackupWithoutWorlds" xml:space="preserve"><value>Создать копию без миров</value></data>
   <data name="InstanceBackupInProgress" xml:space="preserve"><value>Создаём резервную копию сборки…</value></data>
   <data name="InstanceBackupSucceededMessage" xml:space="preserve"><value>Создана резервная копия «{0}».</value></data>
   <data name="WorldsBackup" xml:space="preserve"><value>Создать копию мира</value></data>

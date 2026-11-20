@@ -221,7 +221,9 @@ public sealed class InstanceBackupsAndScreenshotsTests
     }
 
     [TestMethod]
-    public async Task InstanceBackupMatchesMacManifestAndStreamsWholeInstanceWithoutTransientSessionFiles()
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task InstanceBackupMatchesMacManifestAndFiltersWorldsAndTransientFiles(bool includeWorlds)
     {
         await using var temporary = new TemporaryDirectory();
         var (store, instance, root) = await temporary.CreateReadyInstanceAsync(draft: new InstanceDraft
@@ -232,6 +234,9 @@ public sealed class InstanceBackupsAndScreenshotsTests
         });
         Directory.CreateDirectory(Path.Combine(root, "java", "runtime"));
         Directory.CreateDirectory(Path.Combine(root, "minecraft", "mods"));
+        var datapacks = Path.Combine(root, "minecraft", "saves", "Save", "datapacks");
+        Directory.CreateDirectory(datapacks);
+        await File.WriteAllTextAsync(Path.Combine(datapacks, "pack.zip"), "datapack");
         Directory.CreateDirectory(Path.Combine(root, "minecraft", ".hako-launch"));
         Directory.CreateDirectory(Path.Combine(root, "minecraft", "logs"));
         Directory.CreateDirectory(Path.Combine(root, ".hako-game"));
@@ -248,17 +253,24 @@ public sealed class InstanceBackupsAndScreenshotsTests
         var content = new InstanceContent(store);
         var backup = new InstanceBackup(store, content, () => BackupTime, null);
 
-        var result = await backup.CreateAsync(instance.Id);
+        var result = includeWorlds
+            ? await backup.CreateAsync(instance.Id)
+            : await backup.CreateAsync(instance.Id, includeWorlds: false);
 
         Assert.IsTrue(result.Succeeded, result.Failure?.Diagnostic);
         using var stream = File.OpenRead(result.Path!);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
-        CollectionAssert.AreEquivalent(new[]
+        var expectedEntries = new List<string>
         {
             "data.json", "icon.png", "java/", "java/runtime/", "java/runtime/javaw.exe",
             "minecraft/", "minecraft/logs/", "minecraft/mods/", "minecraft/mods/local.jar",
             "minecraft/.hako-mods.json"
-        }, archive.Entries.Select(entry => entry.FullName).ToArray());
+        };
+        if (includeWorlds)
+            expectedEntries.AddRange(["minecraft/saves/", "minecraft/saves/Save/",
+                "minecraft/saves/Save/datapacks/", "minecraft/saves/Save/datapacks/pack.zip"]);
+        CollectionAssert.AreEquivalent(expectedEntries, archive.Entries.Select(entry => entry.FullName).ToArray());
+        Assert.IsTrue(File.Exists(Path.Combine(datapacks, "pack.zip")));
         var json = await ReadJsonAsync(archive.GetEntry("data.json")!);
         Assert.AreEqual(1, json.RootElement.GetProperty("formatVersion").GetInt32());
         Assert.AreEqual("2026-10-23T14:07:08Z", json.RootElement.GetProperty("backupCreatedAt").GetString());
