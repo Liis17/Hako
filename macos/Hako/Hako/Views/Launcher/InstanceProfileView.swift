@@ -167,7 +167,8 @@ struct InstanceProfileView: View {
         let blocked = installations.store.managementBlockedReason(instance) != nil, ready = instance.state == .ready
         let menu = NSMenu(); menu.autoenablesItems = false
         menu.addItem(ClosureMenuItem(String(appLocalized: "Дублировать"), systemImage: "plus.square.on.square", enabled: !blocked && ready, handler: duplicate))
-        menu.addItem(ClosureMenuItem(String(appLocalized: "Резервная копия"), systemImage: "archivebox", enabled: !blocked && ready, handler: backup))
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Резервная копия"), systemImage: "archivebox", enabled: !blocked && ready, handler: { backup(includeWorlds: true) }))
+        menu.addItem(ClosureMenuItem(String(appLocalized: "Резервная копия без миров"), systemImage: "archivebox", enabled: !blocked && ready) { backup(includeWorlds: false) })
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(String(appLocalized: "Удалить сборку…"), systemImage: "trash", enabled: !blocked) { confirmingDelete = true })
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
@@ -182,11 +183,11 @@ struct InstanceProfileView: View {
         }
     }
 
-    private func backup() {
+    private func backup(includeWorlds: Bool) {
         operation = String(appLocalized: "Создаём резервную копию…")
         Task {
             defer { operation = nil }
-            do { backupURL = try await installations.store.backup(instance, content: installations.content) }
+            do { backupURL = try await installations.store.backup(instance, content: installations.content, includeWorlds: includeWorlds) }
             catch { actionError = error.localizedDescription }
         }
     }

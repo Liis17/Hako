@@ -8,15 +8,17 @@ Parent: [[Index]]
 из Finder, Windows — через файловую ассоциацию или кнопку в «Сборках»; обе платформы проверяют архив
 и восстанавливают его через изолированную staging-папку. Манифест `data.json` хранит снимок профиля
 сборки или сведения о мире; форматы данных клиентов не меняются.
-Копия создаётся из меню «⋯» профиля сборки ([[UI/Launcher]]).
+Копия создаётся из меню «⋯» профиля сборки ([[UI/Launcher]]). На macOS пункт «Резервная копия без миров»
+исключает `minecraft/saves` целиком, включая датапаки миров. Обычная копия включает сохранения.
+Оба варианта используют одну схему `.hakobackup` и стандартное восстановление.
 
 ## Источники
 
 | Файл | Значимый символ | Роль |
 |------|-----------------|------|
 | `macos/Hako/Hako/Instances/InstanceBackup.swift` | `InstanceBackupManifest` | Схема `data.json`, общие `encoder()`/`decoder()` |
-| `macos/Hako/Hako/Instances/InstanceBackup.swift` | `InstanceStore.backup(_:content:)` | Проверки, снимок полей сборки и список модов |
-| `macos/Hako/Hako/Instances/InstanceBackup.swift` | `InstanceBackup.archive(_:manifest:into:)` | Сборка архива системным `/usr/bin/zip` |
+| `macos/Hako/Hako/Instances/InstanceBackup.swift` | `InstanceStore.backup(_:content:includeWorlds:)` | Проверки, снимок полей сборки и список модов |
+| `macos/Hako/Hako/Instances/InstanceBackup.swift` | `InstanceBackup.archive(_:manifest:into:includeWorlds:)` | Сборка архива системным `/usr/bin/zip` |
 | `macos/Hako/Hako/Instances/InstanceStorage.swift` | `InstanceStorage.backupsFolder` | Имя папки `backups` в корне `~/.hako` |
 | `macos/Hako/Hako/Instances/RestoreArchive.swift` | `RestoreArchive.prepare` | Безопасная проверка ZIP и потоковая распаковка в staging |
 | `macos/Hako/Hako/Instances/BackupRestoreCoordinator.swift` | `BackupRestoreCoordinator` | Последовательная очередь Finder, выбор действия и транзакционная публикация |

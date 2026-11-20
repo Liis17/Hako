@@ -62,7 +62,7 @@ nonisolated struct InstanceBackupManifest: Codable, Sendable {
 
 extension InstanceStore {
     /// Упаковывает всю папку сборки в `~/.hako/backups/{папка}_{дата}.hakobackup` с `data.json` в корне архива.
-    func backup(_ instance: GameInstance, content: InstanceContent) async throws -> URL {
+    func backup(_ instance: GameInstance, content: InstanceContent, includeWorlds: Bool = true) async throws -> URL {
         if let reason = managementBlockedReason(instance) { throw InstanceFileError.message(reason) }
         guard instance.state == .ready else { throw InstanceFileError.message(String(appLocalized: "Дождитесь завершения установки сборки.")) }
         guard try !context.fetch(FetchDescriptor<GameInstance>()).contains(where: { $0.folderName.lowercased() == InstanceStorage.backupsFolder }) else {
@@ -92,13 +92,13 @@ extension InstanceStore {
             minecraftVersion: versionID, modLoader: modLoader, loaderVersion: fabric?.loaderVersion,
             javaMajorVersion: javaMajorVersion, iconSymbol: iconSymbol, iconPNG: iconPNG,
             modCount: mods.count, mods: mods, profile: profile)
-        return try await InstanceBackup.archive(root, manifest: manifest, into: backups)
+        return try await InstanceBackup.archive(root, manifest: manifest, into: backups, includeWorlds: includeWorlds)
     }
 }
 
 nonisolated enum InstanceBackup {
     /// Архив собирается во временный файл рядом с итоговым и появляется под своим именем только целиком.
-    @concurrent static func archive(_ source: URL, manifest: InstanceBackupManifest, into backups: URL) async throws -> URL {
+    @concurrent static func archive(_ source: URL, manifest: InstanceBackupManifest, into backups: URL, includeWorlds: Bool) async throws -> URL {
         let manager = FileManager.default
         try manager.createDirectory(at: backups, withIntermediateDirectories: true)
         let formatter = DateFormatter()
@@ -114,7 +114,11 @@ nonisolated enum InstanceBackup {
         try InstanceBackupManifest.encoder().encode(manifest).write(to: data)
         try await zip(["-q", "-j", partial.path, data.path], in: staging)
         // -y сохраняет ссылки внутри jre.bundle ссылками, а не копиями их целей.
-        try await zip(["-q", "-r", "-y", partial.path, ".", "-x", "data.json", "./data.json", "minecraft/.hako-running.json", ".hako-game/*"], in: source)
+        var exclusions = ["data.json", "./data.json", "minecraft/.hako-running.json", ".hako-game/*"]
+        if !includeWorlds {
+            exclusions += ["minecraft/saves", "minecraft/saves/*"]
+        }
+        try await zip(["-q", "-r", "-y", partial.path, ".", "-x"] + exclusions, in: source)
         try manager.moveItem(at: partial, to: target)
         return target
     }
